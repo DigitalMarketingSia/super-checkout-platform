@@ -1758,6 +1758,26 @@ CREATE TRIGGER check_license_gateways
     FOR EACH ROW EXECUTE FUNCTION public.enforce_active_license();
 
 -- ==========================================
+-- 8.5 SETUP UTILITIES
+-- ==========================================
+CREATE OR REPLACE FUNCTION public.is_setup_required()
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  -- If there are no profiles (admins), setup is required
+  IF NOT EXISTS (SELECT 1 FROM public.profiles LIMIT 1) THEN
+    RETURN TRUE;
+  END IF;
+  RETURN FALSE;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.is_setup_required() TO anon, authenticated, service_role;
+
+-- ==========================================
 -- 9. CACHE RELOAD (Critical for API to see new columns immediately)
 -- ==========================================
 NOTIFY pgrst, 'reload schema';
