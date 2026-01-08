@@ -227,6 +227,11 @@ BEGIN
     END IF;
 END $$;
 
+-- 2.10.1 Grants (Explicitly ensure anon can read)
+GRANT SELECT ON public.domains TO anon;
+GRANT SELECT ON public.domains TO authenticated;
+GRANT ALL ON public.domains TO service_role;
+
 DO $$
 BEGIN
     ALTER TABLE checkouts ADD COLUMN IF NOT EXISTS offer_id UUID;
