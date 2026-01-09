@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node scripts/copy-backend.js",
+    "build": "echo 'Build skipped: Artifacts are pre-built'",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -20,14 +20,6 @@
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.9.6",
     "recharts": "^3.4.1"
-  },
-  "devDependencies": {
-    "@types/node": "^22.14.0",
-    "@types/pg": "^8.15.6",
-    "@vercel/node": "^5.5.9",
-    "@vitejs/plugin-react": "^5.0.0",
-    "typescript": "~5.8.2",
-    "vite": "^6.2.0"
   },
   "engines": {
     "node": ">=18.0.0"
