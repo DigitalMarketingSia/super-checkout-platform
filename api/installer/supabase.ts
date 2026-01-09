@@ -788,7 +788,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
 
         console.log('[DEBUG] Token exchange response status:', tokenRes.status);
-        console.log('[DEBUG] Token exchange response headers:', Object.fromEntries(tokenRes.headers.entries()));
+        console.log('[DEBUG] Token exchange response status:', tokenRes.status);
+        console.log('[DEBUG] Token exchange response headers:', Object.fromEntries([...(tokenRes.headers as any).entries()]));
 
         // Safe JSON parsing
         const contentType = tokenRes.headers.get('content-type');
@@ -825,7 +826,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           });
 
           console.log('[DEBUG] Organizations API status:', orgsRes.status);
-          console.log('[DEBUG] Organizations API headers:', Object.fromEntries(orgsRes.headers.entries()));
+          console.log('[DEBUG] Organizations API headers:', Object.fromEntries([...(orgsRes.headers as any).entries()]));
 
           // Safe JSON parsing for orgs
           const orgsContentType = orgsRes.headers.get('content-type');
@@ -907,7 +908,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
 
         console.log('[DEBUG] Project creation response status:', createRes.status);
-        console.log('[DEBUG] Project creation response headers:', Object.fromEntries(createRes.headers.entries()));
+        console.log('[DEBUG] Project creation response headers:', Object.fromEntries([...(createRes.headers as any).entries()]));
 
         // Safe JSON parsing
         const createContentType = createRes.headers.get('content-type');
