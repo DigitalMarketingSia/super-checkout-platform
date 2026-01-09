@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "echo 'Build skipped: Artifacts are pre-built'",
+    "build": "mkdir -p public && cp -r assets index.html public/",
     "preview": "vite preview"
   },
   "dependencies": {
