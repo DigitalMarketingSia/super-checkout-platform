@@ -1,18 +1,20 @@
 {
-    "extends": "../tsconfig.json",
     "compilerOptions": {
         "module": "NodeNext",
         "moduleResolution": "NodeNext",
         "target": "ES2022",
         "lib": [
-            "ES2022"
+            "ES2022",
+            "DOM"
         ],
-        "noEmit": false,
         "allowSyntheticDefaultImports": true,
+        "skipLibCheck": true,
         "types": [
             "node"
         ],
-        "esModuleInterop": true
+        "strict": false,
+        "noEmit": true,
+        "baseUrl": "."
     },
     "include": [
         "**/*.ts"
