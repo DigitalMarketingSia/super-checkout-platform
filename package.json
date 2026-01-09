@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "mkdir -p dist && cp -r assets index.html dist/",
+    "build": "mkdir -p dist && cp -r assets index.html *.png *.svg *.ico *.json *.xml dist/ 2>/dev/null || :",
     "preview": "vite preview"
   },
   "dependencies": {
