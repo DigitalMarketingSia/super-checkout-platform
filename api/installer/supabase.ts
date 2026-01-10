@@ -733,7 +733,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       const validationRes = await fetch(`${CENTRAL_API_URL}/manage-licenses`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-secret': 'd8c36148-5c4e-4f7f-8c3e-9b6f12345678'
+        },
         body: JSON.stringify({
           action: 'validate_license',
           license_key: licenseKey,
