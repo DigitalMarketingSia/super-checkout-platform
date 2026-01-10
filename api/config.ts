@@ -33,9 +33,12 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
         });
     }
 
+    const licenseKey = process.env.VITE_LICENSE_KEY || process.env.NEXT_PUBLIC_LICENSE_KEY;
+
     res.status(200).json({
         url: supabaseUrl,
         anon: supabaseAnonKey,
+        license: licenseKey
         // We DO NOT return the Service Role Key here for security.
     });
 }
