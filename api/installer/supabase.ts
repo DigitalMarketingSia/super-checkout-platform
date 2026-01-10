@@ -731,18 +731,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const CENTRAL_API_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co/functions/v1';
 
     try {
-      const validationRes = await fetch(`${CENTRAL_API_URL}/manage-licenses`, {
+      const validationRes = await fetch(`${CENTRAL_API_URL}/validate-license`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-secret': 'd8c36148-5c4e-4f7f-8c3e-9b6f12345678'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'validate_license',
           license_key: licenseKey,
           installation_id: installationId,
-          current_domain: req.headers.host || 'unknown',
-          activate: false // Just check validity
+          current_domain: req.headers.host || 'unknown'
         })
       });
 
