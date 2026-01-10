@@ -26,6 +26,7 @@
     "@types/pg": "^8.15.6",
     "@vercel/node": "^5.5.9",
     "@vitejs/plugin-react": "^5.0.0",
+    "supabase": "^2.72.3",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
   },
