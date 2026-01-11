@@ -126,7 +126,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 clearTimeout(timeoutId);
 
                 if (validationRes.ok) {
-                    const comparison = await validationRes.json();
+                    let comparison = await validationRes.json();
+
+                    // SELF-HEALING: If Central doesn't know this installation, register it now.
+                    if (!comparison.valid && comparison.message?.includes('Installation not found')) {
+                        console.warn('⚠️ Central missing installation. Attempting self-healing (auto-register)...');
+                        try {
+                            const retryRes = await fetch('https://bcmnryxjweiovrwmztpn.supabase.co/functions/v1/validate-license', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    license_key: key,
+                                    installation_id: installationId,
+                                    current_domain: req.headers['host'] || 'unknown',
+                                    domain: domain,
+                                    register: true
+                                })
+                            });
+                            if (retryRes.ok) {
+                                comparison = await retryRes.json();
+                            }
+                        } catch (retryErr) {
+                            console.error('Self-healing failed', retryErr);
+                        }
+                    }
 
                     // If central says invalid (revoked, expired), return invalid immediately
                     if (!comparison.valid) {
