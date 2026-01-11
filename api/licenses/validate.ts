@@ -140,14 +140,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                     installation_id: installationId,
                                     current_domain: req.headers['host'] || 'unknown',
                                     domain: domain,
-                                    register: true
+                                    register: true // FORCE REGISTER
                                 })
                             });
-                            if (retryRes.ok) {
-                                comparison = await retryRes.json();
+
+                            // Always parse the retry result if request completed
+                            if (retryRes.ok || retryRes.status === 400 || retryRes.status === 409) {
+                                const retryData = await retryRes.json();
+                                // Only accept if valid, otherwise keep original error
+                                if (retryData.valid) {
+                                    console.log('✅ Self-healing successful.');
+                                    comparison = retryData;
+                                } else {
+                                    console.error('❌ Self-healing failed:', retryData.message);
+                                }
                             }
                         } catch (retryErr) {
-                            console.error('Self-healing failed', retryErr);
+                            console.error('Self-healing network error', retryErr);
                         }
                     }
 
