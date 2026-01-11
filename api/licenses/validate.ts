@@ -8,12 +8,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
     res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
 
+    // Allow GET for local status checks
     if (req.method === 'OPTIONS') return res.status(200).end();
-    if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+    if (req.method !== 'POST' && req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
-    const { key, domain, skip_lock } = req.body;
-
-    if (!key) return res.status(400).json({ valid: false, message: 'License key is required' });
+    let { key, domain, skip_lock } = req.body || {};
 
     try {
         const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
@@ -26,7 +25,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-        // 1. Get Local License
+        // 1. If no key provided (or GET), fetch most recent local license
+        if (!key) {
+            const { data: localLicense } = await supabase
+                .from('licenses')
+                .select('*')
+                .eq('status', 'active')
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .single();
+
+            if (localLicense) {
+                key = localLicense.key;
+            } else {
+                // Even if no license, we might want to return installation_id if it exists?
+                // But validation fails without a key usually.
+                // Let's proceed to check installation_id anyway, returning invalid for license but valid for installation ID?
+            }
+        }
+
+        if (!key && req.method === 'POST') {
+            return res.status(400).json({ valid: false, message: 'License key is required' });
+        }
+
+        // 1. Get Local License (Refetch or reuse)
         const { data: license, error } = await supabase
             .from('licenses')
             .select('*')
