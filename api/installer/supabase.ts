@@ -737,7 +737,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         body: JSON.stringify({
           license_key: licenseKey,
           installation_id: installationId,
-          current_domain: req.headers.host || 'unknown'
+          current_domain: req.headers.host || 'unknown',
+          register: true
         })
       });
 
