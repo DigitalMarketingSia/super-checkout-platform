@@ -35,6 +35,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         // 2. Get Installation ID from app_config
         let installationId = null;
+        let shouldRegister = false;
+
         try {
             const { data: configData } = await supabase
                 .from('app_config')
@@ -52,68 +54,100 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             console.warn('Failed to fetch installation_id from app_config', e);
         }
 
+        // SELF-HEALING: If ID invalid or missing, generate and save it.
+        // This migrates legacy installations to the new system automatically.
+        if (!installationId) {
+            console.log('⚠️ Legacy Installation detected (Missing ID). Auto-generating...');
+            try {
+                const crypto = await import('crypto');
+                installationId = crypto.randomUUID();
+
+                // Persist immediately
+                const { error: saveError } = await supabase.from('app_config').insert({
+                    key: 'installation_id',
+                    value: JSON.stringify(installationId)
+                });
+
+                if (saveError) {
+                    console.error('❌ Failed to save generated installation_id:', saveError);
+                    // If table missing, we can't persist. CRITICAL ERROR.
+                    // Fallback: Don't register to avoid filling slots with ephemeral IDs.
+                    installationId = null;
+                } else {
+                    shouldRegister = true; // Force registration on Central
+                    console.log(`✅ installation_id generated and saved: ${installationId}`);
+                }
+            } catch (err) {
+                console.error('❌ Error generating ID:', err);
+            }
+        }
+
         // 3. Central Authority Check (Primary Validation & Enrichment)
         try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+            // Only proceed if we have an ID (or if we are deliberately checking without one, but we shouldn't)
+            if (installationId) {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s timeout
 
-            const validationRes = await fetch('https://bcmnryxjweiovrwmztpn.supabase.co/functions/v1/validate-license', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    license_key: key,
-                    installation_id: installationId, // Send local installation_id
-                    current_domain: req.headers['host'] || 'unknown',
-                    domain: domain // Pass the client domain if provided
-                }),
-                signal: controller.signal
-            });
-            clearTimeout(timeoutId);
-
-            if (validationRes.ok) {
-                const comparison = await validationRes.json();
-
-                // If central says invalid (revoked, expired), return invalid immediately
-                if (!comparison.valid) {
-                    return res.status(200).json({
-                        valid: false,
-                        message: comparison.message || 'Licença revogada ou inválida.'
-                    });
-                }
-
-                // If valid, return central data which contains the authoritative ROLE
-                // We also sync with local DB if needed (Healing)
-                if (!license && comparison.license) {
-                    // Heal logic: Insert into local DB
-                    await supabase.from('licenses').insert({
-                        key: key,
-                        status: 'active',
-                        plan: comparison.license.plan,
-                        client_name: comparison.license.client_name,
-                        client_email: comparison.license.client_email,
-                        allowed_domain: domain || comparison.license.allowed_domain,
-                        expires_at: comparison.license.expires_at,
-                        created_at: new Date().toISOString()
-                    });
-                }
-
-                return res.status(200).json({
-                    valid: true,
-                    usage_type: comparison.usage_type || (license?.plan === 'commercial' ? 'commercial' : 'personal'),
-                    role: comparison.role || 'client', // Default to client if missing
-                    installation_id: installationId,
-                    license: comparison.license || license,
-                    permissions: {
-                        create_license: comparison.role === 'owner',
-                        resell: comparison.role === 'owner'
-                    }
+                const validationRes = await fetch('https://bcmnryxjweiovrwmztpn.supabase.co/functions/v1/validate-license', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        license_key: key,
+                        installation_id: installationId, // Send local installation_id
+                        current_domain: req.headers['host'] || 'unknown',
+                        domain: domain, // Pass the client domain if provided
+                        register: shouldRegister // Auto-Register if it's new/healed
+                    }),
+                    signal: controller.signal
                 });
-            }
+                clearTimeout(timeoutId);
+
+                if (validationRes.ok) {
+                    const comparison = await validationRes.json();
+
+                    // If central says invalid (revoked, expired), return invalid immediately
+                    if (!comparison.valid) {
+                        return res.status(200).json({
+                            valid: false,
+                            message: comparison.message || 'Licença revogada ou inválida.'
+                        });
+                    }
+
+                    // If valid, return central data which contains the authoritative ROLE
+                    // We also sync with local DB if needed (Healing)
+                    if (!license && comparison.license) {
+                        // Heal logic: Insert into local DB
+                        await supabase.from('licenses').insert({
+                            key: key,
+                            status: 'active',
+                            plan: comparison.license.plan,
+                            client_name: comparison.license.client_name,
+                            client_email: comparison.license.client_email,
+                            allowed_domain: domain || comparison.license.allowed_domain,
+                            expires_at: comparison.license.expires_at,
+                            created_at: new Date().toISOString()
+                        });
+                    }
+
+                    return res.status(200).json({
+                        valid: true,
+                        usage_type: comparison.usage_type || (license?.plan === 'commercial' ? 'commercial' : 'personal'),
+                        role: comparison.role || 'client', // Default to client if missing
+                        installation_id: installationId,
+                        license: comparison.license || license,
+                        permissions: {
+                            create_license: comparison.role === 'owner',
+                            resell: comparison.role === 'owner'
+                        }
+                    });
+                }
+            } // End if (installationId)
         } catch (centralError) {
             console.warn('⚠️ Central validation unreachable, using local fallback:', centralError);
         }
 
-        // 4. Local Fallback (If Central is down)
+        // 4. Local Fallback (If Central is down or ID missing)
         if (!license) {
             return res.status(200).json({ valid: false, message: 'License key invalid or not found locally.' });
         }
