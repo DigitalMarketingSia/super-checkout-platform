@@ -1826,7 +1826,7 @@ CREATE TRIGGER check_license_gateways
 -- ==========================================
 -- 8.5 SETUP UTILITIES
 -- ==========================================
-CREATE OR REPLACE FUNCTION public.is_setup_required()
+CREATE OR REPLACE FUNCTION public.is_setup_required(target_installation_id TEXT)
 RETURNS BOOLEAN
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -1841,7 +1841,7 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.is_setup_required() TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.is_setup_required(TEXT) TO anon, authenticated, service_role;
 
 -- ==========================================
 -- 9. CACHE RELOAD (Critical for API to see new columns immediately)
