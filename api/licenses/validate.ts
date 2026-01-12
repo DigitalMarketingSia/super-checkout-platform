@@ -184,15 +184,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         });
                     }
 
+                    // Logic to determine role locally if needed
+                    const derivedRole = (comparison.role && comparison.role !== 'client')
+                        ? comparison.role
+                        : (comparison.license?.plan === 'master' || license?.plan === 'master') ? 'owner' : 'client';
+
                     return res.status(200).json({
                         valid: true,
                         usage_type: comparison.usage_type || (license?.plan === 'commercial' ? 'commercial' : 'personal'),
-                        role: comparison.role || 'client', // Default to client if missing
+                        role: derivedRole,
                         installation_id: installationId,
                         license: comparison.license || license,
                         permissions: {
-                            create_license: comparison.role === 'owner',
-                            resell: comparison.role === 'owner'
+                            create_license: derivedRole === 'owner',
+                            resell: derivedRole === 'owner'
                         }
                     });
                 }
