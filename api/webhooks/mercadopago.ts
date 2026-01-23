@@ -253,6 +253,54 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 console.log(`[Webhook] Updated Order ${paymentRecord.order_id} to ${orderStatus}`);
 
+                // --- NEW: Dispatch Secure Webhook to Client ---
+                // This calls the Edge Function which filters data (Public/Client Scope)
+                try {
+                    console.log('[Webhook] Dispatching event to Client Webhooks...');
+
+                    // Construct Safe Payload
+                    // We only send what is necessary and safe. The Dispatcher will whitelist-filter this again to be double sure.
+                    const safePayload = {
+                        event: `pagamento.${orderStatus === 'paid' ? 'aprovado' : orderStatus}`, // 'pagamento.aprovado'
+                        order_id: paymentRecord.order_id,
+                        checkout_id: order?.checkout_id,
+                        amount: order?.total || order?.amount,
+                        currency: order?.currency || 'BRL',
+                        status: orderStatus,
+                        payment_method: order?.payment_method || 'unknown',
+                        customer: {
+                            name: order?.customer_name,
+                            email: order?.customer_email,
+                            phone: order?.customer_phone,
+                            cpf: order?.customer_cpf
+                        },
+                        items: order?.items,
+                        purchased_at: new Date().toISOString()
+                    };
+
+                    // Call dispatch-webhook Function
+                    // Using fetch to calling the function URL
+                    await fetch(`${supabaseUrl}/functions/v1/dispatch-webhook`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${supabaseKey}` // Service Role or Anon Key (Check Permissions)
+                        },
+                        body: JSON.stringify({
+                            event: safePayload.event,
+                            scope: 'client', // STRICTLY CLIENT SCOPE
+                            owner_id: paymentRecord?.user_id || order?.user_id, // The Merchant ID
+                            payload: safePayload
+                        })
+                    });
+
+                } catch (dispatchError: any) {
+                    console.error('[Webhook] Failed to dispatch client webhook:', dispatchError);
+                    // Don't fail the whole request, just log
+                    await logToSupabase('webhook.dispatch_error', { error: dispatchError.message }, false);
+                }
+                // ----------------------------------------------
+
                 // Store whether we should send email (only if status changed to paid AND wasn't fully processed before)
                 if (order) {
                     // Send email/grant access if:
