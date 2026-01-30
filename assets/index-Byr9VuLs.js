@@ -1473,6 +1473,34 @@ CREATE TABLE IF NOT EXISTS public.integrations(
     UNIQUE(user_id, name)
 );
 
+-- 3.1 Email Templates
+CREATE TABLE IF NOT EXISTS public.email_templates(
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    event_type TEXT NOT NULL,
+    name TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    html_body TEXT NOT NULL,
+    active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    UNIQUE(event_type)
+);
+
+-- Seed Data (Default Post-Sales Template)
+INSERT INTO public.email_templates (event_type, name, subject, html_body)
+VALUES ('ORDER_COMPLETED', 'Pedido Aprovado', 'Seu pedido #{{order_id}} foi aprovado!', '<div style="font-family: sans-serif; color: #333;">
+    <h1>Olá, {{customer_name}}!</h1>
+    <p>Parabéns pela sua compra.</p>
+    <p>Seu pedido <strong>#{{order_id}}</strong> foi confirmado com sucesso.</p>
+    <p>Você adquiriu a licença: {{product_names}}</p>
+    <br/>
+    <p>Acesse o portal para instruções de instalação</p>
+    <a href="{{portal_url}}" style="background-color: #0070f3; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Acessar Portal</a>
+    <br/><br/>
+    <p>Atenciosamente,<br/>Equipe Super Checkout</p>
+  </div>')
+ON CONFLICT (event_type) DO NOTHING;
+
 -- ==========================================
 -- 4. VIEWS & FUNCTIONS
 -- ==========================================
@@ -1746,6 +1774,7 @@ ALTER TABLE public.member_notes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.member_tags ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.activity_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE email_templates ENABLE ROW LEVEL SECURITY;
 
 -- Drop all existing policies to avoid conflicts
 DO $$
@@ -1794,6 +1823,13 @@ CREATE POLICY "Public can view orders" ON orders FOR SELECT USING(true);
 CREATE POLICY "Users can manage their own payments" ON payments FOR ALL USING(auth.uid() = user_id);
 CREATE POLICY "Public can create payments" ON payments FOR INSERT WITH CHECK(true);
 CREATE POLICY "Public can view payments" ON payments FOR SELECT USING(true);
+
+-- Email Templates
+CREATE POLICY "Admins can manage email templates" ON public.email_templates 
+FOR ALL USING (public.is_admin());
+
+CREATE POLICY "Public/Members can read active templates" ON public.email_templates 
+FOR SELECT USING (active = true);
 
 -- Contents
 CREATE POLICY "Users can manage their own contents" ON contents FOR ALL USING(
