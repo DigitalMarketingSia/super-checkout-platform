@@ -445,6 +445,12 @@ BEGIN
     END
   )
   ON CONFLICT (id) DO NOTHING;
+  
+  -- Auto-seed default 'resend' integration (Inactive state, but valid provider)
+  INSERT INTO integrations (user_id, name, provider, active, config)
+  VALUES (NEW.id, 'resend', 'resend', false, '{}'::jsonb)
+  ON CONFLICT (user_id, name) DO NOTHING;
+
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
