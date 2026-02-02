@@ -81,8 +81,96 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     let paymentRecord: any = null;
 
+
+    // --- EMAIL HELPERS ---
+    const sendOrderEmail = async (order: any, supabaseUrl: string, supabaseKey: string) => {
+        try {
+            console.log(`[Webhook] Attempting to send email for Order ${order.id}`);
+
+            // 1. Fetch Resend Integration
+            const intRes = await fetch(`${supabaseUrl}/rest/v1/integrations?name=eq.resend&active=eq.true&select=*&limit=1`, {
+                headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
+            });
+
+            if (!intRes.ok) throw new Error('Failed to fetch integrations');
+            const integrations = await intRes.json();
+            const integration = integrations?.[0];
+
+            if (!integration || !integration.config?.apiKey) {
+                console.warn('[Webhook] No active Resend integration found. Skipping email.');
+                return;
+            }
+
+            const apiKey = integration.config.apiKey;
+            const fromEmail = integration.config.senderEmail || "onboarding@resend.dev";
+
+            // 2. Fetch Template
+            let subject = 'Pagamento Aprovado - Acesso Liberado!';
+            let html = `<p>Olá ${order.customer_name}, seu pagamento foi aprovado!</p>`;
+
+            try {
+                const tplRes = await fetch(`${supabaseUrl}/rest/v1/email_templates?event_type=eq.ORDER_COMPLETED&active=eq.true&select=*&limit=1`, {
+                    headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
+                });
+
+                if (tplRes.ok) {
+                    const templates = await tplRes.json();
+                    if (templates && templates.length > 0) {
+                        const tpl = templates[0];
+                        subject = tpl.subject;
+                        html = tpl.html_body;
+                    }
+                }
+            } catch (tplErr) {
+                console.warn('[Webhook] Failed to fetch template, using fallback.');
+            }
+
+            // 3. Replace Variables
+            const variables: Record<string, string> = {
+                '{{customer_name}}': order.customer_name || 'Cliente',
+                '{{order_id}}': order.id,
+                '{{amount}}': order.amount,
+                '{{product_names}}': 'Produtos Digitais', // Future: fetch items names
+                '{{members_area_url}}': 'https://app.supercheckout.com/login' // Generic fallback
+            };
+
+            for (const [key, value] of Object.entries(variables)) {
+                subject = subject.replace(new RegExp(key, 'g'), value);
+                html = html.replace(new RegExp(key, 'g'), value);
+            }
+
+            // 4. Send via Resend
+            const resendRes = await fetch("https://api.resend.com/emails", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${apiKey}`,
+                },
+                body: JSON.stringify({
+                    from: fromEmail,
+                    to: [order.customer_email],
+                    subject: subject,
+                    html: html
+                }),
+            });
+
+            if (!resendRes.ok) {
+                const errData = await resendRes.json();
+                console.error('[Webhook] Resend API Error:', errData);
+            } else {
+                console.log(`[Webhook] Email sent to ${order.customer_email}`);
+            }
+
+        } catch (error: any) {
+            console.error('[Webhook] Email sending failed:', error.message);
+        }
+    };
+
+
     try {
         console.log('[Webhook] Received POST request');
+        // ... (rest of handler) ...
+
         const payload = req.body;
 
         // 1. Log Raw Receipt
@@ -328,11 +416,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // 6. Fulfill Order (Agnostic Brain)
         // This centralizes user creation, access grants, and SaaS licensing
         if (orderStatus === 'paid' && order && supabaseKey) {
+
+            // A. Send Email (Directly from Webhook for reliability)
+            // We run this in parallel or before the Edge Function to ensure delivery
+            await sendOrderEmail(order, supabaseUrl, supabaseKey);
+
             try {
                 console.log(`[Webhook] Triggering internal fulfillment for Order ${order.id}`);
 
                 // We use the same service role key to call our internal function
-                await fetch(`${supabaseUrl}/functions/v1/fulfill-order`, {
+                // Note: In Client Install, this function might NOT exist. 
+                // We wrap in try/catch and logging implies it's optional for basic email flow now.
+                const fulfillRes = await fetch(`${supabaseUrl}/functions/v1/fulfill-order`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -345,10 +440,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     })
                 });
 
-                await logToSupabase('webhook.fulfillment_triggered', {
-                    orderId: order.id,
-                    email: order.customer_email
-                }, true, paymentRecord?.gateway_id);
+                if (!fulfillRes.ok) {
+                    console.warn(`[Webhook] fulfill-order function might be missing (Client Install?). Status: ${fulfillRes.status}`);
+                } else {
+                    await logToSupabase('webhook.fulfillment_triggered', {
+                        orderId: order.id,
+                        email: order.customer_email
+                    }, true, paymentRecord?.gateway_id);
+                }
 
             } catch (fulfillError: any) {
                 console.error('[Webhook] Failed to trigger fulfillment:', fulfillError);
