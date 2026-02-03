@@ -12,7 +12,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === 'OPTIONS') return res.status(200).end();
     if (req.method !== 'POST' && req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
-    let { key, domain, skip_lock } = req.body || {};
+    let { key, domain, skip_lock, activate, register } = req.body || {};
 
     try {
         const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
@@ -57,7 +57,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         // 2. Get Installation ID from app_config
         let installationId = null;
-        let shouldRegister = false;
+        let shouldRegister = activate || register || false; // Trust frontend if explicit
 
         try {
             const { data: configData } = await supabase
@@ -119,7 +119,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         installation_id: installationId, // Send local installation_id
                         current_domain: req.headers['host'] || 'unknown',
                         domain: domain, // Pass the client domain if provided
-                        register: shouldRegister // Auto-Register if it's new/healed
+                        activate: shouldRegister // Auto-Register if it's new/healed
                     }),
                     signal: controller.signal
                 });
@@ -140,7 +140,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                     installation_id: installationId,
                                     current_domain: req.headers['host'] || 'unknown',
                                     domain: domain,
-                                    register: true // FORCE REGISTER
+                                    activate: true // FORCE REGISTER
                                 })
                             });
 
