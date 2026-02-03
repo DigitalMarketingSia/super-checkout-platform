@@ -57,13 +57,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         // 2. Get Installation ID from app_config
         let installationId = null;
-        let shouldRegister = activate || register || false;
-
-        // MASTER KEY BYPASS: Skip strict validation for the owner's key
-        const isMasterKey = key === '03592c87-4b69-4381-9b3d-38b01d678c4c';
-        if (isMasterKey) {
-            shouldRegister = true; // Always attempt to register/verify master silently
-        }
+        let shouldRegister = activate || register || false; // Trust frontend if explicit
 
         try {
             const { data: configData } = await supabase
