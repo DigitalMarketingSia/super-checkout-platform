@@ -105,8 +105,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const fromEmail = integration.config.senderEmail || "onboarding@resend.dev";
 
             // 2. Fetch Template
-            let subject = 'Pagamento Aprovado - Acesso Liberado!';
-            let html = `<p>Olá ${order.customer_name}, seu pagamento foi aprovado!</p>`;
+            let subject = '';
+            let html = '';
 
             try {
                 const tplRes = await fetch(`${supabaseUrl}/rest/v1/email_templates?event_type=eq.ORDER_COMPLETED&active=eq.true&select=*&limit=1`, {
@@ -119,10 +119,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         const tpl = templates[0];
                         subject = tpl.subject;
                         html = tpl.html_body;
+                    } else {
+                        console.log('[Webhook] Notification disabled (no active template found). Skipping email.');
+                        return;
                     }
+                } else {
+                    console.warn('[Webhook] Failed to query templates. DB Error.');
+                    return;
                 }
             } catch (tplErr) {
-                console.warn('[Webhook] Failed to fetch template, using fallback.');
+                console.warn('[Webhook] Failed to fetch template:', tplErr);
+                return;
             }
 
             // 3. Replace Variables
@@ -131,7 +138,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 '{{order_id}}': order.id,
                 '{{amount}}': order.amount,
                 '{{product_names}}': 'Produtos Digitais', // Future: fetch items names
-                '{{members_area_url}}': 'https://app.supercheckout.com/login' // Generic fallback
+                '{{members_area_url}}': 'https://app.supercheckout.app/login' // Generic fallback
             };
 
             for (const [key, value] of Object.entries(variables)) {
@@ -419,7 +426,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             // A. Send Email (Directly from Webhook for reliability)
             // We run this in parallel or before the Edge Function to ensure delivery
-            await sendOrderEmail(order, supabaseUrl, supabaseKey);
+            if (order._shouldSendEmail) {
+                await sendOrderEmail(order, supabaseUrl, supabaseKey);
+            } else {
+                console.log('[Webhook] Skipping email (Duplicate/Idempotency check).');
+            }
 
             try {
                 console.log(`[Webhook] Triggering internal fulfillment for Order ${order.id}`);
