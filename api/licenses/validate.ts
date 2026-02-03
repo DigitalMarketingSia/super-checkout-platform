@@ -50,8 +50,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         // EMERGENCY OVERRIDE for Master Key (Vercel Layer)
         // This ensures access even if Supabase Edge Function is outdated/blocking
-        if (key === '03592c87-4b69-4381-9b3d-38b01d678c4c') {
-            console.log('🔓 Master Key used - Bypassing checks');
+        const MASTER_KEY_ENV = process.env.VITE_MASTER_LICENSE_KEY || process.env.MASTER_LICENSE_KEY;
+
+        if (MASTER_KEY_ENV && key === MASTER_KEY_ENV) {
+            console.log('🔓 Master Key used (Env) - Bypassing checks');
             return res.status(200).json({
                 valid: true,
                 usage_type: 'commercial',
