@@ -48,6 +48,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(400).json({ valid: false, message: 'License key is required' });
         }
 
+        // EMERGENCY OVERRIDE for Master Key (Vercel Layer)
+        // This ensures access even if Supabase Edge Function is outdated/blocking
+        if (key === '03592c87-4b69-4381-9b3d-38b01d678c4c') {
+            console.log('🔓 Master Key used - Bypassing checks');
+            return res.status(200).json({
+                valid: true,
+                usage_type: 'commercial',
+                role: 'owner',
+                installation_id: 'master-override',
+                license: {
+                    plan: 'master',
+                    client_name: 'Super Checkout System',
+                    status: 'active',
+                    expires_at: null,
+                    allowed_domain: null
+                },
+                permissions: {
+                    create_license: true,
+                    resell: true
+                }
+            });
+        }
+
         // 1. Get Local License (Refetch or reuse)
         const { data: license, error } = await supabase
             .from('licenses')
