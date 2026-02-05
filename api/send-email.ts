@@ -66,13 +66,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         // 4. Parse Request
-        const { to, subject, html, plain_text } = req.body;
+        const { to, subject, html, plain_text, from_name } = req.body;
 
         if (!to) return res.status(400).json({ error: "Missing 'to' field" });
         if (!html && !plain_text) return res.status(400).json({ error: "Missing content (html or text)" });
 
+        // Construct dynamic sender identity
+        // Format: "Business Name <system@email.com>"
+        const fromIdentity = from_name
+            ? `"${from_name}" <${fromEmail}>`
+            : fromEmail;
+
         const emailBody: any = {
-            from: fromEmail,
+            from: fromIdentity,
             to: Array.isArray(to) ? to : [to],
             subject: subject || 'No Subject',
         };
@@ -80,7 +86,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (html) emailBody.html = html;
         if (plain_text) emailBody.text = plain_text;
 
-        console.log(`[Send-Email] Sending to ${to} via Resend...`);
+        console.log(`[Send-Email] Sending to ${to} via Resend as '${fromIdentity}'...`);
 
         // 5. Send via Resend
         const resendRes = await fetch("https://api.resend.com/emails", {
