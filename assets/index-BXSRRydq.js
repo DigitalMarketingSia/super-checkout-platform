@@ -1068,7 +1068,7 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- 2.1 Domains
 CREATE TABLE IF NOT EXISTS domains(
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    user_id UUID REFERENCES auth.users(id) NOT NULL,
+    user_id UUID REFERENCES auth.users(id),
     domain TEXT NOT NULL UNIQUE,
     status TEXT DEFAULT 'pending_verification',
     type TEXT DEFAULT 'cname',
