@@ -9,5 +9,11 @@
             "destination": "/index.html"
         }
     ],
-    "headers": []
+    "headers": [],
+    "crons": [
+        {
+            "path": "/api/health",
+            "schedule": "0 0 */6 * *"
+        }
+    ]
 }
