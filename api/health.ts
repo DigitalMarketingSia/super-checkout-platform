@@ -1,11 +1,11 @@
 import type { VercelRequest, VercelResponse } from '@vercel.node';
-import { createClient } from '@supabase/supabase-js';
 
 /**
  * HEALTH / KEEP-ALIVE ENDPOINT
  * 
  * This endpoint is called by Vercel Cron to prevent Supabase project pausing.
  * It performs a simple query to ensure database activity.
+ * Uses native fetch to match the project's existing API patterns.
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     // CORS Headers
@@ -22,10 +22,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return;
     }
 
-    const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://vixlzrmhqsbzjhpgfwdn.supabase.co';
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
-    if (!supabaseUrl || !supabaseAnonKey) {
+    if (!supabaseUrl || !supabaseKey) {
         return res.status(500).json({
             error: 'Configuration Missing',
             message: 'Supabase environment variables are not set.'
@@ -33,12 +33,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
-        const supabase = createClient(supabaseUrl, supabaseAnonKey);
-        
-        // Simple query to generate activity
-        const { data, error } = await supabase.from('modules').select('id').limit(1);
+        // Simple query via REST API to generate activity
+        const response = await fetch(`${supabaseUrl}/rest/v1/modules?select=id&limit=1`, {
+            headers: {
+                'apikey': supabaseKey,
+                'Authorization': `Bearer ${supabaseKey}`
+            }
+        });
 
-        if (error) throw error;
+        if (!response.ok) {
+            throw new Error(`Supabase REST API returned ${response.status}`);
+        }
 
         res.status(200).json({
             status: 'healthy',
