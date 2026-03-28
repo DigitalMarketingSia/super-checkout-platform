@@ -5,7 +5,7 @@
             "destination": "https://api.mercadopago.com/:path*"
         },
         {
-            "source": "/((?!api/|mp-api/).*)",
+            "source": "/((?!api/|mp-api/|@vite/|@react-refresh|@id/|src/|node_modules/|.*\\.).*)",
             "destination": "/index.html"
         }
     ],
