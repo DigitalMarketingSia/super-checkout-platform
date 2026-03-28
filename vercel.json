@@ -1,5 +1,15 @@
 {
     "rewrites": [
+        { "source": "/api/check-status", "destination": "/api/system?action=check-status" },
+        { "source": "/api/health", "destination": "/api/system?action=health" },
+        { "source": "/api/proxy", "destination": "/api/system?action=proxy" },
+        { "source": "/api/send-email", "destination": "/api/system?action=send-email" },
+        { "source": "/api/admin/:action", "destination": "/api/admin.ts?action=:action" },
+        { "source": "/api/domains/:action", "destination": "/api/domains.ts?action=:action" },
+        { "source": "/api/installer/:action", "destination": "/api/installer.ts?action=:action" },
+        { "source": "/api/licenses/validate", "destination": "/api/licenses?action=validate" },
+        { "source": "/api/stripe/create-payment-intent", "destination": "/api/payments?action=create-payment-intent" },
+        { "source": "/api/webhooks/:action", "destination": "/api/webhooks.ts?action=:action" },
         {
             "source": "/mp-api/:path*",
             "destination": "https://api.mercadopago.com/:path*"
