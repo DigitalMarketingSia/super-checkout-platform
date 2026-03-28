@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import addHandler from '../src/core/api/domains/add';
-import removeHandler from '../src/core/api/domains/remove';
-import verifyHandler from '../src/core/api/domains/verify';
+import addHandler from '../src/core/api/domains/add.js';
+import removeHandler from '../src/core/api/domains/remove.js';
+import verifyHandler from '../src/core/api/domains/verify.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { action } = req.query;

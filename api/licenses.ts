@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import validateLicenseHandler from '../src/core/api/licenses/validate';
+import validateLicenseHandler from '../src/core/api/licenses/validate.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {

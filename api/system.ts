@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import checkStatusHandler from '../src/core/api/check-status';
-import healthHandler from '../src/core/api/health';
-import proxyHandler from '../src/core/api/proxy';
-import sendEmailHandler from '../src/core/api/send-email';
+import checkStatusHandler from '../src/core/api/check-status.js';
+import healthHandler from '../src/core/api/health.js';
+import proxyHandler from '../src/core/api/proxy.js';
+import sendEmailHandler from '../src/core/api/send-email.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { action } = req.query;

@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import createLicenseHandler from '../src/core/api/admin/create-license';
-import membersHandler from '../src/core/api/admin/members';
+import createLicenseHandler from '../src/core/api/admin/create-license.js';
+import membersHandler from '../src/core/api/admin/members.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { action } = req.query;

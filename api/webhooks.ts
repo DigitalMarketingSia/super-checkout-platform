@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import centralWebhookHandler from '../src/core/api/webhooks/central';
-import mercadopagoWebhookHandler from '../src/modules/mercadopago/webhook';
-import stripeWebhookHandler from '../src/modules/stripe/webhook';
+import centralWebhookHandler from '../src/core/api/webhooks/central.js';
+import mercadopagoWebhookHandler from '../src/modules/mercadopago/webhook.js';
+import stripeWebhookHandler from '../src/modules/stripe/webhook.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { action } = req.query;

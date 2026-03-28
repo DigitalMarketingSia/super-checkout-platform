@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import stripePaymentIntentHandler from '../src/modules/stripe/create-payment-intent';
+import stripePaymentIntentHandler from '../src/modules/stripe/create-payment-intent.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { action } = req.query;
