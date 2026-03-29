@@ -72,9 +72,13 @@ async function handleStripe(req: VercelRequest, res: VercelResponse, rawBody: st
         });
     };
 
-    if (!paymentIntentId || !paymentIntentId.startsWith('pi_')) {
-        await logWebhook('webhook.stripe_ignored', 'No PI ID', 200);
-        return res.status(200).json({ message: 'Ignored' });
+    // Extract ID (Priority: Specific PI -> Session PI -> Payload ID)
+    const piFromSession = payload.data?.object?.payment_intent;
+    const effectiveId = piFromSession || payload.data?.object?.id || payload.pi;
+
+    if (!effectiveId || (!effectiveId.startsWith('pi_') && !effectiveId.startsWith('cs_'))) {
+        await logWebhook('webhook.stripe_ignored', `Invalid ID: ${effectiveId}`, 200);
+        return res.status(200).json({ message: 'Ignored: Invalid ID format' });
     }
 
     // 1. Fetch Payment & Gateway Secret
@@ -85,7 +89,7 @@ async function handleStripe(req: VercelRequest, res: VercelResponse, rawBody: st
     const { data: existingPayment } = await supabaseAdmin
         .from('payments')
         .select('*, gateways(*)')
-        .eq('transaction_id', paymentIntentId)
+        .eq('transaction_id', effectiveId)
         .single();
 
     if (existingPayment) {
@@ -96,7 +100,7 @@ async function handleStripe(req: VercelRequest, res: VercelResponse, rawBody: st
         const metadataOrderId = payload.data?.object?.metadata?.order_id || payload.order_id;
         
         if (metadataOrderId) {
-            console.log(`[Stripe Webhook] Recovery: Payment not found for ${paymentIntentId}. Checking Order ${metadataOrderId}...`);
+            console.log(`[Stripe Webhook] Recovery: Payment not found for ${effectiveId}. Checking Order ${metadataOrderId}...`);
             const { data: order } = await supabaseAdmin.from('orders').select('*').eq('id', metadataOrderId).single();
             
             if (order) {
@@ -108,7 +112,7 @@ async function handleStripe(req: VercelRequest, res: VercelResponse, rawBody: st
                     order_id: order.id,
                     gateway_id: gatewayRecord?.id,
                     status: 'pending',
-                    transaction_id: paymentIntentId
+                    transaction_id: effectiveId
                 };
                 mustCreatePayment = true;
                 console.log(`[Stripe Webhook] Recovery: Found Order ${order.id}. Proceeding with auto-creation.`);
@@ -117,7 +121,7 @@ async function handleStripe(req: VercelRequest, res: VercelResponse, rawBody: st
     }
 
     if (!paymentRecord) {
-        await logWebhook('webhook.stripe_error', `Payment and Recovery failed: ${paymentIntentId}`, 404);
+        await logWebhook('webhook.stripe_error', `Payment and Recovery failed: ${effectiveId}`, 404);
         return res.status(200).json({ message: 'Payment record not found and recovery failed' });
     }
 
