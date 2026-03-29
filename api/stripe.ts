@@ -61,8 +61,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 async function handleStripe(req: VercelRequest, res: VercelResponse, rawBody: string, supabaseAdmin: any, supabaseUrl: string, supabaseKey: string) {
     const payload = JSON.parse(rawBody);
     const signature = req.headers['stripe-signature'] as string;
-    const eventType = payload.type;
-    const paymentIntentId = payload.data?.object?.payment_intent || payload.data?.object?.id;
+    
+    // Support both Full Stripe Payload and Simplified Dispatcher Payload
+    const eventType = payload.type || payload.event;
+    const paymentIntentId = payload.data?.object?.payment_intent || payload.data?.object?.id || payload.pi;
 
     const logWebhook = async (event: string, msg: string, status: number) => {
         await supabaseAdmin.from('webhook_logs').insert({
@@ -76,20 +78,58 @@ async function handleStripe(req: VercelRequest, res: VercelResponse, rawBody: st
     }
 
     // 1. Fetch Payment & Gateway Secret
-    const { data: paymentRecord } = await supabaseAdmin
+    let paymentRecord: any = null;
+    let gatewayRecord: any = null;
+    let mustCreatePayment = false;
+
+    const { data: existingPayment } = await supabaseAdmin
         .from('payments')
-        .select('*, gateways(stripe_webhook_secret)')
+        .select('*, gateways(*)')
         .eq('transaction_id', paymentIntentId)
         .single();
 
+    if (existingPayment) {
+        paymentRecord = existingPayment;
+        gatewayRecord = existingPayment.gateways;
+    } else {
+        // RECOVERY LOGIC: Use Metadata if DB record hasn't been created yet (Race Condition)
+        const metadataOrderId = payload.data?.object?.metadata?.order_id || payload.order_id;
+        
+        if (metadataOrderId) {
+            console.log(`[Stripe Webhook] Recovery: Payment not found for ${paymentIntentId}. Checking Order ${metadataOrderId}...`);
+            const { data: order } = await supabaseAdmin.from('orders').select('*').eq('id', metadataOrderId).single();
+            
+            if (order) {
+                // Find an active Stripe gateway to get the webhook secret
+                const { data: gateways } = await supabaseAdmin.from('gateways').select('*').eq('name', 'stripe').eq('active', true).limit(1);
+                gatewayRecord = gateways?.[0];
+                
+                paymentRecord = {
+                    order_id: order.id,
+                    gateway_id: gatewayRecord?.id,
+                    status: 'pending',
+                    transaction_id: paymentIntentId
+                };
+                mustCreatePayment = true;
+                console.log(`[Stripe Webhook] Recovery: Found Order ${order.id}. Proceeding with auto-creation.`);
+            }
+        }
+    }
+
     if (!paymentRecord) {
-        await logWebhook('webhook.stripe_error', `Payment missing: ${paymentIntentId}`, 404);
-        return res.status(200).json({ message: 'Payment record not found' });
+        await logWebhook('webhook.stripe_error', `Payment and Recovery failed: ${paymentIntentId}`, 404);
+        return res.status(200).json({ message: 'Payment record not found and recovery failed' });
     }
 
     // 2. Validate Signature
-    const webhookSecret = (paymentRecord as any).gateways?.stripe_webhook_secret;
-    if (webhookSecret && signature) {
+    const webhookSecret = gatewayRecord?.stripe_webhook_secret;
+    const internalSecret = process.env.VITE_CENTRAL_SHARED_SECRET;
+    const incomingInternalSig = req.headers['x-super-checkout-signature'];
+
+    // Bypass signature if it's an internal dispatch with valid secret
+    const isInternalMatch = incomingInternalSig && internalSecret && incomingInternalSig === internalSecret;
+
+    if (!isInternalMatch && webhookSecret && signature) {
         try {
             const parts = signature.split(',');
             const timestamp = parts.find((p: any) => p.startsWith('t='))?.split('=')[1];
@@ -102,17 +142,31 @@ async function handleStripe(req: VercelRequest, res: VercelResponse, rawBody: st
                 return res.status(400).json({ error: 'Invalid signature' });
             }
         } catch (e) {
+            console.error('[Stripe Webhook] Sig validation error:', e);
             return res.status(400).json({ error: 'Signature failure' });
         }
     }
 
     // 3. Update Status
-    if (['payment_intent.succeeded', 'charge.succeeded', 'checkout.session.completed'].includes(eventType)) {
+    if (['payment_intent.succeeded', 'charge.succeeded', 'checkout.session.completed', 'paid', 'pagamento.aprovado'].includes(eventType)) {
         const orderId = paymentRecord.order_id;
-        await Promise.all([
-            supabaseAdmin.from('payments').update({ status: 'paid' }).eq('id', paymentRecord.id),
+        
+        const updates = [
             supabaseAdmin.from('orders').update({ status: 'paid' }).eq('id', orderId)
-        ]);
+        ];
+
+        if (mustCreatePayment) {
+            updates.push(supabaseAdmin.from('payments').insert({
+                ...paymentRecord,
+                status: 'paid',
+                raw_response: rawBody,
+                created_at: new Date().toISOString()
+            }));
+        } else {
+            updates.push(supabaseAdmin.from('payments').update({ status: 'paid', raw_response: rawBody }).eq('id', paymentRecord.id));
+        }
+
+        await Promise.all(updates);
 
         fetch(`${supabaseUrl}/functions/v1/fulfill-order`, {
             method: 'POST',
@@ -120,7 +174,7 @@ async function handleStripe(req: VercelRequest, res: VercelResponse, rawBody: st
             body: JSON.stringify({ order_id: orderId })
         }).catch(() => {});
 
-        await logWebhook('webhook.stripe_success', `Order ${orderId} paid`, 200);
+        await logWebhook('webhook.stripe_success', `Order ${orderId} approved (Recovery: ${mustCreatePayment})`, 200);
     } else {
         await logWebhook(`webhook.stripe_ignored_${eventType}`, 'Event ignored', 200);
     }
