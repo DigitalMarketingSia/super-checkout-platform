@@ -3,6 +3,12 @@ import centralWebhookHandler from '../src/core/api/webhooks/central.js';
 import mercadopagoWebhookHandler from '../src/modules/mercadopago/webhook.js';
 import stripeWebhookHandler from '../src/modules/stripe/webhook.js';
 
+export const config = {
+    api: {
+        bodyParser: false,
+    },
+};
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { action } = req.query;
 
