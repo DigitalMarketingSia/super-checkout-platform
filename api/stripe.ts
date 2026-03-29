@@ -38,14 +38,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
 
     try {
+        // --- BODY EXTRACTION ---
+        // Stripe REQUIRES rawBody for signature. 
+        // Mercado Pago IPN often sends EMPTY body but has data in query params.
         const rawBody = await getRawBody(req);
-        if (!rawBody) return res.status(200).json({ status: 'EMPTY_BODY' });
 
         if (action === 'stripe') {
+            if (!rawBody) return res.status(200).json({ status: 'EMPTY_BODY_STRIPE' });
             return await handleStripe(req, res, rawBody, supabaseAdmin, supabaseUrl, supabaseKey);
-        } else if (action === 'mercadopago') {
+        } 
+        
+        if (action === 'mercadopago') {
+            // Mercado Pago can have empty body if it's an IPN
             return await handleMercadoPago(req, res, rawBody, supabaseAdmin);
-        } else if (action === 'central' || action === 'super-checkout-central') {
+        }
+
+        if (action === 'central' || action === 'super-checkout-central') {
+            if (!rawBody) return res.status(200).json({ status: 'EMPTY_BODY_CENTRAL' });
             return await handleCentral(req, res, rawBody, supabaseAdmin);
         }
 
@@ -173,15 +182,27 @@ async function handleStripe(req: VercelRequest, res: VercelResponse, rawBody: st
 }
 
 async function handleMercadoPago(req: VercelRequest, res: VercelResponse, rawBody: string, supabaseAdmin: any) {
-    let payload: any;
-    try { payload = JSON.parse(rawBody); } catch (e) { return res.status(200).json({ status: 'INVALID_JSON' }); }
+    let payload: any = {};
+    if (rawBody) {
+        try { payload = JSON.parse(rawBody); } catch (e) { console.warn('[MP Hub] Raw body is not JSON'); }
+    }
 
     // Mercado Pago IPN/Webhooks can have different formats.
-    // They usually send "resource" (URL) or "id"
-    const resourceId = payload.data?.id || payload.id;
-    const type = payload.type || payload.topic;
+    // Webhooks: { action: "payment.created", data: { id: "123" } }
+    // IPN: query params ?id=123&topic=payment
+    const resourceId = (payload.data?.id || payload.id || req.query.id || req.query['data.id']) as string;
+    const type = (payload.type || payload.topic || req.query.topic || req.query.type) as string;
 
-    if (!resourceId || (type !== 'payment' && type !== 'merchant_order')) {
+    console.log('[MP Hub] ID:', resourceId, 'Type:', type, 'Action:', payload.action);
+
+    if (!resourceId) {
+        return res.status(200).json({ status: 'IGNORED_NO_ID', query: req.query });
+    }
+
+    // Capture standard payment actions
+    const isPaymentAction = type === 'payment' || payload.action?.includes('payment') || req.query.topic === 'payment';
+    
+    if (!isPaymentAction && type !== 'merchant_order') {
         return res.status(200).json({ status: 'IGNORED_TYPE', type });
     }
 
