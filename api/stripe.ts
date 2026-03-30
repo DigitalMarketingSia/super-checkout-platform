@@ -206,27 +206,39 @@ async function handleMercadoPago(req: VercelRequest, res: VercelResponse, rawBod
         return res.status(200).json({ status: 'IGNORED_TYPE', type });
     }
 
-    // 1. Find Gateway and Private Key
-    const { data: gts } = await supabaseAdmin.from('gateways').select('*').eq('name', 'mercadopago').eq('active', true).limit(1);
-    const gatewayRecord = gts?.[0];
-
-    if (!gatewayRecord?.private_key) {
-        return res.status(200).json({ status: 'GATEWAY_NOT_CONFIGURED' });
+    // 1. Find the Active Mercado Pago Gateway
+    const { data: gateways } = await supabaseAdmin
+        .from('gateways')
+        .select('*')
+        .or('name.ilike.%mercado%,name.eq.mercado_pago')
+        .eq('active', true);
+    
+    const gatewayRecord = gateways?.[0];
+    
+    if (!gatewayRecord || !gatewayRecord.private_key) {
+        console.warn(`[MP Hub] No active Mercado Pago gateway found or missing private key`);
+        return res.status(200).json({ status: 'GATEWAY_NOT_FOUND' });
     }
 
     // 2. Fetch Payment Info from Mercado Pago (Verification)
-    // We use the direct API here for simplicity in a serverless function
     try {
         const mpResponse = await fetch(`https://api.mercadopago.com/v1/payments/${resourceId}`, {
             headers: { 'Authorization': `Bearer ${gatewayRecord.private_key}` }
         });
 
-        if (!mpResponse.ok) throw new Error(`MP API Error: ${mpResponse.status}`);
+        if (!mpResponse.ok) {
+            // If it's a merchant_order, we might need a different API, but for now we focus on payments
+            console.warn(`[MP Hub] Resource ${resourceId} not found or error: ${mpResponse.status}`);
+            return res.status(200).json({ status: 'RESOURCE_NOT_FOUND', resourceId });
+        }
+        
         const mpData = await mpResponse.json();
 
         // 3. Match with local Order/Payment
-        const transactionId = mpData.id.toString();
-        const externalRef = mpData.external_reference; // This matches currentOrder.id from our paymntService
+        const transactionId = mpData.id?.toString();
+        const externalRef = mpData.external_reference; // This matches order.id
+
+        console.log(`[MP Hub] Processing ID ${transactionId}, Status: ${mpData.status}, Ref: ${externalRef}`);
 
         let paymentRecord: any = null;
         const { data: existing } = await supabaseAdmin.from('payments').select('*').eq('transaction_id', transactionId).single();
@@ -237,25 +249,40 @@ async function handleMercadoPago(req: VercelRequest, res: VercelResponse, rawBod
             // Recovery: Try to find by order ID (external_reference)
             const { data: order } = await supabaseAdmin.from('orders').select('*').eq('id', externalRef).single();
             if (order) {
+                console.log(`[MP Hub] Recovered order ${order.id} for transaction ${transactionId}`);
                 paymentRecord = { order_id: order.id, gateway_id: gatewayRecord.id, transaction_id: transactionId, status: 'pending' };
             }
         }
 
         if (!paymentRecord) {
-            return res.status(200).json({ status: 'ORDER_NOT_FOUND', transactionId });
+            console.warn(`[MP Hub] No local record found for Transaction ${transactionId} / Ref ${externalRef}`);
+            return res.status(200).json({ status: 'ORDER_NOT_FOUND', transactionId, externalRef });
         }
 
-        // 4. Update Status (Approved logic)
-        if (mpData.status === 'approved') {
+        // 4. Update Status (Resilient logic)
+        const mpStatus = mpData.status?.toLowerCase();
+        if (mpStatus === 'approved' || mpStatus === 'authorized') {
             const oid = paymentRecord.order_id;
+            console.log(`[MP Hub] Fulfilling order ${oid}...`);
+            
             const updates = [
                 supabaseAdmin.from('orders').update({ status: 'paid' }).eq('id', oid)
             ];
 
             if (!paymentRecord.id) {
-                updates.push(supabaseAdmin.from('payments').insert({ ...paymentRecord, status: 'paid', raw_response: JSON.stringify(mpData), created_at: new Date().toISOString() }));
+                const newId = crypto.randomUUID();
+                updates.push(supabaseAdmin.from('payments').insert({ 
+                    ...paymentRecord, 
+                    id: newId,
+                    status: 'paid', 
+                    raw_response: JSON.stringify(mpData), 
+                    created_at: new Date().toISOString() 
+                }));
             } else {
-                updates.push(supabaseAdmin.from('payments').update({ status: 'paid', raw_response: JSON.stringify(mpData) }).eq('id', paymentRecord.id));
+                updates.push(supabaseAdmin.from('payments').update({ 
+                    status: 'paid', 
+                    raw_response: JSON.stringify(mpData) 
+                }).eq('id', paymentRecord.id));
             }
 
             await Promise.all(updates);
@@ -263,17 +290,20 @@ async function handleMercadoPago(req: VercelRequest, res: VercelResponse, rawBod
             // Fulfillment Trigger (Non-blocking)
             const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://vixlzrmhqsbzjhpgfwdn.supabase.co';
             const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-            fetch(`${supabaseUrl}/functions/v1/fulfill-order`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${supabaseKey}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ order_id: oid })
-            }).catch(() => {});
+            
+            if (supabaseKey) {
+                fetch(`${supabaseUrl}/functions/v1/fulfill-order`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${supabaseKey}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ order_id: oid })
+                }).catch(e => console.error('[MP Hub] Fulfillment trigger error:', e.message));
+            }
         }
 
         return res.status(200).json({ status: 'OK', mpStatus: mpData.status });
 
     } catch (err: any) {
-        console.error('[MercadoPago Webhook] Error:', err.message);
+        console.error('[MercadoPago Webhook] Fatal Error:', err.message);
         return res.status(200).json({ status: 'ERROR', message: err.message });
     }
 }
