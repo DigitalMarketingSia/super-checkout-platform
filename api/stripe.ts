@@ -125,29 +125,29 @@ async function handleStripe(req: VercelRequest, res: VercelResponse, rawBody: st
         return res.status(200).json({ status: 'NOT_FOUND' });
     }
 
-    // 3. Validate Signature (Optional if Internal Bypass)
+    // 3. Validate Signature (Strict HMAC requirement)
     const secret = gatewayRecord?.stripe_webhook_secret;
-    const internalSecret = process.env.VITE_CENTRAL_SHARED_SECRET;
-    const incomingInternalSig = req.headers['x-super-checkout-signature'];
-    const isInternalMatch = incomingInternalSig && internalSecret && incomingInternalSig === internalSecret;
 
-    if (!isInternalMatch && secret && signature) {
-        try {
-            const parts = signature.split(',');
-            const timestamp = (parts.find(p => p.startsWith('t=')) || '').split('=')[1];
-            const stripeSig = (parts.find(p => p.startsWith('v1=')) || '').split('=')[1];
-            const expectedSig = crypto.createHmac('sha256', secret).update(`${timestamp}.${rawBody}`).digest('hex');
+    if (!secret || !signature) {
+        await logWebhook('webhook.stripe_signature_error', 'Missing secret or signature', 200);
+        return res.status(200).json({ status: 'MISSING_SIGNATURE' });
+    }
 
-            // Timing-safe comparison to prevent timing attacks
-            const sigBuffer = Buffer.from(stripeSig || '', 'hex');
-            const expectedBuffer = Buffer.from(expectedSig, 'hex');
-            if (sigBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(sigBuffer, expectedBuffer)) {
-                await logWebhook('webhook.stripe_signature_error', 'Signature Mismatch', 200);
-                return res.status(200).json({ status: 'INVALID_SIGNATURE' });
-            }
-        } catch (e) {
-            return res.status(200).json({ status: 'SIG_FAILURE' });
+    try {
+        const parts = signature.split(',');
+        const timestamp = (parts.find(p => p.startsWith('t=')) || '').split('=')[1];
+        const stripeSig = (parts.find(p => p.startsWith('v1=')) || '').split('=')[1];
+        const expectedSig = crypto.createHmac('sha256', secret).update(`${timestamp}.${rawBody}`).digest('hex');
+
+        // Timing-safe comparison to prevent timing attacks
+        const sigBuffer = Buffer.from(stripeSig || '', 'hex');
+        const expectedBuffer = Buffer.from(expectedSig, 'hex');
+        if (sigBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(sigBuffer, expectedBuffer)) {
+            await logWebhook('webhook.stripe_signature_error', 'Signature Mismatch', 200);
+            return res.status(200).json({ status: 'INVALID_SIGNATURE' });
         }
+    } catch (e) {
+        return res.status(200).json({ status: 'SIG_FAILURE' });
     }
 
     // 4. Fulfillment
@@ -316,10 +316,15 @@ async function handleCentral(req: VercelRequest, res: VercelResponse, rawBody: s
     try { payload = JSON.parse(rawBody); } catch (e) { return res.status(200).json({ status: 'INVALID_JSON' }); }
 
     const { event, payload: data } = payload;
-    const internalSecret = process.env.VITE_CENTRAL_SHARED_SECRET;
+    const centralSecret = process.env.CENTRAL_SHARED_SECRET;
     const incomingSig = req.headers['x-super-checkout-signature'];
 
-    if (!incomingSig || incomingSig !== internalSecret) return res.status(200).json({ status: 'UNAUTHORIZED' });
+    if (!centralSecret) {
+        console.warn('[Central Webhook] CENTRAL_SHARED_SECRET missing in Vercel env');
+        return res.status(200).json({ status: 'CONFIG_ERROR' });
+    }
+
+    if (!incomingSig || incomingSig !== centralSecret) return res.status(200).json({ status: 'UNAUTHORIZED' });
 
     if (event === 'license.upgraded' || event === 'license.activated') {
         const { license_key, plan_type } = data;
