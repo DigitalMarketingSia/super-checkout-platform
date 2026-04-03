@@ -9,6 +9,7 @@
         { "source": "/api/installer/:action", "destination": "/api/installer.ts?action=:action" },
         { "source": "/api/licenses/validate", "destination": "/api/licenses?action=validate" },
         { "source": "/api/stripe/create-payment-intent", "destination": "/api/payments?action=create-payment-intent" },
+        { "source": "/api/central/:endpoint", "destination": "/api/central-proxy?endpoint=:endpoint" },
         { "source": "/api/webhooks/:action", "destination": "/api/stripe?action=:action" },
         {
             "source": "/mp-api/:path*",
