@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import stripePaymentIntentHandler from '../src/modules/stripe/create-payment-intent.js';
-import { processMercadoPagoPayment } from '../src/modules/payments/mercadopago';
-import { securityService } from '../src/core/services/securityService';
+import { processMercadoPagoPayment } from '../src/modules/payments/mercadopago.js';
+import { securityService } from '../src/core/services/securityService.js';
 
 /**
  * PAYMENTS HUB (v4)
