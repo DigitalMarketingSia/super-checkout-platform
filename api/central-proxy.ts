@@ -45,14 +45,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // --- 2. Validate required env vars ---
-    const centralApiUrl = process.env.VITE_CENTRAL_API_URL;
+    const centralApiUrl = process.env.VITE_CENTRAL_API_URL || 'https://bcmnryxjweiovrwmztpn.supabase.co/functions/v1';
     const centralSecret = process.env.CENTRAL_SHARED_SECRET || process.env.VITE_CENTRAL_SHARED_SECRET;
     const supabaseUrl = process.env.VITE_CENTRAL_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
     const supabaseAnonKey = process.env.VITE_CENTRAL_SUPABASE_ANON_KEY;
 
     if (!centralApiUrl || !centralSecret) {
         console.error('[Central Proxy] Missing CENTRAL_API_URL or CENTRAL_SHARED_SECRET');
-        return res.status(500).json({ error: 'Server configuration error' });
+        return res.status(500).json({ error: 'Server configuration error: missing credentials' });
     }
 
     // --- 3. Validate JWT ---
