@@ -84,12 +84,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(401).json({ error: 'Invalid or expired token' });
         }
 
-        // --- 4. Verify admin/owner role ---
+        // --- 4. Verify Roles & Granular Permissions ---
         const userRole = user.user_metadata?.role || user.app_metadata?.role;
-        const ADMIN_ROLES = ['admin', 'owner'];
-        if (!userRole || !ADMIN_ROLES.includes(userRole)) {
-            console.warn(`[Central Proxy] Non-admin access attempt by ${user.id} (role: ${userRole})`);
-            return res.status(403).json({ error: 'Insufficient permissions' });
+        const isAdmin = userRole === 'admin' || userRole === 'owner';
+
+        if (!isAdmin) {
+            let isAllowed = false;
+
+            if (endpoint === 'get-license-status') {
+                if (req.body?.email && req.body.email.toLowerCase() === user.email?.toLowerCase()) {
+                    isAllowed = true;
+                }
+            } else if (endpoint === 'manage-licenses') {
+                const action = req.body?.action;
+                const allowedActions = [
+                    'generate_token',
+                    'reinstall',
+                    'revoke_installation',
+                    'get_license_features'
+                ];
+
+                if (allowedActions.includes(action)) {
+                    // Se a ação exige email, deve ser o dele
+                    if (!req.body?.email || req.body.email.toLowerCase() === user.email?.toLowerCase()) {
+                        isAllowed = true;
+                    }
+                }
+            } else if (endpoint === 'manage-user-installations') {
+                const targetEmail = req.method === 'GET' ? req.query?.email : req.body?.email;
+                if (!targetEmail || (typeof targetEmail === 'string' && targetEmail.toLowerCase() === user.email?.toLowerCase())) {
+                    isAllowed = true;
+                }
+            } else if (endpoint === 'activate-free-license') {
+                isAllowed = true;
+            }
+
+            if (!isAllowed) {
+                console.warn(`[Central Proxy] Forbidden access attempt by ${user.email} (role: ${userRole}) on ${endpoint} action ${req.body?.action}`);
+                return res.status(403).json({ error: 'Insufficient permissions or email mismatch' });
+            }
         }
 
         // --- 5. Build target URL ---
