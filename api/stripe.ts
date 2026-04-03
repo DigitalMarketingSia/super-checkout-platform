@@ -138,7 +138,10 @@ async function handleStripe(req: VercelRequest, res: VercelResponse, rawBody: st
             const stripeSig = (parts.find(p => p.startsWith('v1=')) || '').split('=')[1];
             const expectedSig = crypto.createHmac('sha256', secret).update(`${timestamp}.${rawBody}`).digest('hex');
 
-            if (stripeSig !== expectedSig) {
+            // Timing-safe comparison to prevent timing attacks
+            const sigBuffer = Buffer.from(stripeSig || '', 'hex');
+            const expectedBuffer = Buffer.from(expectedSig, 'hex');
+            if (sigBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(sigBuffer, expectedBuffer)) {
                 await logWebhook('webhook.stripe_signature_error', 'Signature Mismatch', 200);
                 return res.status(200).json({ status: 'INVALID_SIGNATURE' });
             }
