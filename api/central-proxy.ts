@@ -64,35 +64,53 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const jwt = authHeader.replace('Bearer ', '');
 
     try {
-        // Use the CENTRAL Supabase to validate the JWT (since users are in the Central project)
-        const centralSupabaseUrl = supabaseUrl || centralApiUrl.replace('/functions/v1', '');
-        const centralAnonKey = supabaseAnonKey || '';
+        let user: any = null;
 
-        if (!centralAnonKey) {
-            console.error('[Central Proxy] Missing CENTRAL_SUPABASE_ANON_KEY for JWT validation');
-            return res.status(500).json({ error: 'Server configuration error' });
+        // Try LOCAL Supabase First
+        const localSupabaseUrl = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const localAnonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+        if (localSupabaseUrl && localAnonKey) {
+            const localClient = createClient(localSupabaseUrl, localAnonKey, {
+                global: { headers: { Authorization: `Bearer ${jwt}` } }
+            });
+            const res = await localClient.auth.getUser(jwt);
+            if (!res.error && res.data?.user) {
+                user = res.data.user;
+            }
         }
 
-        const supabase = createClient(centralSupabaseUrl, centralAnonKey, {
-            global: { headers: { Authorization: `Bearer ${jwt}` } }
-        });
+        // Try CENTRAL Supabase Fallback
+        if (!user) {
+            const centralSupUrl = process.env.VITE_CENTRAL_SUPABASE_URL || centralApiUrl.replace('/functions/v1', '');
+            const centralAnon = process.env.VITE_CENTRAL_SUPABASE_ANON_KEY;
+            
+            if (centralSupUrl && centralAnon) {
+                const altClient = createClient(centralSupUrl, centralAnon, {
+                    global: { headers: { Authorization: `Bearer ${jwt}` } }
+                });
+                const resAlt = await altClient.auth.getUser(jwt);
+                if (!resAlt.error && resAlt.data?.user) {
+                    user = resAlt.data.user;
+                }
+            }
+        }
 
-        const { data: { user }, error: authError } = await supabase.auth.getUser(jwt);
-
-        if (authError || !user) {
-            console.warn('[Central Proxy] JWT validation failed:', authError?.message);
+        if (!user) {
+            console.warn('[Central Proxy] JWT validation failed across all environments');
             return res.status(401).json({ error: 'Invalid or expired token' });
         }
 
         // --- 4. Verify Roles & Granular Permissions ---
-        const userRole = user.user_metadata?.role || user.app_metadata?.role;
-        const isAdmin = userRole === 'admin' || userRole === 'owner';
+        const MASTER_ADMINS = ['contato.jeandamin@gmail.com', 'admin@supercheckout.app'];
+        const userEmail = user.email ? user.email.toLowerCase() : '';
+        const isMasterAdmin = MASTER_ADMINS.includes(userEmail);
 
-        if (!isAdmin) {
+        if (!isMasterAdmin) {
             let isAllowed = false;
 
             if (endpoint === 'get-license-status') {
-                if (req.body?.email && req.body.email.toLowerCase() === user.email?.toLowerCase()) {
+                if (req.body?.email && req.body.email.toLowerCase() === userEmail) {
                     isAllowed = true;
                 }
             } else if (endpoint === 'manage-licenses') {
@@ -106,13 +124,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 if (allowedActions.includes(action)) {
                     // Se a ação exige email, deve ser o dele
-                    if (!req.body?.email || req.body.email.toLowerCase() === user.email?.toLowerCase()) {
+                    if (!req.body?.email || req.body.email.toLowerCase() === userEmail) {
                         isAllowed = true;
                     }
                 }
             } else if (endpoint === 'manage-user-installations') {
                 const targetEmail = req.method === 'GET' ? req.query?.email : req.body?.email;
-                if (!targetEmail || (typeof targetEmail === 'string' && targetEmail.toLowerCase() === user.email?.toLowerCase())) {
+                if (!targetEmail || (typeof targetEmail === 'string' && targetEmail.toLowerCase() === userEmail)) {
                     isAllowed = true;
                 }
             } else if (endpoint === 'activate-free-license') {
@@ -120,7 +138,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             if (!isAllowed) {
-                console.warn(`[Central Proxy] Forbidden access attempt by ${user.email} (role: ${userRole}) on ${endpoint} action ${req.body?.action}`);
+                console.warn(`[Central Proxy] Forbidden access attempt by ${user.email} on ${endpoint} action ${req.body?.action}`);
                 return res.status(403).json({ error: 'Insufficient permissions or email mismatch' });
             }
         }
