@@ -50,6 +50,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         if (action === 'mercadopago') {
+            console.log("[PaymentsHub] Action: mercadopago");
+            console.log("[PaymentsHub] Query:", JSON.stringify(req.query, null, 2));
+            console.log("[PaymentsHub] Body Keys:", Object.keys(req.body || {}));
+            console.log("[PaymentsHub] CheckoutId in Body:", req.body?.checkoutId);
+
             const result = await processMercadoPagoPayment({
                 ...req.body,
                 ip
