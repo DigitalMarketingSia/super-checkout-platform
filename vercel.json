@@ -1,16 +1,16 @@
 {
     "rewrites": [
-        { "source": "/api/check-status", "destination": "/api/system?action=check-status" },
-        { "source": "/api/health", "destination": "/api/system?action=health" },
-        { "source": "/api/proxy", "destination": "/api/system?action=proxy" },
-        { "source": "/api/send-email", "destination": "/api/system?action=send-email" },
+        { "source": "/api/check-status", "destination": "/api/system.ts?action=check-status" },
+        { "source": "/api/health", "destination": "/api/system.ts?action=health" },
+        { "source": "/api/proxy", "destination": "/api/system.ts?action=proxy" },
+        { "source": "/api/send-email", "destination": "/api/system.ts?action=send-email" },
         { "source": "/api/admin/:action", "destination": "/api/admin.ts?action=:action" },
         { "source": "/api/domains/:action", "destination": "/api/domains.ts?action=:action" },
         { "source": "/api/installer/:action", "destination": "/api/installer.ts?action=:action" },
-        { "source": "/api/licenses/validate", "destination": "/api/licenses?action=validate" },
-        { "source": "/api/stripe/create-payment-intent", "destination": "/api/payments?action=create-payment-intent" },
-        { "source": "/api/central/:endpoint", "destination": "/api/central-proxy?endpoint=:endpoint" },
-        { "source": "/api/webhooks/:action", "destination": "/api/stripe?action=:action" },
+        { "source": "/api/licenses/validate", "destination": "/api/licenses.ts?action=validate" },
+        { "source": "/api/stripe/create-payment-intent", "destination": "/api/payments.ts?action=create-payment-intent" },
+        { "source": "/api/central/:endpoint", "destination": "/api/central-proxy.ts?endpoint=:endpoint" },
+        { "source": "/api/webhooks/:action", "destination": "/api/stripe.ts?action=:action" },
         {
             "source": "/mp-api/:path*",
             "destination": "https://api.mercadopago.com/:path*"
