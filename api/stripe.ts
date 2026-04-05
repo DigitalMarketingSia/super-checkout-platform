@@ -267,8 +267,11 @@ async function handleMercadoPago(req: VercelRequest, res: VercelResponse, rawBod
 
     // 2. Fetch Payment Info from Mercado Pago (Reverse Verification — most robust method)
     try {
+        // CRITICAL FIX: Decrypt the private key before using it as a Bearer token!
+        const decodedKey = decrypt(gatewayRecord.private_key).trim();
+
         const mpResponse = await fetch(`https://api.mercadopago.com/v1/payments/${resourceId}`, {
-            headers: { 'Authorization': `Bearer ${gatewayRecord.private_key}` }
+            headers: { 'Authorization': `Bearer ${decodedKey}` }
         });
 
         if (!mpResponse.ok) {
