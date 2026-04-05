@@ -51,12 +51,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (action === 'mercadopago') {
             console.log("[PaymentsHub] Action: mercadopago");
-            console.log("[PaymentsHub] Query:", JSON.stringify(req.query, null, 2));
-            console.log("[PaymentsHub] Body Keys:", Object.keys(req.body || {}));
-            console.log("[PaymentsHub] CheckoutId in Body:", req.body?.checkoutId);
+            
+            // 2. Dynamic Host Resolution for Notifications (Fase 11 - Robustness)
+            const protocol = req.headers['x-forwarded-proto'] || 'https';
+            const host = req.headers.host;
+            const baseUrl = `${protocol}://${host}`;
 
             const result = await processMercadoPagoPayment({
                 ...req.body,
+                baseUrl,
                 ip
             });
 
