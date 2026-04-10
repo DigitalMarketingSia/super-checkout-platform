@@ -144,6 +144,8 @@ async function handleStripe(req: VercelRequest, res: VercelResponse, rawBody: st
     const successEvents = ['payment_intent.succeeded', 'charge.succeeded', 'checkout.session.completed'];
     if (successEvents.includes(eventType)) {
         const oid = paymentRecord.order_id;
+        const { data: orderData } = await supabaseAdmin.from('orders').select('customer_email, customer_name').eq('id', oid).single();
+        
         const updates = [supabaseAdmin.from('orders').update({ status: 'paid' }).eq('id', oid)];
         if (mustCreate) {
             updates.push(supabaseAdmin.from('payments').insert({ ...paymentRecord, id: crypto.randomUUID(), status: 'paid', raw_response: rawBody, created_at: new Date().toISOString() }));
@@ -154,7 +156,11 @@ async function handleStripe(req: VercelRequest, res: VercelResponse, rawBody: st
         fetch(`${supabaseUrl}/functions/v1/fulfill-order`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${supabaseKey}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ order_id: oid })
+            body: JSON.stringify({ 
+                order_id: oid,
+                email: orderData?.customer_email,
+                name: orderData?.customer_name
+            })
         }).catch(() => {});
         await logWebhook(supabaseAdmin, eventId, `Stripe Approved: ${oid}`, 200, rawBody);
     }
@@ -209,6 +215,8 @@ async function handleMercadoPago(req: VercelRequest, res: VercelResponse, rawBod
         const mpStatus = mpData.status?.toLowerCase();
         if (mpStatus === 'approved' || mpStatus === 'authorized') {
             const oid = paymentRecord.order_id;
+            const { data: orderData } = await supabaseAdmin.from('orders').select('customer_email, customer_name').eq('id', oid).single();
+
             const updates = [supabaseAdmin.from('orders').update({ status: 'paid' }).eq('id', oid)];
             if (!paymentRecord.id) {
                 updates.push(supabaseAdmin.from('payments').insert({ ...paymentRecord, id: crypto.randomUUID(), status: 'paid', raw_response: JSON.stringify(mpData), created_at: new Date().toISOString() }));
@@ -223,7 +231,11 @@ async function handleMercadoPago(req: VercelRequest, res: VercelResponse, rawBod
                 fetch(`${supabaseUrl}/functions/v1/fulfill-order`, {
                     method: 'POST',
                     headers: { 'Authorization': `Bearer ${supabaseKey}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ order_id: oid })
+                    body: JSON.stringify({ 
+                        order_id: oid,
+                        email: orderData?.customer_email,
+                        name: orderData?.customer_name
+                    })
                 }).catch(() => {});
             }
             await logWebhook(supabaseAdmin, mpIdempotencyKey, `Approved: ${oid}`, 200, rawBody);
