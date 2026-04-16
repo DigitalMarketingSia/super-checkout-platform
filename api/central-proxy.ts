@@ -30,9 +30,24 @@ const ALLOWED_ENDPOINTS = [
     'check-entitlement',
 ];
 
+// CORS Whitelist (Fase 15.1 — Hardening)
+const ALLOWED_ORIGINS = [
+    process.env.APP_URL,
+    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
+    process.env.NEXT_PUBLIC_APP_URL,
+    'http://localhost:3000',
+    'http://localhost:5173'
+].filter(Boolean);
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-    // CORS
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    // CORS Whitelist (Fase 15.1 — substitui wildcard '*')
+    const origin = req.headers.origin;
+    if (origin && ALLOWED_ORIGINS.includes(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+    } else {
+        res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGINS[0] || 'https://app.supercheckout.app');
+    }
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
