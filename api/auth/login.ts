@@ -41,6 +41,47 @@ const RATE_LIMIT = {
     BLOCK_MS: 15 * 60 * 1000,   // 15 min block
 };
 
+function getUserAgent(req: VercelRequest): string | null {
+    return (req.headers['user-agent'] as string) || null;
+}
+
+function maskEmail(email: string): string {
+    const [name, domain] = String(email || '').split('@');
+    if (!name || !domain) return 'unknown';
+    return `${name.slice(0, 2)}***@${domain}`;
+}
+
+async function logAuthEvent(params: {
+    supabaseUrl: string;
+    serviceKey: string;
+    eventType: string;
+    severity: 'INFO' | 'WARNING' | 'CRITICAL' | 'FATAL';
+    ip: string;
+    userAgent: string | null;
+    userId?: string | null;
+    metadata?: Record<string, any>;
+}) {
+    try {
+        if (!params.supabaseUrl || !params.serviceKey) return;
+        const supabaseAdmin = createClient(params.supabaseUrl, params.serviceKey);
+        const insertData: any = {
+            event_type: params.eventType,
+            severity: params.severity,
+            ip_address: params.ip,
+            metadata: {
+                ...params.metadata,
+                user_agent: params.userAgent,
+                source: 'auth_login_proxy'
+            }
+        };
+        if (params.userId) insertData.user_id = params.userId;
+        const { error } = await supabaseAdmin.from('security_events').insert(insertData);
+        if (error) console.warn('[Auth/Login] Security event insert failed:', error.message);
+    } catch (error: any) {
+        console.warn('[Auth/Login] Security event unexpected failure:', error?.message || error);
+    }
+}
+
 function isRateLimited(ip: string): { limited: boolean; retryAfterSec?: number } {
     const now = Date.now();
     const entry = rateLimitMap.get(ip);
@@ -124,6 +165,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { limited, retryAfterSec } = isRateLimited(ip);
     if (limited) {
         console.warn(`[Auth/Login] 🚫 Rate limited IP: ${ip} (retry in ${retryAfterSec}s)`);
+        await logAuthEvent({
+            supabaseUrl: process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+            serviceKey: process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || '',
+            eventType: 'login_rate_limited',
+            severity: 'WARNING',
+            ip,
+            userAgent: getUserAgent(req),
+            metadata: {
+                target: req.body?.target || 'local',
+                email: maskEmail(req.body?.email || '')
+            }
+        });
         res.setHeader('Retry-After', String(retryAfterSec || 900));
         return res.status(429).json({ 
             error: 'Muitas tentativas de login. Tente novamente mais tarde.',
@@ -158,6 +211,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(500).json({ error: 'Erro de configuração do servidor.' });
     }
 
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || '';
+    const auditSupabaseUrl = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || supabaseUrl;
+
     try {
         // --- Record Attempt (before auth) ---
         recordAttempt(ip);
@@ -172,6 +228,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             // Check if now rate limited after this failed attempt
             const postCheck = isRateLimited(ip);
             const remainingAttempts = RATE_LIMIT.MAX_ATTEMPTS - (rateLimitMap.get(ip)?.attempts || 0);
+            await logAuthEvent({
+                supabaseUrl: auditSupabaseUrl,
+                serviceKey,
+                eventType: 'login_failed',
+                severity: 'WARNING',
+                ip,
+                userAgent: getUserAgent(req),
+                metadata: {
+                    target: target || 'local',
+                    email: maskEmail(email),
+                    reason: error.message,
+                    remaining_attempts: Math.max(0, remainingAttempts)
+                }
+            });
 
             return res.status(401).json({ 
                 error: error.message === 'Invalid login credentials' 
@@ -186,6 +256,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // --- Success: Reset rate limit for this IP ---
         resetAttempts(ip);
         console.log(`[Auth/Login] ✅ Successful login for ${email} from IP ${ip}`);
+        await logAuthEvent({
+            supabaseUrl: auditSupabaseUrl,
+            serviceKey,
+            eventType: 'login_success',
+            severity: 'INFO',
+            ip,
+            userAgent: getUserAgent(req),
+            userId: target === 'central' ? null : data.user?.id,
+            metadata: {
+                target: target || 'local',
+                email: maskEmail(email)
+            }
+        });
 
         // Return session data (the frontend needs the session to set auth state)
         return res.status(200).json({

@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import createLicenseHandler from '../src/core/api/admin/create-license.js';
 import membersHandler from '../src/core/api/admin/members.js';
 import saveGatewayHandler from '../src/core/api/admin/save-gateway.js';
+import securityEventsHandler from '../src/core/api/admin/security-events.js';
 
 const ALLOWED_ORIGINS = [
     process.env.APP_URL,
@@ -35,6 +36,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return await membersHandler(req, res);
             case 'save-gateway':
                 return await saveGatewayHandler(req, res);
+            case 'security-events':
+                return await securityEventsHandler(req, res);
             default:
                 return res.status(404).json({ error: `Action ${action} not found in Admin Controller` });
         }
