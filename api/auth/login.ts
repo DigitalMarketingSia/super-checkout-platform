@@ -131,18 +131,19 @@ function resetAttempts(ip: string): void {
     rateLimitMap.delete(ip);
 }
 
-// Cleanup stale entries every 10 minutes
-setInterval(() => {
+function cleanupStaleRateLimitEntries(): void {
     const now = Date.now();
     for (const [ip, entry] of rateLimitMap.entries()) {
         if (now - entry.firstAttempt > RATE_LIMIT.WINDOW_MS + RATE_LIMIT.BLOCK_MS) {
             rateLimitMap.delete(ip);
         }
     }
-}, 10 * 60 * 1000);
+}
 
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+    cleanupStaleRateLimitEntries();
+
     // --- CORS ---
     const origin = req.headers.origin;
     if (origin && ALLOWED_ORIGINS.includes(origin)) {
