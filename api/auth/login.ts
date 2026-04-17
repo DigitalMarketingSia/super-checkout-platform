@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
-import { encrypt } from '../../src/core/utils/cryptoUtils';
+import { encrypt } from '../../src/core/utils/cryptoUtils.js';
 
 /**
  * AUTH LOGIN PROXY — Rate Limited (Fase 15.3)
