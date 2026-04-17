@@ -272,65 +272,69 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
 
         if (target !== 'central') {
-            if (!serviceKey) {
-                console.error('[Auth/Login] Missing service role key for 2FA inspection.');
-                return res.status(500).json({ error: 'Erro de configuração do servidor.' });
-            }
-
-            const adminClient = createClient(auditSupabaseUrl, serviceKey, {
-                auth: {
-                    autoRefreshToken: false,
-                    persistSession: false
-                }
-            });
-
-            const { data: profile, error: profileError } = await adminClient
-                .from('profiles')
-                .select('id, email, totp_enabled, totp_secret_encrypted')
-                .eq('id', data.user.id)
-                .single();
-
-            if (profileError) {
-                console.error(`[Auth/Login] Failed to inspect 2FA profile for ${email}:`, profileError.message);
-                return res.status(500).json({ error: 'Não foi possível validar a segurança da conta.' });
-            } else if (profile?.totp_enabled) {
-                if (!profile.totp_secret_encrypted) {
-                    return res.status(500).json({ error: 'Configuração de 2FA inválida. Contate o suporte.' });
+            try {
+                if (!serviceKey) {
+                    throw new Error('Missing service role key for 2FA inspection.');
                 }
 
-                const challengePayload = {
-                    session: data.session,
-                    user: data.user,
-                    userId: data.user.id,
-                    target: target || 'local',
-                    expiresAt: Date.now() + (5 * 60 * 1000)
-                };
-
-                const challengeToken = encrypt(JSON.stringify(challengePayload));
-                await supabase.auth.signOut().catch(() => null);
-
-                await logAuthEvent({
-                    supabaseUrl: auditSupabaseUrl,
-                    serviceKey,
-                    eventType: 'login_2fa_required',
-                    severity: 'INFO',
-                    ip,
-                    userAgent: getUserAgent(req),
-                    userId: data.user.id,
-                    metadata: {
-                        target: target || 'local',
-                        email: maskEmail(email),
-                        source: 'auth_login_proxy',
-                        two_factor_required: true
+                const adminClient = createClient(auditSupabaseUrl, serviceKey, {
+                    auth: {
+                        autoRefreshToken: false,
+                        persistSession: false
                     }
                 });
 
-                return res.status(200).json({
-                    requires_two_factor: true,
-                    two_factor_token: challengeToken,
-                    two_factor_expires_in_sec: 300,
-                    user: data.user
-                });
+                const { data: profile, error: profileError } = await adminClient
+                    .from('profiles')
+                    .select('id, email, totp_enabled, totp_secret_encrypted')
+                    .eq('id', data.user.id)
+                    .single();
+
+                if (profileError) {
+                    throw profileError;
+                }
+
+                if (profile?.totp_enabled) {
+                    if (!profile.totp_secret_encrypted) {
+                        console.warn(`[Auth/Login] 2FA enabled but secret missing for ${email}. Falling back to normal login.`);
+                    } else {
+                        const challengePayload = {
+                            session: data.session,
+                            user: data.user,
+                            userId: data.user.id,
+                            target: target || 'local',
+                            expiresAt: Date.now() + (5 * 60 * 1000)
+                        };
+
+                        const challengeToken = encrypt(JSON.stringify(challengePayload));
+                        await supabase.auth.signOut().catch(() => null);
+
+                        await logAuthEvent({
+                            supabaseUrl: auditSupabaseUrl,
+                            serviceKey,
+                            eventType: 'login_2fa_required',
+                            severity: 'INFO',
+                            ip,
+                            userAgent: getUserAgent(req),
+                            userId: data.user.id,
+                            metadata: {
+                                target: target || 'local',
+                                email: maskEmail(email),
+                                source: 'auth_login_proxy',
+                                two_factor_required: true
+                            }
+                        });
+
+                        return res.status(200).json({
+                            requires_two_factor: true,
+                            two_factor_token: challengeToken,
+                            two_factor_expires_in_sec: 300,
+                            user: data.user
+                        });
+                    }
+                }
+            } catch (inspectionError: any) {
+                console.warn(`[Auth/Login] 2FA inspection skipped for ${email}:`, inspectionError?.message || inspectionError);
             }
         }
 
