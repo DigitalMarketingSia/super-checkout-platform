@@ -18,8 +18,17 @@ import { encrypt } from '../../src/core/utils/cryptoUtils.js';
 // --- CORS Whitelist ---
 const ALLOWED_ORIGINS = [
     process.env.APP_URL,
+    process.env.SUPER_CHECKOUT_APP_URL,
+    process.env.SUPER_CHECKOUT_PORTAL_URL,
+    process.env.SUPER_CHECKOUT_INSTALL_URL,
+    process.env.VITE_SUPER_CHECKOUT_APP_URL,
+    process.env.VITE_SUPER_CHECKOUT_PORTAL_URL,
+    process.env.VITE_SUPER_CHECKOUT_INSTALL_URL,
     process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
     process.env.NEXT_PUBLIC_APP_URL,
+    'https://app.supercheckout.app',
+    'https://portal.supercheckout.app',
+    'https://install.supercheckout.app',
     'http://localhost:3000',
     'http://localhost:5173'
 ].filter(Boolean);
