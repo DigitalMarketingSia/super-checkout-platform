@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
+import { createHash } from 'node:crypto';
 import { encrypt } from '../../src/core/utils/cryptoUtils.js';
 
 /**
@@ -32,14 +33,18 @@ interface RateLimitEntry {
     attempts: number;
     firstAttempt: number;
     blockedUntil: number;
+    blockLevel?: number;
 }
 
 const rateLimitMap = new Map<string, RateLimitEntry>();
 
 const RATE_LIMIT = {
-    MAX_ATTEMPTS: 5,       // Max attempts per window
-    WINDOW_MS: 5 * 60 * 1000,   // 5 minutes
-    BLOCK_MS: 15 * 60 * 1000,   // 15 min block
+    WINDOW_MS: 24 * 60 * 60 * 1000,   // 24 hours rolling window
+    LEVELS: [
+        { attempts: 5, blockMs: 15 * 60 * 1000, severity: 'WARNING' as const },
+        { attempts: 10, blockMs: 60 * 60 * 1000, severity: 'CRITICAL' as const },
+        { attempts: 20, blockMs: 24 * 60 * 60 * 1000, severity: 'FATAL' as const },
+    ],
 };
 
 function getUserAgent(req: VercelRequest): string | null {
@@ -50,6 +55,29 @@ function maskEmail(email: string): string {
     const [name, domain] = String(email || '').split('@');
     if (!name || !domain) return 'unknown';
     return `${name.slice(0, 2)}***@${domain}`;
+}
+
+function normalizeEmail(email: string): string {
+    return String(email || '').trim().toLowerCase();
+}
+
+function emailFingerprint(email: string): string {
+    return createHash('sha256').update(normalizeEmail(email)).digest('hex');
+}
+
+function getNextThreshold(attempts: number): number | null {
+    const next = RATE_LIMIT.LEVELS.find((level) => attempts < level.attempts);
+    return next?.attempts || null;
+}
+
+function formatRetryMessage(retryAfterSec?: number): string {
+    const seconds = Number(retryAfterSec || 900);
+    if (seconds >= 3600) {
+        const hours = Math.ceil(seconds / 3600);
+        return `Muitas tentativas de login. Tente novamente em ${hours} hora${hours > 1 ? 's' : ''}.`;
+    }
+    const mins = Math.ceil(seconds / 60);
+    return `Muitas tentativas de login. Tente novamente em ${mins} minuto${mins > 1 ? 's' : ''}.`;
 }
 
 async function logAuthEvent(params: {
@@ -83,59 +111,222 @@ async function logAuthEvent(params: {
     }
 }
 
-function isRateLimited(ip: string): { limited: boolean; retryAfterSec?: number } {
+async function countRecentFailedLogins(params: {
+    supabaseUrl: string;
+    serviceKey: string;
+    ip: string;
+}): Promise<number | null> {
+    try {
+        if (!params.supabaseUrl || !params.serviceKey) return null;
+
+        const since = new Date(Date.now() - RATE_LIMIT.WINDOW_MS).toISOString();
+        const supabaseAdmin = createClient(params.supabaseUrl, params.serviceKey, {
+            auth: { autoRefreshToken: false, persistSession: false }
+        });
+
+        const { count, error } = await supabaseAdmin
+            .from('security_events')
+            .select('id', { count: 'exact', head: true })
+            .eq('event_type', 'login_failed')
+            .eq('ip_address', params.ip)
+            .gte('created_at', since);
+
+        if (error) {
+            console.warn('[Auth/Login] Failed to count recent login failures:', error.message);
+            return null;
+        }
+
+        return count || 0;
+    } catch (error: any) {
+        console.warn('[Auth/Login] Unexpected failure counting login failures:', error?.message || error);
+        return null;
+    }
+}
+
+async function sendProgressiveBlockNotification(params: {
+    supabaseUrl: string;
+    serviceKey: string;
+    email: string;
+    ip: string;
+    userAgent: string | null;
+    attempts: number;
+    blockDurationSec: number;
+    blockedUntilIso: string;
+}) {
+    try {
+        if (!params.supabaseUrl || !params.serviceKey) return;
+
+        const normalizedEmail = normalizeEmail(params.email);
+        const supabaseAdmin = createClient(params.supabaseUrl, params.serviceKey, {
+            auth: { autoRefreshToken: false, persistSession: false }
+        });
+
+        const { data: profile } = await supabaseAdmin
+            .from('profiles')
+            .select('id,email,full_name')
+            .eq('email', normalizedEmail)
+            .maybeSingle();
+
+        if (!profile?.email) {
+            await logAuthEvent({
+                supabaseUrl: params.supabaseUrl,
+                serviceKey: params.serviceKey,
+                eventType: 'login_progressive_notification_skipped',
+                severity: 'INFO',
+                ip: params.ip,
+                userAgent: params.userAgent,
+                metadata: {
+                    email: maskEmail(params.email),
+                    email_fingerprint: emailFingerprint(params.email),
+                    reason: 'profile_not_found',
+                    failed_attempts: params.attempts
+                }
+            });
+            return;
+        }
+
+        const { data: integrations } = await supabaseAdmin
+            .from('integrations')
+            .select('config')
+            .eq('name', 'resend')
+            .eq('active', true)
+            .limit(1);
+
+        const integration = integrations?.[0];
+        const apiKey = integration?.config?.apiKey || integration?.config?.api_key;
+        const fromEmail = integration?.config?.senderEmail || integration?.config?.from_email || 'onboarding@resend.dev';
+
+        if (!apiKey) {
+            await logAuthEvent({
+                supabaseUrl: params.supabaseUrl,
+                serviceKey: params.serviceKey,
+                eventType: 'login_progressive_notification_skipped',
+                severity: 'WARNING',
+                ip: params.ip,
+                userAgent: params.userAgent,
+                userId: profile.id,
+                metadata: {
+                    email: maskEmail(profile.email),
+                    email_fingerprint: emailFingerprint(profile.email),
+                    reason: 'resend_not_configured',
+                    failed_attempts: params.attempts
+                }
+            });
+            return;
+        }
+
+        const blockMinutes = Math.ceil(params.blockDurationSec / 60);
+        const subject = 'Alerta de segurança: acesso temporariamente bloqueado';
+        const plainText = [
+            'Detectamos múltiplas tentativas de acesso sem sucesso na sua conta Super Checkout.',
+            `Por segurança, novas tentativas foram bloqueadas temporariamente por ${blockMinutes} minuto(s).`,
+            `IP de origem: ${params.ip}`,
+            `Bloqueado até: ${params.blockedUntilIso}`,
+            'Se foi você, aguarde o prazo e tente novamente. Se não foi você, recomendamos trocar sua senha quando acessar.'
+        ].join('\n');
+
+        const resendResponse = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+                from: fromEmail,
+                to: [profile.email],
+                subject,
+                text: plainText,
+            }),
+        });
+
+        const resendPayload = await resendResponse.json().catch(() => ({}));
+        await logAuthEvent({
+            supabaseUrl: params.supabaseUrl,
+            serviceKey: params.serviceKey,
+            eventType: resendResponse.ok ? 'login_progressive_notification_sent' : 'login_progressive_notification_failed',
+            severity: resendResponse.ok ? 'INFO' : 'WARNING',
+            ip: params.ip,
+            userAgent: params.userAgent,
+            userId: profile.id,
+            metadata: {
+                email: maskEmail(profile.email),
+                email_fingerprint: emailFingerprint(profile.email),
+                failed_attempts: params.attempts,
+                resend_id: resendPayload?.id,
+                reason: resendResponse.ok ? undefined : JSON.stringify(resendPayload).slice(0, 200)
+            }
+        });
+    } catch (error: any) {
+        console.warn('[Auth/Login] Failed to send progressive block notification:', error?.message || error);
+    }
+}
+
+function isRateLimited(key: string): { limited: boolean; retryAfterSec?: number; attempts?: number; blockLevel?: number } {
     const now = Date.now();
-    const entry = rateLimitMap.get(ip);
+    const entry = rateLimitMap.get(key);
 
     if (!entry) return { limited: false };
 
     // Check if currently blocked
     if (entry.blockedUntil > now) {
         const retryAfterSec = Math.ceil((entry.blockedUntil - now) / 1000);
-        return { limited: true, retryAfterSec };
+        return { limited: true, retryAfterSec, attempts: entry.attempts, blockLevel: entry.blockLevel };
     }
 
     // Reset if window expired
     if (now - entry.firstAttempt > RATE_LIMIT.WINDOW_MS) {
-        rateLimitMap.delete(ip);
+        rateLimitMap.delete(key);
         return { limited: false };
-    }
-
-    // Check if at limit
-    if (entry.attempts >= RATE_LIMIT.MAX_ATTEMPTS) {
-        entry.blockedUntil = now + RATE_LIMIT.BLOCK_MS;
-        return { limited: true, retryAfterSec: Math.ceil(RATE_LIMIT.BLOCK_MS / 1000) };
     }
 
     return { limited: false };
 }
 
-function recordAttempt(ip: string): void {
+function recordFailedAttempt(key: string): { attempts: number; blockLevel?: typeof RATE_LIMIT.LEVELS[number]; retryAfterSec?: number } {
     const now = Date.now();
-    const entry = rateLimitMap.get(ip);
+    const entry = rateLimitMap.get(key);
 
     if (!entry || (now - entry.firstAttempt > RATE_LIMIT.WINDOW_MS)) {
-        rateLimitMap.set(ip, { attempts: 1, firstAttempt: now, blockedUntil: 0 });
-        return;
+        rateLimitMap.set(key, { attempts: 1, firstAttempt: now, blockedUntil: 0 });
+        return { attempts: 1 };
     }
 
     entry.attempts++;
-    
-    // If reached limit, set block
-    if (entry.attempts >= RATE_LIMIT.MAX_ATTEMPTS) {
-        entry.blockedUntil = now + RATE_LIMIT.BLOCK_MS;
+
+    const blockLevel = RATE_LIMIT.LEVELS.find((level) => level.attempts === entry.attempts);
+    if (blockLevel) {
+        entry.blockedUntil = now + blockLevel.blockMs;
+        entry.blockLevel = blockLevel.attempts;
+        return {
+            attempts: entry.attempts,
+            blockLevel,
+            retryAfterSec: Math.ceil(blockLevel.blockMs / 1000)
+        };
     }
+
+    return { attempts: entry.attempts };
 }
 
-function resetAttempts(ip: string): void {
-    rateLimitMap.delete(ip);
+function applyProgressiveBlock(key: string, attempts: number, blockLevel: typeof RATE_LIMIT.LEVELS[number]): number {
+    const now = Date.now();
+    const entry = rateLimitMap.get(key) || { attempts, firstAttempt: now, blockedUntil: 0 };
+    entry.attempts = Math.max(entry.attempts, attempts);
+    entry.blockedUntil = now + blockLevel.blockMs;
+    entry.blockLevel = blockLevel.attempts;
+    rateLimitMap.set(key, entry);
+    return Math.ceil(blockLevel.blockMs / 1000);
+}
+
+function resetAttempts(key: string): void {
+    rateLimitMap.delete(key);
 }
 
 function cleanupStaleRateLimitEntries(): void {
     const now = Date.now();
-    for (const [ip, entry] of rateLimitMap.entries()) {
-        if (now - entry.firstAttempt > RATE_LIMIT.WINDOW_MS + RATE_LIMIT.BLOCK_MS) {
-            rateLimitMap.delete(ip);
+    const maxBlockMs = Math.max(...RATE_LIMIT.LEVELS.map((level) => level.blockMs));
+    for (const [key, entry] of rateLimitMap.entries()) {
+        if (now - entry.firstAttempt > RATE_LIMIT.WINDOW_MS + maxBlockMs) {
+            rateLimitMap.delete(key);
         }
     }
 }
@@ -164,7 +355,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
              || 'unknown';
 
     // --- Rate Limit Check (FAIL-CLOSED) ---
-    const { limited, retryAfterSec } = isRateLimited(ip);
+    const { limited, retryAfterSec, attempts: limitedAttempts, blockLevel } = isRateLimited(ip);
     if (limited) {
         console.warn(`[Auth/Login] 🚫 Rate limited IP: ${ip} (retry in ${retryAfterSec}s)`);
         await logAuthEvent({
@@ -176,12 +367,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             userAgent: getUserAgent(req),
             metadata: {
                 target: req.body?.target || 'local',
-                email: maskEmail(req.body?.email || '')
+                email: maskEmail(req.body?.email || ''),
+                email_fingerprint: req.body?.email ? emailFingerprint(req.body.email) : undefined,
+                failed_attempts: limitedAttempts,
+                threshold: blockLevel,
+                progressive: true
             }
         });
         res.setHeader('Retry-After', String(retryAfterSec || 900));
         return res.status(429).json({ 
-            error: 'Muitas tentativas de login. Tente novamente mais tarde.',
+            error: formatRetryMessage(retryAfterSec),
             error_code: 'rate_limited',
             retryAfterSec 
         });
@@ -217,9 +412,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const auditSupabaseUrl = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || supabaseUrl;
 
     try {
-        // --- Record Attempt (before auth) ---
-        recordAttempt(ip);
-
         // --- Authenticate via Supabase ---
         const supabase = createClient(supabaseUrl, supabaseAnonKey);
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -227,9 +419,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (error) {
             console.warn(`[Auth/Login] ❌ Failed login for ${email} from IP ${ip}: ${error.message}`);
             
-            // Check if now rate limited after this failed attempt
-            const postCheck = isRateLimited(ip);
-            const remainingAttempts = RATE_LIMIT.MAX_ATTEMPTS - (rateLimitMap.get(ip)?.attempts || 0);
+            const failedAttempt = recordFailedAttempt(ip);
             await logAuthEvent({
                 supabaseUrl: auditSupabaseUrl,
                 serviceKey,
@@ -241,17 +431,76 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     target: target || 'local',
                     email: maskEmail(email),
                     reason: error.message,
-                    remaining_attempts: Math.max(0, remainingAttempts)
+                    failed_attempts: failedAttempt.attempts,
+                    next_threshold: getNextThreshold(failedAttempt.attempts),
+                    email_fingerprint: emailFingerprint(email)
                 }
             });
+
+            const persistedFailureCount = await countRecentFailedLogins({
+                supabaseUrl: auditSupabaseUrl,
+                serviceKey,
+                ip
+            });
+            const effectiveAttempts = Math.max(failedAttempt.attempts, persistedFailureCount || 0);
+            const thresholdBlock = RATE_LIMIT.LEVELS.find((level) => level.attempts === effectiveAttempts);
+            const blockLevel = failedAttempt.blockLevel || thresholdBlock;
+
+            if (blockLevel) {
+                const retryAfterSec = applyProgressiveBlock(ip, effectiveAttempts, blockLevel);
+                const blockedUntilIso = new Date(Date.now() + retryAfterSec * 1000).toISOString();
+
+                await logAuthEvent({
+                    supabaseUrl: auditSupabaseUrl,
+                    serviceKey,
+                    eventType: 'login_progressive_blocked',
+                    severity: blockLevel.severity,
+                    ip,
+                    userAgent: getUserAgent(req),
+                    metadata: {
+                        target: target || 'local',
+                        email: maskEmail(email),
+                        email_fingerprint: emailFingerprint(email),
+                        failed_attempts: effectiveAttempts,
+                        threshold: blockLevel.attempts,
+                        block_duration_sec: retryAfterSec,
+                        blocked_until: blockedUntilIso,
+                        reason: error.message
+                    }
+                });
+
+                if (target !== 'central') {
+                    await sendProgressiveBlockNotification({
+                        supabaseUrl: auditSupabaseUrl,
+                        serviceKey,
+                        email,
+                        ip,
+                        userAgent: getUserAgent(req),
+                        attempts: effectiveAttempts,
+                        blockDurationSec: retryAfterSec,
+                        blockedUntilIso
+                    });
+                }
+
+                res.setHeader('Retry-After', String(retryAfterSec));
+                return res.status(429).json({
+                    error: formatRetryMessage(retryAfterSec),
+                    error_code: 'progressive_login_block',
+                    retryAfterSec,
+                    failedAttempts: effectiveAttempts
+                });
+            }
+
+            const nextThreshold = getNextThreshold(effectiveAttempts);
+            const remainingAttempts = nextThreshold ? Math.max(0, nextThreshold - effectiveAttempts) : 0;
 
             return res.status(401).json({ 
                 error: error.message === 'Invalid login credentials' 
                     ? 'Email ou senha incorretos.' 
                     : error.message,
                 error_code: 'invalid_credentials',
-                remainingAttempts: Math.max(0, remainingAttempts),
-                ...(postCheck.limited ? { retryAfterSec: postCheck.retryAfterSec } : {})
+                remainingAttempts,
+                failedAttempts: effectiveAttempts
             });
         }
 
