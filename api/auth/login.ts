@@ -308,7 +308,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         };
 
                         const challengeToken = encrypt(JSON.stringify(challengePayload));
-                        await supabase.auth.signOut().catch(() => null);
 
                         await logAuthEvent({
                             supabaseUrl: auditSupabaseUrl,
