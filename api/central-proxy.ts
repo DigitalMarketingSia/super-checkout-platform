@@ -160,6 +160,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
             } else if (endpoint === 'activate-free-license') {
                 isAllowed = true;
+            } else if (endpoint === 'generate-install-token') {
+                isAllowed = true; // JWT is validated. Edge function will also verify if the user actually owns the license being requested.
             }
 
             if (!isAllowed) {
