@@ -192,7 +192,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         // Forward body for POST/PUT/PATCH
         if (req.method !== 'GET' && req.method !== 'HEAD') {
-            fetchOptions.body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+            try {
+                const bodyObj = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+                // Inject verified user identity (trusted by proxy)
+                bodyObj._user_id = user.id;
+                bodyObj._user_email = user.email;
+                bodyObj._user_name = user.user_metadata?.full_name || user.email;
+                fetchOptions.body = JSON.stringify(bodyObj);
+            } catch (e) {
+                fetchOptions.body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+            }
         }
 
         const response = await fetch(targetUrl, fetchOptions);
