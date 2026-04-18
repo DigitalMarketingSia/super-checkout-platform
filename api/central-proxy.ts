@@ -134,7 +134,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let isAllowed = false;
 
             if (endpoint === 'get-license-status') {
-                if (req.body?.email && req.body.email.toLowerCase() === userEmail) {
+                const targetEmail = req.method === 'GET' ? req.query?.email : req.body?.email;
+                if (!targetEmail || (typeof targetEmail === 'string' && targetEmail.toLowerCase() === userEmail)) {
                     isAllowed = true;
                 }
             } else if (endpoint === 'manage-licenses') {
