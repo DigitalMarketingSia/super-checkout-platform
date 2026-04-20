@@ -71,9 +71,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // --- 2. Validate required env vars ---
     const centralApiUrl = process.env.VITE_CENTRAL_API_URL || 'https://bcmnryxjweiovrwmztpn.supabase.co/functions/v1';
     const centralSecret = process.env.CENTRAL_SHARED_SECRET;
-    const supabaseUrl = process.env.VITE_CENTRAL_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-    const supabaseAnonKey = process.env.VITE_CENTRAL_SUPABASE_ANON_KEY;
-
     if (!centralApiUrl || !centralSecret) {
         console.error('[Central Proxy] Missing CENTRAL_API_URL or CENTRAL_SHARED_SECRET');
         return res.status(500).json({ error: 'Server configuration error: missing credentials' });
@@ -89,34 +86,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     try {
         let user: any = null;
-
-        // Try LOCAL Supabase First
         const localSupabaseUrl = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
         const localAnonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+        const localServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+        const centralSupUrl = process.env.VITE_CENTRAL_SUPABASE_URL || centralApiUrl.replace('/functions/v1', '');
+        const centralAnon = process.env.VITE_CENTRAL_SUPABASE_ANON_KEY;
+        const centralServiceKey = process.env.CENTRAL_SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_CENTRAL_SUPABASE_SERVICE_ROLE_KEY;
 
-        if (localSupabaseUrl && localAnonKey) {
-            const localClient = createClient(localSupabaseUrl, localAnonKey, {
-                global: { headers: { Authorization: `Bearer ${jwt}` } }
-            });
-            const res = await localClient.auth.getUser(jwt);
-            if (!res.error && res.data?.user) {
-                user = res.data.user;
-            }
-        }
+        const validationTargets = [
+            { label: 'local-service-role', url: localSupabaseUrl, key: localServiceKey },
+            { label: 'local-anon', url: localSupabaseUrl, key: localAnonKey },
+            { label: 'central-service-role', url: centralSupUrl, key: centralServiceKey },
+            { label: 'central-anon', url: centralSupUrl, key: centralAnon },
+        ].filter((target) => target.url && target.key);
 
-        // Try CENTRAL Supabase Fallback
-        if (!user) {
-            const centralSupUrl = process.env.VITE_CENTRAL_SUPABASE_URL || centralApiUrl.replace('/functions/v1', '');
-            const centralAnon = process.env.VITE_CENTRAL_SUPABASE_ANON_KEY;
-            
-            if (centralSupUrl && centralAnon) {
-                const altClient = createClient(centralSupUrl, centralAnon, {
+        for (const target of validationTargets) {
+            try {
+                const client = createClient(target.url as string, target.key as string, {
+                    auth: {
+                        autoRefreshToken: false,
+                        persistSession: false
+                    },
                     global: { headers: { Authorization: `Bearer ${jwt}` } }
                 });
-                const resAlt = await altClient.auth.getUser(jwt);
-                if (!resAlt.error && resAlt.data?.user) {
-                    user = resAlt.data.user;
+
+                const userResponse = await client.auth.getUser(jwt);
+                if (!userResponse.error && userResponse.data?.user) {
+                    user = userResponse.data.user;
+                    console.log(`[Central Proxy] JWT validated via ${target.label} for ${user.email}`);
+                    break;
                 }
+
+                if (userResponse.error) {
+                    console.warn(`[Central Proxy] JWT validation failed via ${target.label}: ${userResponse.error.message}`);
+                }
+            } catch (validationError: any) {
+                console.warn(`[Central Proxy] JWT validation exception via ${target.label}: ${validationError?.message || validationError}`);
             }
         }
 
