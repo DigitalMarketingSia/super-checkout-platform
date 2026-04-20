@@ -47,6 +47,10 @@ const ALLOWED_ORIGINS = [
     'http://localhost:5173'
 ].filter(Boolean);
 
+const DEFAULT_CENTRAL_API_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co/functions/v1';
+const DEFAULT_CENTRAL_SUPABASE_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co';
+const DEFAULT_CENTRAL_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJjbW5yeXhqd2Vpb3Zyd216dHBuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc2NjM2MjMsImV4cCI6MjA4MzIzOTYyM30.F86wf0xwTR1K_P9500JwnESStPb2bCo3dwuouHBPcQM';
+
 async function validateJwtWithSupabase(url: string, key: string, jwt: string, label: string) {
     try {
         const response = await fetch(`${url}/auth/v1/user`, {
@@ -98,7 +102,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // --- 2. Validate required env vars ---
-    const centralApiUrl = process.env.VITE_CENTRAL_API_URL || 'https://bcmnryxjweiovrwmztpn.supabase.co/functions/v1';
+    const centralApiUrl = process.env.VITE_CENTRAL_API_URL || DEFAULT_CENTRAL_API_URL;
     const centralSecret = process.env.CENTRAL_SHARED_SECRET;
     if (!centralApiUrl || !centralSecret) {
         console.error('[Central Proxy] Missing CENTRAL_API_URL or CENTRAL_SHARED_SECRET');
@@ -118,8 +122,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const localSupabaseUrl = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://vixlzrmhqsbzjhpgfwdn.supabase.co';
         const localAnonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
         const localServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
-        const centralSupUrl = process.env.VITE_CENTRAL_SUPABASE_URL || process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_URL || centralApiUrl.replace('/functions/v1', '');
-        const centralAnon = process.env.VITE_CENTRAL_SUPABASE_ANON_KEY;
+        const centralSupUrl = process.env.VITE_CENTRAL_SUPABASE_URL || process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_URL || centralApiUrl.replace('/functions/v1', '') || DEFAULT_CENTRAL_SUPABASE_URL;
+        const centralAnon = process.env.VITE_CENTRAL_SUPABASE_ANON_KEY || DEFAULT_CENTRAL_ANON_KEY;
         const centralServiceKey = process.env.CENTRAL_SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_CENTRAL_SUPABASE_SERVICE_ROLE_KEY;
 
         const validationTargets = [
@@ -205,9 +209,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const targetUrl = `${centralApiUrl}/${endpoint}${queryString ? '?' + queryString : ''}`;
 
         // --- 6. Forward request to Central with secret ---
+        const centralFunctionAuthToken = centralServiceKey || centralAnon;
         const forwardHeaders: Record<string, string> = {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${jwt}`,
+            'apikey': centralAnon,
+            'Authorization': `Bearer ${centralFunctionAuthToken}`,
             'x-admin-secret': centralSecret,
         };
 
