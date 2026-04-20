@@ -596,6 +596,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
         }
 
+        if (target === 'central' && data.session?.access_token && data.user?.id) {
+            try {
+                const centralProfileClient = createClient(supabaseUrl, supabaseAnonKey, {
+                    auth: {
+                        autoRefreshToken: false,
+                        persistSession: false
+                    },
+                    global: {
+                        headers: {
+                            Authorization: `Bearer ${data.session.access_token}`
+                        }
+                    }
+                });
+
+                const { data: centralProfile } = await centralProfileClient
+                    .from('profiles')
+                    .select('account_status, approval_notes')
+                    .eq('id', data.user.id)
+                    .maybeSingle();
+
+                if (centralProfile?.account_status === 'pending_approval') {
+                    return res.status(403).json({
+                        error: 'Seu cadastro ainda esta em analise. Aguarde a aprovacao do time.',
+                        error_code: 'pending_approval',
+                        approval_notes: centralProfile.approval_notes || null
+                    });
+                }
+
+                if (centralProfile?.account_status === 'rejected') {
+                    return res.status(403).json({
+                        error: 'Seu cadastro nao foi aprovado neste ciclo.',
+                        error_code: 'rejected',
+                        approval_notes: centralProfile.approval_notes || null
+                    });
+                }
+            } catch (centralProfileError: any) {
+                console.warn(`[Auth/Login] Central approval check skipped for ${email}:`, centralProfileError?.message || centralProfileError);
+            }
+        }
+
         // Return session data (the frontend needs the session to set auth state)
         return res.status(200).json({
             session: data.session,
