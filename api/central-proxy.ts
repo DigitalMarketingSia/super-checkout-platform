@@ -1,5 +1,4 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { createClient } from '@supabase/supabase-js';
 
 /**
  * Central Proxy — Backend-for-Frontend (BFF)
@@ -47,6 +46,36 @@ const ALLOWED_ORIGINS = [
     'http://localhost:3000',
     'http://localhost:5173'
 ].filter(Boolean);
+
+async function validateJwtWithSupabase(url: string, key: string, jwt: string, label: string) {
+    try {
+        const response = await fetch(`${url}/auth/v1/user`, {
+            method: 'GET',
+            headers: {
+                apikey: key,
+                Authorization: `Bearer ${jwt}`
+            }
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.warn(`[Central Proxy] JWT validation failed via ${label}: ${response.status} ${errorText}`);
+            return null;
+        }
+
+        const user = await response.json();
+        if (user?.id) {
+            console.log(`[Central Proxy] JWT validated via ${label} for ${user.email}`);
+            return user;
+        }
+
+        console.warn(`[Central Proxy] JWT validation returned no user via ${label}`);
+        return null;
+    } catch (error: any) {
+        console.warn(`[Central Proxy] JWT validation exception via ${label}: ${error?.message || error}`);
+        return null;
+    }
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     // CORS Whitelist (Fase 15.1 — substitui wildcard '*')
@@ -101,27 +130,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ].filter((target) => target.url && target.key);
 
         for (const target of validationTargets) {
-            try {
-                const client = createClient(target.url as string, target.key as string, {
-                    auth: {
-                        autoRefreshToken: false,
-                        persistSession: false
-                    },
-                    global: { headers: { Authorization: `Bearer ${jwt}` } }
-                });
+            const validatedUser = await validateJwtWithSupabase(
+                target.url as string,
+                target.key as string,
+                jwt,
+                target.label
+            );
 
-                const userResponse = await client.auth.getUser(jwt);
-                if (!userResponse.error && userResponse.data?.user) {
-                    user = userResponse.data.user;
-                    console.log(`[Central Proxy] JWT validated via ${target.label} for ${user.email}`);
-                    break;
-                }
-
-                if (userResponse.error) {
-                    console.warn(`[Central Proxy] JWT validation failed via ${target.label}: ${userResponse.error.message}`);
-                }
-            } catch (validationError: any) {
-                console.warn(`[Central Proxy] JWT validation exception via ${target.label}: ${validationError?.message || validationError}`);
+            if (validatedUser) {
+                user = validatedUser;
+                break;
             }
         }
 
