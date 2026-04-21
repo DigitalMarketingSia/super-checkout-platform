@@ -683,6 +683,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(400).json({ error: 'A senha deve ter pelo menos 6 caracteres.' });
         }
 
+        if (!whatsapp) {
+            return res.status(400).json({ error: 'Informe seu telefone ou WhatsApp.' });
+        }
+
         incrementMemoryBucket(`signup:ip:${ip}`, HARD_LIMITS.signupIp);
         incrementMemoryBucket(`signup:email:${emailFingerprint(email)}`, HARD_LIMITS.signupEmail);
 
@@ -765,6 +769,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     data: {
                         full_name: name,
                         whatsapp: whatsapp,
+                        phone: whatsapp,
                         role: 'admin',
                         source: 'register_page',
                         partner_id: partnerId,

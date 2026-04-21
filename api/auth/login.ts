@@ -33,6 +33,10 @@ const ALLOWED_ORIGINS = [
     'http://localhost:5173'
 ].filter(Boolean);
 
+const DEFAULT_CENTRAL_API_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co/functions/v1';
+const DEFAULT_CENTRAL_SUPABASE_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co';
+const DEFAULT_CENTRAL_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJjbW5yeXhqd2Vpb3Zyd216dHBuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc2NjM2MjMsImV4cCI6MjA4MzIzOTYyM30.F86wf0xwTR1K_P9500JwnESStPb2bCo3dwuouHBPcQM';
+
 // --- Rate Limiting (In-Memory) ---
 // Note: In-memory state is per-instance on Vercel Serverless.
 // For coordinated multi-instance rate limiting, use a DB or Redis.
@@ -404,8 +408,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (target === 'central') {
         // ActivationLogin uses Central Supabase
-        supabaseUrl = process.env.VITE_CENTRAL_SUPABASE_URL || '';
-        supabaseAnonKey = process.env.VITE_CENTRAL_SUPABASE_ANON_KEY || '';
+        supabaseUrl =
+            process.env.VITE_CENTRAL_SUPABASE_URL
+            || process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_URL
+            || process.env.VITE_CENTRAL_API_URL?.replace('/functions/v1', '')
+            || DEFAULT_CENTRAL_API_URL.replace('/functions/v1', '')
+            || DEFAULT_CENTRAL_SUPABASE_URL;
+        supabaseAnonKey = process.env.VITE_CENTRAL_SUPABASE_ANON_KEY || DEFAULT_CENTRAL_ANON_KEY;
     } else {
         // Default: Local Supabase (Login.tsx, MemberLogin.tsx)
         supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';

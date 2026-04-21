@@ -21,6 +21,9 @@ const ALLOWED_ORIGINS = [
 
 export const TWO_FACTOR_ISSUER = 'Super Checkout';
 export const TWO_FACTOR_CHALLENGE_TTL_MS = 5 * 60 * 1000;
+const DEFAULT_CENTRAL_API_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co/functions/v1';
+const DEFAULT_CENTRAL_SUPABASE_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co';
+const DEFAULT_CENTRAL_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJjbW5yeXhqd2Vpb3Zyd216dHBuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc2NjM2MjMsImV4cCI6MjA4MzIzOTYyM30.F86wf0xwTR1K_P9500JwnESStPb2bCo3dwuouHBPcQM';
 
 export function applyCors(req: VercelRequest, res: VercelResponse) {
   const origin = req.headers.origin;
@@ -84,14 +87,18 @@ export async function logSecurityEvent(params: {
 
 export function getSupabaseUrl(target?: string): string {
   if (target === 'central') {
-    return process.env.VITE_CENTRAL_SUPABASE_URL || '';
+    return process.env.VITE_CENTRAL_SUPABASE_URL
+      || process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_URL
+      || process.env.VITE_CENTRAL_API_URL?.replace('/functions/v1', '')
+      || DEFAULT_CENTRAL_API_URL.replace('/functions/v1', '')
+      || DEFAULT_CENTRAL_SUPABASE_URL;
   }
   return process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 }
 
 export function getSupabaseAnonKey(target?: string): string {
   if (target === 'central') {
-    return process.env.VITE_CENTRAL_SUPABASE_ANON_KEY || '';
+    return process.env.VITE_CENTRAL_SUPABASE_ANON_KEY || DEFAULT_CENTRAL_ANON_KEY;
   }
   return process.env.VITE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 }
