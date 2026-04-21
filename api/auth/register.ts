@@ -784,9 +784,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (error) {
                 const message = error.message || 'Erro ao criar conta.';
                 const isDuplicate = /already registered|already exists/i.test(message);
+                const isEmailRateLimited = /email rate limit exceeded/i.test(message);
+                const isConfirmationEmailFailure = /error sending confirmation email/i.test(message);
+                const derivedErrorCode = isDuplicate
+                    ? 'email_exists'
+                    : isEmailRateLimited
+                        ? 'auth_email_rate_limited'
+                        : isConfirmationEmailFailure
+                            ? 'confirmation_email_failed'
+                            : 'signup_failed';
+                const statusCode = isDuplicate
+                    ? 409
+                    : isEmailRateLimited
+                        ? 429
+                        : isConfirmationEmailFailure
+                            ? 503
+                            : 400;
 
                 await logSecurityEvent({
-                    eventType: isDuplicate ? 'register_signup_duplicate' : 'register_signup_failed',
+                    eventType: isDuplicate
+                        ? 'register_signup_duplicate'
+                        : isEmailRateLimited
+                            ? 'register_signup_email_rate_limited'
+                            : isConfirmationEmailFailure
+                                ? 'register_signup_confirmation_email_failed'
+                                : 'register_signup_failed',
                     severity: isDuplicate ? 'INFO' : 'WARNING',
                     ip,
                     userAgent,
@@ -798,11 +820,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
                 });
 
-                return res.status(isDuplicate ? 409 : 400).json({
+                return res.status(statusCode).json({
                     error: isDuplicate
                         ? 'E-mail ja cadastrado. Use outro ou recupere sua senha.'
-                        : message,
-                    error_code: isDuplicate ? 'email_exists' : 'signup_failed'
+                        : isEmailRateLimited
+                            ? 'O servico de e-mail do cadastro atingiu o limite temporario de envio. Aguarde alguns minutos e tente novamente.'
+                            : isConfirmationEmailFailure
+                                ? 'Nao foi possivel enviar o e-mail de confirmacao agora. Tente novamente em alguns minutos.'
+                                : message,
+                    error_code: derivedErrorCode,
+                    emailDeliveryIssue: isEmailRateLimited || isConfirmationEmailFailure
                 });
             }
 
