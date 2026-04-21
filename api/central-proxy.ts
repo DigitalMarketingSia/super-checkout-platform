@@ -27,6 +27,7 @@ const ALLOWED_ENDPOINTS = [
     'validate-license',
     'validate-activation-token',
     'check-entitlement',
+    'account-flags',
 ];
 
 // CORS Whitelist (Fase 15.1 — Hardening)
@@ -189,6 +190,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 isAllowed = true;
             } else if (endpoint === 'generate-install-token') {
                 isAllowed = true; // JWT is validated. Edge function will also verify if the user actually owns the license being requested.
+            } else if (endpoint === 'account-flags') {
+                isAllowed = true;
             }
 
             if (!isAllowed) {
