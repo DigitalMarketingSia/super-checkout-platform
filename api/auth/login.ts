@@ -612,9 +612,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 const { data: centralProfile } = await centralProfileClient
                     .from('profiles')
-                    .select('account_status, approval_notes')
+                    .select('account_status, approval_notes, is_blocked, blocked_at')
                     .eq('id', data.user.id)
                     .maybeSingle();
+
+                if (centralProfile?.is_blocked) {
+                    return res.status(403).json({
+                        error: 'Seu acesso ao portal foi bloqueado. Fale com o suporte para regularizar.',
+                        error_code: 'blocked',
+                        blocked_at: centralProfile.blocked_at || null
+                    });
+                }
 
                 if (centralProfile?.account_status === 'pending_approval') {
                     return res.status(403).json({

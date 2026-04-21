@@ -669,6 +669,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (action === 'signup') {
         const name = String(req.body?.name || '').trim();
+        const whatsapp = String(req.body?.whatsapp || '').trim();
         const password = String(req.body?.password || '');
         const partnerId = typeof req.body?.partnerId === 'string' ? req.body.partnerId : null;
         const partnerConsent = Boolean(req.body?.partnerConsent);
@@ -763,6 +764,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 options: {
                     data: {
                         full_name: name,
+                        whatsapp: whatsapp,
                         role: 'admin',
                         source: 'register_page',
                         partner_id: partnerId,
