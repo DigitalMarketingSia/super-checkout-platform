@@ -14,8 +14,8 @@ import {
   maskEmail,
   normalizeTotpCode,
   TWO_FACTOR_ISSUER,
-} from './2fa/_shared.js';
-import { decrypt } from '../../src/core/utils/cryptoUtils.js';
+} from './2fa/_shared';
+import { decrypt } from '../../src/core/utils/cryptoUtils';
 
 type TwoFactorChallenge = {
   session: any;

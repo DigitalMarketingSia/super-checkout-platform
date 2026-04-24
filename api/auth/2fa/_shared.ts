@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
-import { decrypt, encrypt } from '../../../src/core/utils/cryptoUtils.js';
+import { decrypt, encrypt } from '../../../src/core/utils/cryptoUtils';
 
 const ALLOWED_ORIGINS = [
   process.env.APP_URL,

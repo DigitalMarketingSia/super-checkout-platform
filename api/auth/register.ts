@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { applyCors, emailFingerprint, getAuditClient, getIp, getPortalBaseUrl, getUserAgent, logSecurityEvent, maskEmail, normalizeEmail } from './_shared.js';
-import { isDisposableEmailDomain } from './_disposableEmailDomains.js';
+import { applyCors, emailFingerprint, getAuditClient, getIp, getPortalBaseUrl, getUserAgent, logSecurityEvent, maskEmail, normalizeEmail } from './_shared';
+import { isDisposableEmailDomain } from './_disposableEmailDomains';
 
 type PublicAction = 'signup' | 'resend' | 'track' | 'status' | 'waitlist' | 'validate_invite';
 type PublicTrackEvent =
@@ -30,6 +30,18 @@ const DEFAULT_LAUNCH_SETTINGS: LaunchSettings = {
 const DEFAULT_CENTRAL_API_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co/functions/v1';
 const DEFAULT_CENTRAL_SUPABASE_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co';
 const DEFAULT_CENTRAL_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJjbW5yeXhqd2Vpb3Zyd216dHBuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc2NjM2MjMsImV4cCI6MjA4MzIzOTYyM30.F86wf0xwTR1K_P9500JwnESStPb2bCo3dwuouHBPcQM';
+const SIGNUP_PROFILE_RETRY_DELAYS_MS = [0, 250, 750] as const;
+
+interface SignupPersistenceParams {
+    userId: string;
+    email: string;
+    name: string;
+    whatsapp: string;
+    partnerId: string | null;
+    partnerConsent: boolean;
+    accountStatus: 'active' | 'pending_approval';
+    inviteToken: string | null;
+}
 
 const HARD_LIMITS = {
     signupIp: { max: 4, windowMs: 30 * 60 * 1000, blockMs: 60 * 60 * 1000 },
@@ -197,6 +209,163 @@ function getCentralClient(): SupabaseClient | null {
             persistSession: false
         }
     });
+}
+
+function getCentralAdminClient(): SupabaseClient | null {
+    const supabaseUrl =
+        process.env.VITE_CENTRAL_SUPABASE_URL
+        || process.env.VITE_CENTRAL_API_URL?.replace('/functions/v1', '')
+        || DEFAULT_CENTRAL_API_URL.replace('/functions/v1', '')
+        || DEFAULT_CENTRAL_SUPABASE_URL;
+    const serviceRoleKey =
+        process.env.CENTRAL_SUPABASE_SERVICE_ROLE_KEY
+        || process.env.VITE_CENTRAL_SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !serviceRoleKey) {
+        return null;
+    }
+
+    return createClient(supabaseUrl, serviceRoleKey, {
+        auth: {
+            autoRefreshToken: false,
+            persistSession: false
+        }
+    });
+}
+
+function sleep(ms: number) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function ensureSignupPersistence(params: SignupPersistenceParams) {
+    const centralAdmin = getCentralAdminClient();
+    if (!centralAdmin) {
+        return {
+            ok: false,
+            recoveredProfile: false,
+            reason: 'missing_central_admin_client'
+        } as const;
+    }
+
+    const { data: authData, error: authError } = await centralAdmin.auth.admin.getUserById(params.userId);
+    if (authError || !authData?.user) {
+        return {
+            ok: false,
+            recoveredProfile: false,
+            reason: authError?.message || 'central_auth_user_not_found'
+        } as const;
+    }
+
+    for (const delayMs of SIGNUP_PROFILE_RETRY_DELAYS_MS) {
+        if (delayMs > 0) {
+            await sleep(delayMs);
+        }
+
+        const { data: profile, error: profileError } = await centralAdmin
+            .from('profiles')
+            .select('id')
+            .eq('id', params.userId)
+            .maybeSingle();
+
+        if (!profileError && profile?.id) {
+            return {
+                ok: true,
+                recoveredProfile: false,
+                reason: null
+            } as const;
+        }
+    }
+
+    const nowIso = new Date().toISOString();
+    const profilePayload = {
+        id: params.userId,
+        email: params.email,
+        full_name: params.name,
+        whatsapp: params.whatsapp,
+        role: 'admin',
+        signup_source: 'register_page',
+        referred_by_partner_id: params.partnerId,
+        partner_consent: params.partnerId ? params.partnerConsent : false,
+        account_status: params.accountStatus,
+        is_blocked: false,
+        approval_status_changed_at: nowIso,
+        updated_at: nowIso
+    };
+
+    const { error: upsertError } = await centralAdmin
+        .from('profiles')
+        .upsert(profilePayload, { onConflict: 'id' });
+
+    if (upsertError) {
+        return {
+            ok: false,
+            recoveredProfile: false,
+            reason: upsertError.message
+        } as const;
+    }
+
+    if (params.inviteToken) {
+        try {
+            await centralAdmin.rpc('consume_invite_token', {
+                p_token: params.inviteToken,
+                p_used_by: params.userId
+            });
+        } catch {
+            // O consumo do convite ja e tentado pelo trigger; aqui e apenas um fallback.
+        }
+    }
+
+    return {
+        ok: true,
+        recoveredProfile: true,
+        reason: null
+    } as const;
+}
+
+async function findCentralAuthUserByEmail(email: string) {
+    const centralAdmin = getCentralAdminClient();
+    if (!centralAdmin) {
+        return {
+            user: null,
+            reason: 'missing_central_admin_client'
+        } as const;
+    }
+
+    let page = 1;
+
+    while (page <= 10) {
+        const { data, error } = await centralAdmin.auth.admin.listUsers({
+            page,
+            perPage: 1000
+        });
+
+        if (error) {
+            return {
+                user: null,
+                reason: error.message
+            } as const;
+        }
+
+        const matchedUser = (data?.users || []).find((user) => normalizeEmail(user.email || '') === email);
+        if (matchedUser) {
+            return {
+                user: matchedUser,
+                reason: null
+            } as const;
+        }
+
+        const lastPage = data?.lastPage || 0;
+        if (!lastPage || page >= lastPage) {
+            break;
+        }
+
+        page += 1;
+    }
+
+    return {
+        user: null,
+        reason: null
+    } as const;
 }
 
 async function getLaunchSettings(central: SupabaseClient): Promise<LaunchSettings> {
@@ -762,6 +931,141 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             const accountStatus = launchSettings.manualApprovalEnabled ? 'pending_approval' : 'active';
             const redirectPath = `${getPortalBaseUrl(req.headers.origin)}/activate`;
+            const existingAuthUser = await findCentralAuthUserByEmail(email);
+
+            if (existingAuthUser.reason) {
+                await logSecurityEvent({
+                    eventType: 'register_signup_failed',
+                    severity: 'CRITICAL',
+                    ip,
+                    userAgent,
+                    source: SOURCE,
+                    metadata: {
+                        email: maskEmail(email),
+                        email_fingerprint: emailFingerprint(email),
+                        reason: existingAuthUser.reason
+                    }
+                });
+
+                return res.status(503).json({
+                    error: 'Nao foi possivel validar o cadastro existente agora. Tente novamente em alguns instantes.',
+                    error_code: 'signup_precheck_failed'
+                });
+            }
+
+            if (existingAuthUser.user?.id) {
+                const persistence = await ensureSignupPersistence({
+                    userId: existingAuthUser.user.id,
+                    email,
+                    name,
+                    whatsapp,
+                    partnerId,
+                    partnerConsent,
+                    accountStatus,
+                    inviteToken: invite.valid ? inviteToken : null
+                });
+
+                if (!persistence.ok) {
+                    await logSecurityEvent({
+                        eventType: 'register_signup_failed',
+                        severity: 'CRITICAL',
+                        ip,
+                        userAgent,
+                        source: SOURCE,
+                        userId: existingAuthUser.user.id,
+                        metadata: {
+                            email: maskEmail(email),
+                            email_fingerprint: emailFingerprint(email),
+                            reason: persistence.reason || 'existing_user_persistence_failed'
+                        }
+                    });
+
+                    return res.status(503).json({
+                        error: 'Encontramos um cadastro anterior, mas ele nao pode ser reconciliado agora. Tente novamente em alguns instantes.',
+                        error_code: 'signup_not_persisted'
+                    });
+                }
+
+                const isEmailConfirmed = Boolean(existingAuthUser.user.email_confirmed_at);
+
+                if (!isEmailConfirmed) {
+                    const { error: resendError } = await central.auth.resend({
+                        type: 'signup',
+                        email,
+                        options: {
+                            emailRedirectTo: redirectPath
+                        }
+                    });
+
+                    if (resendError) {
+                        await logSecurityEvent({
+                            eventType: 'register_signup_confirmation_email_failed',
+                            severity: 'WARNING',
+                            ip,
+                            userAgent,
+                            source: SOURCE,
+                            userId: existingAuthUser.user.id,
+                            metadata: {
+                                email: maskEmail(email),
+                                email_fingerprint: emailFingerprint(email),
+                                reason: resendError.message,
+                                reused_existing_user: true
+                            }
+                        });
+
+                        return res.status(503).json({
+                            error: 'Encontramos um cadastro pendente, mas nao foi possivel reenviar o e-mail de confirmacao agora.',
+                            error_code: 'confirmation_email_failed',
+                            emailDeliveryIssue: true
+                        });
+                    }
+
+                    await logSecurityEvent({
+                        eventType: 'register_signup_success',
+                        severity: 'INFO',
+                        ip,
+                        userAgent,
+                        source: SOURCE,
+                        userId: existingAuthUser.user.id,
+                        metadata: {
+                            email: maskEmail(email),
+                            email_fingerprint: emailFingerprint(email),
+                            license_side_effects: 'auth_only_until_activation',
+                            account_status: accountStatus,
+                            invited_signup: invite.valid,
+                            reused_existing_user: true,
+                            profile_recovered_after_signup: persistence.recoveredProfile
+                        }
+                    });
+
+                    return res.status(200).json({
+                        success: true,
+                        approvalPending: launchSettings.manualApprovalEnabled,
+                        inviteValid: invite.valid,
+                        inviteExpiresAt: invite.expiresAt
+                    });
+                }
+
+                await logSecurityEvent({
+                    eventType: 'register_signup_duplicate',
+                    severity: 'INFO',
+                    ip,
+                    userAgent,
+                    source: SOURCE,
+                    userId: existingAuthUser.user.id,
+                    metadata: {
+                        email: maskEmail(email),
+                        email_fingerprint: emailFingerprint(email),
+                        reused_existing_user: true
+                    }
+                });
+
+                return res.status(409).json({
+                    error: 'E-mail ja cadastrado. Use outro ou recupere sua senha.',
+                    error_code: 'email_exists'
+                });
+            }
+
             const { data, error } = await central.auth.signUp({
                 email,
                 password,
@@ -833,6 +1137,58 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 });
             }
 
+            if (!data.user?.id) {
+                await logSecurityEvent({
+                    eventType: 'register_signup_failed',
+                    severity: 'CRITICAL',
+                    ip,
+                    userAgent,
+                    source: SOURCE,
+                    metadata: {
+                        email: maskEmail(email),
+                        email_fingerprint: emailFingerprint(email),
+                        reason: 'signup_returned_without_user_id'
+                    }
+                });
+
+                return res.status(503).json({
+                    error: 'O cadastro nao foi persistido corretamente. Tente novamente em alguns instantes.',
+                    error_code: 'signup_not_persisted'
+                });
+            }
+
+            const persistence = await ensureSignupPersistence({
+                userId: data.user.id,
+                email,
+                name,
+                whatsapp,
+                partnerId,
+                partnerConsent,
+                accountStatus,
+                inviteToken: invite.valid ? inviteToken : null
+            });
+
+            if (!persistence.ok) {
+                await logSecurityEvent({
+                    eventType: 'register_signup_failed',
+                    severity: 'CRITICAL',
+                    ip,
+                    userAgent,
+                    source: SOURCE,
+                    userId: data.user.id,
+                    metadata: {
+                        email: maskEmail(email),
+                        email_fingerprint: emailFingerprint(email),
+                        reason: persistence.reason || 'signup_persistence_failed'
+                    }
+                });
+
+                return res.status(503).json({
+                    error: 'O cadastro nao foi concluido com seguranca. Tente novamente em alguns instantes.',
+                    error_code: 'signup_not_persisted'
+                });
+            }
+
             await logSecurityEvent({
                 eventType: launchSettings.manualApprovalEnabled
                     ? 'register_signup_pending_approval'
@@ -847,7 +1203,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     email_fingerprint: emailFingerprint(email),
                     license_side_effects: 'auth_only_until_activation',
                     account_status: accountStatus,
-                    invited_signup: invite.valid
+                    invited_signup: invite.valid,
+                    profile_recovered_after_signup: persistence.recoveredProfile
                 }
             });
 

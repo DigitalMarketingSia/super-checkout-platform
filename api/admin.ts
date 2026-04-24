@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import createLicenseHandler from '../src/core/api/admin/create-license.js';
-import membersHandler from '../src/core/api/admin/members.js';
-import saveGatewayHandler from '../src/core/api/admin/save-gateway.js';
-import securityEventsHandler from '../src/core/api/admin/security-events.js';
+import createLicenseHandler from '../src/core/api/admin/create-license';
+import membersHandler from '../src/core/api/admin/members';
+import saveGatewayHandler from '../src/core/api/admin/save-gateway';
+import securityEventsHandler from '../src/core/api/admin/security-events';
 
 const ALLOWED_ORIGINS = [
     process.env.APP_URL,

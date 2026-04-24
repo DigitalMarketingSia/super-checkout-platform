@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
-import { decrypt } from '../src/core/utils/cryptoUtils.js';
+import { decrypt } from '../src/core/utils/cryptoUtils';
 import { MercadoPagoConfig, Payment } from 'mercadopago';
 
 // --- CONFIG ---
@@ -36,6 +36,40 @@ const isAlreadyProcessed = async (supabaseAdmin: any, eventId: string): Promise<
     if (!eventId) return false;
     const { data } = await supabaseAdmin.from('webhook_logs').select('id').eq('event', eventId).eq('processed', true).limit(1);
     return !!(data && data.length > 0);
+};
+
+const invokeFulfillOrder = async (
+    supabaseUrl: string,
+    supabaseKey: string,
+    payload: { order_id: string; email?: string | null; name?: string | null },
+) => {
+    const fulfillRes = await fetch(`${supabaseUrl}/functions/v1/fulfill-order`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${supabaseKey}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+    });
+
+    const responseText = await fulfillRes.text();
+    let responseData: any = null;
+
+    try {
+        responseData = responseText ? JSON.parse(responseText) : null;
+    } catch {
+        responseData = null;
+    }
+
+    if (!fulfillRes.ok) {
+        throw new Error(
+            responseData?.error
+            || responseText
+            || `fulfill-order failed with status ${fulfillRes.status}`,
+        );
+    }
+
+    return responseData;
 };
 
 // --- ANTI-REPLAY: Timestamp validation (5 min window) ---
@@ -153,15 +187,11 @@ async function handleStripe(req: VercelRequest, res: VercelResponse, rawBody: st
             updates.push(supabaseAdmin.from('payments').update({ status: 'paid', raw_response: rawBody }).eq('id', paymentRecord.id));
         }
         await Promise.all(updates);
-        fetch(`${supabaseUrl}/functions/v1/fulfill-order`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${supabaseKey}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                order_id: oid,
-                email: orderData?.customer_email,
-                name: orderData?.customer_name
-            })
-        }).catch(() => {});
+        await invokeFulfillOrder(supabaseUrl, supabaseKey, {
+            order_id: oid,
+            email: orderData?.customer_email,
+            name: orderData?.customer_name,
+        });
         await logWebhook(supabaseAdmin, eventId, `Stripe Approved: ${oid}`, 200, rawBody);
     }
 
@@ -227,23 +257,22 @@ async function handleMercadoPago(req: VercelRequest, res: VercelResponse, rawBod
 
             const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
             const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-            if (supabaseUrl && supabaseKey) {
-                fetch(`${supabaseUrl}/functions/v1/fulfill-order`, {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${supabaseKey}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        order_id: oid,
-                        email: orderData?.customer_email,
-                        name: orderData?.customer_name
-                    })
-                }).catch(() => {});
+            if (!supabaseUrl || !supabaseKey) {
+                throw new Error('Missing Supabase runtime config for fulfill-order.');
             }
+
+            await invokeFulfillOrder(supabaseUrl, supabaseKey, {
+                order_id: oid,
+                email: orderData?.customer_email,
+                name: orderData?.customer_name,
+            });
+
             await logWebhook(supabaseAdmin, mpIdempotencyKey, `Approved: ${oid}`, 200, rawBody);
         }
         return res.status(200).json({ status: 'OK', mpStatus });
     } catch (err: any) {
         await logWebhook(supabaseAdmin, 'webhook.mp_error', err.message, 500, rawBody);
-        return res.status(200).json({ status: 'ERROR', message: err.message });
+        return res.status(500).json({ status: 'ERROR', message: err.message });
     }
 }
 
