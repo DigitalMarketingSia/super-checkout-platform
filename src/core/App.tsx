@@ -490,9 +490,10 @@ const App = () => {
           if (config.license) localStorage.setItem('installer_license_key', config.license);
           if (config.org) localStorage.setItem('installer_org_slug', config.org);
           if (config.install_id) localStorage.setItem('installation_id', config.install_id); // Hydrate Installation ID
+          if (config.central_id) localStorage.setItem('installer_owner_id', config.central_id);
 
           // Clear hash and reload to initialize services with new keys
-          window.location.hash = '';
+          window.history.replaceState(null, document.title, window.location.pathname + window.location.search);
           window.location.reload();
           return; // Stop here, reload follows
         } catch (e) {

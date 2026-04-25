@@ -993,31 +993,6 @@ export default function InstallerWizard() {
                                     </div>
                                 </div>
 
-                                <div className="h-px bg-white/5" />
-
-                                {/* License Key Section */}
-                                <div className="space-y-3">
-                                    <div className="flex items-center justify-between">
-                                        <div>
-                                            <h3 className="text-white font-bold flex items-center gap-2">
-                                                3. VITE_LICENSE_KEY (Importante)
-                                            </h3>
-                                        </div>
-                                    </div>
-                                    <div className="flex gap-3">
-                                        <div className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-gray-400 font-mono text-sm flex items-center truncate">
-                                            {licenseKey}
-                                        </div>
-                                        <button
-                                            onClick={() => copyToClipboard(licenseKey, 'VITE_LICENSE_KEY')}
-                                            className={`px-6 rounded-xl font-bold transition-all duration-200 flex items-center gap-2 ${copiedId === 'VITE_LICENSE_KEY' ? 'bg-[#38BB81] text-white' : 'bg-white/10 hover:bg-white/20 text-white'}`}
-                                        >
-                                            {copiedId === 'VITE_LICENSE_KEY' ? <Check className="w-5 h-5 animate-bounce" /> : <Copy className="w-5 h-5" />}
-                                            {copiedId === 'VITE_LICENSE_KEY' ? t('deploy.copy_success') : t('deploy.copy_btn')}
-                                        </button>
-                                    </div>
-                                </div>
-
                                 <div className="h-8" />
 
                                 <form onSubmit={handleDeploySubmit} className="pt-4 border-t border-white/10">

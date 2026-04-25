@@ -45,6 +45,11 @@ export const getEnv = (key: string): string | undefined => {
 
   // 3. Fallback: LocalStorage (Apenas em ambiente de navegador para o instalador)
   if (typeof window !== 'undefined') {
+    if (key === 'VITE_LICENSE_KEY' || key === 'LICENSE_KEY') {
+      const localLicense = window.localStorage.getItem('installer_license_key');
+      if (localLicense) return localLicense;
+    }
+
     const isSupabaseKey = key.includes('SUPABASE');
     if (isSupabaseKey) {
       const localKey = key.includes('URL') ? 'installer_supabase_url' :
