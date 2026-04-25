@@ -2,6 +2,7 @@ import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 import { createClient } from '@supabase/supabase-js';
+import { getEnv } from '../utils/env';
 
 // Import all language files directly to ensure instant loading
 import commonEn from '../locales/en/common.json';
@@ -26,9 +27,11 @@ import adminEs from '../locales/es/admin.json';
 import memberEs from '../locales/es/member.json';
 
 // Initialize Supabase Client for the detector
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabaseUrl = getEnv('VITE_SUPABASE_URL');
+const supabaseKey = getEnv('VITE_SUPABASE_ANON_KEY');
+const supabase = supabaseUrl && supabaseKey
+  ? createClient(supabaseUrl, supabaseKey)
+  : null;
 
 i18n
   .use(LanguageDetector)
@@ -77,7 +80,7 @@ i18n
   });
 
 // Fetch instance default from DB if no manual preference exists
-if (!localStorage.getItem('i18nextLng')) {
+if (supabase && typeof localStorage !== 'undefined' && !localStorage.getItem('i18nextLng')) {
   supabase.from('system_config')
     .select('default_locale')
     .single()

@@ -528,6 +528,21 @@ const App = () => {
     );
   }
 
+  if (typeof window !== 'undefined' && window.location.pathname === '/setup') {
+    return (
+      <GlobalErrorBoundary>
+        <Toaster richColors position="top-right" theme={localStorage.getItem('theme') === 'dark' ? 'dark' : 'light'} />
+        <InstallationProvider>
+          <ThemeProvider>
+            <BrowserRouter>
+              <Setup />
+            </BrowserRouter>
+          </ThemeProvider>
+        </InstallationProvider>
+      </GlobalErrorBoundary>
+    );
+  }
+
   return (
     <GlobalErrorBoundary>
       <Toaster richColors position="top-right" theme={localStorage.getItem('theme') === 'dark' ? 'dark' : 'light'} />

@@ -3,13 +3,11 @@ import { supabase } from '../../services/supabase';
 import { useNavigate } from 'react-router-dom';
 import { ShieldCheck, User, Mail, Lock, ChevronRight, AlertCircle, Check } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '../../context/AuthContext';
 import { useInstallation } from '../../context/InstallationContext';
 
 export default function Setup() {
     const { t } = useTranslation('auth');
     const navigate = useNavigate();
-    const { fetchProfile } = useAuth();
     const { installationId, loading: instLoading } = useInstallation();
 
     const [name, setName] = useState('');
