@@ -8,7 +8,7 @@ export const CENTRAL_CONFIG = {
 
     // Endpoints
     ENDPOINTS: {
-        VALIDATE_TOKEN: '/manage-licenses',
+        VALIDATE_TOKEN: '/validate-token',
         GENERATE_TOKEN: '/generate-install-token',
         GET_LICENSE: '/get-license-status'
     }

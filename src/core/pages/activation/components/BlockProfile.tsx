@@ -10,6 +10,16 @@ interface BlockProfileProps {
 
 export const BlockProfile: React.FC<BlockProfileProps> = ({ user, license, onNavigate }) => {
     const { t } = useTranslation('portal');
+    const planBadge =
+        license?.plan === 'whitelabel'
+            ? t('profile.plan_label', { plan: 'WHITELABEL' })
+            : license?.has_partner_panel && license?.has_unlimited_domains
+                ? `${t('profile.partner')} + ${t('profile.unlimited_domains')}`
+                : license?.has_partner_panel || license?.plan === 'saas'
+                    ? t('profile.partner')
+                    : license?.has_unlimited_domains || license?.plan === 'upgrade_domains'
+                        ? t('profile.unlimited_domains')
+                        : t('profile.plan_label', { plan: license?.plan?.toUpperCase() });
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-5 duration-700">
             {/* Main Profile Info Card */}
@@ -36,7 +46,7 @@ export const BlockProfile: React.FC<BlockProfileProps> = ({ user, license, onNav
                             </div>
                             <div className="flex items-center gap-2 bg-primary/10 border border-primary/20 px-4 py-1.5 rounded-full">
                                 <span className="text-[10px] font-black text-primary uppercase tracking-[0.2em] italic">
-                                    {license?.plan === 'upgrade_domains' ? t('profile.unlimited_domains') : license?.plan === 'saas' ? t('profile.partner') : t('profile.plan_label', { plan: license?.plan?.toUpperCase() })}
+                                    {planBadge}
                                 </span>
                             </div>
                         </div>

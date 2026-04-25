@@ -45,7 +45,10 @@ export const BlockBasicDashboard: React.FC<BlockBasicDashboardProps> = ({
     );
 
     const latestInstall = activeInstall || installations[0] || null;
-    const hasUnlimitedPlan = license?.plan === 'upgrade_domains' || license?.plan === 'whitelabel' || license?.plan === 'saas';
+    const hasUnlimitedPlan =
+        Boolean(license?.has_unlimited_domains)
+        || license?.plan === 'upgrade_domains'
+        || license?.plan === 'whitelabel';
     const domainLimit = hasUnlimitedPlan ? t('license.unlimited') : '1';
     const productLimit = hasUnlimitedPlan ? t('license.unlimited') : '3';
     const installedAdminBaseUrl = activeInstall?.domain ? `https://${activeInstall.domain}` : null;

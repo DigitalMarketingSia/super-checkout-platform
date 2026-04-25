@@ -52,7 +52,19 @@ export const MemberLogin = ({ forcedSlug }: { forcedSlug?: string }) => {
                 body: JSON.stringify({ email, password, target: 'local' }),
             });
 
-            const loginData = await loginResponse.json();
+            const contentType = loginResponse.headers.get('content-type') || '';
+            let loginData: any = {};
+
+            if (contentType.includes('application/json')) {
+                loginData = await loginResponse.json().catch(() => ({}));
+            } else {
+                const rawBody = await loginResponse.text().catch(() => '');
+                throw new Error(
+                    rawBody.trim()
+                        ? `Backend de login respondeu algo inesperado: ${rawBody.slice(0, 160)}`
+                        : 'Backend de login indisponivel no momento.'
+                );
+            }
 
             if (!loginResponse.ok) {
                 if (loginResponse.status === 429) {

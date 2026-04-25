@@ -2,14 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { Server, ArrowRight, Loader2, Copy, AlertTriangle, Zap, Clock } from 'lucide-react';
 import { License, licenseService } from '../../../services/licenseService';
 import { useTranslation } from 'react-i18next';
-import { supabase } from '../../../services/supabase';
 import { getInstallerUrl } from '../../../config/platformUrls';
 import { GenerateLicenseGate } from './GenerateLicenseGate';
 import { Product } from '../../../types';
 import { openUpgradeCheckout } from '../../../services/upgradeCheckout';
 
 interface BlockInstallProps {
-    license: License;
+    license: License | null;
     installations?: any[];
     onRefresh?: () => void;
     onNavigate?: (tab: string) => void;
@@ -22,16 +21,7 @@ export const BlockInstall: React.FC<BlockInstallProps> = ({ license, installatio
     const [revoking, setRevoking] = useState(false);
     const [installUrl, setInstallUrl] = useState<string | null>(null);
     const [error, setError] = useState('');
-
-    if (!license) {
-        return <GenerateLicenseGate userName={userName as string} onActivated={() => onRefresh && onRefresh()} />;
-    }
     const [showConfirmReinstall, setShowConfirmReinstall] = useState(false);
-
-    // If there is ANY installation (active, pending, failed), we might need to revoke it
-    const activeInstall = installations.find(i => i.status === 'active');
-    const anyInstall = installations[0]; // Gets the most recent or any installation
-    const hasActiveInstall = !!activeInstall;
 
     useEffect(() => {
         // If we just revoked (installations went to empty) AND we have a new URL, keep showing it.
@@ -41,11 +31,19 @@ export const BlockInstall: React.FC<BlockInstallProps> = ({ license, installatio
         }
     }, [installations]);
 
-    const generateLink = async () => {
+    if (!license) {
+        return <GenerateLicenseGate userName={userName as string} onActivated={() => onRefresh && onRefresh()} />;
+    }
+
+    // If there is ANY installation (active, pending, failed), we might need to revoke it
+    const activeInstall = installations.find(i => i.status === 'active');
+    const hasActiveInstall = !!activeInstall;
+
+    const generateLink = async (options: { resetExisting?: boolean } = {}) => {
         setGenerating(true);
         setError('');
         try {
-            const data = await licenseService.generateInstallToken(license.key);
+            const data = await licenseService.generateInstallToken(license.key, options);
             if (data.token) {
                 const url = getInstallerUrl(data.token);
                 setInstallUrl(url);
@@ -61,14 +59,10 @@ export const BlockInstall: React.FC<BlockInstallProps> = ({ license, installatio
     };
 
     const handleReinstall = async () => {
-        // We attempt to revoke ANY installation to ensure clean state
+        // Emergency reset is intentionally database-backed: revoke old installs/tokens, then mint a fresh link.
         setRevoking(true);
         try {
-            if (anyInstall) {
-                await licenseService.revokeInstallation(anyInstall.id);
-            }
-            // Installation revoked (or none existed). Now auto-generate new link.
-            await generateLink();
+            await generateLink({ resetExisting: true });
             setShowConfirmReinstall(false);
             if (onRefresh) onRefresh(); // Refresh parent to clear "active" state
         } catch (err: any) {

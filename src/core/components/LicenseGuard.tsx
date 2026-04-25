@@ -35,8 +35,31 @@ export const LicenseGuard: React.FC<LicenseGuardProps> = ({ children }) => {
 
     useEffect(() => {
         const validateLicense = async () => {
-            // BYPASS FOR INSTALLER: Never validate/lock license on the installer route
-            if (window.location.pathname.startsWith('/installer')) {
+            const pathname = window.location.pathname;
+
+            // Public routes must stay accessible even when the runtime is not configured yet.
+            const publicBypassRoutes = [
+                '/installer',
+                '/activate',
+                '/register',
+                '/update-password',
+                '/privacy-policy',
+                '/terms-of-purchase',
+                '/legal/privacy',
+                '/legal/terms',
+                '/setup',
+                '/debug-auth',
+            ];
+
+            const shouldBypassRoute = publicBypassRoutes.some((route) =>
+                pathname === route || pathname.startsWith(`${route}/`)
+            ) || pathname.startsWith('/c/')
+                || pathname.startsWith('/pagamento/')
+                || pathname.startsWith('/upsell/')
+                || pathname.startsWith('/thank-you/');
+
+            // BYPASS FOR PUBLIC/INSTALLER ROUTES: never lock auth, installer, or checkout entry points
+            if (shouldBypassRoute) {
                 setIsValid(true);
                 setLoading(false);
                 return;

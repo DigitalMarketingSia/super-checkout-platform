@@ -10,6 +10,16 @@ interface BlockPlanInfoProps {
 
 export const BlockPlanInfo: React.FC<BlockPlanInfoProps> = ({ license, userName }) => {
     const { t, i18n } = useTranslation('portal');
+    const planLabel =
+        license?.plan === 'whitelabel'
+            ? 'whitelabel'
+            : license?.has_partner_panel && license?.has_unlimited_domains
+                ? `${t('plan_info.partner')} + ${t('plan_info.unlimited')}`
+                : license?.has_partner_panel || license?.plan === 'saas'
+                    ? t('plan_info.partner')
+                    : license?.has_unlimited_domains || license?.plan === 'upgrade_domains'
+                        ? t('plan_info.unlimited')
+                        : license?.plan;
     
     if (!license) {
         return (
@@ -68,7 +78,7 @@ export const BlockPlanInfo: React.FC<BlockPlanInfoProps> = ({ license, userName 
                     <div>
                         <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">{t('plan_info.profile')}</p>
                         <p className="text-xl font-black text-white capitalize font-display italic tracking-tighter">
-                            {license.plan === 'upgrade_domains' ? t('plan_info.unlimited') : license.plan === 'saas' ? t('plan_info.partner') : license.plan}
+                            {planLabel}
                         </p>
                     </div>
                 </div>

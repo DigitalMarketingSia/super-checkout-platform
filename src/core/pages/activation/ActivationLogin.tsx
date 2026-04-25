@@ -89,6 +89,23 @@ export const ActivationLogin = () => {
         setLoading(true);
         setError('');
 
+        const directCentralLogin = async () => {
+            const { data, error } = await centralSupabase.auth.signInWithPassword({
+                email,
+                password,
+            });
+
+            if (error) {
+                throw error;
+            }
+
+            if (!data.session) {
+                throw new Error(t('activation.errors.login_failed'));
+            }
+
+            navigate('/activate/setup');
+        };
+
         try {
             const loginResponse = await fetch(getApiUrl('/api/auth/login'), {
                 method: 'POST',
@@ -96,7 +113,19 @@ export const ActivationLogin = () => {
                 body: JSON.stringify({ email, password, target: 'central' }),
             });
 
-            const loginData = await loginResponse.json();
+            const contentType = loginResponse.headers.get('content-type') || '';
+            let loginData: any = {};
+
+            if (contentType.includes('application/json')) {
+                loginData = await loginResponse.json().catch(() => ({}));
+            } else {
+                const rawBody = await loginResponse.text().catch(() => '');
+                throw new Error(
+                    rawBody.trim()
+                        ? `Backend de login respondeu algo inesperado: ${rawBody.slice(0, 160)}`
+                        : 'Backend de login indisponivel no momento.'
+                );
+            }
 
             if (!loginResponse.ok) {
                 if (loginResponse.status === 429) {
@@ -116,6 +145,26 @@ export const ActivationLogin = () => {
             navigate('/activate/setup');
         } catch (err: any) {
             console.error(err);
+            const shouldFallbackToDirectLogin =
+                err?.message?.includes('Backend de login respondeu algo inesperado')
+                || err?.message?.includes('Erro interno do servidor')
+                || err?.message?.includes('Failed to fetch');
+
+            if (shouldFallbackToDirectLogin) {
+                try {
+                    await directCentralLogin();
+                    return;
+                } catch (fallbackError: any) {
+                    console.error('Direct central login fallback failed:', fallbackError);
+                    setError(
+                        fallbackError.message === 'Invalid login credentials'
+                            ? t('activation.errors.invalid_credentials')
+                            : (fallbackError.message || t('activation.errors.login_failed'))
+                    );
+                    return;
+                }
+            }
+
             setError(err.message === 'Invalid login credentials' ? t('activation.errors.invalid_credentials') : (err.message || t('activation.errors.login_failed')));
         } finally {
             setLoading(false);

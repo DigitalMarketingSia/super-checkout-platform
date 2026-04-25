@@ -151,11 +151,7 @@ export const ActivationPortal: React.FC = () => {
             ]);
 
             const mergedPlans = centralPlans.map(cp => {
-                const localMatch = localSaaSProducts.find(lp =>
-                    lp.saas_plan_slug === cp.saas_plan_slug ||
-                    (cp.saas_plan_slug === 'whitelabel' && lp.saas_plan_slug === 'upgrade_domains') ||
-                    (cp.saas_plan_slug === 'upgrade_domains' && lp.saas_plan_slug === 'whitelabel')
-                );
+                const localMatch = localSaaSProducts.find((lp) => lp.saas_plan_slug === cp.saas_plan_slug);
 
                 if (localMatch) {
                     return {
@@ -198,13 +194,16 @@ export const ActivationPortal: React.FC = () => {
         return () => window.removeEventListener('nav-to-tab', handleNavEvent);
     }, []);
 
-    const isPartnerExperienceVisible = partnerOpportunityEnabled || license?.plan === 'saas';
-    const showPartnerOpportunityTab = license?.plan !== 'saas' && isPartnerExperienceVisible;
-    const showPartnerPanelTab = license?.plan === 'saas';
+    const hasPartnerAccess = Boolean(
+        license?.has_partner_panel
+        || license?.plan === 'saas'
+        || license?.plan === 'whitelabel'
+    );
+    const isPartnerExperienceVisible = partnerOpportunityEnabled || hasPartnerAccess;
+    const showPartnerOpportunityTab = !hasPartnerAccess && isPartnerExperienceVisible;
+    const showPartnerPanelTab = hasPartnerAccess;
     const showEarningsSimulatorTab = isPartnerExperienceVisible;
-    const upgradeProduct = saasProducts.find((product) =>
-        product.saas_plan_slug === 'upgrade_domains' || product.saas_plan_slug === 'whitelabel'
-    ) || null;
+    const upgradeProduct = saasProducts.find((product) => product.saas_plan_slug === 'upgrade_domains') || null;
 
     useEffect(() => {
         if (activeTab === 'opportunity' && !showPartnerOpportunityTab) {

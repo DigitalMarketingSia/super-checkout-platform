@@ -102,18 +102,29 @@ const DynamicBanner: React.FC<{
 };
 
 export const UpsellBanners: React.FC<UpsellBannersProps> = ({ license, products, showPartnerOpportunity }) => {
-    // If user is already whitelabel, they don't need any upsells
+    const hasUnlimitedDomains =
+        Boolean(license?.has_unlimited_domains)
+        || license?.plan === 'upgrade_domains'
+        || license?.plan === 'whitelabel';
+
+    const hasPartnerAccess =
+        Boolean(license?.has_partner_panel)
+        || license?.plan === 'saas'
+        || license?.plan === 'whitelabel';
+
+    // Commercial/unlimited plans should not see the domains upsell again.
     if (license?.plan === 'whitelabel') return null;
 
     // Filter relevant products for the user
-    // 1. If not unlimited, show upgrade_domains or whitelabel iif available
-    // FIX: Don't show upgrade if they already have upgrade_domains
-    const showUpgrade = license?.plan !== 'upgrade_domains' && (license?.max_instances || 0) <= 1 && products.some(p => p.saas_plan_slug === 'upgrade_domains' || p.saas_plan_slug === 'whitelabel');
+    // The "Dominios Ilimitados" banner must always target the exact `upgrade_domains` plan.
+    const showUpgrade = !hasUnlimitedDomains
+        && (license?.max_instances || 0) <= 1
+        && products.some(p => p.saas_plan_slug === 'upgrade_domains');
 
     // 2. If not partner, show saas plan if available in products
-    const showSaaS = showPartnerOpportunity && license?.plan !== 'saas' && products.some(p => p.saas_plan_slug === 'saas');
+    const showSaaS = showPartnerOpportunity && !hasPartnerAccess && products.some(p => p.saas_plan_slug === 'saas');
 
-    const upgradeProduct = products.find(p => p.saas_plan_slug === 'upgrade_domains' || p.saas_plan_slug === 'whitelabel');
+    const upgradeProduct = products.find(p => p.saas_plan_slug === 'upgrade_domains');
     const saasProduct = products.find(p => p.saas_plan_slug === 'saas');
 
     return (

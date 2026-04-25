@@ -248,11 +248,17 @@ export const licenseService = {
         }
     },
 
-    async generateInstallToken(licenseKey: string): Promise<{ token: string, expires_at: string }> {
+    async generateInstallToken(
+        licenseKey: string,
+        options: { resetExisting?: boolean } = {}
+    ): Promise<{ token: string, expires_at: string, revoked_existing?: boolean }> {
         const response = await fetch(getProxyUrl('generate-install-token'), {
             method: 'POST',
             headers: await getHeaders(),
-            body: JSON.stringify({ license_key: licenseKey })
+            body: JSON.stringify({
+                license_key: licenseKey,
+                reset_existing: Boolean(options.resetExisting)
+            })
         });
 
         if (!response.ok) {
