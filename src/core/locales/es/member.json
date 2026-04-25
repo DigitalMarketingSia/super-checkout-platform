@@ -1,0 +1,30 @@
+{
+  "nav": {
+    "home": "Inicio",
+    "my_products": "Mis Productos",
+    "products_for_sale": "Productos a la venta",
+    "links": "Enlaces",
+    "faq": "Dudas frecuentes",
+    "profile": "Perfil",
+    "logout": "Cerrar sesión",
+    "signup": "Regístrese aquí",
+    "login": "Entrar"
+  },
+  "status": {
+    "suspended": "Acceso Suspendido",
+    "suspended_desc": "Su cuenta ha sido suspendida temporalmente por un administrador. Póngase en contacto con el soporte para más información.",
+    "active": "Activo",
+    "inactive": "Inactivo"
+  },
+  "profile": {
+    "title": "Mi Perfil",
+    "user": "Usuario",
+    "security": "Seguridad",
+    "change_password": "Cambiar contraseña",
+    "subscriptions": "Mis Suscripciones y Compras",
+    "no_grants": "No se encontraron suscripciones o compras activas.",
+    "product_subscription": "Producto / Suscripción",
+    "single_content": "Contenido individual",
+    "access_granted_at": "Acceso concedido el"
+  }
+}

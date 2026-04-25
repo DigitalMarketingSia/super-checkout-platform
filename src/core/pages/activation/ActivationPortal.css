@@ -1,0 +1,50 @@
+/* Custom transitions for the collapsible sidebar */
+.custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 90, 31, 0.2);
+}
+
+/* Sidebar width transition */
+aside {
+    transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Main content margin transition */
+main {
+    transition: margin-left 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Glassmorphism for Top Navbar */
+.top-navbar-glass {
+    background: rgba(5, 5, 10, 0.6);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+}
+
+/* Sidebar Item Animation */
+.sidebar-item-enter {
+    animation: sidebar-item-in 0.5s ease-out forwards;
+}
+
+@keyframes sidebar-item-in {
+    from {
+        opacity: 0;
+        transform: translateX(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}

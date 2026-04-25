@@ -1,0 +1,315 @@
+{
+  "activation": {
+    "title": "Activación de Licencia",
+    "next_level": "EL PRÓXIMO NIVEL",
+    "starts_now": "COMIENZA AHORA.",
+    "ready_champion": "¡Todo listo, {{name}}! Tu cuenta está vinculada. Ahora, activa tu licencia tecnológica para desbloquear el panel.",
+    "unlock_button": "Desbloquear Mi Acceso",
+    "switch_identity": "Cambiar Identidad",
+    "secure_processing": "Procesamiento seguro a través de Super Checkout Central",
+    "benefit_infra": "Infraestructura Starter Activada",
+    "benefit_infra_detail": "Hosting incluido para tu checkout",
+    "benefit_license": "Licencia Vitalicia Garantizada",
+    "benefit_license_detail": "Sin mensualidades en la versión base",
+    "benefit_security": "Protección Anti-Fraude Activa",
+    "benefit_security_detail": "Capa de seguridad central activada",
+    "submit": "Activar Ahora",
+    "success": "¡Activación realizada con éxito!",
+    "identity_confirmed": "Identidad Confirmada"
+  },
+  "banners": {
+    "highlights": "ilimitados socio",
+    "upgrade_domains": {
+      "name": "Plan de Dominios Ilimitados",
+      "description": "Elimine todos los límites de dominios y obtenga acceso de por vida al ecosistema de Super Checkout."
+    },
+    "whitelabel": {
+      "name": "Plan de Dominios Ilimitados",
+      "description": "Elimine todos los límites de dominios y obtenga acceso de por vida al ecosistema de Super Checkout."
+    },
+    "saas": {
+      "name": "Plan de Socio",
+      "description": "Convierta su Super Checkout en una máquina de ventas y gestione clientes ilimitados."
+    }
+  },
+  "sidebar": {
+    "dashboard": "Panel de Control",
+    "access_data": "Datos de Acceso",
+    "installation": "Instalación",
+    "tutorials": "Tutoriales",
+    "security": "Seguridad",
+    "upgrade_business": "Upgrade y Negocios",
+    "partner_panel": "Panel de Socio",
+    "earnings_simulator": "Simulador de Ganancias",
+    "my_account": "Mi Cuenta",
+    "logout": "Cerrar Sesión",
+    "customer_portal": "Portal del Cliente"
+  },
+  "welcome": {
+    "title": "BIENVENIDO AL",
+    "span": "PORTAL",
+    "desc": "Configura tu licencia, gestiona instalaciones y accede al ecosistema de Super Checkout en un entorno premium de alto rendimiento."
+  },
+  "basic_dashboard": {
+    "eyebrow": "modo basico",
+    "title": "Panel operativo esencial",
+    "description": "Mira tu clave de instalacion, acompana el estado actual del sistema y abre los accesos principales sin exponer la capa de socio.",
+    "primary_cta": {
+      "license": "liberar mi licencia",
+      "install": "generar instalacion"
+    },
+    "cards": {
+      "installation_key": "clave de instalacion",
+      "installation_link": "link de instalacion",
+      "installation_status": "estado de la instalacion",
+      "current_limits": "limites del plan actual"
+    },
+    "actions": {
+      "copy_key": "copiar clave",
+      "copied": "copiado",
+      "manage_key": "gestionar clave",
+      "open_access_tab": "abrir datos de acceso",
+      "open_link": "abrir link",
+      "renew_link": "renovar link",
+      "generate_link": "generar link",
+      "view_installation": "ver instalacion",
+      "unlock_unlimited": "desbloquear ilimitado"
+    },
+    "empty_key": "Tu licencia gratuita todavia no fue generada. Usa la pestana de datos de acceso para liberar la clave ahora.",
+    "empty_link": "Todavia no se genero ningun link seguro en esta sesion. Genera un link temporal cuando quieras instalar o reinstalar.",
+    "status": {
+      "active": "activa",
+      "inactive": "inactiva",
+      "pending": "pendiente",
+      "active_desc": "Tu entorno esta publicado y respondiendo en el dominio {{domain}}.",
+      "inactive_desc": "Existe historial de instalacion, pero no se encontro ninguna instancia activa en este momento.",
+      "pending_desc": "Tu cuenta esta lista para generar el primer link de instalacion."
+    },
+    "labels": {
+      "domains": "dominios",
+      "products": "productos"
+    },
+    "limited_desc": "Tu plan actual funciona con 1 dominio y 3 productos. Cuando quieras escalar sin limites, haz upgrade al plan ilimitado.",
+    "unlimited_desc": "Tu plan actual ya funciona con limites liberados para crecer y crear nuevas instalaciones.",
+    "quick_access": {
+      "eyebrow": "accesos rapidos",
+      "title": "Acceso rapido a tu sistema",
+      "ready": "Tu instalacion activa ya puede abrir los modulos principales directamente en el dominio publicado.",
+      "waiting": "En cuanto exista una instalacion activa, estos accesos abriran automaticamente el panel publicado del cliente.",
+      "open_live": "Abrir modulo en vivo",
+      "install_required": "Disponible despues de una instalacion activa",
+      "items": {
+        "checkouts": "Checkouts",
+        "domains": "Dominios",
+        "products": "Productos",
+        "members": "Area de miembros"
+      }
+    }
+  },
+  "plan_info": {
+    "title": "Estado del Ecosistema",
+    "profile": "Perfil de la Cuenta",
+    "unlimited": "Dominios Ilimitados",
+    "partner": "Socio",
+    "current_status": "Estado Actual",
+    "active": "Activo",
+    "inactive": "Inactivo",
+    "member_since": "Miembro Desde"
+  },
+  "license": {
+    "title": "Credenciales de Acceso",
+    "master_key": "Clave de Activación Maestra",
+    "copied": "¡Copiado!",
+    "copy_token": "Copiar Token",
+    "installations": "Instalaciones",
+    "domain": "Dominio",
+    "any_domain": "Cualquier dominio",
+    "unlimited": "Ilimitado"
+  },
+  "install": {
+    "title": "Infraestructura y Deploy",
+    "active_title": "Instalación Activa",
+    "operating_at": "Tu sistema está funcionando con éxito en:",
+    "new_server_warn": "¿Nuevo Servidor? Al reinstalar, el sistema actual se desconectará para liberar espacio para el nuevo deploy.",
+    "deploy_title": "Deploy del Sistema",
+    "deploy_desc": "Genera un token seguro y temporal para iniciar el asistente de instalación automatizado.",
+    "expires_in": "Expira en 60 minutos",
+    "reinstall_button": "REINSTALAR",
+    "reinstall_confirm": "Esta acción desconectará el checkout en {{domain}}. ¿Continuar?",
+    "confirm_yes": "SÍ, AHORA",
+    "confirm_back": "VOLVER",
+    "generate_token": "GENERAR TOKEN",
+    "open_panel": "ABRIR PANEL",
+    "copy_link": "Copiar Enlace",
+    "link_copied": "¡Enlace copiado!",
+    "reset_emergency": "Restablecer Configuraciones (Emergencia)",
+    "scaling_title": "¿Escalando el Negocio?",
+    "limit_nudge": "Has alcanzado el límite de 1 dominio. Desbloquea dominios ilimitados ahora.",
+    "upgrade_button": "Hacer Upgrade ⚡",
+    "token_error": "Token no devuelto por la función.",
+    "generic_error": "Error al generar enlace de instalación.",
+    "revoke_error": "Error al revocar la instalación."
+  },
+  "tutorials": {
+    "title": "Tutoriales",
+    "no_tutorials": "No se encontraron tutoriales para su plan.",
+    "streaming": "Streaming",
+    "master_feature": "Domina esta funcionalidad con nuestra guía detallada.",
+    "start_now": "Empezar Ahora",
+    "back_to_tutorials": "Volver a tutoriales",
+    "featured_lesson": "Clase Destacada",
+    "download_file": "Descargar Archivo",
+    "access_external": "Acceder Enlace Externo",
+    "prev_lesson": "Clase Anterior",
+    "next_lesson": "Próxima Clase",
+    "previous": "Anterior",
+    "next": "Próxima"
+  },
+  "security": {
+    "title": "Seguridad de la Cuenta",
+    "set_password": "Definir Contraseña de Acceso",
+    "password_placeholder": "Nueva contraseña",
+    "save_password": "Guardar Contraseña",
+    "saving": "Guardando...",
+    "password_min_length": "La contraseña debe tener al menos 6 caracteres.",
+    "save_error": "Error al guardar la contraseña.",
+    "password_set": "¡Contraseña Definida!",
+    "password_set_desc": "Ahora puedes acceder usando tu correo electrónico y contraseña.",
+    "security_advice": "Recomendamos definir una contraseña para facilitar sus próximos accesos sin depender de Magic Links."
+  },
+  "profile": {
+    "client": "Cliente",
+    "user_id": "ID de Usuario",
+    "member_since": "Miembro desde",
+    "security_desc": "Protege tu acceso o cambia tu contraseña de entrada.",
+    "manage_password": "Gestionar Contraseña",
+    "unlimited_domains": "DOMINIOS ILIMITADOS",
+    "partner": "SOCIO",
+    "plan_label": "Plan {{plan}}"
+  },
+  "opportunity": {
+    "business_opportunity": "Oportunidad de Negocio",
+    "hero_title": "TRANSFORMA <span class=\"text-primary italic\">TECNOLOGÍA</span> EN <span class=\"bg-gradient-to-r from-primary to-purple-400 bg-clip-text text-transparent\">LUCRO</span>",
+    "hero_desc": "Aprende el proceso de instalación del sistema y vende este servicio a clientes que refieras.",
+    "hero_desc_extra": "Tú instalas. Tú cobras. El 100% del valor es tuyo.",
+    "activate_partner": "ACTIVAR PLAN DE SOCIO",
+    "immediate_access": "Acceso inmediato al entrenamiento + infraestructura liberada",
+    "how_it_works": "CÓMO FUNCIONA EN LA PRÁCTICA",
+    "service_tool": "El sistema es la herramienta. La instalación es el servicio que vendes.",
+    "learn_process": "1. Aprendes el proceso",
+    "learn_desc": "Acceso al paso a paso completo para configurar el sistema en nuevos clientes de forma profesional.",
+    "offer_service": "2. Ofreces el servicio",
+    "offer_desc": "Puedes vender a:",
+    "offer_items": {
+      "clients": "Clientes Propios",
+      "leads": "Leads que generes",
+      "companies": "Empresas socias"
+    },
+    "charge_installation": "3. Cobras por la instalación",
+    "charge_desc": "Cobra entre <strong class=\"text-white font-bold\">R$ 50 a R$ 97</strong> por configuración. Sin comisiones. Sin cargos ocultos. 100% tuyo.",
+    "potential_earnings": "CUÁNTO <br />PUEDES GANAR",
+    "roi_desc": "La inversión se paga rápidamente. Después de eso, cada nuevo cliente es ganancia directa en tu cuenta.",
+    "install_calc": "{{sales}} instalaciones de $ {{price}}",
+    "profit_margin": "Margen de Ganancia",
+    "no_fees": "NO COBRAMOS TARIFAS SOBRE TUS SERVICIOS",
+    "whats_included": "QUÉ ESTÁ INCLUIDO",
+    "included_items": {
+      "training": "Entrenamiento completo de instalación",
+      "process": "Proceso validado paso a paso",
+      "infra": "Infraestructura liberada para múltiples clientes",
+      "area": "Área para la gestión de tus proyectos",
+      "support": "Soporte prioritario"
+    },
+    "for_whom": "ESTE PLAN ES PARA QUIEN",
+    "for_whom_items": {
+      "income": "Quiere generar ingresos prestando servicio digital",
+      "tech": "Ya trabaja con marketing, tráfico o tecnología",
+      "ready": "Quiere vender una solución lista sin crear un producto desde cero",
+      "scale": "Quiere escalar atendiendo a múltiples clientes"
+    },
+    "ready_to_sell": "¿LISTO PARA VENDER <br /><span class=\"text-primary\">INSTALACIONES Y LUCRAR?</span>",
+    "no_need_create": "No necesitas crear un sistema. Solo necesitas instalar y cobrar por ello.",
+    "activate_now": "ACTIVAR PLAN DE SOCIO AHORA"
+  },
+  "partner": {
+    "syncing": "Sincronizando Ecosistema...",
+    "official_provider": "Panel de Proveedor Oficial",
+    "partner_hub": "CENTRAL DEL <span class=\"text-primary\">SOCIO</span>",
+    "hub_desc": "Gestiona tus leads, brinda soporte técnico y monitorea tus instalaciones en tiempo real.",
+    "total_leads": "Leads Totales",
+    "today_suffix": "HOY",
+    "attribution_link": "Enlace de Atribución",
+    "viral_use": "Usa este enlace para viralizar contenidos y captar nuevos leads técnicos.",
+    "lead_network": "Mi Red de Leads",
+    "manage_leads": "Gestiona y contacta a potenciales clientes",
+    "search_placeholder": "Buscar por nombre o correo electrónico...",
+    "all": "Todos",
+    "pending": "Pendientes",
+    "active": "Activos",
+    "converted": "Convertidos",
+    "lead_identification": "Lead / Identificación",
+    "registration": "Registro",
+    "consent": "Consentimiento",
+    "conversion_actions": "Acciones de Conversión",
+    "no_leads_found": "No se encontraron leads",
+    "promote_link": "Promueve tu enlace para comenzar a captar.",
+    "new_blood": "SANGRE NUEVA",
+    "authorized": "Autorizado",
+    "not_informed": "No Informado",
+    "contact_whatsapp": "Llamar por Zap",
+    "already_contacted": "Ya Abordado",
+    "whatsapp_invalid": "Este lead no proporcionó un número de WhatsApp válido.",
+    "whatsapp_message": "Hola {{name}}, vi que te registraste en Super Checkout y estoy aquí para ayudarte con la configuración técnica de 1 clic. ¿Cuál es el mejor momento para hablar?",
+    "showing_leads": "Mostrando {{count}} de {{total}} leads",
+    "installations_ecosystem": "Ecosistema de Instalaciones",
+    "owner": "Propietario",
+    "no_installations": "No hay instalaciones técnicas vinculadas.",
+    "technical_view": "Vista Técnica",
+    "online": "En línea",
+    "excellence_policy": "Política de Excelencia Técnica",
+    "policy_desc": "Tu acceso como socio depende de mantener la calidad de las instalaciones. El uso indebido de la infraestructura maestra para proyectos no autorizados resultará en la revocación inmediata.",
+    "updating_list": "Actualizando Lista...",
+    "loading": "CARGANDO..."
+  },
+  "simulator": {
+    "title": "Simulador de Ganancias",
+    "partner": "del Socio",
+    "description": "Simule sus ganancias potenciales al promocionar el ecosistema y realizar servicios de instalación y configuración.",
+    "presets": {
+      "conservador": "Conservador",
+      "moderado": "Moderado",
+      "agressivo": "Agresivo"
+    },
+    "blocks": {
+      "audience": {
+        "title": "1. Generación de Audiencia",
+        "impacted": "Personas impactadas por semana",
+        "conversion": "% que se convierte en lead",
+        "result": "Total de Leads / Semana"
+      },
+      "conversion": {
+        "title": "2. Conversión en Instalación",
+        "rate": "% de conversión en clientes",
+        "pricing": "Precios del Servicio",
+        "install_val": "Instalación",
+        "config_val": "Configuración",
+        "clients_label": "Clientes / Semana",
+        "revenue_label": "Ganancias por Servicios"
+      },
+      "upgrade": {
+        "title": "3. Ganancia por Upgrade",
+        "rate": "% de upgrade a Ilimitado/SaaS",
+        "commission": "Su Comisión técnica (%)",
+        "result": "Comisión Recurrente / Semana"
+      }
+    },
+    "result": {
+      "total_potential": "Resultado Total Estimado",
+      "weekly": "Ganancia Semanal",
+      "monthly": "Ganancia Mensual",
+      "yearly": "Ganancia Anual",
+      "cta": "Empezar Ahora"
+    },
+    "legal_disclaimer": "Esta es una simulación basada en proyecciones. Los resultados reales dependen exclusivamente de su esfuerzo, estrategia de tráfico y mercado de actuación. No garantizamos ganancias financieras fijas."
+  }
+}

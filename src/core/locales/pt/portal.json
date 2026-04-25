@@ -1,0 +1,335 @@
+{
+  "activation": {
+    "title": "Ativação de Licença",
+    "next_level": "O PRÓXIMO NÍVEL",
+    "starts_now": "COMEÇA AGORA.",
+    "ready_champion": "Tudo pronto, {{name}}! Sua conta está vinculada. Agora, ative sua licença tecnológica para desbloquear o painel.",
+    "unlock_button": "Desbloquear Meu Acesso",
+    "switch_identity": "Trocar de Identidade",
+    "secure_processing": "Processamento seguro via Super Checkout Central",
+    "benefit_infra": "Infraestrutura Starter Ativada",
+    "benefit_infra_detail": "Hospedagem inclusa para seu checkout",
+    "benefit_license": "Licença Vitalícia Garantida",
+    "benefit_license_detail": "Sem mensalidades na versão base",
+    "benefit_security": "Proteção Anti-Fraude Ativa",
+    "benefit_security_detail": "Camada de segurança central ligada",
+    "submit": "Ativar Agora",
+    "success": "Ativação concluída com sucesso!",
+    "identity_confirmed": "Identidade Confirmada"
+  },
+  "banners": {
+    "highlights": "ilimitados parceiro",
+    "upgrade_domains": {
+      "name": "Domínios e Produtos Ilimitados",
+      "description": "Remova todas as travas. Escalabilidade total para criar domínios e produtos infinitos com acesso vitalício."
+    },
+    "whitelabel": {
+      "name": "Domínios e Produtos Ilimitados",
+      "description": "Remova todas as travas. Escalabilidade total para criar domínios e produtos infinitos com acesso vitalício."
+    },
+    "saas": {
+      "name": "Plano Parceiro",
+      "description": "Transforme seu Super Checkout em uma máquina de vendas e gerencie clientes ilimitados."
+    }
+  },
+  "sidebar": {
+    "dashboard": "Dashboard",
+    "access_data": "Dados de Acesso",
+    "installation": "Instalação",
+    "tutorials": "Tutoriais",
+    "security": "Segurança",
+    "upgrade_business": "Upgrade & Negócios",
+    "partner_panel": "Painel do Parceiro",
+    "earnings_simulator": "Simulador de Ganhos",
+    "my_account": "Minha Conta",
+    "logout": "Sair da Conta",
+    "customer_portal": "Portal do Cliente"
+  },
+  "welcome": {
+    "title": "BEM-VINDO AO",
+    "span": "PORTAL",
+    "desc": "Configure sua licença, gerencie instalações e acesse o ecossistema Super Checkout em um ambiente premium de alta performance."
+  },
+  "basic_dashboard": {
+    "eyebrow": "modo basico",
+    "title": "Painel operacional essencial",
+    "description": "Gerencie sua infraestrutura tecnológica, acompanhe o status de ativação em tempo real e acesse ferramentas exclusivas para escalar seu negócio com máxima performance.",
+    "primary_cta": {
+      "license": "liberar minha licenca",
+      "install": "instalar",
+      "install_subtext": "Gere sua instalação gratuita"
+    },
+    "cards": {
+      "installation_key": "chave de instalacao",
+      "installation_link": "link de instalacao",
+      "installation_status": "status da instalacao",
+      "current_limits": "limites do plano atual"
+    },
+    "actions": {
+      "copy_key": "copiar chave",
+      "copied": "copiado",
+      "manage_key": "gerenciar chave",
+      "open_access_tab": "abrir dados de acesso",
+      "open_link": "abrir link",
+      "renew_link": "renovar link",
+      "generate_link": "gerar link",
+      "view_installation": "ver instalacao",
+      "unlock_unlimited": "desbloquear ilimitado"
+    },
+    "empty_key": "Sua licenca gratuita ainda nao foi gerada. Use a aba de dados de acesso para liberar a chave agora.",
+    "empty_link": "Nenhum link seguro foi gerado nesta sessao ainda. Gere um link temporario quando quiser instalar ou reinstalar.",
+    "status": {
+      "active": "ativa",
+      "inactive": "inativa",
+      "pending": "pendente",
+      "active_desc": "Seu ambiente esta publicado e respondendo no dominio {{domain}}.",
+      "inactive_desc": "Existe historico de instalacao, mas nenhuma instancia ativa foi encontrada neste momento.",
+      "pending_desc": "Sua conta esta pronta para gerar o primeiro link de instalacao."
+    },
+    "labels": {
+      "domains": "dominios",
+      "products": "produtos"
+    },
+    "limited_desc": "Seu plano atual opera com 1 dominio e 3 produtos. Quando quiser escalar sem travas, faca o upgrade para o plano ilimitado.",
+    "unlimited_desc": "Seu plano atual ja opera com limites liberados para crescimento e novas instalacoes.",
+    "quick_access": {
+      "eyebrow": "atalhos rapidos",
+      "title": "Acesso rapido ao seu sistema",
+      "ready": "Sua instalacao ativa ja pode abrir os modulos principais diretamente no dominio publicado.",
+      "waiting": "Assim que houver uma instalacao ativa, estes atalhos abrirao o painel publicado do cliente automaticamente.",
+      "open_live": "Abrir modulo ao vivo",
+      "install_required": "Disponivel apos uma instalacao ativa",
+      "items": {
+        "checkouts": "Checkouts",
+        "domains": "Dominios",
+        "products": "Produtos",
+        "members": "Area de membros"
+      }
+    }
+  },
+  "plan_info": {
+    "title": "Status do Ecossistema",
+    "profile": "Perfil da Conta",
+    "unlimited": "Domínios Ilimitados",
+    "partner": "Parceiro",
+    "current_status": "Situação Atual",
+    "active": "Ativo",
+    "inactive": "Inativo",
+    "member_since": "Membro Desde"
+  },
+  "license": {
+    "title": "Credenciais de Acesso",
+    "master_key": "Chave de Ativação Master",
+    "copied": "Copiado!",
+    "copy_token": "Copiar Token",
+    "installations": "Instalações",
+    "domain": "Domínio",
+    "any_domain": "Qualquer domínio",
+    "unlimited": "Ilimitado"
+  },
+  "install": {
+    "title": "Infraestrutura & Deploy",
+    "active_title": "Instalação Ativa",
+    "operating_at": "Seu sistema está operando com sucesso em:",
+    "new_server_warn": "Novo Servidor? Ao reinstalar, o sistema atual será desconectado para liberar espaço para o novo deploy.",
+    "deploy_title": "Deploy do Sistema",
+    "deploy_desc": "Gere um token seguro e temporário para iniciar o assistente de instalação automatizado.",
+    "expires_in": "Expira em 60 minutos",
+    "reinstall_button": "REINSTALAR",
+    "reinstall_confirm": "Esta ação desconectará o checkout em {{domain}}. Continuar?",
+    "confirm_yes": "SIM, AGORA",
+    "confirm_back": "VOLTAR",
+    "generate_token": "GERAR TOKEN",
+    "open_panel": "ABRIR PAINEL",
+    "copy_link": "Copiar Link",
+    "link_copied": "Link copiado!",
+    "reset_emergency": "Resetar Configurações (Emergência)",
+    "scaling_title": "Escalando o Negócio?",
+    "limit_nudge": "Você atingiu o limite de 1 domínio. Desbloqueie domínios ilimitados agora.",
+    "upgrade_button": "Fazer Upgrade ⚡",
+    "token_error": "Token não retornado pela função.",
+    "generic_error": "Erro ao gerar link de instalação.",
+    "revoke_error": "Erro ao revogar instalação."
+  },
+  "tutorials": {
+    "title": "Tutoriais",
+    "no_tutorials": "Nenhum tutorial encontrado para seu plano.",
+    "streaming": "Streaming",
+    "master_feature": "Domine esta funcionalidade com nosso guia detalhado.",
+    "start_now": "Começar Agora",
+    "back_to_tutorials": "Voltar para tutoriais",
+    "featured_lesson": "Aula em Destaque",
+    "download_file": "Baixar Arquivo",
+    "access_external": "Acessar Link Externo",
+    "prev_lesson": "Aula Anterior",
+    "next_lesson": "Próxima Aula",
+    "previous": "Anterior",
+    "next": "Próxima"
+  },
+  "security": {
+    "title": "Segurança da Conta",
+    "set_password": "Definir Senha de Acesso",
+    "password_placeholder": "Nova senha",
+    "save_password": "Salvar Senha",
+    "saving": "Salvando...",
+    "password_min_length": "A senha deve ter pelo menos 6 caracteres.",
+    "save_error": "Erro ao salvar senha.",
+    "password_set": "Senha Definida!",
+    "password_set_desc": "Agora você pode acessar usando seu e-mail e senha.",
+    "security_advice": "Recomendamos definir uma senha para facilitar seus próximos acessos sem depender de Magic Links."
+  },
+  "profile": {
+    "client": "Cliente",
+    "user_id": "ID do Usuário",
+    "member_since": "Membro desde",
+    "security_desc": "Proteja seu acesso ou altere sua senha de entrada.",
+    "manage_password": "Gerenciar Senha",
+    "unlimited_domains": "DOMÍNIOS ILIMITADOS",
+    "partner": "PARCEIRO",
+    "plan_label": "Plano {{plan}}"
+  },
+  "opportunity": {
+    "business_opportunity": "Oportunidade de Negócio",
+    "hero_title": "TRANSFORME <span class=\"text-primary italic\">TECNOLOGIA</span> EM <span class=\"bg-gradient-to-r from-primary to-purple-400 bg-clip-text text-transparent\">LUCRO</span>",
+    "hero_desc": "Aprenda o processo de instalação do sistema e venda esse serviço para clientes que você indicar.",
+    "hero_desc_extra": "Você instala. Você cobra. 100% do valor é seu.",
+    "activate_partner": "ATIVAR PLANO PARCEIRO",
+    "immediate_access": "Acesso imediato ao treinamento + infraestrutura liberada",
+    "how_it_works": "COMO FUNCIONA NA PRÁTICA",
+    "service_tool": "O sistema é a ferramenta. A instalação é o serviço que você vende.",
+    "learn_process": "1. Você aprende o processo",
+    "learn_desc": "Acesso ao passo a passo completo para configurar o sistema em novos clientes de forma profissional.",
+    "offer_service": "2. Você oferece o serviço",
+    "offer_desc": "Pode vender para:",
+    "offer_items": {
+      "clients": "Clientes Próprios",
+      "leads": "Leads que você gerar",
+      "companies": "Empresas parceiras"
+    },
+    "charge_installation": "3. Você cobra pela instalação",
+    "charge_desc": "Cobre entre <strong class=\"text-white font-bold\">R$ 47 a R$ 97</strong> por setup de instalação. Sem taxas ocultas. 100% seu.",
+    "config_service": "4. Serviço de Configuração",
+    "config_desc": "Cobre pela configuração estratégica do sistema. É um serviço extra que você também lucra 100%.",
+    "potential_earnings": "QUANTO VOCÊ <br />PODE GANHAR",
+    "roi_desc": "Ganhe <strong class=\"text-white font-black\">100% de lucro</strong> instalando e configurando o sistema. E crie uma renda passiva ganhando <strong class=\"text-emerald-400 font-black\">25% dormindo</strong> assim que um lead seu contratar um plano no sistema.",
+    "install_calc": "{{sales}} instalações de R$ {{price}}",
+    "upgrade_commission": "Comissões de Upgrade (25%)",
+    "upgrade_calc": "10 Upgrades x R$ 36,75",
+    "passive_income_title": "RENDA PASSIVA AUTOMÁTICA",
+    "passive_income_highlight": "GANHE SEM FAZER NADA",
+    "passive_income_desc": "Ganhe 25% de cada upgrade que seus leads fizerem. Mesmo que eles contratem sozinhos depois da sua indicação. Plano: R$ 147,00 / Lucro: R$ 36,75",
+    "profit_margin": "Margem de Lucro",
+    "no_fees": "NÃO COBRAMOS TAXAS SOBRE SEUS SERVIÇOS",
+    "whats_included": "O QUE ESTÁ INCLUSO",
+    "included_items": {
+      "training": "Treinamento completo de instalação",
+      "process": "Processo validado passo a passo",
+      "infra": "Infraestrutura liberada para múltiplos clientes",
+      "area": "Área para gestão dos seus projetos",
+      "support": "Suporte prioritário"
+    },
+    "for_whom": "ESSE PLANO É PARA QUEM",
+    "for_whom_items": {
+      "income": "Quer gerar renda prestando serviço digital",
+      "tech": "Já trabalha com marketing, tráfego ou tecnologia",
+      "ready": "Quer vender uma solução pronta sem criar produto do zero",
+      "scale": "Quer escalar atendendo múltiplos clientes"
+    },
+    "ready_to_sell": "PRONTO PARA VENDER <br /><span class=\"text-primary\">INSTALAÇÕES E LUCRAR?</span>",
+    "no_need_create": "Você não precisa criar um sistema. Você só precisa instalar e cobrar por isso.",
+    "activate_now": "ATIVAR PLANO PARCEIRO AGORA",
+    "vip_plan": {
+      "title": "PLANO PARCEIRO ELITE",
+      "price": "297",
+      "badge": "INVESTIMENTO ÚNICO",
+      "cta": "Ativar Minha Licença de Parceiro",
+      "footer": "Desbloqueio imediato de todas as ferramentas de negócio",
+      "benefits": {
+        "install": "100% do lucro de instalação",
+        "config": "100% do lucro de configuração",
+        "upgrade": "25% de Comissão por Upgrade"
+      }
+    }
+  },
+  "partner": {
+    "syncing": "Sincronizando Ecossistema...",
+    "official_provider": "Painel de Prestador Oficial",
+    "partner_hub": "CENTRAL DO <span class=\"text-primary\">PARCEIRO</span>",
+    "hub_desc": "Gerencie seus leads, preste suporte técnico e acompanhe suas instalações em tempo real.",
+    "total_leads": "Leads Totais",
+    "today_suffix": "HOJE",
+    "attribution_link": "Link de Atribuição",
+    "viral_use": "Use este link para viralizar conteúdos e captar novos leads técnicos.",
+    "lead_network": "Minha Rede de Leads",
+    "manage_leads": "Gerencie e entre em contato com potenciais clientes",
+    "search_placeholder": "Buscar por nome ou e-mail...",
+    "all": "Todos",
+    "pending": "Pendentes",
+    "active": "Ativos",
+    "converted": "Convertidos",
+    "lead_identification": "Lead / Identificação",
+    "registration": "Cadastro",
+    "consent": "Consentimento",
+    "conversion_actions": "Ações de Conversão",
+    "no_leads_found": "Nenhum lead encontrado",
+    "promote_link": "Divulgue seu link para começar a captar.",
+    "new_blood": "SANGUE NOVO",
+    "authorized": "Autorizado",
+    "not_informed": "Não Informado",
+    "contact_whatsapp": "Chamar no Zap",
+    "already_contacted": "Já Abordado",
+    "whatsapp_invalid": "Este lead não informou um número de WhatsApp válido.",
+    "whatsapp_message": "Olá {{name}}, vi que você se cadastrou no Super Checkout e estou aqui para te ajudar com a configuração técnica de 1 clique. Qual o melhor horário para falarmos?",
+    "showing_leads": "Mostrando {{count}} de {{total}} leads",
+    "installations_ecosystem": "Ecossistema de Instalações",
+    "owner": "Proprietário",
+    "no_installations": "Nenhuma instalação técnica vinculada.",
+    "technical_view": "Vista Técnica",
+    "online": "Online",
+    "excellence_policy": "Política de Excelência Técnica",
+    "policy_desc": "Seu acesso como parceiro depende da manutenção da qualidade das instalações. O uso indevido da infraestrutura master para projetos não autorizados resultará em revogação imediata.",
+    "updating_list": "Atualizando Lista...",
+    "loading": "CARREGANDO..."
+  },
+  "simulator": {
+    "title": "Simulador de Ganhos",
+    "partner": "do Parceiro",
+    "description": "Simule seus lucros potenciais ao divulgar o ecossistema e realizar serviços de instalação e configuração.",
+    "presets": {
+      "conservador": "Conservador",
+      "moderado": "Moderado",
+      "agressivo": "Agressivo"
+    },
+    "blocks": {
+      "audience": {
+        "title": "1. Geração de Audiência",
+        "impacted": "Pessoas impactadas por semana",
+        "conversion": "% que vira lead",
+        "result": "Total de Leads / Semana"
+      },
+      "conversion": {
+        "title": "2. Conversão em Instalação",
+        "rate": "% de conversão em clientes",
+        "pricing": "Quanto você vai cobrar?",
+        "install_val": "Instalação",
+        "config_val": "Configuração",
+        "clients_label": "Clientes / Semana",
+        "revenue_label": "Ganhos com Serviços"
+      },
+      "upgrade": {
+        "title": "3. Ganho com Upgrade",
+        "rate": "Cliente fez upgrade",
+        "commission": "Sua Comissão técnica (%)",
+        "result": "Comissão Recorrente / Semana"
+      }
+    },
+    "result": {
+      "total_potential": "Resultado Total Estimado",
+      "weekly": "Ganho Semanal",
+      "monthly": "Ganho Mensal",
+      "yearly": "Ganho Anual",
+      "cta": "Começar Agora"
+    },
+    "legal_disclaimer": "Esta é uma simulação baseada em projeções. Os resultados reais dependem exclusivamente do seu esforço, estratégia de tráfego e mercado de atuação. Não garantimos ganhos financeiros fixos."
+  }
+}

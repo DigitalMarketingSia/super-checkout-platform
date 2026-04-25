@@ -1,0 +1,315 @@
+{
+  "activation": {
+    "title": "License Activation",
+    "next_level": "THE NEXT LEVEL",
+    "starts_now": "BEGINS NOW.",
+    "ready_champion": "All set, {{name}}! Your account is linked. Now, activate your tech license to unlock the dashboard.",
+    "unlock_button": "Unlock My Access",
+    "switch_identity": "Switch Identity",
+    "secure_processing": "Secure processing via Super Checkout Central",
+    "benefit_infra": "Starter Infrastructure Activated",
+    "benefit_infra_detail": "Hosting included for your checkout",
+    "benefit_license": "Lifetime License Guaranteed",
+    "benefit_license_detail": "No monthly fees on the base version",
+    "benefit_security": "Active Anti-Fraud Protection",
+    "benefit_security_detail": "Central security layer enabled",
+    "submit": "Activate Now",
+    "success": "Activation successful!",
+    "identity_confirmed": "Identity Confirmed"
+  },
+  "banners": {
+    "highlights": "unlimited partner",
+    "upgrade_domains": {
+      "name": "Unlimited Domains Plan",
+      "description": "Remove all domain limits and get lifetime access to the Super Checkout ecosystem."
+    },
+    "whitelabel": {
+      "name": "Unlimited Domains Plan",
+      "description": "Remove all domain limits and get lifetime access to the Super Checkout ecosystem."
+    },
+    "saas": {
+      "name": "Partner Plan",
+      "description": "Turn your Super Checkout into a sales machine and manage unlimited clients."
+    }
+  },
+  "sidebar": {
+    "dashboard": "Dashboard",
+    "access_data": "Access Data",
+    "installation": "Installation",
+    "tutorials": "Tutorials",
+    "security": "Security",
+    "upgrade_business": "Upgrade & Business",
+    "partner_panel": "Partner Panel",
+    "earnings_simulator": "Earnings Simulator",
+    "my_account": "My Account",
+    "logout": "Logout",
+    "customer_portal": "Customer Portal"
+  },
+  "welcome": {
+    "title": "WELCOME TO THE",
+    "span": "PORTAL",
+    "desc": "Configure your license, manage installations and access the Super Checkout ecosystem in a high-performance premium environment."
+  },
+  "basic_dashboard": {
+    "eyebrow": "basic mode",
+    "title": "Essential operations panel",
+    "description": "See your installation key, track the current system status and open the main shortcuts without exposing any partner layer.",
+    "primary_cta": {
+      "license": "unlock my license",
+      "install": "generate install"
+    },
+    "cards": {
+      "installation_key": "installation key",
+      "installation_link": "installation link",
+      "installation_status": "installation status",
+      "current_limits": "current plan limits"
+    },
+    "actions": {
+      "copy_key": "copy key",
+      "copied": "copied",
+      "manage_key": "manage key",
+      "open_access_tab": "open access data",
+      "open_link": "open link",
+      "renew_link": "renew link",
+      "generate_link": "generate link",
+      "view_installation": "view installation",
+      "unlock_unlimited": "unlock unlimited"
+    },
+    "empty_key": "Your free license has not been generated yet. Use the access data tab to unlock your key now.",
+    "empty_link": "No secure link has been generated in this session yet. Generate a temporary link whenever you want to install or reinstall.",
+    "status": {
+      "active": "active",
+      "inactive": "inactive",
+      "pending": "pending",
+      "active_desc": "Your environment is published and responding on {{domain}}.",
+      "inactive_desc": "There is installation history, but no active instance was found right now.",
+      "pending_desc": "Your account is ready to generate the first installation link."
+    },
+    "labels": {
+      "domains": "domains",
+      "products": "products"
+    },
+    "limited_desc": "Your current plan runs with 1 domain and 3 products. When you are ready to scale without limits, upgrade to the unlimited plan.",
+    "unlimited_desc": "Your current plan already runs with unlocked limits for growth and new installations.",
+    "quick_access": {
+      "eyebrow": "quick access",
+      "title": "Fast access to your system",
+      "ready": "Your active installation can already open the main modules directly on the published domain.",
+      "waiting": "As soon as there is an active installation, these shortcuts will open the published customer panel automatically.",
+      "open_live": "Open live module",
+      "install_required": "Available after an active installation",
+      "items": {
+        "checkouts": "Checkouts",
+        "domains": "Domains",
+        "products": "Products",
+        "members": "Member area"
+      }
+    }
+  },
+  "plan_info": {
+    "title": "Ecosystem Status",
+    "profile": "Account Profile",
+    "unlimited": "Unlimited Domains",
+    "partner": "Partner",
+    "current_status": "Current Status",
+    "active": "Active",
+    "inactive": "Inactive",
+    "member_since": "Member Since"
+  },
+  "license": {
+    "title": "Access Credentials",
+    "master_key": "Master Activation Key",
+    "copied": "Copied!",
+    "copy_token": "Copy Token",
+    "installations": "Installations",
+    "domain": "Domain",
+    "any_domain": "Any domain",
+    "unlimited": "Unlimited"
+  },
+  "install": {
+    "title": "Infrastructure & Deploy",
+    "active_title": "Active Installation",
+    "operating_at": "Your system is operating successfully at:",
+    "new_server_warn": "New Server? When reinstalling, the current system will be disconnected to make room for the new deploy.",
+    "deploy_title": "System Deploy",
+    "deploy_desc": "Generate a secure and temporary token to start the automated installation wizard.",
+    "expires_in": "Expires in 60 minutes",
+    "reinstall_button": "REINSTALL",
+    "reinstall_confirm": "This action will disconnect the checkout at {{domain}}. Continue?",
+    "confirm_yes": "YES, NOW",
+    "confirm_back": "BACK",
+    "generate_token": "GENERATE TOKEN",
+    "open_panel": "OPEN PANEL",
+    "copy_link": "Copy Link",
+    "link_copied": "Link copied!",
+    "reset_emergency": "Reset Settings (Emergency)",
+    "scaling_title": "Scaling Business?",
+    "limit_nudge": "You have reached the limit of 1 domain. Unlock unlimited domains now.",
+    "upgrade_button": "Upgrade Now ⚡",
+    "token_error": "Token not returned by function.",
+    "generic_error": "Error generating installation link.",
+    "revoke_error": "Error revoking installation."
+  },
+  "tutorials": {
+    "title": "Tutorials",
+    "no_tutorials": "No tutorials found for your plan.",
+    "streaming": "Streaming",
+    "master_feature": "Master this feature with our detailed guide.",
+    "start_now": "Start Now",
+    "back_to_tutorials": "Back to tutorials",
+    "featured_lesson": "Featured Lesson",
+    "download_file": "Download File",
+    "access_external": "Access External Link",
+    "prev_lesson": "Previous Lesson",
+    "next_lesson": "Next Lesson",
+    "previous": "Previous",
+    "next": "Next"
+  },
+  "security": {
+    "title": "Account Security",
+    "set_password": "Set Access Password",
+    "password_placeholder": "New password",
+    "save_password": "Save Password",
+    "saving": "Saving...",
+    "password_min_length": "Password must be at least 6 characters long.",
+    "save_error": "Error saving password.",
+    "password_set": "Password Set!",
+    "password_set_desc": "Now you can access using your email and password.",
+    "security_advice": "We recommend setting a password to make your next logins easier without depending on Magic Links."
+  },
+  "profile": {
+    "client": "Client",
+    "user_id": "User ID",
+    "member_since": "Member since",
+    "security_desc": "Protect your access or change your login password.",
+    "manage_password": "Manage Password",
+    "unlimited_domains": "UNLIMITED DOMAINS",
+    "partner": "PARTNER",
+    "plan_label": "Plan {{plan}}"
+  },
+  "opportunity": {
+    "business_opportunity": "Business Opportunity",
+    "hero_title": "TRANSFORM <span class=\"text-primary italic\">TECHNOLOGY</span> INTO <span class=\"bg-gradient-to-r from-primary to-purple-400 bg-clip-text text-transparent\">PROFIT</span>",
+    "hero_desc": "Learn the system installation process and sell this service to clients you refer.",
+    "hero_desc_extra": "You install. You charge. 100% of the value is yours.",
+    "activate_partner": "ACTIVATE PARTNER PLAN",
+    "immediate_access": "Immediate access to training + infrastructure released",
+    "how_it_works": "HOW IT WORKS IN PRACTICE",
+    "service_tool": "The system is the tool. Installation is the service you sell.",
+    "learn_process": "1. You learn the process",
+    "learn_desc": "Access the complete step-by-step guide to configure the system for new clients professionally.",
+    "offer_service": "2. You offer the service",
+    "offer_desc": "You can sell to:",
+    "offer_items": {
+      "clients": "Own Clients",
+      "leads": "Leads you generate",
+      "companies": "Partner companies"
+    },
+    "charge_installation": "3. You charge for installation",
+    "charge_desc": "Charge between <strong class=\"text-white font-bold\">$ 50 to $ 97</strong> per setup. No commission. No hidden fees. 100% yours.",
+    "potential_earnings": "HOW MUCH <br />YOU CAN EARN",
+    "roi_desc": "The investment pays off quickly. After that, every new client is direct profit in your account.",
+    "install_calc": "{{sales}} installations of $ {{price}}",
+    "profit_margin": "Profit Margin",
+    "no_fees": "WE DON'T CHARGE FEES ON YOUR SERVICES",
+    "whats_included": "WHAT'S INCLUDED",
+    "included_items": {
+      "training": "Complete installation training",
+      "process": "Validated step-by-step process",
+      "infra": "Infrastructure released for multiple clients",
+      "area": "Area for managing your projects",
+      "support": "Priority support"
+    },
+    "for_whom": "WHO THIS PLAN IS FOR",
+    "for_whom_items": {
+      "income": "Wants to generate income by providing digital service",
+      "tech": "Already works with marketing, traffic or technology",
+      "ready": "Wants to sell a ready-made solution without creating a product from scratch",
+      "scale": "Wants to scale by serving multiple clients"
+    },
+    "ready_to_sell": "READY TO SELL <br /><span class=\"text-primary\">INSTALLATIONS AND PROFIT?</span>",
+    "no_need_create": "You don't need to create a system. You just need to install and charge for it.",
+    "activate_now": "ACTIVATE PARTNER PLAN NOW"
+  },
+  "partner": {
+    "syncing": "Syncing Ecosystem...",
+    "official_provider": "Official Provider Panel",
+    "partner_hub": "PARTNER <span class=\"text-primary\">HUB</span>",
+    "hub_desc": "Manage your leads, provide technical support and track your installations in real-time.",
+    "total_leads": "Total Leads",
+    "today_suffix": "TODAY",
+    "attribution_link": "Attribution Link",
+    "viral_use": "Use this link to viralize content and capture new technical leads.",
+    "lead_network": "My Lead Network",
+    "manage_leads": "Manage and contact potential clients",
+    "search_placeholder": "Search by name or email...",
+    "all": "All",
+    "pending": "Pending",
+    "active": "Active",
+    "converted": "Converted",
+    "lead_identification": "Lead / Identification",
+    "registration": "Registration",
+    "consent": "Consent",
+    "conversion_actions": "Conversion Actions",
+    "no_leads_found": "No leads found",
+    "promote_link": "Promote your link to start capturing.",
+    "new_blood": "NEW BLOOD",
+    "authorized": "Authorized",
+    "not_informed": "Not Informed",
+    "contact_whatsapp": "Call on WhatsApp",
+    "already_contacted": "Already Contacted",
+    "whatsapp_invalid": "This lead did not provide a valid WhatsApp number.",
+    "whatsapp_message": "Hi {{name}}, I saw you registered at Super Checkout and I'm here to help you with the 1-click technical setup. What's the best time to talk?",
+    "showing_leads": "Showing {{count}} of {{total}} leads",
+    "installations_ecosystem": "Installations Ecosystem",
+    "owner": "Owner",
+    "no_installations": "No technical installations linked.",
+    "technical_view": "Technical View",
+    "online": "Online",
+    "excellence_policy": "Technical Excellence Policy",
+    "policy_desc": "Your access as a partner depends on maintaining the quality of installations. Misuse of master infrastructure for unauthorized projects will result in immediate revocation.",
+    "updating_list": "Updating List...",
+    "loading": "LOADING..."
+  },
+  "simulator": {
+    "title": "Earnings Simulator",
+    "partner": "Partner",
+    "description": "Simulate your potential profits by promoting the ecosystem and performing installation and configuration services.",
+    "presets": {
+      "conservador": "Conservative",
+      "moderado": "Moderate",
+      "agressivo": "Aggressive"
+    },
+    "blocks": {
+      "audience": {
+        "title": "1. Audience Generation",
+        "impacted": "People impacted per week",
+        "conversion": "% that becomes lead",
+        "result": "Total Leads / Week"
+      },
+      "conversion": {
+        "title": "2. Installation Conversion",
+        "rate": "% conversion into clients",
+        "pricing": "Service Pricing",
+        "install_val": "Installation",
+        "config_val": "Configuration",
+        "clients_label": "Clients / Week",
+        "revenue_label": "Earnings from Services"
+      },
+      "upgrade": {
+        "title": "3. Upgrade Earnings",
+        "rate": "% upgrade to Unlimited/SaaS",
+        "commission": "Your technical Commission (%)",
+        "result": "Recurring Commission / Week"
+      }
+    },
+    "result": {
+      "total_potential": "Estimated Total Result",
+      "weekly": "Weekly Gain",
+      "monthly": "Monthly Gain",
+      "yearly": "Yearly Gain",
+      "cta": "Start Now"
+    },
+    "legal_disclaimer": "This is a simulation based on projections. Actual results depend exclusively on your effort, traffic strategy and market of operation. We do not guarantee fixed financial gains."
+  }
+}

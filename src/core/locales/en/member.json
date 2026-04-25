@@ -1,0 +1,30 @@
+{
+  "nav": {
+    "home": "Home",
+    "my_products": "My Products",
+    "products_for_sale": "Products for sale",
+    "links": "Links",
+    "faq": "FAQ",
+    "profile": "Profile",
+    "logout": "Logout",
+    "signup": "Sign Up",
+    "login": "Login"
+  },
+  "status": {
+    "suspended": "Access Suspended",
+    "suspended_desc": "Your account has been temporarily suspended by an administrator. Contact support for more information.",
+    "active": "Active",
+    "inactive": "Inactive"
+  },
+  "profile": {
+    "title": "My Profile",
+    "user": "User",
+    "security": "Security",
+    "change_password": "Change Password",
+    "subscriptions": "My Subscriptions and Purchases",
+    "no_grants": "No active subscriptions or purchases found.",
+    "product_subscription": "Product / Subscription",
+    "single_content": "Single Content",
+    "access_granted_at": "Access granted at"
+  }
+}

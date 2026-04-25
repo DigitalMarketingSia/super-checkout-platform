@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import healthHandler from '../src/core/api/health';
-import proxyHandler from '../src/core/api/proxy';
-import sendEmailHandler from '../src/core/api/send-email';
+import healthHandler from '../src/core/api/health.js';
+import proxyHandler from '../src/core/api/proxy.js';
+import sendEmailHandler from '../src/core/api/send-email.js';
 
 async function fallbackCheckStatusHandler(req: VercelRequest, res: VercelResponse) {
     const { orderId } = req.query;
@@ -45,7 +45,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         switch (action) {
             case 'check-status': {
                 try {
-                    const mod = await import('../src/core/api/check-status');
+                    const mod = await import('../src/core/api/check-status.js');
                     return await mod.default(req, res);
                 } catch (error: any) {
                     console.error('[System] check-status primary handler crashed, using fallback:', error);

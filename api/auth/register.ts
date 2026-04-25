@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { applyCors, emailFingerprint, getAuditClient, getIp, getPortalBaseUrl, getUserAgent, logSecurityEvent, maskEmail, normalizeEmail } from './_shared';
-import { isDisposableEmailDomain } from './_disposableEmailDomains';
+import { applyCors, emailFingerprint, getAuditClient, getIp, getPortalBaseUrl, getUserAgent, logSecurityEvent, maskEmail, normalizeEmail } from './_shared.js';
+import { isDisposableEmailDomain } from './_disposableEmailDomains.js';
 
 type PublicAction = 'signup' | 'resend' | 'track' | 'status' | 'waitlist' | 'validate_invite';
 type PublicTrackEvent =
@@ -354,7 +354,7 @@ async function findCentralAuthUserByEmail(email: string) {
             } as const;
         }
 
-        const lastPage = data?.lastPage || 0;
+        const lastPage = (data as any)?.lastPage || 0;
         if (!lastPage || page >= lastPage) {
             break;
         }
