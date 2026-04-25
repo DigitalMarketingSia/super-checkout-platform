@@ -60,10 +60,11 @@ export default function InstallerWizard() {
             const params = new URLSearchParams(window.location.search);
             let token = params.get('token');
             const devBypass = params.get('bypass') === 'true'; // TEMPORARY DEV BACKDOOR
+            const savedToken = localStorage.getItem('install_token');
+            const isFreshTokenFromUrl = !!token && token !== savedToken;
 
             // Tenta recuperar do localStorage se não estiver na URL (para voltar do OAuth)
             if (!token) {
-                const savedToken = localStorage.getItem('install_token');
                 if (savedToken) {
                     token = savedToken;
                     // Opcional: recolocar na URL visualmente
@@ -128,6 +129,31 @@ export default function InstallerWizard() {
 
                 if (!data.valid) {
                     throw new Error(data.message || t('errors.invalid_token'));
+                }
+
+                if (isFreshTokenFromUrl) {
+                    const freshInstallId = crypto.randomUUID();
+                    [
+                        'super_checkout_install_id',
+                        'installation_id',
+                        'installer_step',
+                        'installer_supabase_url',
+                        'installer_supabase_anon_key',
+                        'installer_supabase_service_key',
+                        'installer_vercel_domain',
+                        'installation_domain',
+                        'installer_owner_id',
+                    ].forEach((key) => localStorage.removeItem(key));
+
+                    localStorage.setItem('super_checkout_install_id', freshInstallId);
+                    localStorage.setItem('installation_id', freshInstallId);
+                    setInstallationId(freshInstallId);
+                    setCurrentStep('check_subscription');
+                }
+
+                if (data.license?.key) {
+                    setLicenseKey(data.license.key);
+                    localStorage.setItem('installer_license_key', data.license.key);
                 }
 
                 setInstallToken(token);
