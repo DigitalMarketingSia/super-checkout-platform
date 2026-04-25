@@ -11,7 +11,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === 'OPTIONS') return res.status(200).end();
     if (req.method !== 'POST' && req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
-    let { key, domain, skip_lock, activate, register } = req.body || {};
+    let { key, domain, skip_lock, activate, register, installation_id } = req.body || {};
 
     try {
         const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
@@ -74,23 +74,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             .single();
 
         // 2. Get Installation ID from app_config
-        let installationId = null;
+        let installationId = installation_id || null;
         let shouldRegister = activate || register || false;
 
-        try {
-            const { data: configData } = await supabase
-                .from('app_config')
-                .select('value')
-                .eq('key', 'installation_id')
-                .single();
+        if (!installationId) {
+            try {
+                const { data: configData } = await supabase
+                    .from('app_config')
+                    .select('value')
+                    .eq('key', 'installation_id')
+                    .single();
 
-            if (configData?.value) {
-                installationId = typeof configData.value === 'string'
-                    ? configData.value.replace(/"/g, '')
-                    : configData.value;
+                if (configData?.value) {
+                    installationId = typeof configData.value === 'string'
+                        ? configData.value.replace(/"/g, '')
+                        : configData.value;
+                }
+            } catch (e) {
+                console.warn('Failed to fetch installation_id', e);
             }
-        } catch (e) {
-            console.warn('Failed to fetch installation_id', e);
         }
 
         // 3. Central Authority Check (Secondary Validation & Enrichment)
@@ -132,12 +134,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         ? comparison.role
                         : (comparison.license?.plan === 'master' || license?.plan === 'master') ? 'owner' : 'client';
 
+                    const centralLicense = comparison.license || {};
+
+                    await supabase
+                        .from('licenses')
+                        .upsert({
+                            key,
+                            client_name: centralLicense.client_name || license?.client_name || 'Admin User',
+                            client_email: license?.client_email || centralLicense.client_email || 'admin@local.com',
+                            status: centralLicense.status || 'active',
+                            plan: centralLicense.plan || license?.plan || 'commercial',
+                            max_instances: centralLicense.max_instances || license?.max_instances || 1,
+                            owner_id: centralLicense.owner_id || license?.owner_id || null,
+                            created_at: license?.created_at || new Date().toISOString(),
+                            allowed_domain: req.headers['host'] || domain || license?.allowed_domain || null,
+                            expires_at: centralLicense.expires_at || license?.expires_at || null,
+                            activated_at: license?.activated_at || new Date().toISOString()
+                        }, { onConflict: 'key' });
+
+                    if (installationId) {
+                        await supabase
+                            .from('app_config')
+                            .upsert({
+                                key: 'installation_id',
+                                value: JSON.stringify(installationId)
+                            }, { onConflict: 'key' });
+                    }
+
                     return res.status(200).json({
                         valid: true,
                         usage_type: comparison.usage_type || (license?.plan === 'commercial' ? 'commercial' : 'personal'),
                         role: derivedRole,
                         installation_id: installationId,
-                        license: comparison.license || license,
+                        license: centralLicense || license,
                         permissions: {
                             create_license: derivedRole === 'owner',
                             resell: derivedRole === 'owner'

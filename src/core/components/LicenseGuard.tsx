@@ -167,6 +167,7 @@ export const LicenseGuard: React.FC<LicenseGuardProps> = ({ children }) => {
 
                 const requestBody = {
                     key: LICENSE_KEY,
+                    installation_id: installationId,
                     domain: CURRENT_DOMAIN,
                     skip_lock: true // Let the API handle locking if needed, but LicenseGuard is primarily for access check
                 };

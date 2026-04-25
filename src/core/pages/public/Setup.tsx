@@ -94,6 +94,7 @@ export default function Setup() {
                 email,
                 password,
                 options: {
+                    emailRedirectTo: `${window.location.origin}/login`,
                     data: {
                         full_name: name,
                         role: 'admin',
@@ -177,7 +178,9 @@ export default function Setup() {
                             </div>
 
                             <button
-                                onClick={() => navigate('/login')}
+                                onClick={() => {
+                                    window.location.assign('/login');
+                                }}
                                 className="w-full bg-[#3ECF8E] hover:bg-[#3ECF8E]/90 text-black font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#3ECF8E]/20 hover:shadow-[#3ECF8E]/40 hover:-translate-y-1 mt-6"
                             >
                                 {t('setup.go_to_login')} <ChevronRight className="w-4 h-4" />
