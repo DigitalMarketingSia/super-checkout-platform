@@ -269,12 +269,15 @@ export const licenseService = {
     },
 
     async getMyInstallations(): Promise<Installation[]> {
+        const { centralSupabase } = await import('../services/centralClient');
         const { supabase } = await import('../services/supabase');
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: centralUserData } = await centralSupabase.auth.getUser();
+        const { data: localUserData } = await supabase.auth.getUser();
+        const user = centralUserData.user || localUserData.user;
 
         if (!user?.email) return [];
 
-        const params = new URLSearchParams({ email: user.email });
+        const params = new URLSearchParams({ email: user.email, user_id: user.id });
         const response = await fetch(`${getProxyUrl('manage-user-installations')}?${params.toString()}`, {
             method: 'GET',
             headers: await getHeaders()
@@ -286,8 +289,11 @@ export const licenseService = {
     },
 
     async revokeInstallation(installationId: string): Promise<void> {
+        const { centralSupabase } = await import('../services/centralClient');
         const { supabase } = await import('../services/supabase');
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: centralUserData } = await centralSupabase.auth.getUser();
+        const { data: localUserData } = await supabase.auth.getUser();
+        const user = centralUserData.user || localUserData.user;
 
         if (!user?.email) throw new Error('E-mail do usuário não encontrado');
 
@@ -297,7 +303,8 @@ export const licenseService = {
             body: JSON.stringify({
                 action: 'revoke',
                 installation_id: installationId,
-                email: user.email
+                email: user.email,
+                user_id: user.id
             })
         });
 

@@ -210,10 +210,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // Remove the endpoint from query params, keep the rest as-is
         const queryParams = new URLSearchParams();
         for (const [key, value] of Object.entries(req.query)) {
-            if (key !== 'endpoint' && typeof value === 'string') {
+            if (
+                key !== 'endpoint'
+                && key !== 'user_id'
+                && key !== '_user_id'
+                && key !== '_user_email'
+                && typeof value === 'string'
+            ) {
                 queryParams.set(key, value);
             }
         }
+
+        if (req.method === 'GET' && ['get-license-status', 'manage-user-installations'].includes(endpoint)) {
+            queryParams.set('user_id', user.id);
+            if (user.email) {
+                queryParams.set('email', user.email);
+            }
+        }
+
         const queryString = queryParams.toString();
         const targetUrl = `${centralApiUrl}/${endpoint}${queryString ? '?' + queryString : ''}`;
 
