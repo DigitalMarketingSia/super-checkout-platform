@@ -17,6 +17,22 @@ export default function Setup() {
     const [error, setError] = useState('');
     const [showEmailConfirmation, setShowEmailConfirmation] = useState(false);
 
+    const checkIsSetupRequired = async (targetInstallationId: string) => {
+        const { data, error } = await supabase.rpc('is_setup_required', {
+            target_installation_id: targetInstallationId
+        });
+
+        if (!error) return data;
+
+        const msg = error.message || '';
+        if (msg.includes('is_setup_required') || msg.includes('schema cache')) {
+            const fallback = await supabase.rpc('is_setup_required');
+            if (!fallback.error) return fallback.data;
+        }
+
+        throw error;
+    };
+
     useEffect(() => {
         if (instLoading) return;
 
@@ -27,10 +43,7 @@ export default function Setup() {
             }
 
             try {
-                const { data: isRequired, error } = await supabase.rpc('is_setup_required', {
-                    target_installation_id: installationId
-                });
-                if (error) throw error;
+                const isRequired = await checkIsSetupRequired(installationId);
                 if (!isRequired) {
                     navigate('/login');
                 }
@@ -66,10 +79,7 @@ export default function Setup() {
 
         try {
             // double check if setup is still required
-            const { data: isRequired, error: rpcError } = await supabase.rpc('is_setup_required', {
-                target_installation_id: installationId
-            });
-            if (rpcError) throw rpcError;
+            const isRequired = await checkIsSetupRequired(installationId);
 
             if (!isRequired) {
                 // Someone beat us to it, or it's already set up

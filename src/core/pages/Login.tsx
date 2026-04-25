@@ -44,7 +44,7 @@ export const Login = () => {
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('*, installations(installation_id)')
+      .select('*')
       .eq('id', user.id)
       .single();
 
@@ -264,7 +264,7 @@ export const Login = () => {
           // Fetch Profile to check role
           const { data: profile } = await supabase
             .from('profiles')
-            .select('*, installations(installation_id)') // Join to get Business ID
+            .select('*')
             .eq('id', user.id)
             .single();
 
