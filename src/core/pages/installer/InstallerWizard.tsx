@@ -412,7 +412,7 @@ export default function InstallerWizard() {
         return 'pending';
     };
 
-    const deployUrl = `https://vercel.com/new/clone?repository-url=https://github.com/DigitalMarketingSia/super-checkout-platform&env=VITE_SUPABASE_URL,VITE_SUPABASE_ANON_KEY,SUPABASE_SERVICE_ROLE_KEY,VITE_LICENSE_KEY,VITE_CENTRAL_API_URL,VITE_CENTRAL_SUPABASE_ANON_KEY,CENTRAL_SHARED_SECRET&envDescription=Configuracao%20Super%20Checkout&project-name=super-checkout&repository-name=super-checkout`;
+    const deployUrl = `https://vercel.com/new/clone?repository-url=https://github.com/DigitalMarketingSia/super-checkout-platform&env=VITE_SUPABASE_URL,VITE_SUPABASE_ANON_KEY,SUPABASE_SERVICE_ROLE_KEY,VITE_LICENSE_KEY,VITE_CENTRAL_API_URL,VITE_CENTRAL_SUPABASE_ANON_KEY&envDescription=Configuracao%20Super%20Checkout&project-name=super-checkout&repository-name=super-checkout`;
 
     // Navigation Helper
     const stepsOrder = ['check_subscription', 'supabase_setup', 'supabase_migrations', 'supabase_keys', 'deploy', 'vercel_config', 'success'];
@@ -914,8 +914,7 @@ export default function InstallerWizard() {
                                             { k: 'SUPABASE_SERVICE_ROLE_KEY', v: serviceKey },
                                             { k: 'VITE_LICENSE_KEY', v: licenseKey },
                                             { k: 'VITE_CENTRAL_API_URL', v: CENTRAL_CONFIG.API_URL },
-                                            { k: 'VITE_CENTRAL_SUPABASE_ANON_KEY', v: import.meta.env.VITE_CENTRAL_SUPABASE_ANON_KEY },
-                                            { k: 'CENTRAL_SHARED_SECRET', v: 'Copie a chave do seu Portal de Cliente' }
+                                            { k: 'VITE_CENTRAL_SUPABASE_ANON_KEY', v: import.meta.env.VITE_CENTRAL_SUPABASE_ANON_KEY }
                                         ].map((env, i) => (
                                             <div key={i} className="flex items-center justify-between gap-3 bg-white/5 p-3 rounded-xl cursor-pointer hover:bg-white/10 group transition-all" onClick={() => copyToClipboard(env.v, env.k)}>
                                                 <div className="overflow-hidden flex-1">
