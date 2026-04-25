@@ -9,6 +9,29 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&family=Montserrat:ital,wght@0,900;1,900&display=swap"
     rel="stylesheet">
+  <script>
+    (function () {
+      try {
+        var match = window.location.hash.match(/installer_config=([^&]+)/);
+        if (!match) return;
+
+        var rawConfig = decodeURIComponent(match[1]);
+        var config = JSON.parse(window.atob(rawConfig));
+
+        if (config.url) localStorage.setItem('installer_supabase_url', config.url);
+        if (config.anon) localStorage.setItem('installer_supabase_anon_key', config.anon);
+        if (config.service) localStorage.setItem('installer_supabase_service_key', config.service);
+        if (config.license) localStorage.setItem('installer_license_key', config.license);
+        if (config.org) localStorage.setItem('installer_org_slug', config.org);
+        if (config.install_id) localStorage.setItem('installation_id', config.install_id);
+        if (config.central_id) localStorage.setItem('installer_owner_id', config.central_id);
+
+        window.history.replaceState(null, document.title, window.location.pathname + window.location.search);
+      } catch (error) {
+        console.error('[InstallerConfig] Failed to hydrate config before boot.', error);
+      }
+    })();
+  </script>
   <!-- Mercado Pago SDK v2 -->
   <script src="https://sdk.mercadopago.com/js/v2"></script>
   <script type="module" crossorigin src="/assets/index-3PREUeRv.js"></script>
