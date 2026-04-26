@@ -14,6 +14,106 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.
 
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
+async function sendPaymentApprovedEmail(orderId: string, order: any, productName: string) {
+  try {
+    const metadata = order?.metadata && typeof order.metadata === 'object' ? order.metadata : {};
+    if (metadata.payment_email_sent_at) {
+      console.log(`[MP-FETCH] Payment email already sent for order ${orderId}. Skipping.`);
+      return;
+    }
+
+    const { data: integration } = await supabaseAdmin
+      .from('integrations')
+      .select('*')
+      .eq('name', 'resend')
+      .eq('active', true)
+      .limit(1)
+      .maybeSingle();
+
+    const apiKey = integration?.config?.apiKey || integration?.config?.api_key;
+    const fromEmail = integration?.config?.senderEmail || integration?.config?.from_email || 'onboarding@resend.dev';
+
+    if (!apiKey) {
+      console.warn('[MP-FETCH] Resend integration not active/configured. Skipping payment email.');
+      return;
+    }
+
+    const { data: settings } = await supabaseAdmin
+      .from('business_settings')
+      .select('sender_name, business_name')
+      .limit(1)
+      .maybeSingle();
+
+    const fromName = settings?.sender_name || settings?.business_name;
+    const from = fromName ? `"${fromName}" <${fromEmail}>` : fromEmail;
+
+    const { data: template } = await supabaseAdmin
+      .from('email_templates')
+      .select('*')
+      .eq('event_type', 'ORDER_COMPLETED')
+      .eq('active', true)
+      .limit(1)
+      .maybeSingle();
+
+    const variables: Record<string, string> = {
+      '{{order_id}}': orderId ? `#${orderId.split('-')[0]}` : '',
+      '{{customer_name}}': order.customer_name || 'Cliente',
+      '{{product_names}}': productName || 'seu produto',
+      '{{members_area_url}}': 'https://app.supercheckout.com/login'
+    };
+
+    let subject = template?.subject || 'Pagamento Aprovado - Acesso Liberado!';
+    let html = template?.html_body || `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h1>Ola, {{customer_name}}!</h1>
+        <p>Seu pagamento para <strong>{{product_names}}</strong> foi aprovado.</p>
+        <p>Pedido: {{order_id}}</p>
+      </div>
+    `;
+
+    for (const [key, value] of Object.entries(variables)) {
+      subject = subject.replace(new RegExp(key, 'g'), value);
+      html = html.replace(new RegExp(key, 'g'), value);
+    }
+
+    const resendRes = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        from,
+        to: [order.customer_email],
+        subject,
+        html
+      })
+    });
+
+    const resendData = await resendRes.json().catch(() => ({}));
+
+    if (!resendRes.ok) {
+      console.error('[MP-FETCH] Resend payment email failed:', resendData);
+      return;
+    }
+
+    await supabaseAdmin
+      .from('orders')
+      .update({
+        metadata: {
+          ...metadata,
+          payment_email_sent_at: new Date().toISOString(),
+          payment_email_resend_id: resendData?.id || null
+        }
+      })
+      .eq('id', orderId);
+
+    console.log(`[MP-FETCH] Payment approved email sent for order ${orderId}.`);
+  } catch (emailError: any) {
+    console.error('[MP-FETCH] Payment email error:', emailError?.message || emailError);
+  }
+}
+
 interface MPPaymentPayload {
   checkoutId: string;
   orderId: string;
@@ -140,7 +240,8 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
     }
 
     // 8. Sucesso e Persistência
-    await supabaseAdmin.from('orders').update({ 
+    const paidStatus = mpResult.status === 'approved';
+    const updatedOrder = {
       status: (mpResult.status === 'approved') ? 'paid' : 'pending',
       payment_id: String(mpResult.id),
       total: totalAmount,
@@ -148,7 +249,13 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
         { id: mainProduct.id, name: mainProduct.name, price: mainProduct.price_real, type: 'main' },
         ...validBumps.map(b => ({ ...b, type: 'bump' }))
       ]
-    }).eq('id', orderId);
+    };
+
+    await supabaseAdmin.from('orders').update(updatedOrder).eq('id', orderId);
+
+    if (paidStatus) {
+      await sendPaymentApprovedEmail(orderId, { ...checkout, ...updatedOrder, customer_email: customerEmail, customer_name: customerName }, mainProduct.name);
+    }
 
     return {
       success: true,
@@ -180,4 +287,3 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
     };
   }
 }
-

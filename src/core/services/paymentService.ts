@@ -47,6 +47,7 @@ export interface ProcessPaymentRequest {
 export interface ProcessPaymentResult {
   success: boolean;
   orderId?: string;
+  gatewayStatus?: string;
   statusSignature?: string; // New: HMAC signature for secure polling (Fase 11F)
   redirectUrl?: string; // Keep for backward compatibility or fallback
   message?: string;
@@ -251,7 +252,13 @@ class PaymentService {
           if (gatewayResponse.success) {
             console.log(`[PaymentService] Payment SUCCESS with gateway: ${gatewayId}`);
             if (!gatewayResponse.pixData && !gatewayResponse.boletoData) {
-              emailService.sendPaymentApproved(currentOrder).catch(console.error);
+              if (gateway.name !== GatewayProvider.MERCADO_PAGO) {
+                try {
+                  await emailService.sendPaymentApproved({ ...currentOrder, status: OrderStatus.PAID });
+                } catch (emailError) {
+                  console.warn('[PaymentService] Immediate payment email failed:', emailError);
+                }
+              }
               this.grantAccess(currentOrder).catch(console.error);
             }
             return {
@@ -405,6 +412,7 @@ class PaymentService {
       if (paymentResponse.status === 'approved' || paymentResponse.status === 'in_process' || paymentResponse.status === 'pending') {
         return {
           success: true,
+          gatewayStatus: paymentResponse.status,
           statusSignature: result.statusSignature,
           pixData: {
             qr_code: paymentResponse.point_of_interaction?.transaction_data?.qr_code || '',
@@ -524,7 +532,7 @@ class PaymentService {
 
       // Handle Response
       if (result.status === 'succeeded' || result.status === 'processing') {
-        return { success: true };
+        return { success: true, gatewayStatus: result.status };
       } else {
         return {
           success: false,

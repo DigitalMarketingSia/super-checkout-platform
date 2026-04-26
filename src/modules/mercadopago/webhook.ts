@@ -100,6 +100,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return;
             }
 
+            const metadata = order.metadata && typeof order.metadata === 'object' ? order.metadata : {};
+            if (metadata.payment_email_sent_at) {
+                console.log(`[Webhook] Payment email already sent for Order ${order.id}. Skipping email.`);
+                return;
+            }
+
             console.log(`[Webhook] Attempting to send email for Order ${order.id} to ${recipientEmail}`);
 
             // 1. Fetch Resend Integration
@@ -180,6 +186,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const errData = await resendRes.json();
                 console.error('[Webhook] Resend API Error:', errData);
             } else {
+                const resendData = await resendRes.json().catch(() => ({}));
+                await fetch(`${supabaseUrl}/rest/v1/orders?id=eq.${order.id}`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'apikey': supabaseKey,
+                        'Authorization': `Bearer ${supabaseKey}`,
+                        'Prefer': 'return=minimal'
+                    },
+                    body: JSON.stringify({
+                        metadata: {
+                            ...metadata,
+                            payment_email_sent_at: new Date().toISOString(),
+                            payment_email_resend_id: resendData?.id || null
+                        }
+                    })
+                });
                 console.log(`[Webhook] Email sent to ${recipientEmail}`);
             }
 
