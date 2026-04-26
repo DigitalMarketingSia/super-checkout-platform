@@ -29,6 +29,44 @@ import { UpsellModal } from '../../components/ui/UpsellModal';
 import { useTranslation } from 'react-i18next';
 import Aurora from '../../components/ui/Aurora';
 
+const TWO_PART_PUBLIC_SUFFIXES = new Set([
+  'com.br',
+  'net.br',
+  'org.br',
+  'gov.br',
+  'edu.br',
+  'co.uk',
+  'org.uk',
+  'com.au',
+  'net.au',
+  'co.jp'
+]);
+
+const getZoneDomain = (domain: string) => {
+  const parts = domain.toLowerCase().split('.').filter(Boolean);
+  if (parts.length <= 2) return parts.join('.');
+
+  const lastTwo = parts.slice(-2).join('.');
+  const lastThree = parts.slice(-3).join('.');
+
+  return TWO_PART_PUBLIC_SUFFIXES.has(lastTwo) ? lastThree : lastTwo;
+};
+
+const getDnsHostLabel = (recordDomain: string, selectedDomain: string) => {
+  if (!recordDomain || recordDomain === '@') return '@';
+  if (!recordDomain.includes('.')) return recordDomain;
+
+  const zone = getZoneDomain(selectedDomain);
+  const normalized = recordDomain.toLowerCase();
+
+  if (normalized === zone) return '@';
+  if (normalized.endsWith(`.${zone}`)) {
+    return normalized.slice(0, -zone.length - 1);
+  }
+
+  return recordDomain;
+};
+
 export const Domains = () => {
   const { t, i18n } = useTranslation(['admin', 'common']);
   const { profile, isWhiteLabel } = useAuth();
@@ -429,7 +467,7 @@ export const Domains = () => {
                                     <span className="text-[8px] font-black text-gray-700 uppercase tracking-widest">Host / Nome</span>
                                  </div>
                                  <p className="text-[11px] font-mono text-white/90 truncate bg-black/40 px-3 py-1.5 rounded-lg border border-white/5">
-                                    {record.domain === selectedDomain.domain ? '@' : record.domain.replace('.' + selectedDomain.domain.split('.').slice(-2).join('.'), '')}
+                                    {getDnsHostLabel(record.domain, selectedDomain.domain)}
                                  </p>
                               </div>
 

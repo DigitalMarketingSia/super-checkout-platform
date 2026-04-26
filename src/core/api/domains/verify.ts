@@ -4,6 +4,47 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 //     maxDuration: 60,
 // };
 
+const TWO_PART_PUBLIC_SUFFIXES = new Set([
+    'com.br',
+    'net.br',
+    'org.br',
+    'gov.br',
+    'edu.br',
+    'co.uk',
+    'org.uk',
+    'com.au',
+    'net.au',
+    'co.jp'
+]);
+
+function getZoneDomain(domain: string) {
+    const parts = domain.toLowerCase().split('.').filter(Boolean);
+    if (parts.length <= 2) return parts.join('.');
+
+    const lastTwo = parts.slice(-2).join('.');
+    const lastThree = parts.slice(-3).join('.');
+
+    if (TWO_PART_PUBLIC_SUFFIXES.has(lastTwo)) {
+        return lastThree;
+    }
+
+    return lastTwo;
+}
+
+function isApexDomain(domain: string) {
+    return domain.toLowerCase() === getZoneDomain(domain);
+}
+
+function getDnsHost(domain: string) {
+    const normalized = domain.toLowerCase();
+    const zone = getZoneDomain(normalized);
+    if (normalized === zone) return '@';
+    if (normalized.endsWith(`.${zone}`)) {
+        return normalized.slice(0, -zone.length - 1);
+    }
+    return normalized;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method !== 'GET') {
         return res.status(405).json({ error: 'Method not allowed' });
@@ -101,6 +142,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         // Construct DNS Records: MERGE Verification + Config
         let dnsRecords: any[] = [];
+        const apexDomain = isApexDomain(domain);
+        const domainDnsHost = getDnsHost(domain);
 
         // 1. Add Verification Challenges (Ownership)
         if (verificationChallenges.length > 0) {
@@ -109,7 +152,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         // 2. Add Recommended Configuration (Connection) - if not already present
         if (config) {
-            if (config.recommendedCNAME && Array.isArray(config.recommendedCNAME)) {
+            if (!apexDomain && config.recommendedCNAME && Array.isArray(config.recommendedCNAME)) {
                 config.recommendedCNAME
                     .filter((rec: any) => rec.rank === 1)
                     .forEach((rec: any) => {
@@ -118,14 +161,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         if (!exists) {
                             dnsRecords.push({
                                 type: 'CNAME',
-                                domain: domain,
+                                domain: domainDnsHost,
                                 value: rec.value.endsWith('.') ? rec.value.slice(0, -1) : rec.value,
                                 reason: 'recommended_cname'
                             });
                         }
                     });
             }
-            if (config.recommendedIPv4 && Array.isArray(config.recommendedIPv4)) {
+            if (apexDomain && config.recommendedIPv4 && Array.isArray(config.recommendedIPv4)) {
                 config.recommendedIPv4
                     .filter((rec: any) => rec.rank === 1)
                     .forEach((rec: any) => {
@@ -158,20 +201,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         // FALLBACK: If we still have no records, return standard Vercel records
         if (dnsRecords.length === 0) {
-            dnsRecords.push(
-                {
-                    type: 'CNAME',
-                    domain: domain,
-                    value: 'cname.vercel-dns.com',
-                    reason: 'default_cname'
-                },
-                {
+            if (apexDomain) {
+                dnsRecords.push({
                     type: 'A',
                     domain: '@',
                     value: '76.76.21.21',
                     reason: 'default_a'
-                }
-            );
+                });
+            } else {
+                dnsRecords.push({
+                    type: 'CNAME',
+                    domain: domainDnsHost,
+                    value: 'cname.vercel-dns.com',
+                    reason: 'default_cname'
+                });
+            }
         }
 
         // NEW: If Verified, Update Supabase!
