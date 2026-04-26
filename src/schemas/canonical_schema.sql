@@ -462,6 +462,7 @@ CREATE TABLE IF NOT EXISTS licenses(
     status TEXT DEFAULT 'active',
     allowed_domain TEXT,
     plan TEXT DEFAULT 'lifetime',
+    max_instances INTEGER DEFAULT 1,
     owner_id UUID,
     account_id UUID REFERENCES public.accounts(id),
     activated_at TIMESTAMP WITH TIME ZONE,
@@ -473,6 +474,7 @@ DO $$
 BEGIN
     ALTER TABLE licenses ADD COLUMN IF NOT EXISTS owner_id UUID;
     ALTER TABLE licenses ADD COLUMN IF NOT EXISTS account_id UUID REFERENCES public.accounts(id);
+    ALTER TABLE licenses ADD COLUMN IF NOT EXISTS max_instances INTEGER DEFAULT 1;
     ALTER TABLE licenses ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP WITH TIME ZONE;
     ALTER TABLE licenses ADD COLUMN IF NOT EXISTS allowed_domain TEXT;
     ALTER TABLE licenses ADD COLUMN IF NOT EXISTS plan TEXT DEFAULT 'lifetime';

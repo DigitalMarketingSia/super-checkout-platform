@@ -107,6 +107,62 @@ async function upsertProfile(supabase: any, params: {
     throw lastError;
 }
 
+async function ensureAccountContext(supabase: any, params: {
+    userId: string;
+    name: string;
+    email: string;
+    installationId: string;
+}) {
+    const accountUpsert = await supabase
+        .from('accounts')
+        .upsert({
+            owner_user_id: params.userId,
+            plan_type: 'free',
+            status: 'active',
+            trust_score: 50
+        }, { onConflict: 'owner_user_id' })
+        .select('id')
+        .single();
+
+    if (accountUpsert.error) {
+        const msg = accountUpsert.error.message || '';
+        if (msg.includes('accounts') || msg.includes('schema cache')) {
+            console.warn('[setup-admin] accounts table unavailable; continuing without account context.');
+            return;
+        }
+        throw accountUpsert.error;
+    }
+
+    const accountId = accountUpsert.data?.id;
+    if (!accountId) return;
+
+    const settingsUpsert = await supabase
+        .from('business_settings')
+        .upsert({
+            account_id: accountId,
+            support_email: params.email,
+            sender_email: params.email,
+            sender_name: params.name
+        }, { onConflict: 'account_id' });
+
+    if (settingsUpsert.error) {
+        const msg = settingsUpsert.error.message || '';
+        if (!msg.includes('business_settings') && !msg.includes('schema cache')) {
+            throw settingsUpsert.error;
+        }
+    }
+
+    await supabase
+        .from('licenses')
+        .update({ account_id: accountId })
+        .is('account_id', null);
+
+    await supabase
+        .from('installations')
+        .update({ account_id: accountId })
+        .eq('installation_id', params.installationId);
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     sendCors(res);
 
@@ -205,6 +261,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             email,
             installationId,
             centralUserId
+        });
+
+        await ensureAccountContext(supabase, {
+            userId: user.id,
+            name,
+            email,
+            installationId
         });
 
         await supabase

@@ -760,6 +760,7 @@ export default function InstallerWizard() {
                                         client_name: validationData.license.client_name || 'Admin User',
                                         status: 'active',
                                         plan: validationData.license.plan || 'commercial',
+                                        max_instances: validationData.license.max_instances || validationData.license.max_installations || 1,
                                         owner_id: validationData.license.owner_id || null,
                                         created_at: new Date().toISOString(),
                                         activated_at: new Date().toISOString(),
