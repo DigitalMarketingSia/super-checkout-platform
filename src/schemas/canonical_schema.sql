@@ -107,6 +107,61 @@ ALTER TABLE app_config ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Public read app_config" ON app_config FOR SELECT USING (true);
 CREATE POLICY "Admin manage app_config" ON app_config USING (auth.role() = 'authenticated');
 
+-- 2.1.2 Accounts / Business Settings (Self-hosted business identity)
+CREATE TABLE IF NOT EXISTS public.accounts(
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    owner_user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    plan_type TEXT NOT NULL DEFAULT 'free',
+    status TEXT NOT NULL DEFAULT 'active',
+    trust_score INTEGER NOT NULL DEFAULT 50,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_accounts_owner_user_id
+ON public.accounts(owner_user_id);
+
+CREATE TABLE IF NOT EXISTS public.business_settings(
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    account_id UUID NOT NULL REFERENCES public.accounts(id) ON DELETE CASCADE,
+    business_name TEXT,
+    legal_name TEXT,
+    legal_responsible_email TEXT,
+    support_email TEXT,
+    support_whatsapp TEXT,
+    sender_name TEXT,
+    sender_email TEXT,
+    logo_url TEXT,
+    primary_color TEXT DEFAULT '#007bff',
+    privacy_policy TEXT,
+    terms_of_purchase TEXT,
+    show_legal_footer BOOLEAN DEFAULT true,
+    compliance_status TEXT NOT NULL DEFAULT 'pending',
+    is_ready_to_sell BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+DO $$
+BEGIN
+    ALTER TABLE public.business_settings ADD COLUMN IF NOT EXISTS legal_name TEXT;
+    ALTER TABLE public.business_settings ADD COLUMN IF NOT EXISTS legal_responsible_email TEXT;
+    ALTER TABLE public.business_settings ADD COLUMN IF NOT EXISTS support_email TEXT;
+    ALTER TABLE public.business_settings ADD COLUMN IF NOT EXISTS support_whatsapp TEXT;
+    ALTER TABLE public.business_settings ADD COLUMN IF NOT EXISTS sender_name TEXT;
+    ALTER TABLE public.business_settings ADD COLUMN IF NOT EXISTS sender_email TEXT;
+    ALTER TABLE public.business_settings ADD COLUMN IF NOT EXISTS logo_url TEXT;
+    ALTER TABLE public.business_settings ADD COLUMN IF NOT EXISTS primary_color TEXT DEFAULT '#007bff';
+    ALTER TABLE public.business_settings ADD COLUMN IF NOT EXISTS privacy_policy TEXT;
+    ALTER TABLE public.business_settings ADD COLUMN IF NOT EXISTS terms_of_purchase TEXT;
+    ALTER TABLE public.business_settings ADD COLUMN IF NOT EXISTS show_legal_footer BOOLEAN DEFAULT true;
+    ALTER TABLE public.business_settings ADD COLUMN IF NOT EXISTS compliance_status TEXT DEFAULT 'pending';
+    ALTER TABLE public.business_settings ADD COLUMN IF NOT EXISTS is_ready_to_sell BOOLEAN DEFAULT false;
+END $$;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_business_settings_account_id
+ON public.business_settings(account_id);
+
 -- 2.2 Member Areas
 CREATE TABLE IF NOT EXISTS member_areas(
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -408,6 +463,7 @@ CREATE TABLE IF NOT EXISTS licenses(
     allowed_domain TEXT,
     plan TEXT DEFAULT 'lifetime',
     owner_id UUID,
+    account_id UUID REFERENCES public.accounts(id),
     activated_at TIMESTAMP WITH TIME ZONE,
     expires_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
@@ -416,6 +472,7 @@ CREATE TABLE IF NOT EXISTS licenses(
 DO $$
 BEGIN
     ALTER TABLE licenses ADD COLUMN IF NOT EXISTS owner_id UUID;
+    ALTER TABLE licenses ADD COLUMN IF NOT EXISTS account_id UUID REFERENCES public.accounts(id);
     ALTER TABLE licenses ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP WITH TIME ZONE;
     ALTER TABLE licenses ADD COLUMN IF NOT EXISTS allowed_domain TEXT;
     ALTER TABLE licenses ADD COLUMN IF NOT EXISTS plan TEXT DEFAULT 'lifetime';
@@ -435,9 +492,12 @@ CREATE TABLE IF NOT EXISTS validation_logs(
 CREATE TABLE IF NOT EXISTS installations(
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     license_key UUID REFERENCES licenses(key),
+    account_id UUID REFERENCES public.accounts(id),
     installation_id TEXT NOT NULL,
+    name TEXT DEFAULT 'Minha Loja',
     domain TEXT,
     status TEXT DEFAULT 'active',
+    plan_override TEXT DEFAULT 'free',
     installed_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     last_check_in TIMESTAMP WITH TIME ZONE,
     metadata JSONB,
@@ -446,10 +506,22 @@ CREATE TABLE IF NOT EXISTS installations(
 
 DO $$
 BEGIN
+    ALTER TABLE installations ADD COLUMN IF NOT EXISTS account_id UUID REFERENCES public.accounts(id);
     ALTER TABLE installations ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
+    ALTER TABLE installations ADD COLUMN IF NOT EXISTS name TEXT DEFAULT 'Minha Loja';
+    ALTER TABLE installations ADD COLUMN IF NOT EXISTS plan_override TEXT DEFAULT 'free';
     ALTER TABLE installations ADD COLUMN IF NOT EXISTS last_check_in TIMESTAMP WITH TIME ZONE;
     ALTER TABLE installations ADD COLUMN IF NOT EXISTS metadata JSONB;
 END $$;
+
+CREATE TABLE IF NOT EXISTS public.system_events(
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    account_id UUID NOT NULL REFERENCES public.accounts(id) ON DELETE CASCADE,
+    installation_id UUID REFERENCES public.installations(id) ON DELETE SET NULL,
+    type TEXT NOT NULL,
+    metadata JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
 
 -- ==========================================
 -- 3. MEMBER MANAGEMENT
@@ -566,7 +638,9 @@ RETURNS TRIGGER AS $$
 DECLARE
   is_first_user BOOLEAN;
   v_full_name TEXT;
+  v_role TEXT;
   v_central_id UUID;
+  v_account_id UUID;
 BEGIN
   SELECT NOT EXISTS(SELECT 1 FROM public.profiles) INTO is_first_user;
   
@@ -577,16 +651,17 @@ BEGIN
   );
 
   v_central_id := (NEW.raw_user_meta_data ->> 'central_user_id')::UUID;
+  v_role := CASE
+    WHEN is_first_user THEN 'admin'
+    ELSE COALESCE(NEW.raw_user_meta_data ->> 'role', 'member')
+  END;
 
   INSERT INTO public.profiles(id, email, full_name, role, installation_id, central_user_id)
   VALUES(
     NEW.id,
     NEW.email,
     v_full_name,
-    CASE 
-      WHEN is_first_user THEN 'admin' 
-      ELSE COALESCE(NEW.raw_user_meta_data ->> 'role', 'member') 
-    END,
+    v_role,
     NEW.raw_user_meta_data ->> 'installation_id',
     v_central_id
   )
@@ -594,6 +669,23 @@ BEGIN
     installation_id = COALESCE(EXCLUDED.installation_id, public.profiles.installation_id),
     central_user_id = EXCLUDED.central_user_id
   WHERE public.profiles.role = 'admin';
+
+  IF v_role IN ('admin', 'owner') THEN
+    INSERT INTO public.accounts(owner_user_id, plan_type, status, trust_score)
+    VALUES(NEW.id, 'free', 'active', 50)
+    ON CONFLICT(owner_user_id) DO UPDATE SET updated_at = timezone('utc'::text, now())
+    RETURNING id INTO v_account_id;
+
+    IF v_account_id IS NULL THEN
+      SELECT id INTO v_account_id FROM public.accounts WHERE owner_user_id = NEW.id LIMIT 1;
+    END IF;
+
+    IF v_account_id IS NOT NULL THEN
+      INSERT INTO public.business_settings(account_id, support_email, sender_email, sender_name)
+      VALUES(v_account_id, NEW.email, NEW.email, COALESCE(v_full_name, NEW.email))
+      ON CONFLICT(account_id) DO NOTHING;
+    END IF;
+  END IF;
   
   RETURN NEW;
 END;
@@ -822,10 +914,13 @@ ALTER TABLE track_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE gateways ENABLE ROW LEVEL SECURITY;
 ALTER TABLE licenses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE validation_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.accounts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.business_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.member_notes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.member_tags ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.activity_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.system_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE email_templates ENABLE ROW LEVEL SECURITY;
 
@@ -925,6 +1020,24 @@ CREATE POLICY "Users can view their own profile" ON public.profiles FOR SELECT U
 CREATE POLICY "Users can update their own profile" ON public.profiles FOR UPDATE USING(auth.uid() = id);
 CREATE POLICY "Admins can manage all profiles" ON public.profiles FOR ALL USING(public.is_admin());
 
+-- Accounts / Business Settings
+CREATE POLICY "Users can view own account" ON public.accounts
+FOR SELECT TO authenticated USING(auth.uid() = owner_user_id);
+
+CREATE POLICY "Users can insert own account" ON public.accounts
+FOR INSERT TO authenticated WITH CHECK(auth.uid() = owner_user_id);
+
+CREATE POLICY "Users can update own account" ON public.accounts
+FOR UPDATE TO authenticated USING(auth.uid() = owner_user_id) WITH CHECK(auth.uid() = owner_user_id);
+
+CREATE POLICY "Users can manage their business settings" ON public.business_settings
+FOR ALL TO authenticated
+USING(account_id IN (SELECT id FROM public.accounts WHERE owner_user_id = auth.uid()))
+WITH CHECK(account_id IN (SELECT id FROM public.accounts WHERE owner_user_id = auth.uid()));
+
+CREATE POLICY "Public can read business settings" ON public.business_settings
+FOR SELECT USING(true);
+
 -- Config Tables
 CREATE POLICY "Admins can manage member notes" ON public.member_notes FOR ALL USING(EXISTS(SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'));
 CREATE POLICY "Admins can manage member tags" ON public.member_tags FOR ALL USING(EXISTS(SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'));
@@ -933,6 +1046,14 @@ CREATE POLICY "Admins can manage member tags" ON public.member_tags FOR ALL USIN
 CREATE POLICY "Users can create their own logs" ON public.activity_logs FOR INSERT WITH CHECK(auth.uid() = user_id);
 CREATE POLICY "Users can view their own logs" ON public.activity_logs FOR SELECT USING(auth.uid() = user_id);
 CREATE POLICY "Admins can view all logs" ON public.activity_logs FOR SELECT USING(EXISTS(SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'));
+
+CREATE POLICY "Users can insert system events" ON public.system_events
+FOR INSERT TO authenticated
+WITH CHECK(account_id IN (SELECT id FROM public.accounts WHERE owner_user_id = auth.uid()));
+
+CREATE POLICY "Users can view system events" ON public.system_events
+FOR SELECT TO authenticated
+USING(account_id IN (SELECT id FROM public.accounts WHERE owner_user_id = auth.uid()));
 
 CREATE POLICY "Users can manage their own integrations" ON public.integrations FOR ALL USING(auth.uid() = user_id);
 
