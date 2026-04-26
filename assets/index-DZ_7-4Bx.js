@@ -1505,6 +1505,23 @@ BEGIN
     ALTER TABLE gateways ADD COLUMN IF NOT EXISTS webhook_secret TEXT;
 END $$;
 
+CREATE OR REPLACE VIEW public.public_gateways
+WITH (security_invoker = true)
+AS
+SELECT
+    id,
+    name,
+    provider,
+    public_key,
+    active,
+    is_active,
+    config
+FROM public.gateways
+WHERE COALESCE(active, true) = true
+  AND COALESCE(is_active, true) = true;
+
+GRANT SELECT ON public.public_gateways TO anon, authenticated;
+
 -- 2.5 Checkouts
 CREATE TABLE IF NOT EXISTS checkouts(
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
