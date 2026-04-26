@@ -1487,6 +1487,7 @@ CREATE TABLE IF NOT EXISTS gateways(
     name TEXT,
     provider TEXT NOT NULL,
     credentials JSONB DEFAULT '{}'::jsonb,
+    config JSONB DEFAULT '{}'::jsonb,
     active BOOLEAN DEFAULT true,
     is_active BOOLEAN DEFAULT true,
     public_key TEXT,
@@ -1497,6 +1498,7 @@ CREATE TABLE IF NOT EXISTS gateways(
 
 DO $$
 BEGIN
+    ALTER TABLE gateways ADD COLUMN IF NOT EXISTS config JSONB DEFAULT '{}'::jsonb;
     ALTER TABLE gateways ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
     ALTER TABLE gateways ADD COLUMN IF NOT EXISTS public_key TEXT;
     ALTER TABLE gateways ADD COLUMN IF NOT EXISTS private_key TEXT;
