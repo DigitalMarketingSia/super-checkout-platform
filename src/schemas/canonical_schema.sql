@@ -461,6 +461,7 @@ CREATE TABLE IF NOT EXISTS public.profiles(
     avatar_url TEXT,
     status TEXT DEFAULT 'active',
     role TEXT DEFAULT 'member',
+    installation_id TEXT,
     central_user_id UUID,
     last_seen_at TIMESTAMP WITH TIME ZONE,
     totp_secret_encrypted TEXT,
@@ -473,6 +474,7 @@ CREATE TABLE IF NOT EXISTS public.profiles(
 DO $$
 BEGIN
     ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS central_user_id UUID;
+    ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS installation_id TEXT;
     ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS totp_secret_encrypted TEXT;
     ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN DEFAULT FALSE;
     ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS totp_verified_at TIMESTAMP WITH TIME ZONE;
@@ -576,7 +578,7 @@ BEGIN
 
   v_central_id := (NEW.raw_user_meta_data ->> 'central_user_id')::UUID;
 
-  INSERT INTO public.profiles(id, email, full_name, role, central_user_id)
+  INSERT INTO public.profiles(id, email, full_name, role, installation_id, central_user_id)
   VALUES(
     NEW.id,
     NEW.email,
@@ -585,9 +587,11 @@ BEGIN
       WHEN is_first_user THEN 'admin' 
       ELSE COALESCE(NEW.raw_user_meta_data ->> 'role', 'member') 
     END,
+    NEW.raw_user_meta_data ->> 'installation_id',
     v_central_id
   )
   ON CONFLICT(id) DO UPDATE SET
+    installation_id = COALESCE(EXCLUDED.installation_id, public.profiles.installation_id),
     central_user_id = EXCLUDED.central_user_id
   WHERE public.profiles.role = 'admin';
   

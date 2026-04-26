@@ -15,7 +15,7 @@ export default function Setup() {
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
-    const [showEmailConfirmation, setShowEmailConfirmation] = useState(false);
+    const [setupComplete, setSetupComplete] = useState(false);
 
     const checkIsSetupRequired = async (targetInstallationId: string) => {
         const { data, error } = await supabase.rpc('is_setup_required', {
@@ -90,27 +90,24 @@ export default function Setup() {
 
             const centralUserId = getCentralIdFromHash();
 
-            const { data, error: signUpError } = await supabase.auth.signUp({
-                email,
-                password,
-                options: {
-                    emailRedirectTo: `${window.location.origin}/login`,
-                    data: {
-                        full_name: name,
-                        role: 'admin',
-                        installation_id: installationId, // STAMPING THE USER
-                        central_user_id: centralUserId // SYNC WITH CENTRAL OWNER
-                    }
-                }
+            const response = await fetch('/api/setup-admin', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name,
+                    email,
+                    password,
+                    installation_id: installationId,
+                    central_user_id: centralUserId
+                })
             });
 
-            if (signUpError) throw signUpError;
-
-            if (data.user) {
-                // Show email confirmation message instead of redirecting
-                setShowEmailConfirmation(true);
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(payload.error || payload.message || 'Falha ao criar administrador.');
             }
 
+            setSetupComplete(true);
         } catch (err: any) {
             console.error(err);
             if (err.message && err.message.includes('already registered')) {
@@ -125,8 +122,8 @@ export default function Setup() {
         }
     };
 
-    // Show email confirmation screen after successful signup
-    if (showEmailConfirmation) {
+    // Show completion screen after server-side admin creation
+    if (setupComplete) {
         return (
             <div className="min-h-screen bg-[#05050A] text-white selection:bg-primary/30 font-sans relative overflow-hidden flex items-center justify-center">
                 <div className="fixed top-0 left-0 w-[500px] h-[500px] bg-[#3ECF8E]/10 rounded-full blur-[128px] pointer-events-none -translate-x-1/2 -translate-y-1/2 mix-blend-screen" />
@@ -149,32 +146,17 @@ export default function Setup() {
                         <div className="space-y-4">
                             <div className="p-4 bg-[#3ECF8E]/10 border border-[#3ECF8E]/20 rounded-xl">
                                 <div className="flex items-start gap-3">
-                                    <Mail className="w-5 h-5 text-[#3ECF8E] shrink-0 mt-0.5" />
+                                    <Check className="w-5 h-5 text-[#3ECF8E] shrink-0 mt-0.5" />
                                     <div className="flex-1">
-                                        <h3 className="font-semibold text-white mb-1">{t('setup.confirm_email_title')}</h3>
+                                        <h3 className="font-semibold text-white mb-1">{t('setup.ready_login_title', 'Administrador confirmado')}</h3>
                                         <p className="text-sm text-gray-300 mb-2">
-                                            {t('setup.confirm_email_desc')}
+                                            {t('setup.ready_login_desc', 'Agora faca login com o e-mail e senha cadastrados.')}
                                         </p>
                                         <p className="text-sm font-mono bg-black/40 px-3 py-2 rounded-lg text-[#3ECF8E] break-all">
                                             {email}
                                         </p>
                                     </div>
                                 </div>
-                            </div>
-
-                            <div className="space-y-2 text-sm text-gray-400">
-                                <p className="flex items-start gap-2">
-                                    <span className="text-[#3ECF8E] font-bold mt-0.5">1.</span>
-                                    <span>{t('setup.confirm_step_1')}</span>
-                                </p>
-                                <p className="flex items-start gap-2">
-                                    <span className="text-[#3ECF8E] font-bold mt-0.5">2.</span>
-                                    <span>{t('setup.confirm_step_2')}</span>
-                                </p>
-                                <p className="flex items-start gap-2">
-                                    <span className="text-[#3ECF8E] font-bold mt-0.5">3.</span>
-                                    <span>{t('setup.confirm_step_3')}</span>
-                                </p>
                             </div>
 
                             <button
