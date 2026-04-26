@@ -14,6 +14,16 @@ import SQL_SCHEMA from '../../../schemas/canonical_schema.sql?raw';
 // Define the steps for the guided flow
 type Step = 'license' | 'supabase' | 'supabase_migrations' | 'supabase_keys' | 'deploy' | 'success' | 'check_subscription' | 'supabase_setup' | 'vercel_config';
 
+const generatePaymentEncryptionKey = () => {
+    const bytes = new Uint8Array(32);
+    if (globalThis.crypto?.getRandomValues) {
+        globalThis.crypto.getRandomValues(bytes);
+    } else {
+        for (let i = 0; i < bytes.length; i += 1) bytes[i] = Math.floor(Math.random() * 256);
+    }
+    return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+};
+
 export default function InstallerWizard() {
     const { t } = useTranslation(['installer', 'common']);
     const [currentStep, setCurrentStep] = useState<Step>('check_subscription');
@@ -32,6 +42,7 @@ export default function InstallerWizard() {
     const [supabaseUrl, setSupabaseUrl] = useState('');
     const [anonKey, setAnonKey] = useState('');
     const [serviceKey, setServiceKey] = useState('');
+    const [paymentEncryptionKey, setPaymentEncryptionKey] = useState('');
 
     // Vercel config
     const [vercelDomain, setVercelDomain] = useState('');
@@ -140,6 +151,7 @@ export default function InstallerWizard() {
                         'installer_supabase_url',
                         'installer_supabase_anon_key',
                         'installer_supabase_service_key',
+                        'installer_payment_encryption_key',
                         'installer_vercel_domain',
                         'installation_domain',
                         'installer_owner_id',
@@ -147,6 +159,9 @@ export default function InstallerWizard() {
 
                     localStorage.setItem('super_checkout_install_id', freshInstallId);
                     localStorage.setItem('installation_id', freshInstallId);
+                    const freshPaymentEncryptionKey = generatePaymentEncryptionKey();
+                    localStorage.setItem('installer_payment_encryption_key', freshPaymentEncryptionKey);
+                    setPaymentEncryptionKey(freshPaymentEncryptionKey);
                     setInstallationId(freshInstallId);
                     setCurrentStep('check_subscription');
                 }
@@ -390,6 +405,13 @@ export default function InstallerWizard() {
         setServiceKey(localStorage.getItem('installer_supabase_service_key') || '');
         setSupabaseUrl(localStorage.getItem('installer_supabase_url') || '');
 
+        let savedPaymentEncryptionKey = localStorage.getItem('installer_payment_encryption_key');
+        if (!savedPaymentEncryptionKey) {
+            savedPaymentEncryptionKey = generatePaymentEncryptionKey();
+            localStorage.setItem('installer_payment_encryption_key', savedPaymentEncryptionKey);
+        }
+        setPaymentEncryptionKey(savedPaymentEncryptionKey);
+
         const savedStep = localStorage.getItem('installer_step') as Step;
         if (savedStep && savedStep !== 'success') {
             if (savedStep === 'license') {
@@ -412,7 +434,7 @@ export default function InstallerWizard() {
         return 'pending';
     };
 
-    const deployUrl = `https://vercel.com/new/clone?repository-url=https://github.com/DigitalMarketingSia/super-checkout-platform&env=VITE_SUPABASE_URL,VITE_SUPABASE_ANON_KEY,SUPABASE_SERVICE_ROLE_KEY,VITE_LICENSE_KEY,VITE_CENTRAL_API_URL,VITE_CENTRAL_SUPABASE_ANON_KEY&envDescription=Configuracao%20Super%20Checkout&project-name=super-checkout&repository-name=super-checkout`;
+    const deployUrl = `https://vercel.com/new/clone?repository-url=https://github.com/DigitalMarketingSia/super-checkout-platform&env=VITE_SUPABASE_URL,VITE_SUPABASE_ANON_KEY,SUPABASE_SERVICE_ROLE_KEY,VITE_LICENSE_KEY,VITE_CENTRAL_API_URL,VITE_CENTRAL_SUPABASE_ANON_KEY,PAYMENT_ENCRYPTION_KEY&envDescription=Configuracao%20Super%20Checkout&project-name=super-checkout&repository-name=super-checkout`;
 
     // Navigation Helper
     const stepsOrder = ['check_subscription', 'supabase_setup', 'supabase_migrations', 'supabase_keys', 'deploy', 'vercel_config', 'success'];
@@ -915,7 +937,8 @@ export default function InstallerWizard() {
                                             { k: 'SUPABASE_SERVICE_ROLE_KEY', v: serviceKey },
                                             { k: 'VITE_LICENSE_KEY', v: licenseKey },
                                             { k: 'VITE_CENTRAL_API_URL', v: CENTRAL_CONFIG.API_URL },
-                                            { k: 'VITE_CENTRAL_SUPABASE_ANON_KEY', v: import.meta.env.VITE_CENTRAL_SUPABASE_ANON_KEY }
+                                            { k: 'VITE_CENTRAL_SUPABASE_ANON_KEY', v: import.meta.env.VITE_CENTRAL_SUPABASE_ANON_KEY },
+                                            { k: 'PAYMENT_ENCRYPTION_KEY', v: paymentEncryptionKey }
                                         ].map((env, i) => (
                                             <div key={i} className="flex items-center justify-between gap-3 bg-white/5 p-3 rounded-xl cursor-pointer hover:bg-white/10 group transition-all" onClick={() => copyToClipboard(env.v, env.k)}>
                                                 <div className="overflow-hidden flex-1">

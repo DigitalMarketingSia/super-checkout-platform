@@ -67,7 +67,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Helper para evitar encriptar uma string que já foi encriptada (quando o frontend reenvia o fallback)
-    const isAlreadyEncrypted = (val: string) => val && typeof val === 'string' && val.split(':').length === 3;
+    const isAlreadyEncrypted = (val: string) => {
+      if (!val || typeof val !== 'string') return false;
+      if (val.startsWith('iv:')) return val.substring(3).split(':').length === 3;
+      return val.split(':').length === 3;
+    };
 
     // Encrypt sensitive data (Fase 11C)
     const encryptedPrivateKey = (private_key && !isAlreadyEncrypted(private_key)) ? encrypt(private_key) : private_key;

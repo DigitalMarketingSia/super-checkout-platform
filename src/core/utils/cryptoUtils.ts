@@ -10,6 +10,15 @@ import crypto from 'crypto';
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 12; // Standard for GCM
 const AUTH_TAG_LENGTH = 16;
+const ENCRYPTED_PREFIX = 'iv:';
+
+function isEncryptedPayload(value: string): boolean {
+  if (!value || typeof value !== 'string') return false;
+  if (value.startsWith(ENCRYPTED_PREFIX)) {
+    return value.substring(ENCRYPTED_PREFIX.length).split(':').length === 3;
+  }
+  return value.split(':').length === 3;
+}
 
 /**
  * Obtém a chave secreta de 32 bytes a partir da ENV.
@@ -59,7 +68,7 @@ export function decrypt(encryptedText: string): string {
   if (!encryptedText) return '';
   
   // Remove prefix if it exists to normalize format
-  const sanitizedText = encryptedText.startsWith('iv:') ? encryptedText.substring(3) : encryptedText;
+  const sanitizedText = encryptedText.startsWith(ENCRYPTED_PREFIX) ? encryptedText.substring(ENCRYPTED_PREFIX.length) : encryptedText;
   
   const parts = sanitizedText.split(':');
   
@@ -79,6 +88,11 @@ export function decrypt(encryptedText: string): string {
     
     let decrypted = decipher.update(encryptedHex, 'hex', 'utf8');
     decrypted += decipher.final('utf8');
+
+    // Recover credentials that were accidentally encrypted twice by older saves.
+    if (isEncryptedPayload(decrypted) && decrypted !== encryptedText) {
+      return decrypt(decrypted);
+    }
     
     return decrypted;
   } catch (error: any) {
