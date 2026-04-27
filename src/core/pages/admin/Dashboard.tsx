@@ -2,32 +2,18 @@ import React, { useEffect, useState } from 'react';
 import { storage } from '../../services/storageService';
 import { Order, OrderStatus } from '../../types';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { DollarSign, ShoppingCart, TrendingUp, Users, ShoppingBag, CreditCard, ArrowRight, Barcode, QrCode, Crown, Zap } from 'lucide-react';
+import { DollarSign, ShoppingCart, TrendingUp, Users, ShoppingBag, CreditCard, Barcode, QrCode } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
-import { Button } from '../../components/ui/Button';
-import { useTheme } from '../../context/ThemeContext';
-import { useAuth } from '../../context/AuthContext';
-import { useFeatures } from '../../hooks/useFeatures';
 import { Layout } from '../../components/Layout';
 import Aurora from '../../components/ui/Aurora';
-import { UpsellModal } from '../../components/ui/UpsellModal';
 import { useTranslation } from 'react-i18next';
-import { SystemManager } from '../../services/systemManager';
-import { SystemInfo } from '../../types';
-import { Settings } from 'lucide-react';
 import { UpdateBanner } from '../../components/admin/UpdateBanner';
-import { APP_VERSION } from '../../config/version';
 
 type Period = 'today' | '7d' | '15d' | '30d';
 
 export const Dashboard = () => {
   const { t, i18n } = useTranslation(['admin', 'common']);
-  const { theme } = useTheme();
-  const { profile, isWhiteLabel } = useAuth();
-  const { hasFeature, plan, isOwner } = useFeatures();
   const [period, setPeriod] = useState<Period>('today');
-  const [upsellSlug, setUpsellSlug] = useState<'unlimited_domains' | 'partner_rights' | 'whitelabel' | null>(null);
-  const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
 
   const [stats, setStats] = useState({
     totalRevenue: 0,
@@ -141,9 +127,6 @@ export const Dashboard = () => {
       // Generate chart data
       setChartData(generateChartData(filteredOrders, period));
       
-      // Load system info
-      const info = await SystemManager.getSystemInfo();
-      setSystemInfo(info);
     };
 
     load();
@@ -187,49 +170,6 @@ export const Dashboard = () => {
 
       {/* Proactive Update Check */}
       <UpdateBanner />
-
-      {/* Upgrade Banner for Free Users */}
-      {!isWhiteLabel && (isOwner || plan !== 'free') === false && (
-        <div className="mb-12 relative overflow-hidden rounded-[2.5rem] bg-gradient-to-r from-orange-500 via-amber-500 to-yellow-500 p-[1px] shadow-2xl shadow-orange-500/20 group">
-          <div className="relative bg-[#0A0A0F] rounded-[2.4rem] overflow-hidden p-8 md:p-10">
-            {/* Background Effects */}
-            <div className="absolute top-0 right-0 w-96 h-96 bg-orange-500/10 rounded-full blur-[100px] -mr-48 -mt-48 transition-transform duration-1000 group-hover:scale-110"></div>
-            
-            <div className="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-10">
-              <div className="flex flex-col md:flex-row items-center gap-8 text-center md:text-left">
-                <div className="w-20 h-20 rounded-[1.8rem] bg-gradient-to-br from-orange-400 to-yellow-600 flex items-center justify-center shadow-2xl shadow-orange-500/40 shrink-0 transform rotate-3 group-hover:rotate-0 transition-transform duration-500">
-                  <Crown className="w-10 h-10 text-white animate-pulse" />
-                </div>
-                <div>
-                  <h3 className="text-2xl md:text-3xl font-portal-display text-white leading-tight">
-                    {t('upgrade_title')} <span className="text-orange-400">UNLIMITED</span>
-                  </h3>
-                  <p className="text-gray-500 text-sm md:text-base mt-2 max-w-xl font-medium">
-                    {t('upgrade_desc')}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex flex-col sm:flex-row items-center gap-6 w-full lg:w-auto">
-                <Button
-                  onClick={() => setUpsellSlug('unlimited_domains')}
-                  className="w-full sm:w-auto px-10 py-5 bg-orange-500 hover:bg-orange-600 text-white font-black text-lg rounded-[1.5rem] border-none shadow-2xl shadow-orange-500/30 flex items-center justify-center gap-3 transform transition-all active:scale-95"
-                >
-                  <Zap className="w-6 h-6 fill-current" />
-                  {t('upgrade_btn')}
-                </Button>
-                <button
-                  onClick={() => setUpsellSlug('partner_rights')}
-                  className="text-gray-500 hover:text-white font-black text-xs uppercase tracking-[0.2em] transition-colors flex items-center gap-2 group/btn"
-                >
-                  {t('view_partner_plans')}
-                  <ArrowRight className="w-4 h-4 transition-transform group-hover/btn:translate-x-2" />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* MAIN GRID LAYOUT - Optimized for First Fold */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 mb-8">
@@ -459,11 +399,6 @@ export const Dashboard = () => {
         </Card>
       </div>
 
-      <UpsellModal
-        isOpen={!!upsellSlug}
-        onClose={() => setUpsellSlug(null)}
-        offerSlug={upsellSlug}
-      />
     </Layout>
   );
 };
