@@ -26,6 +26,25 @@ interface MyLicense {
     installations: Installation[];
 }
 
+const normalizeConfigValue = (value: any): string | null => {
+    if (!value) return null;
+    return String(typeof value === 'string' ? value : value.value || value)
+        .replace(/^"|"$/g, '')
+        .trim() || null;
+};
+
+const getCurrentDomain = () => {
+    if (typeof window === 'undefined') return 'local';
+    return window.location.hostname || window.location.host || 'local';
+};
+
+const normalizeInstallation = (row: any, fallbackInstallationId?: string | null): Installation => ({
+    id: String(row?.installation_id || row?.id || fallbackInstallationId || 'local-installation'),
+    domain: String(row?.domain || getCurrentDomain()),
+    installed_at: String(row?.installed_at || row?.created_at || row?.activated_at || row?.last_check_in || new Date().toISOString()),
+    status: row?.status === 'inactive' || row?.status === 'revoked' ? row.status : 'active'
+});
+
 export const Licenses = () => {
     const { t, i18n } = useTranslation(['admin', 'common', 'portal']);
     const { user, account, profile } = useAuth();
@@ -44,51 +63,121 @@ export const Licenses = () => {
     const [localInstallationId, setLocalInstallationId] = useState<string | null>(null);
 
     useEffect(() => {
-        fetchLocalDetails().then(() => fetchMyLicense());
+        fetchMyLicense();
     }, []);
 
 
 
-    const fetchLocalDetails = async () => {
+    const fetchLocalDetails = async (): Promise<{ role: string | null; installationId: string | null; validation: any | null }> => {
+        let role: string | null = null;
+        let installationId: string | null = null;
+        let validation: any | null = null;
+
         try {
             // 1. Try to get Installation ID directly from DB (Most Reliable for Admin)
             const { data: configData } = await supabase
                 .from('app_config')
                 .select('value')
                 .eq('key', 'installation_id')
-                .single();
+                .maybeSingle();
 
             if (configData?.value) {
-                // Clean up quotes if it's a JSON string
-                const val = typeof configData.value === 'string'
-                    ? configData.value.replace(/^"|"$/g, '')
-                    : configData.value;
-                setLocalInstallationId(val);
+                installationId = normalizeConfigValue(configData.value);
+                setLocalInstallationId(installationId);
             }
 
             // 2. Fetch local validation to get role (and fallback ID)
             const res = await fetch('/api/licenses/validate');
-            const data = await res.json();
+            validation = await res.json();
 
-            if (data.valid) {
-                if (data.role) {
-                    setLocalRole(data.role);
-                    localStorage.setItem('license_role', data.role);
+            if (validation.valid) {
+                if (validation.role) {
+                    role = validation.role;
+                    setLocalRole(role);
+                    localStorage.setItem('license_role', role);
                 }
                 // If DB fetch failed but API succeed (rare), use API ID
-                if (data.installation_id && !configData?.value) {
-                    setLocalInstallationId(data.installation_id);
+                if (validation.installation_id && !installationId) {
+                    installationId = validation.installation_id;
+                    setLocalInstallationId(installationId);
                 }
             }
         } catch (e) {
             console.error('Failed to fetch local details', e);
         }
+
+        return { role, installationId, validation };
+    };
+
+    const fetchLocalLicense = async (): Promise<MyLicense | null> => {
+        const { installationId, validation } = await fetchLocalDetails();
+
+        const { data: localLicense, error: licenseError } = await supabase
+            .from('licenses')
+            .select('*')
+            .eq('status', 'active')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        if (licenseError) {
+            console.warn('Local license lookup failed:', licenseError.message);
+        }
+
+        const sourceLicense = localLicense || validation?.license;
+        if (!sourceLicense) return null;
+
+        let installationRows: any[] = [];
+        if (sourceLicense.key) {
+            const { data, error } = await supabase
+                .from('installations')
+                .select('*')
+                .eq('license_key', sourceLicense.key)
+                .order('installed_at', { ascending: false });
+
+            if (error) {
+                console.warn('Local installations lookup failed:', error.message);
+            } else {
+                installationRows = data || [];
+            }
+        }
+
+        const fallbackInstallation = normalizeInstallation({
+            installation_id: installationId || validation?.installation_id,
+            domain: sourceLicense.allowed_domain || getCurrentDomain(),
+            installed_at: sourceLicense.activated_at || sourceLicense.created_at,
+            status: 'active'
+        }, installationId || validation?.installation_id);
+
+        const installations = installationRows.length > 0
+            ? installationRows.map(row => normalizeInstallation(row, installationId || validation?.installation_id))
+            : [fallbackInstallation];
+
+        const activeInstallations = installations.filter(inst => inst.status === 'active').length;
+        const maxInstallations = Number(sourceLicense.max_installations ?? sourceLicense.max_instances ?? 1);
+
+        return {
+            key: sourceLicense.key,
+            plan: sourceLicense.plan || 'free',
+            max_installations: maxInstallations > 0 ? maxInstallations : 1,
+            used_installations: activeInstallations || installations.length,
+            status: sourceLicense.status === 'suspended' ? 'suspended' : 'active',
+            expires_at: sourceLicense.expires_at || null,
+            installations
+        };
     };
 
     const fetchMyLicense = async () => {
         setLoading(true);
         setError(null);
+        let localSnapshot: MyLicense | null = null;
         try {
+            localSnapshot = await fetchLocalLicense();
+            if (localSnapshot) {
+                setLicense(localSnapshot);
+                return;
+            }
+
             if (!user || !user.email) {
                 throw new Error(t('invalid_session_email'));
             }
@@ -123,7 +212,11 @@ export const Licenses = () => {
             setLicense(data);
         } catch (error: any) {
             console.error('Erro ao buscar licença:', error);
-            setError(error.message || t('unknown_license_error'));
+            if (localSnapshot) {
+                setLicense(localSnapshot);
+            } else {
+                setError(error.message || t('unknown_license_error'));
+            }
         } finally {
             setLoading(false);
         }

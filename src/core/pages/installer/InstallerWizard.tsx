@@ -880,6 +880,29 @@ export default function InstallerWizard() {
                                         console.warn('⚠️ Error saving installation config:', configErr);
                                     }
 
+                                    // 4.3 Register the local node for self-hosted license screens
+                                    try {
+                                        const { error: installationError } = await adminClient
+                                            .from('installations')
+                                            .upsert({
+                                                license_key: licenseKey,
+                                                installation_id: currentInstallId,
+                                                domain: installationDomain,
+                                                status: 'active',
+                                                name: 'Minha Loja',
+                                                plan_override: validationData.license.plan || 'free',
+                                                last_check_in: new Date().toISOString()
+                                            }, { onConflict: 'license_key,installation_id' });
+
+                                        if (installationError) {
+                                            console.warn('Failed to register local installation:', installationError.message);
+                                        } else {
+                                            console.log('Local installation registered in database.');
+                                        }
+                                    } catch (installationErr) {
+                                        console.warn('Error registering local installation:', installationErr);
+                                    }
+
                                 } catch (error) {
                                     console.warn('⚠️ Error during setup:', error);
                                     setLoading(false); // Reset loading state on error

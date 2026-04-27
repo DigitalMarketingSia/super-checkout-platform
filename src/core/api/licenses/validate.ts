@@ -3,6 +3,40 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 const DEFAULT_CENTRAL_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJjbW5yeXhqd2Vpb3Zyd216dHBuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc2NjM2MjMsImV4cCI6MjA4MzIzOTYyM30.F86wf0xwTR1K_P9500JwnESStPb2bCo3dwuouHBPcQM';
 
+const getRequestDomain = (req: VercelRequest, fallback?: string | null) => {
+    const host = fallback || req.headers['x-forwarded-host'] || req.headers.host || 'unknown';
+    return String(Array.isArray(host) ? host[0] : host)
+        .replace(/^https?:\/\//, '')
+        .split('/')[0];
+};
+
+async function touchLocalInstallation(supabase: any, params: {
+    licenseKey?: string | null;
+    installationId?: string | null;
+    domain?: string | null;
+}) {
+    if (!params.licenseKey || !params.installationId) return;
+
+    try {
+        const { error } = await supabase
+            .from('installations')
+            .upsert({
+                license_key: params.licenseKey,
+                installation_id: params.installationId,
+                domain: params.domain || 'unknown',
+                status: 'active',
+                name: 'Minha Loja',
+                last_check_in: new Date().toISOString()
+            }, { onConflict: 'license_key,installation_id' });
+
+        if (error) {
+            console.warn('Failed to sync local installation row:', error.message);
+        }
+    } catch (error: any) {
+        console.warn('Failed to sync local installation row:', error?.message || error);
+    }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     // CORS
     res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -160,6 +194,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             activated_at: license?.activated_at || new Date().toISOString()
                         }, { onConflict: 'key' });
 
+                    await touchLocalInstallation(supabase, {
+                        licenseKey: key,
+                        installationId,
+                        domain: getRequestDomain(req, domain || centralLicense.allowed_domain || license?.allowed_domain)
+                    });
+
                     if (installationId) {
                         await supabase
                             .from('app_config')
@@ -194,6 +234,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (license.status !== 'active') {
             return res.status(200).json({ valid: false, message: 'License is not active' });
         }
+
+        await touchLocalInstallation(supabase, {
+            licenseKey: key,
+            installationId,
+            domain: getRequestDomain(req, domain || license.allowed_domain)
+        });
 
         return res.status(200).json({
             valid: true,

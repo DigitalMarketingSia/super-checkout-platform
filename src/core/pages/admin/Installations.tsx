@@ -4,8 +4,31 @@ import { Layout } from '../../components/Layout';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { licenseService, Installation } from '../../services/licenseService';
+import { supabase } from '../../services/supabase';
 import { Globe, Calendar, Trash2, Loader2, AlertCircle, RefreshCw, Activity, Server, Shuffle, ChevronRight, ExternalLink, Clock } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+
+const normalizeConfigValue = (value: any): string | null => {
+    if (!value) return null;
+    return String(typeof value === 'string' ? value : value.value || value)
+        .replace(/^"|"$/g, '')
+        .trim() || null;
+};
+
+const getCurrentDomain = () => {
+    if (typeof window === 'undefined') return 'local';
+    return window.location.hostname || window.location.host || 'local';
+};
+
+const normalizeInstallation = (row: any, fallbackLicenseKey = ''): Installation => ({
+    id: String(row?.installation_id || row?.id || 'local-installation'),
+    license_key: String(row?.license_key || fallbackLicenseKey || ''),
+    installation_id: String(row?.installation_id || row?.id || 'local-installation'),
+    domain: String(row?.domain || getCurrentDomain()),
+    status: String(row?.status || 'active'),
+    installed_at: String(row?.installed_at || row?.created_at || row?.activated_at || row?.last_check_in || new Date().toISOString()),
+    last_check_in: String(row?.last_check_in || row?.installed_at || row?.created_at || new Date().toISOString())
+});
 
 export const MyInstallations = () => {
     const { t, i18n } = useTranslation(['admin', 'common']);
@@ -23,6 +46,12 @@ export const MyInstallations = () => {
         setLoading(true);
         try {
             if (!user) return;
+            const localData = await getLocalInstallations();
+            if (localData.length > 0) {
+                setInstallations(localData);
+                return;
+            }
+
             const data = await licenseService.getMyInstallations();
             setInstallations(data);
         } catch (error) {
@@ -30,6 +59,69 @@ export const MyInstallations = () => {
         } finally {
             setLoading(false);
         }
+    };
+
+    const getLocalInstallations = async (): Promise<Installation[]> => {
+        let installationId: string | null = null;
+        let validation: any | null = null;
+
+        const { data: configData } = await supabase
+            .from('app_config')
+            .select('value')
+            .eq('key', 'installation_id')
+            .maybeSingle();
+
+        installationId = normalizeConfigValue(configData?.value) || localStorage.getItem('installation_id');
+
+        try {
+            const response = await fetch('/api/licenses/validate');
+            validation = await response.json();
+            if (validation?.installation_id) installationId = validation.installation_id;
+        } catch (error) {
+            console.warn('Local license validation failed:', error);
+        }
+
+        const { data: localLicense, error: licenseError } = await supabase
+            .from('licenses')
+            .select('*')
+            .eq('status', 'active')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        if (licenseError) {
+            console.warn('Local license lookup failed:', licenseError.message);
+        }
+
+        const license = localLicense || validation?.license;
+        const licenseKey = String(license?.key || '');
+
+        if (licenseKey) {
+            const { data, error } = await supabase
+                .from('installations')
+                .select('*')
+                .eq('license_key', licenseKey)
+                .order('installed_at', { ascending: false });
+
+            if (!error && data?.length) {
+                return data.map(row => normalizeInstallation(row, licenseKey));
+            }
+
+            if (error) {
+                console.warn('Local installations lookup failed:', error.message);
+            }
+        }
+
+        if (!license && !installationId) return [];
+
+        return [normalizeInstallation({
+            license_key: licenseKey,
+            installation_id: installationId || 'local-installation',
+            domain: license?.allowed_domain || getCurrentDomain(),
+            status: 'active',
+            installed_at: license?.activated_at || license?.created_at,
+            last_check_in: new Date().toISOString()
+        }, licenseKey)];
     };
 
     if (loading) {
