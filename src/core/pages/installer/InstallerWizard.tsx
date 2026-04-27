@@ -512,6 +512,22 @@ export default function InstallerWizard() {
 
 
             <div className="container mx-auto px-4 py-12 relative z-10 max-w-4xl">
+                <div className="mb-8 flex items-center justify-between">
+                    <button
+                        type="button"
+                        onClick={goBack}
+                        disabled={currentStepIndex <= 0 || loading || isConnectingSupabase}
+                        className="group inline-flex h-12 items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-5 text-[10px] font-black uppercase tracking-[0.22em] text-gray-300 shadow-2xl shadow-black/20 backdrop-blur-xl transition-all hover:border-[#3ECF8E]/40 hover:bg-[#3ECF8E]/10 hover:text-white disabled:pointer-events-none disabled:opacity-30"
+                    >
+                        <ArrowRight className="h-4 w-4 rotate-180 text-[#3ECF8E] transition-transform group-hover:-translate-x-1" />
+                        Voltar
+                    </button>
+                    <div className="hidden sm:flex items-center gap-2 rounded-full border border-white/10 bg-black/20 px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">
+                        <span className="h-1.5 w-1.5 rounded-full bg-[#3ECF8E] shadow-[0_0_10px_rgba(62,207,142,0.8)]" />
+                        Etapa {Math.max(1, currentStepIndex + 1)} de {stepsOrder.length}
+                    </div>
+                </div>
+
                 {/* Header */}
                 <div className="text-center mb-16">
                     <div className="inline-flex items-center justify-center p-3 mb-6 rounded-2xl bg-white/5 border border-white/10 shadow-2xl backdrop-blur-sm">
@@ -929,7 +945,7 @@ export default function InstallerWizard() {
                                         </>
                                     ) : (
                                         <>
-                                            {t('common.save')} & {t('common.continue')} <ChevronRight className="w-4 h-4" />
+                                            {t('common:save')} & {t('common:continue')} <ChevronRight className="w-4 h-4" />
                                         </>
                                     )}
                                 </button>
