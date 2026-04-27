@@ -40,6 +40,11 @@ CREATE TABLE IF NOT EXISTS public.system_updates_log(
     executed_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+ALTER TABLE public.system_info ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.system_updates_log ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Authenticated users can manage system info" ON public.system_info FOR ALL USING(auth.role() = 'authenticated') WITH CHECK(auth.role() = 'authenticated');
+CREATE POLICY "Authenticated users can manage system update logs" ON public.system_updates_log FOR ALL USING(auth.role() = 'authenticated') WITH CHECK(auth.role() = 'authenticated');
+
 CREATE TABLE IF NOT EXISTS public.system_email_templates(
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     event_type TEXT NOT NULL,

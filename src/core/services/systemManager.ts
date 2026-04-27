@@ -156,23 +156,27 @@ export const SystemManager = {
    */
   async updateGitHubIntegration(installationId: string, repository: string): Promise<boolean> {
     try {
-      const info = await this.getSystemInfo();
-      if (!info) return false;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('SessÃ£o expirada.');
 
-      const { error } = await supabase
-        .from('system_info')
-        .update({
+      const response = await fetch('/api/admin/system-info', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
           github_installation_id: installationId,
-          github_repository: repository,
-          last_update_at: new Date().toISOString()
+          github_repository: repository
         })
-        .eq('id', info.id);
+      });
 
-      if (error) {
-        console.error('[SystemManager] Update error details:', error);
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'Erro ao atualizar integraÃ§Ã£o.');
       }
 
-      return !error;
+      return true;
     } catch (err) {
       console.error('[SystemManager] Failed to update GitHub integration:', err);
       return false;
@@ -190,25 +194,8 @@ export const SystemManager = {
         message: centralResult.message || 'GitHub App autenticado com sucesso pela Central!'
       };
     } catch (centralErr: any) {
-      console.warn('[SystemManager] Central update test failed, trying legacy local runner:', centralErr?.message || centralErr);
-    }
-
-    try {
-      const { data, error } = await supabase.functions.invoke('system-update-runner', {
-        body: { action: 'test' }
-      });
-
-      if (error) {
-        throw new Error(error.message || 'Erro na Edge Function');
-      }
-
-      return {
-        success: data.success,
-        message: data.message || data.error
-      };
-    } catch (err: any) {
-      console.error('[SystemManager] Connection test failed:', err);
-      return { success: false, message: err.message };
+      console.error('[SystemManager] Connection test failed:', centralErr);
+      return { success: false, message: centralErr.message };
     }
   },
 
@@ -218,7 +205,7 @@ export const SystemManager = {
   async syncSystemFiles(): Promise<{ success: boolean; message?: string; filesUpdated?: number }> {
     try {
       const centralResult = await this.invokeCentralUpdateRunner('sync');
-      await this.logLocalUpdate('sync', 'success', centralResult.message || 'SincronizaÃ§Ã£o concluÃ­da pela Central.', {
+      await this.logLocalUpdate('sync', 'success', centralResult.message || 'Sincronizacao concluida pela Central.', {
         commit_hash: centralResult.commitHash,
         backup_branch: centralResult.backupBranch,
         files_updated: centralResult.filesUpdated
@@ -228,24 +215,6 @@ export const SystemManager = {
         success: true,
         message: centralResult.message,
         filesUpdated: centralResult.filesUpdated
-      };
-    } catch (centralErr: any) {
-      console.warn('[SystemManager] Central sync failed, trying legacy local runner:', centralErr?.message || centralErr);
-    }
-
-    try {
-      const { data, error } = await supabase.functions.invoke('system-update-runner', {
-        body: { action: 'sync' }
-      });
-
-      if (error) {
-        throw new Error(error.message || 'Erro na sincronização');
-      }
-
-      return {
-        success: data.success,
-        message: data.message,
-        filesUpdated: data.filesUpdated
       };
     } catch (err: any) {
       console.error('[SystemManager] Sync failed:', err);
@@ -259,33 +228,13 @@ export const SystemManager = {
   async rollbackSystemFiles(backupBranch: string): Promise<{ success: boolean; message?: string }> {
     try {
       const centralResult = await this.invokeCentralUpdateRunner('rollback', { backupBranch });
-      await this.logLocalUpdate('rollback', 'success', centralResult.message || 'Rollback concluÃ­do pela Central.', {
+      await this.logLocalUpdate('rollback', 'success', centralResult.message || 'Rollback concluido pela Central.', {
         backup_branch: backupBranch
       });
 
       return {
         success: true,
         message: centralResult.message
-      };
-    } catch (centralErr: any) {
-      console.warn('[SystemManager] Central rollback failed, trying legacy local runner:', centralErr?.message || centralErr);
-    }
-
-    try {
-      const { data, error } = await supabase.functions.invoke('system-update-runner', {
-        body: { 
-          action: 'rollback',
-          backupBranch
-        }
-      });
-
-      if (error) {
-        throw new Error(error.message || 'Erro no rollback');
-      }
-
-      return {
-        success: data.success,
-        message: data.message
       };
     } catch (err: any) {
       console.error('[SystemManager] Rollback failed:', err);
