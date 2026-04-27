@@ -69,6 +69,7 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
 
   // Dev/Admin Override for you (optional, keep if you want to always see it on your machine)
   const isAdmin = user?.email === 'contato.jeandamin@gmail.com';
+  const canAccessSystemUpdates = isOwner || isAdmin || profile?.role === 'admin' || profile?.role === 'owner';
 
   return (
     <div className="flex h-screen bg-[#05050A] text-gray-900 dark:text-dark-textMain overflow-hidden font-sans flex-col">
@@ -314,6 +315,23 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
                 )}
 
                 {/* PARTNER MODULE: Prestador de Serviços */}
+                {canAccessSystemUpdates && !isOwner && (
+                  <Link
+                    to="/admin/updates"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`flex items-center rounded-xl transition-all duration-300 group relative overflow-hidden ${(!sidebarOpen && !mobileMenuOpen) ? 'justify-center px-0 py-3' : 'px-3 py-2'} text-[10px] font-black uppercase tracking-[0.2em] ${location.pathname === '/admin/updates'
+                      ? 'text-primary bg-primary/10 border border-primary/20'
+                      : 'text-gray-600 hover:text-white hover:bg-white/5'
+                      }`}
+                    title="AtualizaÃ§Ãµes do Sistema"
+                  >
+                    <RefreshCw className={`w-5 h-5 flex-shrink-0 ${location.pathname === '/admin/updates' ? 'animate-spin-slow text-primary' : ''}`} />
+                    <div className={`ml-3 truncate transition-all duration-300 ${(!sidebarOpen && !mobileMenuOpen) ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
+                      {t('nav.updates', 'AtualizaÃ§Ãµes')}
+                    </div>
+                  </Link>
+                )}
+
                 {((isOwner || hasFeature('FEATURE_PARTNER_PANEL')) || (profile?.partner_status === 'active')) && (
                   <Link
                     to="/admin/partner-dashboard"
