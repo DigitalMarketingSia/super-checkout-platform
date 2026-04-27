@@ -28,7 +28,7 @@ async function validateLocalUser(supabaseUrl: string, anonKey: string, jwt: stri
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method !== 'POST' && req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
   const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -59,24 +59,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(403).json({ error: 'Admin access required' });
   }
 
-  const body = parseBody(req);
-  const githubInstallationId = String(body.github_installation_id || '').trim();
-  const githubRepository = String(body.github_repository || '').trim();
-
-  if (!/^\d+$/.test(githubInstallationId)) {
-    return res.status(400).json({ error: 'GitHub Installation ID invalido.' });
-  }
-
-  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(githubRepository)) {
-    return res.status(400).json({ error: 'Repository Name deve usar owner/repo.' });
-  }
-
   try {
-    const { data: info } = await supabase
+    const { data: info, error: infoError } = await supabase
       .from('system_info')
-      .select('id')
+      .select('*')
       .limit(1)
       .maybeSingle();
+
+    if (infoError) throw infoError;
+
+    if (req.method === 'GET') {
+      if (info) return res.status(200).json({ success: true, data: info });
+
+      const created = await supabase
+        .from('system_info')
+        .insert({ db_version: '1.0.0' })
+        .select('*')
+        .single();
+
+      if (created.error) throw created.error;
+      return res.status(200).json({ success: true, data: created.data });
+    }
+
+    const body = parseBody(req);
+    const githubInstallationId = String(body.github_installation_id || '').trim();
+    const githubRepository = String(body.github_repository || '').trim();
+
+    if (!/^\d+$/.test(githubInstallationId)) {
+      return res.status(400).json({ error: 'GitHub Installation ID invalido.' });
+    }
+
+    if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(githubRepository)) {
+      return res.status(400).json({ error: 'Repository Name deve usar owner/repo.' });
+    }
 
     const payload = {
       github_installation_id: githubInstallationId,

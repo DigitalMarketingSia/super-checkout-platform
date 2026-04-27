@@ -68,6 +68,21 @@ export const SystemManager = {
    */
   async getSystemInfo(): Promise<SystemInfo | null> {
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        const response = await fetch('/api/admin/system-info', {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${session.access_token}`
+          }
+        });
+
+        if (response.ok) {
+          const json = await response.json();
+          if (json?.data) return json.data as SystemInfo;
+        }
+      }
+
       const { data, error } = await supabase
         .from('system_info')
         .select('*')
