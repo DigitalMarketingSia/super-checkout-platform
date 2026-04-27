@@ -100,11 +100,13 @@ export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) =>
     
     // Try to find a dynamic product that matches the required plan
     const dynamicProduct = products.find((p) => p.saas_plan_slug === content.plan_slug);
+    const checkoutUrl = dynamicProduct?.checkout_url || content.link;
+    const planSlug = (dynamicProduct?.saas_plan_slug || content.plan_slug) as UpgradePlanSlug;
 
     const finalPrice = dynamicProduct ? `R$ ${dynamicProduct.price_real}` : content.price;
 
     const handleOpenCheckout = async () => {
-        if (!dynamicProduct?.checkout_url || !dynamicProduct?.saas_plan_slug) {
+        if (!checkoutUrl || !planSlug) {
             setCheckoutError('Checkout oficial do plano ainda nao esta configurado. Tente novamente em instantes.');
             return;
         }
@@ -113,15 +115,16 @@ export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) =>
         setCheckoutError(null);
         try {
             await openUpgradeCheckout({
-                checkoutUrl: dynamicProduct.checkout_url,
-                planSlug: dynamicProduct.saas_plan_slug as UpgradePlanSlug,
-                productId: dynamicProduct.id,
+                checkoutUrl,
+                planSlug,
+                productId: dynamicProduct?.id || null,
                 sourceSurface: 'installation',
                 sourceContext: {
                     trigger: 'upsell_modal',
                     offer_slug: offerSlug,
                     license_key: licenseKey || null,
-                    plan_slug: dynamicProduct.saas_plan_slug,
+                    plan_slug: planSlug,
+                    checkout_source: dynamicProduct?.checkout_url ? 'official_plan' : 'offer_fallback',
                 },
             });
             onClose();
@@ -170,7 +173,7 @@ export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) =>
                     )}
                     <Button
                         onClick={handleOpenCheckout}
-                        disabled={loading || openingCheckout || !dynamicProduct?.checkout_url}
+                        disabled={loading || openingCheckout}
                         className="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold shadow-lg shadow-purple-500/20"
                     >
                         {loading ? 'Carregando...' : openingCheckout ? 'Preparando Checkout...' : content.cta} <ArrowRight className="w-4 h-4 ml-2" />
