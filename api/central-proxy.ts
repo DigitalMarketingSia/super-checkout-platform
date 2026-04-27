@@ -29,6 +29,7 @@ const ALLOWED_ENDPOINTS = [
     'check-entitlement',
     'account-flags',
     'upgrade-intents',
+    'system-update-runner',
 ];
 
 // CORS Whitelist (Fase 15.1 — Hardening)
@@ -197,6 +198,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             } else if (endpoint === 'upgrade-intents') {
                 const action = req.body?.action;
                 if (action === 'create_upgrade_intent') {
+                    isAllowed = true;
+                }
+            } else if (endpoint === 'system-update-runner') {
+                const action = req.body?.action;
+                if (['test', 'sync', 'rollback'].includes(action)) {
                     isAllowed = true;
                 }
             }

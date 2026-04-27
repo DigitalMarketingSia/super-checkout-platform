@@ -1,12 +1,68 @@
 import { supabase } from './supabase';
 import { SystemInfo, SystemFeature, SystemUpdateLog } from '../types';
 import { APP_VERSION, SCHEMA_VERSION } from '../config/version';
+import { GITHUB_UPDATE_CONFIG } from '../config/github';
 
 // Import all migrations from the migrations directory
 // We use eager: true to have the content immediately available
 const migrations = import.meta.glob('../../migrations/*.sql', { query: '?raw', import: 'default', eager: true });
 
 export const SystemManager = {
+  async invokeCentralUpdateRunner(action: 'test' | 'sync' | 'rollback', payload: Record<string, any> = {}) {
+    const info = await this.getSystemInfo();
+    if (!info?.github_installation_id || !info?.github_repository) {
+      throw new Error('Configure o GitHub App e o repositÃ³rio antes de testar ou sincronizar.');
+    }
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      throw new Error('SessÃ£o expirada. Entre novamente para continuar.');
+    }
+
+    const response = await fetch('/api/central-proxy?endpoint=system-update-runner', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`
+      },
+      body: JSON.stringify({
+        action,
+        installation_id: info.github_installation_id,
+        repository: info.github_repository,
+        source_repository: GITHUB_UPDATE_CONFIG.SOURCE_REPOSITORY,
+        ...payload
+      })
+    });
+
+    const raw = await response.text();
+    const data = raw ? (() => {
+      try {
+        return JSON.parse(raw);
+      } catch {
+        return { message: raw };
+      }
+    })() : {};
+
+    if (!response.ok || data.success === false) {
+      throw new Error(data.message || data.error || 'Falha no serviÃ§o central de atualizaÃ§Ã£o.');
+    }
+
+    return data;
+  },
+
+  async logLocalUpdate(action: string, status: string, message: string, filesAffected: any = null) {
+    try {
+      await supabase.from('system_updates_log').insert({
+        action,
+        status,
+        message,
+        files_affected: filesAffected || {}
+      });
+    } catch (error) {
+      console.warn('[SystemManager] Could not write update log:', error);
+    }
+  },
+
   /**
    * Fetches the current system version from the database
    */
@@ -128,6 +184,16 @@ export const SystemManager = {
    */
   async testGitHubConnection(): Promise<{ success: boolean; message?: string }> {
     try {
+      const centralResult = await this.invokeCentralUpdateRunner('test');
+      return {
+        success: true,
+        message: centralResult.message || 'GitHub App autenticado com sucesso pela Central!'
+      };
+    } catch (centralErr: any) {
+      console.warn('[SystemManager] Central update test failed, trying legacy local runner:', centralErr?.message || centralErr);
+    }
+
+    try {
       const { data, error } = await supabase.functions.invoke('system-update-runner', {
         body: { action: 'test' }
       });
@@ -150,6 +216,23 @@ export const SystemManager = {
    * Triggers the real file synchronization
    */
   async syncSystemFiles(): Promise<{ success: boolean; message?: string; filesUpdated?: number }> {
+    try {
+      const centralResult = await this.invokeCentralUpdateRunner('sync');
+      await this.logLocalUpdate('sync', 'success', centralResult.message || 'SincronizaÃ§Ã£o concluÃ­da pela Central.', {
+        commit_hash: centralResult.commitHash,
+        backup_branch: centralResult.backupBranch,
+        files_updated: centralResult.filesUpdated
+      });
+
+      return {
+        success: true,
+        message: centralResult.message,
+        filesUpdated: centralResult.filesUpdated
+      };
+    } catch (centralErr: any) {
+      console.warn('[SystemManager] Central sync failed, trying legacy local runner:', centralErr?.message || centralErr);
+    }
+
     try {
       const { data, error } = await supabase.functions.invoke('system-update-runner', {
         body: { action: 'sync' }
@@ -174,6 +257,20 @@ export const SystemManager = {
    * Triggers the system rollback to a previous branch
    */
   async rollbackSystemFiles(backupBranch: string): Promise<{ success: boolean; message?: string }> {
+    try {
+      const centralResult = await this.invokeCentralUpdateRunner('rollback', { backupBranch });
+      await this.logLocalUpdate('rollback', 'success', centralResult.message || 'Rollback concluÃ­do pela Central.', {
+        backup_branch: backupBranch
+      });
+
+      return {
+        success: true,
+        message: centralResult.message
+      };
+    } catch (centralErr: any) {
+      console.warn('[SystemManager] Central rollback failed, trying legacy local runner:', centralErr?.message || centralErr);
+    }
+
     try {
       const { data, error } = await supabase.functions.invoke('system-update-runner', {
         body: { 
@@ -378,4 +475,3 @@ export const SystemManager = {
     }
   }
 };
-

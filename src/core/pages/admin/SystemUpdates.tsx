@@ -30,6 +30,7 @@ import { toast } from 'sonner';
 import { ConfirmModal } from '../../components/ui/Modal';
 import { useFeatures } from '../../hooks/useFeatures';
 import { APP_VERSION, SCHEMA_VERSION } from '../../config/version';
+import { GITHUB_UPDATE_CONFIG } from '../../config/github';
 
 export const SystemUpdates = () => {
     const { t } = useTranslation('admin');
@@ -468,8 +469,8 @@ export const SystemUpdates = () => {
                                         <p className="text-sm text-gray-500 font-medium leading-relaxed">
                                             Conecte sua conta do GitHub para habilitar a implantação automatizada de patches e atualizações de segurança.
                                         </p>
-                                        <a 
-                                            href="https://github.com/apps/super-checkout-app/installations/new" 
+                                        <a
+                                            href={GITHUB_UPDATE_CONFIG.INSTALL_URL}
                                             target="_blank" 
                                             rel="noreferrer"
                                             className="w-full bg-white text-black py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 shadow-xl transition-all hover:bg-gray-100 italic"
