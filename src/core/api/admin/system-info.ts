@@ -1,13 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-function sendCors(res: VercelResponse) {
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-}
-
 function parseBody(req: VercelRequest) {
   if (!req.body) return {};
   if (typeof req.body === 'string') {
@@ -34,8 +27,6 @@ async function validateLocalUser(supabaseUrl: string, anonKey: string, jwt: stri
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  sendCors(res);
-
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
