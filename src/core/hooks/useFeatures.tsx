@@ -29,31 +29,55 @@ const DEFAULT_PLAN_LIMITS: Record<string, LimitSet> = {
     free: {
         products: 3,
         domains: 1,
+        checkouts: 3,
         custom_branding: 0
     },
     starter: {
         products: 3,
         domains: 1,
+        checkouts: 3,
         custom_branding: 0
     },
     pro: {
         products: 'unlimited',
         domains: 'unlimited',
+        checkouts: 'unlimited',
+        custom_branding: 1
+    },
+    upgrade_domains: {
+        products: 'unlimited',
+        domains: 'unlimited',
+        checkouts: 'unlimited',
+        custom_branding: 1
+    },
+    saas: {
+        products: 'unlimited',
+        domains: 'unlimited',
+        checkouts: 'unlimited',
+        custom_branding: 1
+    },
+    whitelabel: {
+        products: 'unlimited',
+        domains: 'unlimited',
+        checkouts: 'unlimited',
         custom_branding: 1
     },
     agency: {
         products: 'unlimited',
         domains: 'unlimited',
+        checkouts: 'unlimited',
         custom_branding: 1
     },
     enterprise: {
         products: 'unlimited',
         domains: 'unlimited',
+        checkouts: 'unlimited',
         custom_branding: 1
     },
     master: {
         products: 'unlimited',
         domains: 'unlimited',
+        checkouts: 'unlimited',
         custom_branding: 1
     }
 };
@@ -113,10 +137,20 @@ export const useFeatures = (): UnifiedFeatures => {
             // 4. Merge Logic
             // Remote Entitlements > Plan Defaults
             // FIX: If it's the Test User, IGNORE remote unlimited limits to simulate 'free'
-            setLimits(isTestUser ? planDefaults : {
+            const mergedLimits = {
                 ...planDefaults,
                 ...remoteData.limits
-            });
+            };
+
+            if (
+                !('checkouts' in remoteData.limits)
+                && (remoteData.limits as LimitSet).products === 'unlimited'
+                && (remoteData.limits as LimitSet).domains === 'unlimited'
+            ) {
+                mergedLimits.checkouts = 'unlimited';
+            }
+
+            setLimits(isTestUser ? planDefaults : mergedLimits);
 
             setFeatures(isTestUser ? {} : {
                 ...localMap,

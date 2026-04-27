@@ -12,6 +12,8 @@ import {
 
 import { ConfirmModal, AlertModal, Modal } from '../../components/ui/Modal';
 import { useTranslation } from 'react-i18next';
+import { useFeatures } from '../../hooks/useFeatures';
+import { UpsellModal } from '../../components/ui/UpsellModal';
 
 export const Checkouts = () => {
   const { t, i18n } = useTranslation(['admin', 'common', 'sidebar']);
@@ -32,6 +34,9 @@ export const Checkouts = () => {
     message: '',
     variant: 'info'
   });
+  const [isUpsellModalOpen, setIsUpsellModalOpen] = useState(false);
+  const [upsellSlug, setUpsellSlug] = useState<'unlimited_domains' | 'partner_rights' | 'whitelabel' | null>(null);
+  const { getLimit } = useFeatures();
 
   const showAlert = (title: string, message: string, variant: 'success' | 'error' | 'info' = 'info') => {
     setAlertState({ isOpen: true, title, message, variant });
@@ -125,6 +130,19 @@ export const Checkouts = () => {
     action();
   };
 
+  const handleCreateCheckout = () => {
+    const limit = getLimit('checkouts');
+    const allowed = limit === 'unlimited' || (limit && checkouts.length < limit);
+
+    if (!allowed) {
+      setUpsellSlug('unlimited_domains');
+      setIsUpsellModalOpen(true);
+      return;
+    }
+
+    navigate('/admin/checkouts/edit/new');
+  };
+
   return (
     <Layout>
       <div className="flex flex-col lg:flex-row justify-between lg:items-end mb-12 gap-8">
@@ -133,10 +151,12 @@ export const Checkouts = () => {
           <div className="flex items-center gap-3">
              <p className="text-gray-600 font-medium uppercase tracking-[0.1em] text-[10px]">Links de Pagamento & Conversão</p>
              <div className="h-1 w-1 rounded-full bg-gray-800"></div>
-             <span className="text-[10px] text-primary font-black uppercase tracking-[0.2em]">Active Control</span>
+             <span className="text-[10px] text-primary font-black uppercase tracking-[0.2em]">
+               {getLimit('checkouts') ? `${checkouts.length} / ${getLimit('checkouts') === 'unlimited' ? '∞' : getLimit('checkouts')} Checkouts` : 'Active Control'}
+             </span>
           </div>
         </div>
-        <Button onClick={() => handleActionWithCompliance(() => navigate('/admin/checkouts/edit/new'))} className="px-10 py-4 bg-primary text-white rounded-[1.5rem] shadow-2xl shadow-primary/30 border-none font-black uppercase tracking-widest text-xs flex items-center gap-3 active:scale-95 transition-all">
+        <Button onClick={() => handleActionWithCompliance(handleCreateCheckout)} className="px-10 py-4 bg-primary text-white rounded-[1.5rem] shadow-2xl shadow-primary/30 border-none font-black uppercase tracking-widest text-xs flex items-center gap-3 active:scale-95 transition-all">
           <Plus className="w-5 h-5" /> Novo Checkout
         </Button>
       </div>
@@ -152,7 +172,7 @@ export const Checkouts = () => {
            </div>
            <h3 className="text-2xl font-portal-display text-white uppercase tracking-tight opacity-40">Nenhum Checkout Criado</h3>
            <p className="text-gray-600 font-medium uppercase tracking-widest text-[10px] mt-2 mb-8">Comece a vender criando seu primeiro link</p>
-           <Button onClick={() => navigate('/admin/checkouts/edit/new')} className="bg-white/5 hover:bg-white/10 text-white border border-white/10 px-8 py-3 rounded-2xl font-black uppercase tracking-widest text-[10px]">Criar Agora</Button>
+           <Button onClick={() => handleActionWithCompliance(handleCreateCheckout)} className="bg-white/5 hover:bg-white/10 text-white border border-white/10 px-8 py-3 rounded-2xl font-black uppercase tracking-widest text-[10px]">Criar Agora</Button>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4">
@@ -356,6 +376,12 @@ export const Checkouts = () => {
           </div>
         </div>
       </Modal>
+
+      <UpsellModal
+        isOpen={isUpsellModalOpen}
+        onClose={() => setIsUpsellModalOpen(false)}
+        offerSlug={upsellSlug}
+      />
     </Layout>
   );
 };

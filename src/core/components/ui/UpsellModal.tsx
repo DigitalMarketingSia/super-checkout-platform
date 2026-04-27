@@ -3,7 +3,8 @@ import { Modal } from './Modal';
 import { Button } from './Button';
 import { CheckCircle, ArrowRight, Zap } from 'lucide-react';
 import { storage } from '../../services/storageService';
-import { openUpgradeCheckout } from '../../services/upgradeCheckout';
+import { licenseService } from '../../services/licenseService';
+import { openUpgradeCheckout, UpgradePlanSlug } from '../../services/upgradeCheckout';
 
 interface UpsellModalProps {
     isOpen: boolean;
@@ -15,16 +16,43 @@ export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) =>
     const [products, setProducts] = React.useState<any[]>([]);
     const [loading, setLoading] = React.useState(false);
     const [openingCheckout, setOpeningCheckout] = React.useState(false);
+    const [checkoutError, setCheckoutError] = React.useState<string | null>(null);
 
     React.useEffect(() => {
         if (isOpen) {
             const fetchProducts = async () => {
                 setLoading(true);
+                setCheckoutError(null);
                 try {
-                    const data = await storage.getPublicSaaSProducts();
-                    setProducts(data);
+                    const [officialPlansResult, localProductsResult] = await Promise.allSettled([
+                        licenseService.getOfficialPlans(),
+                        storage.getPublicSaaSProducts(),
+                    ]);
+
+                    const officialPlans = officialPlansResult.status === 'fulfilled' ? officialPlansResult.value : [];
+                    const localProducts = localProductsResult.status === 'fulfilled' ? localProductsResult.value : [];
+
+                    const mergedPlans = officialPlans.map((plan: any) => {
+                        const localMatch = localProducts.find((product: any) => product.saas_plan_slug === plan.saas_plan_slug);
+
+                        return {
+                            ...plan,
+                            name: localMatch?.name || plan.name,
+                            description: localMatch?.description || plan.description,
+                            imageUrl: localMatch?.imageUrl || plan.imageUrl,
+                            price_real: localMatch?.price_real || plan.price_real,
+                            checkout_url: plan.checkout_url || localMatch?.checkout_url || '',
+                        };
+                    });
+
+                    const localOnlyProducts = localProducts.filter((product: any) =>
+                        !mergedPlans.some((plan: any) => plan.saas_plan_slug === product.saas_plan_slug)
+                    );
+
+                    setProducts([...mergedPlans, ...localOnlyProducts]);
                 } catch (err) {
                     console.error('Error fetching SaaS products for modal:', err);
+                    setCheckoutError('Nao foi possivel carregar o checkout de upgrade agora.');
                 } finally {
                     setLoading(false);
                 }
@@ -77,26 +105,28 @@ export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) =>
 
     const handleOpenCheckout = async () => {
         if (!dynamicProduct?.checkout_url || !dynamicProduct?.saas_plan_slug) {
-            if (content.link) {
-                window.open(content.link, '_blank', 'noopener,noreferrer');
-            }
+            setCheckoutError('Checkout oficial do plano ainda nao esta configurado. Tente novamente em instantes.');
             return;
         }
 
         setOpeningCheckout(true);
+        setCheckoutError(null);
         try {
             await openUpgradeCheckout({
                 checkoutUrl: dynamicProduct.checkout_url,
-                planSlug: dynamicProduct.saas_plan_slug,
+                planSlug: dynamicProduct.saas_plan_slug as UpgradePlanSlug,
                 productId: dynamicProduct.id,
                 sourceSurface: 'installation',
                 sourceContext: {
                     trigger: 'upsell_modal',
                     offer_slug: offerSlug,
                     license_key: licenseKey || null,
+                    plan_slug: dynamicProduct.saas_plan_slug,
                 },
             });
             onClose();
+        } catch (error) {
+            setCheckoutError(error instanceof Error ? error.message : 'Falha ao preparar checkout seguro.');
         } finally {
             setOpeningCheckout(false);
         }
@@ -130,9 +160,17 @@ export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) =>
                 </div>
 
                 <div className="flex flex-col gap-3">
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 text-center">
+                        Upgrade aplicado automaticamente nesta conta
+                    </p>
+                    {checkoutError && (
+                        <p className="text-xs font-bold text-red-400 bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3">
+                            {checkoutError}
+                        </p>
+                    )}
                     <Button
                         onClick={handleOpenCheckout}
-                        disabled={loading || openingCheckout}
+                        disabled={loading || openingCheckout || !dynamicProduct?.checkout_url}
                         className="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold shadow-lg shadow-purple-500/20"
                     >
                         {loading ? 'Carregando...' : openingCheckout ? 'Preparando Checkout...' : content.cta} <ArrowRight className="w-4 h-4 ml-2" />
