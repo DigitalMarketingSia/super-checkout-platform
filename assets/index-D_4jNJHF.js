@@ -1909,8 +1909,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS email_templates_event_type_language_key
 ON public.email_templates(event_type, language);
 
 -- Seed Data (Default Post-Sales Template)
-INSERT INTO public.email_templates (event_type, name, subject, html_body)
-VALUES ('ORDER_COMPLETED', 'Pedido Aprovado', 'Seu pedido #{{order_id}} foi aprovado!', '<div style="font-family: sans-serif; color: #333;">
+INSERT INTO public.email_templates (event_type, language, name, subject, html_body)
+VALUES ('ORDER_COMPLETED', 'pt', 'Pedido Aprovado', 'Seu pedido #{{order_id}} foi aprovado!', '<div style="font-family: sans-serif; color: #333;">
     <h1>Olá, {{customer_name}}!</h1>
     <p>Parabéns pela sua compra.</p>
     <p>Seu pedido <strong>#{{order_id}}</strong> foi confirmado com sucesso.</p>
@@ -1921,7 +1921,7 @@ VALUES ('ORDER_COMPLETED', 'Pedido Aprovado', 'Seu pedido #{{order_id}} foi apro
     <br/><br/>
     <p>Atenciosamente,<br/>Equipe Super Checkout</p>
   </div>')
-ON CONFLICT (event_type) DO NOTHING;
+ON CONFLICT (event_type, language) DO NOTHING;
 
 -- ==========================================
 -- 4. VIEWS & FUNCTIONS
