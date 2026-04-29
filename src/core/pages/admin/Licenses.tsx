@@ -4,7 +4,7 @@ import { Layout } from '../../components/Layout';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { ConfirmModal } from '../../components/ui/Modal';
-import { Key, Plus, Copy, CheckCircle, ShieldCheck, Server, AlertTriangle, Loader2, Globe, ExternalLink, RefreshCw, Trash2, Activity, HardDrive, Shield, ChevronRight, Clock } from 'lucide-react';
+import { Key, Plus, Copy, CheckCircle, ShieldCheck, Server, AlertTriangle, Loader2, Globe, RefreshCw, Trash2, Activity, HardDrive, Shield, ChevronRight, Clock } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { supabase } from '../../services/supabase';
@@ -466,7 +466,7 @@ export const Licenses = () => {
                         </div>
                     </Card>
 
-                    {/* Card 03: Deployment Portal */}
+                    {/* Card 03: Deployment Policy */}
                     <Card className="relative p-10 lg:p-12 border border-white/5 backdrop-blur-3xl bg-[#0A0A15]/80 overflow-hidden group rounded-[2.5rem]">
                         <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/5 blur-[60px] -translate-y-1/2 translate-x-1/2 group-hover:bg-purple-500/10 transition-all duration-700" />
                         <div className="relative z-10 flex flex-col h-full justify-between gap-8">
@@ -478,14 +478,11 @@ export const Licenses = () => {
                                     {t('installer_centralized_desc', { defaultValue: 'Geração de novos nós restrita ao Portal de Licenciamento central para integridade da rede.' })}
                                 </p>
                             </div>
-                            <Button
-                                variant="outline"
-                                onClick={() => window.open('/activate', '_blank')}
-                                className="w-full h-14 rounded-2xl border-primary/20 text-primary hover:bg-primary/5 text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-3 active:scale-95 transition-all shadow-xl"
-                            >
-                                {t('go_to_portal', { defaultValue: 'Acessar Portal Master' })}
-                                <ExternalLink className="w-3.5 h-3.5" />
-                            </Button>
+                            <div className="rounded-2xl border border-white/5 bg-white/[0.02] px-5 py-4">
+                                <p className="text-[10px] font-black uppercase tracking-[0.24em] text-gray-500">
+                                    Portal separado da instalacao
+                                </p>
+                            </div>
                         </div>
                     </Card>
                 </div>
