@@ -287,6 +287,27 @@ export const SystemManager = {
     return 0;
   },
 
+  async verifyMigrationState(version: string): Promise<boolean> {
+    const hasColumn = async (table: string, column: string) => {
+      const { error } = await supabase.from(table).select(column).limit(1);
+      return !error;
+    };
+
+    if (version === '1.0.1') {
+      return hasColumn('system_info', 'testing_evolution');
+    }
+
+    if (version === '1.0.2') {
+      const [hasSystemTemplateLanguage, hasBusinessTemplateLanguage] = await Promise.all([
+        hasColumn('system_email_templates', 'language'),
+        hasColumn('email_templates', 'language')
+      ]);
+      return hasSystemTemplateLanguage && hasBusinessTemplateLanguage;
+    }
+
+    return false;
+  },
+
   /**
    * Runs all pending migrations in order
    */
@@ -349,13 +370,24 @@ export const SystemManager = {
    */
   async logMigration(version: string, description: string, success: boolean, timeMs: number, error?: string) {
     try {
-      await supabase.from('schema_migrations').insert({
+      const row = {
         version,
         description,
         success,
         execution_time_ms: timeMs,
         error_log: error
-      });
+      };
+
+      const { error: upsertError } = await supabase
+        .from('schema_migrations')
+        .upsert(row, { onConflict: 'version' });
+
+      if (upsertError) {
+        const { error: insertError } = await supabase.from('schema_migrations').insert(row);
+        if (insertError) {
+          console.warn('[SystemManager] Could not write migration log:', insertError);
+        }
+      }
 
       if (success) {
         // Update the main system_info table
@@ -379,10 +411,17 @@ export const SystemManager = {
     const startTime = Date.now();
     try {
       console.log(`[SystemManager] Running migration ${version}...`);
+
+      if (await this.verifyMigrationState(version)) {
+        console.log(`[SystemManager] Migration ${version} already reflected in schema.`);
+        await this.logMigration(version, `${description} (schema already current)`, true, Date.now() - startTime);
+        return true;
+      }
+
       const { data, error } = await supabase.rpc('exec_sql', { sql_query: sql });
 
-      if (error || !data.success) {
-        const errorMsg = error?.message || data?.error || 'Unknown error';
+      if (error || !(data as any)?.success) {
+        const errorMsg = error?.message || (data as any)?.error || 'Unknown error';
         console.error(`[SystemManager] Migration ${version} failed:`, errorMsg);
         await this.logMigration(version, description, false, Date.now() - startTime, errorMsg);
         return false;

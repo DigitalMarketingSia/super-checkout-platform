@@ -719,7 +719,7 @@ export default function InstallerWizard() {
                                     const tempClient = createClient(supabaseUrl, anonKey);
                                     console.log('🔄 Reloading schema cache...');
                                     const { error } = await tempClient.rpc('exec_sql', {
-                                        sql: "NOTIFY pgrst, 'reload schema';"
+                                        sql_query: "NOTIFY pgrst, 'reload schema';"
                                     });
                                     if (error) {
                                         console.warn('⚠️ exec_sql not available, trying alternative method...');
@@ -834,7 +834,7 @@ export default function InstallerWizard() {
                                         if (bucketError && !bucketError.message.includes('already exists')) {
                                             console.warn(`⚠️ Failed to create bucket ${bucket}:`, bucketError.message);
                                             // Fallback: Try SQL insert if API fails (rare but possible)
-                                            await adminClient.rpc('exec_sql', { sql: `INSERT INTO storage.buckets (id, name, public) VALUES ('${bucket}', '${bucket}', true) ON CONFLICT (id) DO UPDATE SET public = true;` });
+                                            await adminClient.rpc('exec_sql', { sql_query: `INSERT INTO storage.buckets (id, name, public) VALUES ('${bucket}', '${bucket}', true) ON CONFLICT (id) DO UPDATE SET public = true;` });
                                         }
                                     }
                                     console.log('✅ Storage buckets verified.');

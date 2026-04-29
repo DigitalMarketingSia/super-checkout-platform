@@ -3,7 +3,7 @@
 -- ==========================================
 CREATE TABLE IF NOT EXISTS public.system_info(
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    db_version TEXT NOT NULL DEFAULT '1.0.0',
+    db_version TEXT NOT NULL DEFAULT '1.0.2',
     last_update_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
     github_installation_id TEXT,
     github_repository TEXT,
@@ -11,11 +11,18 @@ CREATE TABLE IF NOT EXISTS public.system_info(
 );
 
 INSERT INTO public.system_info (db_version) 
-SELECT '1.0.0' WHERE NOT EXISTS (SELECT 1 FROM public.system_info);
+SELECT '1.0.2' WHERE NOT EXISTS (SELECT 1 FROM public.system_info);
+
+DO $$
+BEGIN
+    ALTER TABLE public.system_info ADD COLUMN IF NOT EXISTS github_installation_id TEXT;
+    ALTER TABLE public.system_info ADD COLUMN IF NOT EXISTS github_repository TEXT;
+    ALTER TABLE public.system_info ADD COLUMN IF NOT EXISTS testing_evolution BOOLEAN DEFAULT false;
+END $$;
 
 CREATE TABLE IF NOT EXISTS public.schema_migrations(
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    version TEXT NOT NULL,
+    version TEXT NOT NULL UNIQUE,
     description TEXT,
     success BOOLEAN NOT NULL,
     execution_time_ms INTEGER,
@@ -623,10 +630,20 @@ CREATE TABLE IF NOT EXISTS public.email_templates(
     subject TEXT NOT NULL,
     html_body TEXT NOT NULL,
     active BOOLEAN DEFAULT true,
+    language TEXT DEFAULT 'pt',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
-    UNIQUE(event_type)
+    UNIQUE(event_type, language)
 );
+
+DO $$
+BEGIN
+    ALTER TABLE public.email_templates ADD COLUMN IF NOT EXISTS language TEXT DEFAULT 'pt';
+    ALTER TABLE public.email_templates DROP CONSTRAINT IF EXISTS email_templates_event_type_key;
+END $$;
+
+CREATE UNIQUE INDEX IF NOT EXISTS email_templates_event_type_language_key
+ON public.email_templates(event_type, language);
 
 -- Seed Data (Default Post-Sales Template)
 INSERT INTO public.email_templates (event_type, name, subject, html_body)
@@ -1219,4 +1236,30 @@ GRANT EXECUTE ON FUNCTION public.is_setup_required(TEXT) TO anon, authenticated,
 -- ==========================================
 -- 9. CACHE RELOAD (Critical for API to see new columns immediately)
 -- ==========================================
+UPDATE public.schema_migrations
+SET success = true,
+    description = 'Canonical schema includes testing_evolution',
+    error_log = NULL,
+    executed_at = timezone('utc'::text, now())
+WHERE version = '1.0.1';
+
+INSERT INTO public.schema_migrations(version, description, success, execution_time_ms)
+SELECT '1.0.1', 'Canonical schema includes testing_evolution', true, 0
+WHERE NOT EXISTS (SELECT 1 FROM public.schema_migrations WHERE version = '1.0.1');
+
+UPDATE public.schema_migrations
+SET success = true,
+    description = 'Canonical schema includes localized email templates',
+    error_log = NULL,
+    executed_at = timezone('utc'::text, now())
+WHERE version = '1.0.2';
+
+INSERT INTO public.schema_migrations(version, description, success, execution_time_ms)
+SELECT '1.0.2', 'Canonical schema includes localized email templates', true, 0
+WHERE NOT EXISTS (SELECT 1 FROM public.schema_migrations WHERE version = '1.0.2');
+
+UPDATE public.system_info
+SET db_version = '1.0.2',
+    last_update_at = timezone('utc'::text, now());
+
 NOTIFY pgrst, 'reload schema';

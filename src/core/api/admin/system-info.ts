@@ -1,6 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
+const CURRENT_SCHEMA_VERSION = '1.0.2';
+
 function parseBody(req: VercelRequest) {
   if (!req.body) return {};
   if (typeof req.body === 'string') {
@@ -73,7 +75,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const created = await supabase
         .from('system_info')
-        .insert({ db_version: '1.0.0' })
+        .insert({ db_version: CURRENT_SCHEMA_VERSION })
         .select('*')
         .single();
 
@@ -101,7 +103,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const result = info?.id
       ? await supabase.from('system_info').update(payload).eq('id', info.id).select('*').single()
-      : await supabase.from('system_info').insert({ db_version: '1.0.0', ...payload }).select('*').single();
+      : await supabase.from('system_info').insert({ db_version: CURRENT_SCHEMA_VERSION, ...payload }).select('*').single();
 
     if (result.error) throw result.error;
     return res.status(200).json({ success: true, data: result.data });
