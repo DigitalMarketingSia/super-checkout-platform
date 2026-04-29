@@ -52,12 +52,36 @@ export const SystemManager = {
 
   async logLocalUpdate(action: string, status: string, message: string, filesAffected: any = null) {
     try {
-      await supabase.from('system_updates_log').insert({
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        const response = await fetch('/api/admin/update-log', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({
+            action,
+            status,
+            message,
+            files_affected: filesAffected || {}
+          })
+        });
+
+        if (response.ok) return;
+
+        const data = await response.json().catch(() => ({}));
+        console.warn('[SystemManager] Server update log failed:', data.error || response.statusText);
+      }
+
+      const { error } = await supabase.from('system_updates_log').insert({
         action,
         status,
         message,
         files_affected: filesAffected || {}
       });
+
+      if (error) throw error;
     } catch (error) {
       console.warn('[SystemManager] Could not write update log:', error);
     }
