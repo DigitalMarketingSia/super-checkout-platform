@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Layout } from '../../components/Layout';
-import { Button } from '../../components/ui/Button';
 import { 
   CheckCircle2, 
   AlertTriangle, 
@@ -10,7 +9,6 @@ import {
   Search,
   Github,
   Zap,
-  Info,
   ChevronRight,
   AlertCircle,
   RefreshCw,
@@ -18,13 +16,12 @@ import {
   Clock,
   Database,
   ArrowRight,
-  Save,
   Activity,
   Cpu,
   Unplug
 } from 'lucide-react';
 import { SystemManager } from '../../services/systemManager';
-import { SystemInfo, SystemFeature, SystemUpdateLog } from '../../types';
+import { SystemInfo, SystemUpdateLog } from '../../types';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { ConfirmModal } from '../../components/ui/Modal';
@@ -36,7 +33,7 @@ export const SystemUpdates = () => {
     const { t } = useTranslation('admin');
     const [loading, setLoading] = useState(true);
     const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
-    const { rawFeatures: features, loading: featuresLoading, hasFeature, refresh: refreshFeatures } = useFeatures();
+    const { rawFeatures: features, loading: featuresLoading } = useFeatures();
     
     // GitHub Form State
     const [installationId, setInstallationId] = useState('');
@@ -106,7 +103,8 @@ export const SystemUpdates = () => {
                 setUpdateAvailable(true);
                 toast.info(`Atualizações de banco de dados (até v${SCHEMA_VERSION}) disponíveis.`);
             } else {
-                toast.success(t('system_updates.status.already_latest', 'Sistema já está na versão mais recente.'));
+                setUpdateAvailable(false);
+                toast.success(`Banco de dados sincronizado com o schema v${SCHEMA_VERSION}.`);
             }
         } finally {
             setCheckingUpdate(false);
@@ -139,15 +137,22 @@ export const SystemUpdates = () => {
 
     const handleSyncFiles = async () => {
         setSyncingFiles(true);
-        const result = await SystemManager.syncSystemFiles();
-        if (result.success) {
-            toast.success(result.message || `Sincronização concluída! ${result.filesUpdated} arquivos atualizados.`);
-            fetchData();
-        } else {
-            toast.error(result.message || 'Falha na sincronização.');
+        try {
+            const result = await SystemManager.syncSystemFiles();
+            if (result.success) {
+                if ((result.filesUpdated || 0) > 0) {
+                    toast.success(`${result.filesUpdated} arquivos sincronizados. Aguarde o deploy da Vercel e recarregue a página.`);
+                } else {
+                    toast.success(result.message || 'Nenhum arquivo novo encontrado no repositório oficial.');
+                }
+                fetchData();
+            } else {
+                toast.error(result.message || 'Falha na sincronização.');
+            }
+        } finally {
+            setSyncingFiles(false);
+            setShowSyncConfirm(false);
         }
-        setSyncingFiles(false);
-        setShowSyncConfirm(false);
     };
 
     const handleRollback = async (backupBranch: string) => {
@@ -169,15 +174,28 @@ export const SystemUpdates = () => {
             const result = await SystemManager.performSchemaAudit();
             setAuditResult(result);
             if (result.is_healthy) {
-                toast.success('Integridade do schema validada!');
+                toast.success('Estrutura principal do banco validada!');
             } else {
-                toast.error('Detectadas inconsistências no schema.');
+                toast.error('Foram encontradas inconsistências no banco.');
             }
         } catch (err) {
             toast.error('Falha na auditoria.');
         } finally {
             setIsAuditing(false);
         }
+    };
+
+    const getLogMeta = (log: SystemUpdateLog) => log.files_affected || {};
+    const getBackupBranch = (log: SystemUpdateLog) => log.backup_branch || getLogMeta(log).backup_branch || '';
+    const getCommitHash = (log: SystemUpdateLog) => log.commit_hash || getLogMeta(log).commit_hash || '';
+    const getFilesUpdated = (log: SystemUpdateLog) => {
+        const value = log.files_updated ?? getLogMeta(log).files_updated;
+        return typeof value === 'number' ? value : null;
+    };
+    const formatDrift = (drift: any) => {
+        if (drift.type === 'table_missing') return `Tabela ausente: ${drift.name}`;
+        if (drift.type === 'column_missing') return `Coluna ausente: ${drift.name}.${drift.column || '?'}`;
+        return drift.message || `Verificar ${drift.name || 'schema'}`;
     };
 
     if (loading) {
@@ -202,12 +220,12 @@ export const SystemUpdates = () => {
                                 <Activity className="w-8 h-8 text-primary animate-pulse" />
                             </div>
                             <h1 className="text-4xl font-black text-white tracking-tighter italic uppercase">
-                                System Integrity
+                                Atualizações do Sistema
                             </h1>
                         </div>
                         <p className="text-gray-400 font-medium flex items-center gap-2">
                             <span className="w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_8px_rgba(249,115,22,0.6)]"></span>
-                            Monitoramento de versões, auditoria de schema e sincronização técnica via GitHub.
+                            Versões instaladas, saúde do banco e sincronização de código via GitHub.
                         </p>
                     </div>
 
@@ -218,7 +236,7 @@ export const SystemUpdates = () => {
                             className="bg-white/5 hover:bg-white/10 text-white border border-white/5 px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center gap-2 transition-all active:scale-95"
                         >
                             <RefreshCw className={`w-4 h-4 ${checkingUpdate ? 'animate-spin' : ''}`} />
-                            {checkingUpdate ? 'Verificando...' : 'Check Pulse'}
+                            {checkingUpdate ? 'Verificando...' : 'Verificar Banco'}
                         </button>
                     </div>
                 </div>
@@ -231,15 +249,15 @@ export const SystemUpdates = () => {
                             <Cpu className="w-24 h-24 rotate-12" />
                         </div>
                         <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-6 flex items-center gap-2">
-                            <Shield className="w-4 h-4 text-primary" /> Stack Versions
+                            <Shield className="w-4 h-4 text-primary" /> Versões Instaladas
                         </h3>
                         <div className="space-y-4">
                             <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
-                                <span className="text-xs font-bold text-gray-400">Core Bundle</span>
+                                <span className="text-xs font-bold text-gray-400">Código do Sistema</span>
                                 <span className="text-lg font-black text-white font-mono italic">v{APP_VERSION}</span>
                             </div>
                             <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
-                                <span className="text-xs font-bold text-gray-400">Database Schema</span>
+                                <span className="text-xs font-bold text-gray-400">Banco de Dados</span>
                                 <span className="text-lg font-black text-white font-mono italic">v{systemInfo?.db_version || '1.0.0'}</span>
                             </div>
                         </div>
@@ -252,7 +270,7 @@ export const SystemUpdates = () => {
                         </div>
                         <div className="flex items-center justify-between mb-6">
                             <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2">
-                                <Database className="w-4 h-4 text-primary" /> Schema Health
+                                <Database className="w-4 h-4 text-primary" /> Auditoria do Banco
                             </h3>
                             <button 
                                 onClick={handleRunAudit}
@@ -267,7 +285,7 @@ export const SystemUpdates = () => {
                             <div className={`p-5 rounded-2xl border animate-in slide-in-from-top-4 ${auditResult.is_healthy ? 'bg-green-500/10 border-green-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
                                 <div className="flex items-center justify-between">
                                     <span className={`text-xs font-black uppercase italic ${auditResult.is_healthy ? 'text-green-500' : 'text-red-500'}`}>
-                                        {auditResult.is_healthy ? 'Synchronized' : 'Drift Detected'}
+                                        {auditResult.is_healthy ? 'Estrutura Validada' : 'Ajuste Necessário'}
                                     </span>
                                     <span className="text-[9px] font-mono text-gray-500">{new Date(auditResult.checked_at).toLocaleTimeString()}</span>
                                 </div>
@@ -275,7 +293,7 @@ export const SystemUpdates = () => {
                                     <div className="mt-3 space-y-1">
                                         {auditResult.drifts.slice(0, 2).map((d, i) => (
                                             <div key={i} className="text-[10px] text-red-400/80 font-medium truncate">
-                                                • {d.type === 'table_missing' ? `Tabela ausente: ${d.name}` : `Coluna em falta: ${d.column}`}
+                                                {formatDrift(d)}
                                             </div>
                                         ))}
                                     </div>
@@ -283,7 +301,7 @@ export const SystemUpdates = () => {
                             </div>
                         ) : (
                             <div className="h-20 flex flex-col items-center justify-center border border-dashed border-white/5 rounded-2xl opacity-40">
-                                <span className="text-[10px] font-black uppercase text-gray-500">Aguardando Auditoria</span>
+                                <span className="text-[10px] font-black uppercase text-gray-500">Clique na lupa para auditar</span>
                             </div>
                         )}
                     </div>
@@ -294,7 +312,7 @@ export const SystemUpdates = () => {
                             <Zap className="w-24 h-24 text-blue-500" />
                         </div>
                         <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-6 flex items-center gap-2">
-                            <RefreshCw className="w-4 h-4 text-blue-500" /> Pipeline Status
+                            <RefreshCw className="w-4 h-4 text-blue-500" /> Status do Banco
                         </h3>
                         <div className="space-y-4">
                             <div className={`p-5 rounded-2xl border flex items-center justify-between ${updateAvailable ? 'bg-blue-500/10 border-blue-500/20 shadow-inner' : 'bg-white/5 border-white/5 opacity-50'}`}>
@@ -302,9 +320,9 @@ export const SystemUpdates = () => {
                                     {updateAvailable ? <AlertCircle className="w-5 h-5 text-blue-400 animate-pulse" /> : <CheckCircle2 className="w-5 h-5 text-gray-600" />}
                                     <div className="flex flex-col">
                                         <span className={`text-xs font-black uppercase italic ${updateAvailable ? 'text-blue-400' : 'text-gray-400'}`}>
-                                            {updateAvailable ? 'Updates Found' : 'Database Synced'}
+                                            {updateAvailable ? 'Atualização Disponível' : 'Banco Sincronizado'}
                                         </span>
-                                        <span className="text-[9px] text-gray-500">v{SCHEMA_VERSION} Schema Ready</span>
+                                        <span className="text-[9px] text-gray-500">Schema v{SCHEMA_VERSION} pronto</span>
                                     </div>
                                 </div>
                                 {updateAvailable && (
@@ -328,12 +346,12 @@ export const SystemUpdates = () => {
                                 <div className="space-y-1">
                                     <h3 className="text-xl font-black text-white italic tracking-tighter uppercase flex items-center gap-3">
                                         <Zap className="w-6 h-6 text-yellow-400 fill-yellow-400/20" />
-                                        Módulos & Recursos
+                                        Recursos Licenciados
                                     </h3>
-                                    <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest">Ativação Remota Licenciada</p>
+                                    <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest">Recursos ativos nesta instalação</p>
                                 </div>
                                 <div className="flex items-center gap-2 px-3 py-1 bg-primary/10 border border-primary/20 rounded-full">
-                                    <span className="text-[8px] font-black text-primary uppercase tracking-widest animate-pulse">Live Pulse Sync</span>
+                                    <span className="text-[8px] font-black text-primary uppercase tracking-widest animate-pulse">Licença Sincronizada</span>
                                 </div>
                             </div>
 
@@ -341,7 +359,7 @@ export const SystemUpdates = () => {
                                 {featuresLoading ? (
                                     <div className="col-span-2 py-12 flex flex-col items-center opacity-40">
                                         <RefreshCw className="w-8 h-8 animate-spin mb-4" />
-                                        <span className="text-[10px] font-black uppercase tracking-widest italic">Fetching Remote Features...</span>
+                                        <span className="text-[10px] font-black uppercase tracking-widest italic">Carregando recursos...</span>
                                     </div>
                                 ) : (
                                     features.map((feature, idx) => {
@@ -360,7 +378,7 @@ export const SystemUpdates = () => {
                                                     </div>
                                                 </div>
                                                 <div className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border z-10 ${feature.is_enabled ? 'bg-green-500/10 border-green-500/20 text-green-500' : 'bg-red-500/10 border-red-500/20 text-red-500'}`}>
-                                                    {feature.is_enabled ? 'Active' : 'Locked'}
+                                                    {feature.is_enabled ? 'Ativo' : 'Bloqueado'}
                                                 </div>
                                             </div>
                                         );
@@ -369,15 +387,15 @@ export const SystemUpdates = () => {
                             </div>
                         </div>
 
-                        {/* Snapshot History */}
+                        {/* Update History */}
                         <div className="bg-[#0F0F13]/60 border border-white/5 rounded-[2.5rem] p-8 backdrop-blur-xl">
                             <div className="flex items-center justify-between mb-8 px-2">
                                 <div className="space-y-1">
                                     <h3 className="text-xl font-black text-white italic tracking-tighter uppercase flex items-center gap-3">
                                         <History className="w-6 h-6 text-primary" />
-                                        Snapshot History
+                                        Histórico de Atualizações
                                     </h3>
-                                    <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest">Logs de Sincronização e Backups</p>
+                                    <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest">Sincronizações, commits e backups de código</p>
                                 </div>
                             </div>
 
@@ -385,7 +403,7 @@ export const SystemUpdates = () => {
                                 {updateHistory.length === 0 ? (
                                     <div className="py-12 flex flex-col items-center opacity-20 border border-dashed border-white/10 rounded-3xl">
                                         <Clock className="w-8 h-8 mb-4" />
-                                        <span className="text-[10px] font-black uppercase tracking-widest">Nenhum snapshot registrado</span>
+                                        <span className="text-[10px] font-black uppercase tracking-widest">Nenhuma sincronização registrada</span>
                                     </div>
                                 ) : (
                                     updateHistory.map((log) => (
@@ -399,23 +417,29 @@ export const SystemUpdates = () => {
                                                         <div className="flex items-center gap-2">
                                                             <span className="text-[10px] font-black text-gray-500 font-mono tracking-widest uppercase italic">{new Date(log.executed_at).toLocaleString()}</span>
                                                             <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-tighter ${log.status === 'success' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
-                                                                {log.status === 'success' ? 'Deployed' : 'Fail'}
+                                                                {log.status === 'success' ? 'Sucesso' : 'Falha'}
                                                             </span>
                                                         </div>
                                                         <span className="text-sm font-black text-white tracking-tight mt-1 truncate max-w-[300px]">
-                                                            {log.backup_branch ? `Backup Snapshot: ${log.backup_branch}` : 'System Revalidation'}
+                                                            {getBackupBranch(log) ? `Backup de código: ${getBackupBranch(log)}` : (log.message || 'Verificação registrada')}
                                                         </span>
                                                     </div>
                                                 </div>
                                                 
                                                 <div className="flex items-center gap-3">
                                                     <div className="hidden md:flex flex-col items-end opacity-40">
-                                                        <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Commit Hash</span>
-                                                        <span className="text-[10px] font-mono text-white">{log.commit_hash?.slice(0, 8) || 'Manual'}</span>
+                                                        <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Commit</span>
+                                                        <span className="text-[10px] font-mono text-white">{getCommitHash(log)?.slice(0, 8) || 'Manual'}</span>
                                                     </div>
-                                                    {log.status === 'success' && log.backup_branch && (
+                                                    {getFilesUpdated(log) !== null && (
+                                                        <div className="hidden md:flex flex-col items-end opacity-40">
+                                                            <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Arquivos</span>
+                                                            <span className="text-[10px] font-mono text-white">{getFilesUpdated(log)}</span>
+                                                        </div>
+                                                    )}
+                                                    {log.status === 'success' && getBackupBranch(log) && (
                                                         <button 
-                                                            onClick={() => setShowRollbackConfirm(log.backup_branch!)}
+                                                            onClick={() => setShowRollbackConfirm(getBackupBranch(log))}
                                                             className="px-6 py-2.5 bg-red-500/5 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
                                                         >
                                                             Rollback
@@ -440,15 +464,15 @@ export const SystemUpdates = () => {
                             <div className="mb-8 space-y-2">
                                 <h3 className="text-xl font-black text-white italic tracking-tighter uppercase flex items-center gap-3">
                                     <Github className="w-6 h-6 text-primary" />
-                                    GitHub Hub
+                                    Atualização via GitHub
                                 </h3>
                                 {systemInfo?.github_installation_id ? (
                                     <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-500/10 border border-green-500/20 rounded-full text-green-500 text-[10px] font-black uppercase tracking-widest italic animate-in fade-in zoom-in duration-700">
-                                        <ShieldCheck className="w-3 h-3" /> System Connected
+                                        <ShieldCheck className="w-3 h-3" /> GitHub Conectado
                                     </div>
                                 ) : (
                                     <div className="inline-flex items-center gap-2 px-3 py-1 bg-primary/10 border border-primary/20 rounded-full text-primary text-[10px] font-black uppercase tracking-widest italic">
-                                        <Unplug className="w-3 h-3" /> Integration Offline
+                                        <Unplug className="w-3 h-3" /> GitHub Não Conectado
                                     </div>
                                 )}
                             </div>
@@ -462,12 +486,12 @@ export const SystemUpdates = () => {
                                     >
                                         <div className="absolute inset-0 bg-white/20 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 skew-x-12" />
                                         <RefreshCw className={`w-4 h-4 ${syncingFiles ? 'animate-spin' : ''}`} />
-                                        Sync Now
+                                        Sincronizar Código
                                     </button>
                                 ) : (
                                     <div className="space-y-5">
                                         <p className="text-sm text-gray-500 font-medium leading-relaxed">
-                                            Conecte sua conta do GitHub para habilitar a implantação automatizada de patches e atualizações de segurança.
+                                            Conecte o GitHub App ao repositório desta instalação para receber atualizações de código.
                                         </p>
                                         <a
                                             href={GITHUB_UPDATE_CONFIG.INSTALL_URL}
@@ -475,7 +499,7 @@ export const SystemUpdates = () => {
                                             rel="noreferrer"
                                             className="w-full bg-white text-black py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 shadow-xl transition-all hover:bg-gray-100 italic"
                                         >
-                                            <Github className="w-5 h-5" /> Install GitHub App
+                                            <Github className="w-5 h-5" /> Conectar GitHub App
                                         </a>
                                     </div>
                                 )}
@@ -532,7 +556,7 @@ export const SystemUpdates = () => {
                                     Segurança Operacional
                                 </h3>
                                 <p className="text-[11px] text-gray-400 leading-relaxed font-medium">
-                                    Backup automático ativado. Snapshots de banco e código são criados antes de qualquer atualização.
+                                    Antes de sincronizar arquivos alterados, o sistema cria uma branch de backup do código. Alterações de banco seguem por migrations e auditoria separadas.
                                 </p>
                         </div>
                     </div>
@@ -544,9 +568,9 @@ export const SystemUpdates = () => {
                 isOpen={showSyncConfirm}
                 onClose={() => setShowSyncConfirm(false)}
                 onConfirm={handleSyncFiles}
-                title={<div className="flex items-center gap-2 italic uppercase font-black"><RefreshCw className="w-5 h-5 text-primary" /> Sincronizar Hub</div>}
-                message="Isso irá substituir os arquivos locais pelos arquivos oficiais do repositório configurado. Deseja iniciar a implantação?"
-                confirmText="Confirmar Sincronização"
+                title={<div className="flex items-center gap-2 italic uppercase font-black"><RefreshCw className="w-5 h-5 text-primary" /> Sincronizar Código</div>}
+                message="Isso irá copiar os arquivos oficiais para o repositório desta instalação. Quando houver mudanças, uma branch de backup será criada antes do commit. Depois, aguarde o deploy da Vercel."
+                confirmText="Confirmar Sync"
                 cancelText="Cancelar"
                 loading={syncingFiles}
             />
@@ -555,15 +579,15 @@ export const SystemUpdates = () => {
                 isOpen={!!showRollbackConfirm}
                 onClose={() => setShowRollbackConfirm(null)}
                 onConfirm={() => showRollbackConfirm && handleRollback(showRollbackConfirm)}
-                title={<div className="flex items-center gap-2 italic uppercase font-black text-red-500"><History className="w-5 h-5" /> Reverter Snapshot</div>}
+                title={<div className="flex items-center gap-2 italic uppercase font-black text-red-500"><History className="w-5 h-5" /> Reverter Código</div>}
                 message={
                     <div className="space-y-4">
-                        <p className="text-sm font-medium text-gray-300">Tem certeza que deseja reverter o sistema para este estado anterior? Esta ação não pode ser desfeita automaticamente.</p>
+                        <p className="text-sm font-medium text-gray-300">Tem certeza que deseja reverter o código para este backup? Esta ação cria um novo estado no repositório e deve ser seguida por deploy da Vercel.</p>
                         <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl">
                             <span className="text-[10px] font-black text-red-500 uppercase tracking-widest flex items-center gap-2 mb-2">
-                                <AlertTriangle className="w-4 h-4" /> Hard Reset Warning
+                                <AlertTriangle className="w-4 h-4" /> Aviso de Rollback
                             </span>
-                            <p className="text-[11px] text-red-400/80 leading-relaxed">Apenas arquivos de código serão revertidos. Mudanças estruturais no banco de dados devem ser tratadas manualmente via SQL Audit.</p>
+                            <p className="text-[11px] text-red-400/80 leading-relaxed">Apenas arquivos de código serão revertidos. Mudanças estruturais no banco de dados devem ser tratadas por migration ou SQL validado separadamente.</p>
                         </div>
                     </div>
                 }

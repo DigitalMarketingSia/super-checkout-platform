@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import { SystemInfo, SystemFeature, SystemUpdateLog } from '../types';
-import { APP_VERSION, SCHEMA_VERSION } from '../config/version';
+import { SCHEMA_VERSION } from '../config/version';
 import { GITHUB_UPDATE_CONFIG } from '../config/github';
 
 // Import all migrations from the migrations directory
@@ -464,17 +464,45 @@ export const SystemManager = {
    * Performs a schema integrity audit
    */
   async performSchemaAudit(): Promise<{ is_healthy: boolean; drifts: any[]; checked_at: string }> {
-    try {
-      const { data, error } = await supabase.rpc('check_schema_integrity');
-      
-      if (error) {
-        throw new Error(error.message);
-      }
+    const checks = [
+      { table: 'system_info', columns: ['db_version', 'github_installation_id', 'github_repository'] },
+      { table: 'schema_migrations', columns: ['version', 'success'] },
+      { table: 'accounts', columns: ['owner_user_id', 'plan_type', 'status'] },
+      { table: 'business_settings', columns: ['account_id', 'support_email', 'is_ready_to_sell'] },
+      { table: 'licenses', columns: ['key', 'account_id', 'max_instances', 'status'] },
+      { table: 'installations', columns: ['license_key', 'account_id', 'installation_id', 'status'] },
+      { table: 'gateways', columns: ['provider', 'credentials', 'config', 'is_active'] },
+      { table: 'public_gateways', columns: ['id', 'provider', 'public_key', 'config'] },
+      { table: 'email_templates', columns: ['event_type', 'language', 'html_body'] },
+      { table: 'system_email_templates', columns: ['event_type', 'language', 'html_body'] },
+      { table: 'system_updates_log', columns: ['action', 'status', 'files_affected'] }
+    ];
 
-      return data;
-    } catch (err: any) {
-      console.error('[SystemManager] Schema audit failed:', err);
-      return { is_healthy: false, drifts: [{ type: 'audit_error', message: err.message }], checked_at: new Date().toISOString() };
+    const drifts: any[] = [];
+
+    for (const check of checks) {
+      const { error } = await supabase
+        .from(check.table)
+        .select(check.columns.join(','))
+        .limit(1);
+
+      if (error) {
+        const message = error.message || 'Schema check failed';
+        const missingColumn = check.columns.find(column => message.includes(`'${column}'`) || message.includes(` ${column} `));
+        drifts.push({
+          type: missingColumn ? 'column_missing' : 'schema_check_failed',
+          name: check.table,
+          column: missingColumn,
+          expected_columns: check.columns,
+          message
+        });
+      }
     }
+
+    return {
+      is_healthy: drifts.length === 0,
+      drifts,
+      checked_at: new Date().toISOString()
+    };
   }
 };

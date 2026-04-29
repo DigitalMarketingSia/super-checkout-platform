@@ -426,9 +426,15 @@ export interface SystemFeature {
 
 export interface SystemUpdateLog {
   id: string;
-  from_version: string;
-  to_version: string;
+  action?: string;
+  message?: string;
   status: 'pending' | 'success' | 'error' | 'downloading' | 'completed' | 'failed';
+  files_affected?: {
+    commit_hash?: string;
+    backup_branch?: string | null;
+    files_updated?: number;
+    [key: string]: any;
+  };
   commit_hash?: string;
   error_message?: string;
   executed_at: string;
