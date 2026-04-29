@@ -242,6 +242,11 @@ export const SystemUpdates = () => {
                                 <span className="text-xs font-bold text-gray-400">Database Schema</span>
                                 <span className="text-lg font-black text-white font-mono italic">v{systemInfo?.db_version || '1.0.0'}</span>
                             </div>
+                            <div className="p-3 bg-emerald-500/10 rounded-2xl border border-emerald-500/20">
+                                <span className="text-[10px] font-black text-emerald-300 uppercase tracking-widest">
+                                    Update pipeline test v1.1.1
+                                </span>
+                            </div>
                         </div>
                     </div>
 
