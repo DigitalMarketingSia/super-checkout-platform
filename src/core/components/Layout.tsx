@@ -70,6 +70,7 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
   // Dev/Admin Override for you (optional, keep if you want to always see it on your machine)
   const isAdmin = user?.email === 'contato.jeandamin@gmail.com';
   const canAccessSystemUpdates = isOwner || isAdmin || profile?.role === 'admin' || profile?.role === 'owner';
+  const canAccessClientAccountPages = isCommercial || canAccessSystemUpdates;
 
   return (
     <div className="flex h-screen bg-[#05050A] text-gray-900 dark:text-dark-textMain overflow-hidden font-sans flex-col">
@@ -212,7 +213,7 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
                 )}
 
                 {/* CLIENT VIEW: Minha Licença */}
-                {(isCommercial || isAdmin) && (
+                {canAccessClientAccountPages && (
                     <Link
                       to="/admin/licenses"
                       onClick={() => setMobileMenuOpen(false)}
@@ -230,7 +231,7 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
                 )}
 
                 {/* CLIENT VIEW: Minhas Instalações */}
-                {(isCommercial || isAdmin) && (
+                {canAccessClientAccountPages && (
                     <Link
                       to="/admin/installations"
                       onClick={() => setMobileMenuOpen(false)}
