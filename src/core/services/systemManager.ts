@@ -50,7 +50,7 @@ export const SystemManager = {
     return data;
   },
 
-  async logLocalUpdate(action: string, status: string, message: string, filesAffected: any = null) {
+  async logLocalUpdate(action: string, status: string, message: string, filesAffected: any = null): Promise<boolean> {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.access_token) {
@@ -68,7 +68,7 @@ export const SystemManager = {
           })
         });
 
-        if (response.ok) return;
+        if (response.ok) return true;
 
         const data = await response.json().catch(() => ({}));
         console.warn('[SystemManager] Server update log failed:', data.error || response.statusText);
@@ -82,8 +82,10 @@ export const SystemManager = {
       });
 
       if (error) throw error;
+      return true;
     } catch (error) {
       console.warn('[SystemManager] Could not write update log:', error);
+      return false;
     }
   },
 
@@ -241,10 +243,10 @@ export const SystemManager = {
   /**
    * Triggers the real file synchronization
    */
-  async syncSystemFiles(): Promise<{ success: boolean; message?: string; filesUpdated?: number }> {
+  async syncSystemFiles(): Promise<{ success: boolean; message?: string; filesUpdated?: number; historyLogged?: boolean }> {
     try {
       const centralResult = await this.invokeCentralUpdateRunner('sync');
-      await this.logLocalUpdate('sync', 'success', centralResult.message || 'Sincronizacao concluida pela Central.', {
+      const historyLogged = await this.logLocalUpdate('sync', 'success', centralResult.message || 'Sincronizacao concluida pela Central.', {
         commit_hash: centralResult.commitHash,
         backup_branch: centralResult.backupBranch,
         files_updated: centralResult.filesUpdated
@@ -253,7 +255,8 @@ export const SystemManager = {
       return {
         success: true,
         message: centralResult.message,
-        filesUpdated: centralResult.filesUpdated
+        filesUpdated: centralResult.filesUpdated,
+        historyLogged
       };
     } catch (err: any) {
       console.error('[SystemManager] Sync failed:', err);

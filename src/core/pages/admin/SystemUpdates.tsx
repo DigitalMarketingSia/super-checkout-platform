@@ -145,6 +145,9 @@ export const SystemUpdates = () => {
                 } else {
                     toast.success(result.message || 'Nenhum arquivo novo encontrado no repositório oficial.');
                 }
+                if (result.historyLogged === false) {
+                    toast.warning('Sincronização concluída, mas o histórico local não pôde ser gravado.');
+                }
                 fetchData();
             } else {
                 toast.error(result.message || 'Falha na sincronização.');
@@ -280,6 +283,9 @@ export const SystemUpdates = () => {
                                 {isAuditing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
                             </button>
                         </div>
+                        <p className="text-[11px] text-gray-500 font-medium leading-relaxed mb-4">
+                            Valida tabelas e colunas essenciais da instalação, como licença, conta, gateways, templates e logs de atualização.
+                        </p>
                         
                         {auditResult ? (
                             <div className={`p-5 rounded-2xl border animate-in slide-in-from-top-4 ${auditResult.is_healthy ? 'bg-green-500/10 border-green-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
@@ -300,8 +306,9 @@ export const SystemUpdates = () => {
                                 )}
                             </div>
                         ) : (
-                            <div className="h-20 flex flex-col items-center justify-center border border-dashed border-white/5 rounded-2xl opacity-40">
-                                <span className="text-[10px] font-black uppercase text-gray-500">Clique na lupa para auditar</span>
+                            <div className="min-h-24 flex flex-col items-center justify-center border border-dashed border-white/5 rounded-2xl opacity-60 px-5 text-center">
+                                <span className="text-[10px] font-black uppercase text-gray-500">Auditoria ainda não executada</span>
+                                <span className="text-[10px] text-gray-600 mt-2 leading-relaxed">Clique na lupa para conferir se o banco tem a estrutura mínima esperada.</span>
                             </div>
                         )}
                     </div>
@@ -401,9 +408,12 @@ export const SystemUpdates = () => {
 
                             <div className="space-y-3">
                                 {updateHistory.length === 0 ? (
-                                    <div className="py-12 flex flex-col items-center opacity-20 border border-dashed border-white/10 rounded-3xl">
+                                    <div className="py-12 px-6 flex flex-col items-center opacity-40 border border-dashed border-white/10 rounded-3xl text-center">
                                         <Clock className="w-8 h-8 mb-4" />
                                         <span className="text-[10px] font-black uppercase tracking-widest">Nenhuma sincronização registrada</span>
+                                        <span className="text-[10px] text-gray-500 mt-3 max-w-md leading-relaxed">
+                                            O histórico registra sincronizações feitas depois da correção v1.1.7. Execute Sincronizar Código novamente para criar o primeiro registro local.
+                                        </span>
                                     </div>
                                 ) : (
                                     updateHistory.map((log) => (
