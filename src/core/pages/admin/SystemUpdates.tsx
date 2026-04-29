@@ -242,11 +242,6 @@ export const SystemUpdates = () => {
                                 <span className="text-xs font-bold text-gray-400">Database Schema</span>
                                 <span className="text-lg font-black text-white font-mono italic">v{systemInfo?.db_version || '1.0.0'}</span>
                             </div>
-                            <div className="p-3 bg-emerald-500/10 rounded-2xl border border-emerald-500/20">
-                                <span className="text-[10px] font-black text-emerald-300 uppercase tracking-widest">
-                                    Update pipeline test v1.1.1
-                                </span>
-                            </div>
                         </div>
                     </div>
 
@@ -307,9 +302,9 @@ export const SystemUpdates = () => {
                                     {updateAvailable ? <AlertCircle className="w-5 h-5 text-blue-400 animate-pulse" /> : <CheckCircle2 className="w-5 h-5 text-gray-600" />}
                                     <div className="flex flex-col">
                                         <span className={`text-xs font-black uppercase italic ${updateAvailable ? 'text-blue-400' : 'text-gray-400'}`}>
-                                            {updateAvailable ? 'Updates Found' : 'System Locked'}
+                                            {updateAvailable ? 'Updates Found' : 'Database Synced'}
                                         </span>
-                                        <span className="text-[9px] text-gray-500">v{SCHEMA_VERSION} Readiness</span>
+                                        <span className="text-[9px] text-gray-500">v{SCHEMA_VERSION} Schema Ready</span>
                                     </div>
                                 </div>
                                 {updateAvailable && (
