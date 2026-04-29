@@ -6,6 +6,31 @@ import { storage } from '../../services/storageService';
 import { licenseService } from '../../services/licenseService';
 import { openUpgradeCheckout, UpgradePlanSlug } from '../../services/upgradeCheckout';
 
+const BLOCKED_CHECKOUT_HOSTS = new Set(['pay.supercheckout.app']);
+const OFFICIAL_CHECKOUT_FALLBACKS: Partial<Record<UpgradePlanSlug, string>> = {
+    upgrade_domains: 'https://portal.supercheckout.app/c/chk-1770902160498',
+};
+
+const resolveSafeCheckoutUrl = (checkoutUrl?: string | null) => {
+    if (!checkoutUrl) return '';
+
+    try {
+        const url = new URL(checkoutUrl, window.location.origin);
+        if (BLOCKED_CHECKOUT_HOSTS.has(url.hostname)) return '';
+        return url.toString();
+    } catch {
+        return '';
+    }
+};
+
+const resolveFirstSafeCheckoutUrl = (...checkoutUrls: Array<string | null | undefined>) => {
+    for (const checkoutUrl of checkoutUrls) {
+        const safeUrl = resolveSafeCheckoutUrl(checkoutUrl);
+        if (safeUrl) return safeUrl;
+    }
+    return '';
+};
+
 interface UpsellModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -41,13 +66,20 @@ export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) =>
                             description: localMatch?.description || plan.description,
                             imageUrl: localMatch?.imageUrl || plan.imageUrl,
                             price_real: localMatch?.price_real || plan.price_real,
-                            checkout_url: plan.checkout_url || localMatch?.checkout_url || '',
+                            checkout_url: resolveFirstSafeCheckoutUrl(
+                                localMatch?.checkout_url,
+                                plan.checkout_url,
+                                OFFICIAL_CHECKOUT_FALLBACKS[plan.saas_plan_slug as UpgradePlanSlug],
+                            ),
                         };
                     });
 
                     const localOnlyProducts = localProducts.filter((product: any) =>
                         !mergedPlans.some((plan: any) => plan.saas_plan_slug === product.saas_plan_slug)
-                    );
+                    ).map((product: any) => ({
+                        ...product,
+                        checkout_url: resolveSafeCheckoutUrl(product.checkout_url),
+                    }));
 
                     setProducts([...mergedPlans, ...localOnlyProducts]);
                 } catch (err) {
@@ -70,7 +102,6 @@ export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) =>
             price: 'R$ 197',
             features: ['Domínios e Subdomínios Ilimitados', 'Produtos e Checkouts Ilimitados', 'SSL Automático incluso', 'Atualizações Vitalícias'],
             cta: 'Fazer Upgrade Vitalício',
-            link: 'https://pay.supercheckout.app/vitalicia',
             plan_slug: 'upgrade_domains'
         },
         partner_rights: {
@@ -79,7 +110,6 @@ export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) =>
             price: 'R$ 497',
             features: ['Direito de Uso Comercial', 'Instalações p/ Clientes', 'Suporte Prioritário', 'Painel de Gestão Multi-Licenças'],
             cta: 'Ser Parceiro Oficial',
-            link: 'https://pay.supercheckout.app/parceiro',
             plan_slug: 'saas'
         },
         whitelabel: {
@@ -88,7 +118,6 @@ export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) =>
             price: 'R$ 997',
             features: ['Tudo da Licença Comercial', 'Remover Marca Super Checkout', 'Personalização de Logotipo', 'Domínio Próprio de Admin'],
             cta: 'Ativar White Label',
-            link: 'https://pay.supercheckout.app/upgrade-whitelabel',
             plan_slug: 'whitelabel'
         }
     };
@@ -100,8 +129,12 @@ export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) =>
     
     // Try to find a dynamic product that matches the required plan
     const dynamicProduct = products.find((p) => p.saas_plan_slug === content.plan_slug);
-    const checkoutUrl = dynamicProduct?.checkout_url || content.link;
+    const checkoutUrl = resolveFirstSafeCheckoutUrl(
+        dynamicProduct?.checkout_url,
+        OFFICIAL_CHECKOUT_FALLBACKS[content.plan_slug as UpgradePlanSlug],
+    );
     const planSlug = (dynamicProduct?.saas_plan_slug || content.plan_slug) as UpgradePlanSlug;
+    const checkoutUnavailable = !loading && !checkoutUrl;
 
     const finalPrice = dynamicProduct ? `R$ ${dynamicProduct.price_real}` : content.price;
 
@@ -124,7 +157,7 @@ export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) =>
                     offer_slug: offerSlug,
                     license_key: licenseKey || null,
                     plan_slug: planSlug,
-                    checkout_source: dynamicProduct?.checkout_url ? 'official_plan' : 'offer_fallback',
+                    checkout_source: dynamicProduct?.checkout_url ? 'official_plan' : 'missing_checkout_url',
                 },
             });
             onClose();
@@ -171,9 +204,14 @@ export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) =>
                             {checkoutError}
                         </p>
                     )}
+                    {checkoutUnavailable && !checkoutError && (
+                        <p className="text-xs font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-2xl px-4 py-3">
+                            Checkout oficial do plano nao encontrado. Tente novamente em instantes ou abra o upgrade pelo Portal do Cliente.
+                        </p>
+                    )}
                     <Button
                         onClick={handleOpenCheckout}
-                        disabled={loading || openingCheckout}
+                        disabled={loading || openingCheckout || checkoutUnavailable}
                         className="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold shadow-lg shadow-purple-500/20"
                     >
                         {loading ? 'Carregando...' : openingCheckout ? 'Preparando Checkout...' : content.cta} <ArrowRight className="w-4 h-4 ml-2" />
