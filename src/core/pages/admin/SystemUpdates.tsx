@@ -277,37 +277,44 @@ export const SystemUpdates = () => {
 
                     {/* Schema Audit Card */}
                     <div className={`bg-[#0A0A15]/60 border rounded-[2rem] p-8 backdrop-blur-xl relative overflow-hidden group transition-all duration-500 ${auditResult?.is_healthy === false ? 'border-red-500/20' : 'border-white/5'}`}>
-                        <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
+                        <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity pointer-events-none">
                             <ShieldCheck className="w-24 h-24" />
                         </div>
-                        <div className="flex items-center justify-between mb-6">
+                        <div className="flex items-center justify-between gap-3 mb-6 relative z-10">
                             <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2">
                                 <Database className="w-4 h-4 text-primary" /> Auditoria do Banco
                             </h3>
                             <button 
                                 onClick={handleRunAudit}
                                 disabled={isAuditing}
-                                className="p-2 bg-white/5 hover:bg-primary/20 rounded-xl border border-white/5 text-primary transition-all active:scale-95"
+                                title="Executar auditoria do banco"
+                                className="relative z-20 shrink-0 px-3 py-2 bg-white/5 hover:bg-primary/20 rounded-xl border border-white/5 text-primary transition-all active:scale-95 flex items-center gap-2 disabled:opacity-50"
                             >
                                 {isAuditing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                                <span className="text-[9px] font-black uppercase tracking-widest">Auditar</span>
                             </button>
                         </div>
-                        <p className="text-[11px] text-gray-500 font-medium leading-relaxed mb-4">
+                        <p className="text-[11px] text-gray-500 font-medium leading-relaxed mb-4 relative z-10">
                             Valida tabelas e colunas essenciais da instalação, como licença, conta, gateways, templates e logs de atualização.
                         </p>
                         
                         {auditResult ? (
-                            <div className={`p-5 rounded-2xl border animate-in slide-in-from-top-4 ${auditResult.is_healthy ? 'bg-green-500/10 border-green-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
+                            <div className={`p-5 rounded-2xl border animate-in slide-in-from-top-4 relative z-10 ${auditResult.is_healthy ? 'bg-green-500/10 border-green-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
                                 <div className="flex items-center justify-between">
                                     <span className={`text-xs font-black uppercase italic ${auditResult.is_healthy ? 'text-green-500' : 'text-red-500'}`}>
                                         {auditResult.is_healthy ? 'Estrutura Validada' : 'Ajuste Necessário'}
                                     </span>
                                     <span className="text-[9px] font-mono text-gray-500">{new Date(auditResult.checked_at).toLocaleTimeString()}</span>
                                 </div>
+                                {auditResult.is_healthy && (
+                                    <div className="mt-3 text-[10px] text-green-400/80 font-medium leading-relaxed">
+                                        Banco compatível com o schema v{SCHEMA_VERSION}. Nenhum desvio crítico encontrado.
+                                    </div>
+                                )}
                                 {!auditResult.is_healthy && (
                                     <div className="mt-3 space-y-1">
-                                        {auditResult.drifts.slice(0, 2).map((d, i) => (
-                                            <div key={i} className="text-[10px] text-red-400/80 font-medium truncate">
+                                        {auditResult.drifts.slice(0, 3).map((d, i) => (
+                                            <div key={i} className="text-[10px] text-red-400/80 font-medium leading-relaxed break-words">
                                                 {formatDrift(d)}
                                             </div>
                                         ))}
@@ -315,7 +322,7 @@ export const SystemUpdates = () => {
                                 )}
                             </div>
                         ) : (
-                            <div className="min-h-24 flex flex-col items-center justify-center border border-dashed border-white/5 rounded-2xl opacity-60 px-5 text-center">
+                            <div className="min-h-24 flex flex-col items-center justify-center border border-dashed border-white/5 rounded-2xl opacity-60 px-5 text-center relative z-10">
                                 <span className="text-[10px] font-black uppercase text-gray-500">Auditoria ainda não executada</span>
                                 <span className="text-[10px] text-gray-600 mt-2 leading-relaxed">Clique na lupa para conferir se o banco tem a estrutura mínima esperada.</span>
                             </div>
@@ -426,32 +433,32 @@ export const SystemUpdates = () => {
                                     </div>
                                 ) : (
                                     updateHistory.map((log) => (
-                                        <div key={log.id} className="p-6 bg-white/[0.02] border border-white/5 rounded-3xl hover:bg-white/[0.04] transition-all group overflow-hidden relative">
-                                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
-                                                <div className="flex items-center gap-4">
-                                                    <div className={`w-10 h-10 rounded-2xl border flex items-center justify-center ${log.status === 'success' ? 'bg-green-500/10 border-green-500/20 text-green-500' : 'bg-red-500/10 border-red-500/20 text-red-500'}`}>
+                                        <div key={log.id} className="p-6 bg-white/[0.02] border border-white/5 rounded-3xl hover:bg-white/[0.04] transition-all group relative">
+                                            <div className="grid grid-cols-1 2xl:grid-cols-[minmax(0,1fr)_auto] 2xl:items-center gap-5 relative z-10">
+                                                <div className="flex items-start gap-4 min-w-0">
+                                                    <div className={`w-10 h-10 rounded-2xl border flex flex-none items-center justify-center ${log.status === 'success' ? 'bg-green-500/10 border-green-500/20 text-green-500' : 'bg-red-500/10 border-red-500/20 text-red-500'}`}>
                                                         {log.status === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <AlertTriangle className="w-5 h-5" />}
                                                     </div>
-                                                    <div className="flex flex-col">
-                                                        <div className="flex items-center gap-2">
+                                                    <div className="flex flex-col min-w-0">
+                                                        <div className="flex flex-wrap items-center gap-2">
                                                             <span className="text-[10px] font-black text-gray-500 font-mono tracking-widest uppercase italic">{new Date(log.executed_at).toLocaleString()}</span>
                                                             <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-tighter ${log.status === 'success' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
                                                                 {log.status === 'success' ? 'Sucesso' : 'Falha'}
                                                             </span>
                                                         </div>
-                                                        <span className="text-sm font-black text-white tracking-tight mt-1 truncate max-w-[300px]">
+                                                        <span className="text-sm font-black text-white tracking-tight mt-1 break-words">
                                                             {getBackupBranch(log) ? `Backup de código: ${getBackupBranch(log)}` : (log.message || 'Verificação registrada')}
                                                         </span>
                                                     </div>
                                                 </div>
                                                 
-                                                <div className="flex items-center gap-3">
-                                                    <div className="hidden md:flex flex-col items-end opacity-40">
+                                                <div className="flex flex-wrap items-center justify-start 2xl:justify-end gap-3">
+                                                    <div className="flex flex-col items-start 2xl:items-end opacity-60 min-w-[72px]">
                                                         <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Commit</span>
                                                         <span className="text-[10px] font-mono text-white">{getCommitHash(log)?.slice(0, 8) || 'Manual'}</span>
                                                     </div>
                                                     {getFilesUpdated(log) !== null && (
-                                                        <div className="hidden md:flex flex-col items-end opacity-40">
+                                                        <div className="flex flex-col items-start 2xl:items-end opacity-60 min-w-[58px]">
                                                             <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Arquivos</span>
                                                             <span className="text-[10px] font-mono text-white">{getFilesUpdated(log)}</span>
                                                         </div>
@@ -459,7 +466,7 @@ export const SystemUpdates = () => {
                                                     {log.status === 'success' && getBackupBranch(log) && (
                                                         <button 
                                                             onClick={() => setShowRollbackConfirm(getBackupBranch(log))}
-                                                            className="px-6 py-2.5 bg-red-500/5 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                                                            className="shrink-0 px-5 py-2.5 bg-red-500/5 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
                                                         >
                                                             Rollback
                                                         </button>
