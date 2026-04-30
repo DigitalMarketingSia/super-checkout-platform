@@ -469,6 +469,23 @@ export const SystemManager = {
    */
   async getUpdateHistory(): Promise<SystemUpdateLog[]> {
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        const response = await fetch('/api/admin/update-log', {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${session.access_token}`
+          }
+        });
+        const json = await response.json().catch(() => ({}));
+
+        if (response.ok) {
+          if (Array.isArray(json?.data)) return json.data as SystemUpdateLog[];
+        }
+
+        console.warn('[SystemManager] Server update history failed:', json.error || response.statusText);
+      }
+
       const { data, error } = await supabase
         .from('system_updates_log')
         .select('*')
@@ -491,6 +508,24 @@ export const SystemManager = {
    * Performs a schema integrity audit
    */
   async performSchemaAudit(): Promise<{ is_healthy: boolean; drifts: any[]; checked_at: string }> {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) {
+      const response = await fetch('/api/admin/schema-audit', {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        }
+      });
+
+      const json = await response.json().catch(() => ({}));
+
+      if (response.ok && json?.data) {
+        return json.data;
+      }
+
+      console.warn('[SystemManager] Server schema audit failed:', json.error || response.statusText);
+    }
+
     const checks = [
       { table: 'system_info', columns: ['db_version', 'github_installation_id', 'github_repository'] },
       { table: 'schema_migrations', columns: ['version', 'success'] },

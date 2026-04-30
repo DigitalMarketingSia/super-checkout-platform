@@ -181,8 +181,17 @@ export const SystemUpdates = () => {
             } else {
                 toast.error('Foram encontradas inconsistências no banco.');
             }
-        } catch (err) {
-            toast.error('Falha na auditoria.');
+        } catch (err: any) {
+            setAuditResult({
+                is_healthy: false,
+                drifts: [{
+                    type: 'schema_check_failed',
+                    name: 'auditoria',
+                    message: err?.message || 'Não foi possível executar a auditoria.'
+                }],
+                checked_at: new Date().toISOString()
+            });
+            toast.error(err?.message || 'Falha na auditoria.');
         } finally {
             setIsAuditing(false);
         }

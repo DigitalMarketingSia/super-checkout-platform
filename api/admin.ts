@@ -3,6 +3,7 @@ import createLicenseHandler from '../src/core/api/admin/create-license.js';
 import membersHandler from '../src/core/api/admin/members.js';
 import saveGatewayHandler from '../src/core/api/admin/save-gateway.js';
 import securityEventsHandler from '../src/core/api/admin/security-events.js';
+import schemaAuditHandler from '../src/core/api/admin/schema-audit.js';
 import systemInfoHandler from '../src/core/api/admin/system-info.js';
 import updateLogHandler from '../src/core/api/admin/update-log.js';
 
@@ -40,6 +41,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return await saveGatewayHandler(req, res);
             case 'security-events':
                 return await securityEventsHandler(req, res);
+            case 'schema-audit':
+                return await schemaAuditHandler(req, res);
             case 'system-info':
                 return await systemInfoHandler(req, res);
             case 'update-log':

@@ -28,7 +28,7 @@ async function validateLocalUser(supabaseUrl: string, anonKey: string, jwt: stri
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method !== 'POST' && req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
   const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -55,11 +55,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     .eq('id', user.id)
     .maybeSingle();
 
-  if (profileError || !['admin', 'owner'].includes(profile?.role)) {
+  if (profileError || !['admin', 'owner', 'master_admin'].includes(profile?.role)) {
     return res.status(403).json({ error: 'Admin access required' });
   }
 
   try {
+    if (req.method === 'GET') {
+      const result = await supabase
+        .from('system_updates_log')
+        .select('*')
+        .order('executed_at', { ascending: false })
+        .limit(10);
+
+      if (result.error) throw result.error;
+      return res.status(200).json({ success: true, data: result.data || [] });
+    }
+
     const body = parseBody(req);
     const action = String(body.action || '').trim();
     const status = String(body.status || '').trim();
