@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { centralSupabase } from '../services/centralClient';
+import { supabase } from '../services/supabase';
 import { SystemManager } from '../services/systemManager';
-import { CENTRAL_CONFIG } from '../config/central';
+import { getApiUrl } from '../utils/apiUtils';
 import { SystemFeature } from '../types';
 import { useAuth } from '../context/AuthContext';
 
@@ -103,16 +104,18 @@ export const useFeatures = (): UnifiedFeatures => {
 
             // 2. Load Remote Features (Central)
             const licenseKey = import.meta.env.VITE_LICENSE_KEY || localStorage.getItem('installer_license_key');
-            const { data: { session } } = await centralSupabase.auth.getSession();
+            const { data: { session: centralSession } } = await centralSupabase.auth.getSession();
+            const { data: { session: localSession } } = await supabase.auth.getSession();
+            const accessToken = centralSession?.access_token || localSession?.access_token || '';
             
             let remoteData = { features: {}, limits: {}, plan_slug: localPlan };
 
-            if (session?.access_token || licenseKey) {
-                const response = await fetch(`${CENTRAL_CONFIG.API_URL}/check-entitlement`, {
+            if (accessToken) {
+                const response = await fetch(getApiUrl('/api/central/check-entitlement'), {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': session?.access_token ? `Bearer ${session.access_token}` : ''
+                        'Authorization': `Bearer ${accessToken}`
                     },
                     body: JSON.stringify({ 
                         action: 'resolve_all',
@@ -166,10 +169,30 @@ export const useFeatures = (): UnifiedFeatures => {
         } finally {
             setLoading(false);
         }
-    }, [isMasterOwner]);
+    }, [isMasterOwner, isTestUser]);
 
     useEffect(() => {
         loadAll();
+    }, [loadAll]);
+
+    useEffect(() => {
+        const refreshOnFocus = () => {
+            loadAll();
+        };
+
+        const refreshOnVisibility = () => {
+            if (document.visibilityState === 'visible') {
+                loadAll();
+            }
+        };
+
+        window.addEventListener('focus', refreshOnFocus);
+        document.addEventListener('visibilitychange', refreshOnVisibility);
+
+        return () => {
+            window.removeEventListener('focus', refreshOnFocus);
+            document.removeEventListener('visibilitychange', refreshOnVisibility);
+        };
     }, [loadAll]);
 
     const isOwner = isOwnerState || isMasterOwner;

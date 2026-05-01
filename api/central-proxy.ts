@@ -195,6 +195,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 isAllowed = true; // JWT is validated. Edge function will also verify if the user actually owns the license being requested.
             } else if (endpoint === 'account-flags') {
                 isAllowed = true;
+            } else if (endpoint === 'check-entitlement') {
+                const action = req.body?.action;
+                if (!action || ['resolve_all', 'check'].includes(action) || req.body?.resource || req.body?.feature) {
+                    isAllowed = true;
+                }
             } else if (endpoint === 'upgrade-intents') {
                 const action = req.body?.action;
                 if (action === 'create_upgrade_intent') {
