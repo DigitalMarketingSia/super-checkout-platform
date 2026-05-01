@@ -67,7 +67,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Fix: Check for NEXT_PUBLIC_ env vars (Vercel standard) or VITE_ (Local)
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://vixlzrmhqsbzjhpgfwdn.supabase.co';
+    const supabaseUrl =
+        process.env.NEXT_PUBLIC_SUPABASE_URL ||
+        process.env.VITE_SUPABASE_URL ||
+        'https://vixlzrmhqsbzjhpgfwdn.supabase.co';
     
     // 🔥 CRITICAL: Use SERVICE_ROLE_KEY for backend operations to bypass RLS
     // Fallback to Anon only for read-only identification if needed, but PATCH REQUIRES Service Role

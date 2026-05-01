@@ -10,7 +10,10 @@ async function fallbackCheckStatusHandler(req: VercelRequest, res: VercelRespons
         return res.status(400).json({ error: 'Missing orderId' });
     }
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://vixlzrmhqsbzjhpgfwdn.supabase.co';
+    const supabaseUrl =
+        process.env.NEXT_PUBLIC_SUPABASE_URL ||
+        process.env.VITE_SUPABASE_URL ||
+        'https://vixlzrmhqsbzjhpgfwdn.supabase.co';
     const supabaseKey =
         process.env.SUPABASE_SERVICE_ROLE_KEY ||
         process.env.VITE_SUPABASE_SERVICE_ROLE_KEY ||

@@ -292,7 +292,9 @@ export const PixPayment = () => {
           const status = (data && data.status) ? data.status.toLowerCase() : '';
           console.log('[PixPayment] Polling status:', status);
           if (status === 'paid' || status === 'approved') isPaid = true;
-        } else {
+        }
+
+        if (!isPaid) {
           // Fallback Supabase
           const { data } = await supabase.from('orders').select('status').eq('id', orderId).single();
           const status = (data && data.status) ? data.status.toLowerCase() : '';
