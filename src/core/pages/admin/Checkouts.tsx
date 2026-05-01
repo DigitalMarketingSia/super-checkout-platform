@@ -36,7 +36,7 @@ export const Checkouts = () => {
   });
   const [isUpsellModalOpen, setIsUpsellModalOpen] = useState(false);
   const [upsellSlug, setUpsellSlug] = useState<'unlimited_domains' | 'partner_rights' | 'whitelabel' | null>(null);
-  const { getLimit } = useFeatures();
+  const { getLimit, loading: checkingFeatures } = useFeatures();
 
   const showAlert = (title: string, message: string, variant: 'success' | 'error' | 'info' = 'info') => {
     setAlertState({ isOpen: true, title, message, variant });
@@ -131,6 +131,8 @@ export const Checkouts = () => {
   };
 
   const handleCreateCheckout = () => {
+    if (checkingFeatures) return;
+
     const limit = getLimit('checkouts');
     const allowed = limit === 'unlimited' || (limit && checkouts.length < limit);
 
@@ -156,8 +158,8 @@ export const Checkouts = () => {
              </span>
           </div>
         </div>
-        <Button onClick={() => handleActionWithCompliance(handleCreateCheckout)} className="px-10 py-4 bg-primary text-white rounded-[1.5rem] shadow-2xl shadow-primary/30 border-none font-black uppercase tracking-widest text-xs flex items-center gap-3 active:scale-95 transition-all">
-          <Plus className="w-5 h-5" /> Novo Checkout
+        <Button disabled={checkingFeatures} onClick={() => handleActionWithCompliance(handleCreateCheckout)} className="px-10 py-4 bg-primary text-white rounded-[1.5rem] shadow-2xl shadow-primary/30 border-none font-black uppercase tracking-widest text-xs flex items-center gap-3 active:scale-95 transition-all">
+          {checkingFeatures ? <Loader2 className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />} Novo Checkout
         </Button>
       </div>
 
@@ -172,7 +174,9 @@ export const Checkouts = () => {
            </div>
            <h3 className="text-2xl font-portal-display text-white uppercase tracking-tight opacity-40">Nenhum Checkout Criado</h3>
            <p className="text-gray-600 font-medium uppercase tracking-widest text-[10px] mt-2 mb-8">Comece a vender criando seu primeiro link</p>
-           <Button onClick={() => handleActionWithCompliance(handleCreateCheckout)} className="bg-white/5 hover:bg-white/10 text-white border border-white/10 px-8 py-3 rounded-2xl font-black uppercase tracking-widest text-[10px]">Criar Agora</Button>
+           <Button disabled={checkingFeatures} onClick={() => handleActionWithCompliance(handleCreateCheckout)} className="bg-white/5 hover:bg-white/10 text-white border border-white/10 px-8 py-3 rounded-2xl font-black uppercase tracking-widest text-[10px]">
+             {checkingFeatures ? 'Verificando plano...' : 'Criar Agora'}
+           </Button>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4">

@@ -255,14 +255,16 @@ export const Domains = () => {
            )}
            <Button 
             onClick={() => {
+              if (checkingFeatures) return;
               const limit = getLimit('domains');
               if (limit === 'unlimited' || (limit && customDomainsCount < limit)) setIsAddModalOpen(true);
               else { setUpsellSlug('unlimited_domains'); setIsUpsellModalOpen(true); }
             }}
+            disabled={checkingFeatures}
             className="px-10 py-4 bg-primary text-white rounded-[1.5rem] shadow-2xl shadow-primary/30 border-none font-black uppercase tracking-widest text-xs flex items-center gap-3 active:scale-95 transition-all"
-           >
-             <Plus className="w-5 h-5" /> {t('domains.add_btn')}
-           </Button>
+          >
+             {checkingFeatures ? <Loader2 className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />} {t('domains.add_btn')}
+          </Button>
         </div>
       </div>
 

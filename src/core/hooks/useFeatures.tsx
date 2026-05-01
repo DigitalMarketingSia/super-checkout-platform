@@ -145,11 +145,9 @@ export const useFeatures = (): UnifiedFeatures => {
                 ...remoteData.limits
             };
 
-            if (
-                !('checkouts' in remoteData.limits)
-                && (remoteData.limits as LimitSet).products === 'unlimited'
-                && (remoteData.limits as LimitSet).domains === 'unlimited'
-            ) {
+            if ((remoteData.limits as LimitSet).domains === 'unlimited') {
+                mergedLimits.products = 'unlimited';
+                mergedLimits.domains = 'unlimited';
                 mergedLimits.checkouts = 'unlimited';
             }
 
