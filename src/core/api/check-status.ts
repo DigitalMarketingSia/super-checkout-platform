@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { verifySignature } from '../utils/cryptoUtils.js';
+import { decrypt, verifySignature } from '../utils/cryptoUtils.js';
 
 // Define types locally since we are in a serverless function structure that might not share types easily with frontend
 interface Order {
@@ -104,13 +104,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).json({ status: 'paid' });
     }
 
-    // Without a valid signature, we only expose the already persisted coarse status.
-    // This is enough for the PIX page to unlock redirect after the webhook updates the order,
-    // but avoids hitting the gateway or mutating anything from an unsigned request.
-    if (!hasValidSignature) {
-        return res.status(200).json({ status: status || 'pending' });
-    }
-
     // 2. Fetch Payment Record
     const paymentRes = await fetch(`${supabaseUrl}/rest/v1/payments?order_id=eq.${orderId}&select=*`, {
         headers
@@ -120,6 +113,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let payment = payments && payments.length > 0 
         ? payments.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]
         : null;
+
+    const persistedPaymentStatus = String(payment?.status || '').toLowerCase();
+    const rawPaymentStatus = (() => {
+        try {
+            const raw = typeof payment?.raw_response === 'string'
+                ? JSON.parse(payment.raw_response)
+                : payment?.raw_response;
+            return String(raw?.status || '').toLowerCase();
+        } catch {
+            return '';
+        }
+    })();
+
+    if (
+        persistedPaymentStatus === 'paid' ||
+        persistedPaymentStatus === 'approved' ||
+        rawPaymentStatus === 'approved' ||
+        rawPaymentStatus === 'authorized'
+    ) {
+        if (status !== 'paid' && status !== 'approved') {
+            await fetch(`${supabaseUrl}/rest/v1/orders?id=eq.${orderId}`, {
+                method: 'PATCH',
+                headers: {
+                    ...headers,
+                    'Content-Type': 'application/json',
+                    'Prefer': 'return=minimal'
+                },
+                body: JSON.stringify({ status: 'paid' })
+            });
+        }
+        return res.status(200).json({ status: 'paid' });
+    }
+
+    // Without a valid signature, we only expose the already persisted coarse status.
+    // This is enough for the PIX page to unlock redirect after the webhook updates the order,
+    // but avoids hitting the gateway or mutating anything from an unsigned request.
+    if (!hasValidSignature) {
+        return res.status(200).json({ status: status || 'pending' });
+    }
 
     // 3. Fetch Gateway Credentials
     // If payment exists, use its gateway_id. If not, use the order's checkout_id to find the gateway.
@@ -160,11 +192,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).json({ status: order.status });
     }
 
-    const accessToken = gateway.private_key;
+    const accessToken = decrypt(gateway.private_key || '').replace(/\s/g, '');
+    if (!accessToken || accessToken.startsWith('iv:')) {
+        console.error('[CheckStatus] Mercado Pago private key could not be decrypted for status polling.');
+        return res.status(200).json({ status: order.status || 'pending' });
+    }
 
     // 4. Check Status with Mercado Pago
     let mpData: any = null;
-    const effectiveTxId = transactionId || payment?.transaction_id;
+    const effectiveTxId = transactionId || payment?.transaction_id || (order as any).payment_id;
 
     if (effectiveTxId) {
         // Method A: Direct ID lookup (Fastest) with Delay Tolerance Loop
