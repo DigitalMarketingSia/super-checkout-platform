@@ -1,4 +1,5 @@
 import { CENTRAL_CONFIG } from '../config/central';
+import { CENTRAL_SUPABASE_ANON_KEY } from './centralClient';
 
 export interface License {
     key: string;
@@ -470,7 +471,9 @@ export const licenseService = {
         const response = await fetch(`${CENTRAL_CONFIG.API_URL}/upgrade-intents`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'apikey': CENTRAL_SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${CENTRAL_SUPABASE_ANON_KEY}`
             },
             body: JSON.stringify({
                 action: 'get_upgrade_intent_context',

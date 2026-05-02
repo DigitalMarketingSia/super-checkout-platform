@@ -409,6 +409,23 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
    const [upgradeIntentLoading, setUpgradeIntentLoading] = useState(false);
    const [upgradeIntentError, setUpgradeIntentError] = useState<string | null>(null);
 
+   const getUpgradeIntentDisplayError = (message: string) => {
+      const normalized = message.toLowerCase();
+      if (normalized.includes('expired')) {
+         return 'Este link de upgrade expirou. Gere um novo upgrade pelo portal ou pela instalacao.';
+      }
+      if (normalized.includes('consumed') || normalized.includes('already consumed')) {
+         return 'Este link de upgrade ja foi usado. Abra um novo upgrade para continuar.';
+      }
+      if (normalized.includes('not found')) {
+         return 'Este link de upgrade nao foi encontrado ou nao esta mais disponivel.';
+      }
+      if (normalized.includes('unauthorized') || normalized.includes('authorization')) {
+         return 'Nao foi possivel validar este link de upgrade agora. Tente novamente em alguns instantes.';
+      }
+      return message || 'Nao foi possivel validar o upgrade desta conta.';
+   };
+
    // Helper to get currency symbol
    const getCurrencySymbol = () => {
       const currency = data?.checkout?.currency || 'BRL';
@@ -436,7 +453,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                   setUpgradeIntentError(null);
                } catch (intentError: any) {
                   setUpgradeIntentContext(null);
-                  setUpgradeIntentError(intentError?.message || 'Nao foi possivel validar o upgrade desta conta.');
+                  setUpgradeIntentError(getUpgradeIntentDisplayError(intentError?.message || ''));
                } finally {
                   setUpgradeIntentLoading(false);
                }
