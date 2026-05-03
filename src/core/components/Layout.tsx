@@ -41,6 +41,31 @@ import { LanguageSelector } from './ui/LanguageSelector';
 import { useTranslation } from 'react-i18next';
 import { APP_VERSION } from '../config/version';
 
+const getHostnameFromUrl = (url?: string) => {
+  if (!url) return null;
+
+  try {
+    return new URL(url).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+};
+
+const CONTROL_PLANE_HOSTNAMES = new Set(
+  [
+    'app.supercheckout.app',
+    'super-checkout.vercel.app',
+    getHostnameFromUrl(import.meta.env.VITE_SUPER_CHECKOUT_APP_URL),
+    getHostnameFromUrl(import.meta.env.VITE_APP_URL),
+  ].filter(Boolean) as string[]
+);
+
+const isControlPlaneHost = () => {
+  if (typeof window === 'undefined') return false;
+  const hostname = window.location.hostname.toLowerCase();
+  return hostname.includes('localhost') || hostname.includes('127.0.0.1') || CONTROL_PLANE_HOSTNAMES.has(hostname);
+};
+
 export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> = ({ children, maxWidth = 'max-w-[1600px]' }) => {
   const location = useLocation();
   const { theme, toggleTheme } = useTheme();
@@ -72,6 +97,7 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
   const isAdmin = user?.email === 'contato.jeandamin@gmail.com';
   const canAccessSystemUpdates = isOwner || isAdmin || profile?.role === 'admin' || profile?.role === 'owner';
   const canAccessClientAccountPages = isCommercial || canAccessSystemUpdates;
+  const canAccessUpgradeIntents = isOwner && isControlPlaneHost();
 
   return (
     <div className="flex h-screen bg-[#05050A] text-gray-900 dark:text-dark-textMain overflow-hidden font-sans flex-col">
@@ -267,20 +293,22 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
                       </div>
                     </Link>
 
-                    <Link
-                      to="/admin/upgrade-intents"
-                      onClick={() => setMobileMenuOpen(false)}
-                      className={`flex items-center rounded-xl transition-all duration-300 group relative overflow-hidden ${(!sidebarOpen && !mobileMenuOpen) ? 'justify-center px-0 py-3' : 'px-3 py-2'} text-[10px] font-black uppercase tracking-[0.2em] ${location.pathname === '/admin/upgrade-intents'
-                        ? 'text-emerald-400 bg-emerald-400/10 border border-emerald-400/20'
-                        : 'text-gray-600 hover:text-emerald-400 hover:bg-white/5'
-                        }`}
-                      title="Upgrade Intents"
-                    >
-                      <Link2 className="w-5 h-5 flex-shrink-0" />
-                      <div className={`ml-3 truncate transition-all duration-300 ${(!sidebarOpen && !mobileMenuOpen) ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
-                        Upgrade Intents
-                      </div>
-                    </Link>
+                    {canAccessUpgradeIntents && (
+                      <Link
+                        to="/admin/upgrade-intents"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className={`flex items-center rounded-xl transition-all duration-300 group relative overflow-hidden ${(!sidebarOpen && !mobileMenuOpen) ? 'justify-center px-0 py-3' : 'px-3 py-2'} text-[10px] font-black uppercase tracking-[0.2em] ${location.pathname === '/admin/upgrade-intents'
+                          ? 'text-emerald-400 bg-emerald-400/10 border border-emerald-400/20'
+                          : 'text-gray-600 hover:text-emerald-400 hover:bg-white/5'
+                          }`}
+                        title="Upgrade Intents"
+                      >
+                        <Link2 className="w-5 h-5 flex-shrink-0" />
+                        <div className={`ml-3 truncate transition-all duration-300 ${(!sidebarOpen && !mobileMenuOpen) ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
+                          Upgrade Intents
+                        </div>
+                      </Link>
+                    )}
 
                     <Link
                       to="/admin/security-events"

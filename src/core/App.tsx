@@ -82,6 +82,15 @@ const getHostnameFromUrl = (url?: string) => {
   }
 };
 
+const CONTROL_PLANE_HOSTNAMES = new Set(
+  [
+    'app.supercheckout.app',
+    'super-checkout.vercel.app',
+    getHostnameFromUrl(import.meta.env.VITE_SUPER_CHECKOUT_APP_URL),
+    getHostnameFromUrl(import.meta.env.VITE_APP_URL),
+  ].filter(Boolean) as string[]
+);
+
 const SYSTEM_HOSTNAMES = new Set(
   [
     'supercheckout.app',
@@ -120,6 +129,11 @@ const getCurrentHostname = () => {
 const isLocalHostname = (hostname: string) =>
   hostname.includes('localhost') || hostname.includes('127.0.0.1');
 
+const isControlPlaneHostname = (hostname: string) => {
+  const normalizedHostname = hostname.toLowerCase();
+  return isLocalHostname(normalizedHostname) || CONTROL_PLANE_HOSTNAMES.has(normalizedHostname);
+};
+
 const getHostAwareLoginPath = (hostname = getCurrentHostname()) => {
   if (PORTAL_HOSTNAMES.has(hostname)) {
     return '/activate';
@@ -157,6 +171,14 @@ const HostAwareLoginRoute: React.FC = () => {
 const HostAwareRootRoute: React.FC = () => (
   <Navigate to={getHostAwareRootPath()} replace />
 );
+
+const ControlPlaneAdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  if (!isControlPlaneHostname(getCurrentHostname())) {
+    return <Navigate to="/admin" replace />;
+  }
+
+  return <AdminRoute>{children}</AdminRoute>;
+};
 
 const isSystemHostname = (hostname: string) => {
   const normalizedHostname = hostname.toLowerCase();
@@ -401,7 +423,7 @@ const DomainDispatcher = () => {
       <Route path="/admin/webhooks" element={<AdminRoute><Webhooks /></AdminRoute>} />
       <Route path="/admin/licenses" element={<AdminRoute><Licenses /></AdminRoute>} />
       <Route path="/admin/system-licenses" element={<AdminRoute><SystemLicenses /></AdminRoute>} />
-      <Route path="/admin/upgrade-intents" element={<AdminRoute><UpgradeIntents /></AdminRoute>} />
+      <Route path="/admin/upgrade-intents" element={<ControlPlaneAdminRoute><UpgradeIntents /></ControlPlaneAdminRoute>} />
       <Route path="/admin/security-events" element={<AdminRoute><SecurityEvents /></AdminRoute>} />
       <Route path="/admin/updates" element={<AdminRoute><SystemUpdates /></AdminRoute>} />
 

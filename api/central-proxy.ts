@@ -55,6 +55,65 @@ const DEFAULT_CENTRAL_SUPABASE_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co';
 const DEFAULT_CENTRAL_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJjbW5yeXhqd2Vpb3Zyd216dHBuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc2NjM2MjMsImV4cCI6MjA4MzIzOTYyM30.F86wf0xwTR1K_P9500JwnESStPb2bCo3dwuouHBPcQM';
 const DEFAULT_CENTRAL_SHARED_SECRET = 'd8c36148-5c4e-4f7f-8c3e-9b6f12345678';
 
+const getHostnameFromUrl = (url?: string | null) => {
+    if (!url) return null;
+
+    try {
+        return new URL(url).hostname.toLowerCase();
+    } catch {
+        return null;
+    }
+};
+
+const normalizeHost = (host?: string | null) => {
+    if (!host) return null;
+    return host.split(':')[0].toLowerCase();
+};
+
+const CONTROL_PLANE_HOSTS = new Set(
+    [
+        'app.supercheckout.app',
+        'super-checkout.vercel.app',
+        getHostnameFromUrl(process.env.APP_URL),
+        getHostnameFromUrl(process.env.SUPER_CHECKOUT_APP_URL),
+        getHostnameFromUrl(process.env.VITE_SUPER_CHECKOUT_APP_URL),
+        getHostnameFromUrl(process.env.NEXT_PUBLIC_APP_URL),
+    ].filter(Boolean) as string[]
+);
+
+const isLocalHost = (host?: string | null) => {
+    const hostname = normalizeHost(host);
+    return hostname === 'localhost' || hostname === '127.0.0.1';
+};
+
+const isControlPlaneRequest = (req: VercelRequest) => {
+    const requestHosts = [
+        normalizeHost(req.headers.host as string | undefined),
+        getHostnameFromUrl(req.headers.origin as string | undefined),
+        getHostnameFromUrl(req.headers.referer as string | undefined),
+    ].filter(Boolean) as string[];
+
+    return requestHosts.some((host) => isLocalHost(host) || CONTROL_PLANE_HOSTS.has(host));
+};
+
+const getRequestBody = (body: unknown): Record<string, any> => {
+    if (!body) return {};
+
+    if (typeof body === 'string') {
+        try {
+            return JSON.parse(body);
+        } catch {
+            return {};
+        }
+    }
+
+    if (typeof body === 'object') {
+        return body as Record<string, any>;
+    }
+
+    return {};
+};
+
 async function validateJwtWithSupabase(url: string, key: string, jwt: string, label: string) {
     try {
         const response = await fetch(`${url}/auth/v1/user`, {
@@ -103,6 +162,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const endpoint = req.query.endpoint as string;
     if (!endpoint || !ALLOWED_ENDPOINTS.includes(endpoint)) {
         return res.status(403).json({ error: 'Endpoint not allowed' });
+    }
+
+    const requestBody = getRequestBody(req.body);
+    if (
+        endpoint === 'upgrade-intents'
+        && requestBody?.action === 'list_recent_upgrade_intents'
+        && !isControlPlaneRequest(req)
+    ) {
+        return res.status(403).json({ error: 'Operation restricted to the Super Checkout control plane' });
     }
 
     // --- 2. Validate required env vars ---
@@ -165,12 +233,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let isAllowed = false;
 
             if (endpoint === 'get-license-status') {
-                const targetEmail = req.method === 'GET' ? req.query?.email : req.body?.email;
+                const targetEmail = req.method === 'GET' ? req.query?.email : requestBody?.email;
                 if (!targetEmail || (typeof targetEmail === 'string' && targetEmail.toLowerCase() === userEmail)) {
                     isAllowed = true;
                 }
             } else if (endpoint === 'manage-licenses') {
-                const action = req.body?.action;
+                const action = requestBody?.action;
                 const allowedActions = [
                     'generate_token',
                     'reinstall',
@@ -180,12 +248,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 if (allowedActions.includes(action)) {
                     // Se a ação exige email, deve ser o dele
-                    if (!req.body?.email || req.body.email.toLowerCase() === userEmail) {
+                    if (!requestBody?.email || requestBody.email.toLowerCase() === userEmail) {
                         isAllowed = true;
                     }
                 }
             } else if (endpoint === 'manage-user-installations') {
-                const targetEmail = req.method === 'GET' ? req.query?.email : req.body?.email;
+                const targetEmail = req.method === 'GET' ? req.query?.email : requestBody?.email;
                 if (!targetEmail || (typeof targetEmail === 'string' && targetEmail.toLowerCase() === userEmail)) {
                     isAllowed = true;
                 }
@@ -196,24 +264,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             } else if (endpoint === 'account-flags') {
                 isAllowed = true;
             } else if (endpoint === 'check-entitlement') {
-                const action = req.body?.action;
-                if (!action || ['resolve_all', 'check'].includes(action) || req.body?.resource || req.body?.feature) {
+                const action = requestBody?.action;
+                if (!action || ['resolve_all', 'check'].includes(action) || requestBody?.resource || requestBody?.feature) {
                     isAllowed = true;
                 }
             } else if (endpoint === 'upgrade-intents') {
-                const action = req.body?.action;
+                const action = requestBody?.action;
                 if (action === 'create_upgrade_intent') {
                     isAllowed = true;
                 }
             } else if (endpoint === 'system-update-runner') {
-                const action = req.body?.action;
+                const action = requestBody?.action;
                 if (['test', 'sync', 'rollback'].includes(action)) {
                     isAllowed = true;
                 }
             }
 
             if (!isAllowed) {
-                console.warn(`[Central Proxy] Forbidden access attempt by ${user.email} on ${endpoint} action ${req.body?.action}`);
+                console.warn(`[Central Proxy] Forbidden access attempt by ${user.email} on ${endpoint} action ${requestBody?.action}`);
                 return res.status(403).json({ error: 'Insufficient permissions or email mismatch' });
             }
         }
