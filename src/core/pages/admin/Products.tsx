@@ -37,7 +37,7 @@ const initialFormState = {
 export const Products = () => {
   const { t, i18n } = useTranslation(['admin', 'common']);
   const { profile, compliance, isWhiteLabel } = useAuth();
-  const { getLimit } = useFeatures();
+  const { getLimit, loading: checkingFeatures } = useFeatures();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'grid' | 'edit'>('grid');
@@ -230,7 +230,9 @@ export const Products = () => {
   };
 
   const handleCreateProduct = async () => {
-    const limit = getLimit('products');
+    if (checkingFeatures) return;
+
+    const limit = getLimit('products') ?? 3;
     const allowed = limit === 'unlimited' || (limit && products.length < limit);
     if (!allowed) {
       setUpsellSlug('unlimited_domains');
@@ -241,6 +243,7 @@ export const Products = () => {
   };
 
   const renderGrid = () => {
+    const productLimit = getLimit('products') ?? 3;
     const filteredProducts = products.filter(product =>
       product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (product.category && product.category.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -257,17 +260,17 @@ export const Products = () => {
             <h1 className="text-4xl lg:text-5xl font-portal-display text-white mb-2 uppercase leading-none">{t('products.title')}</h1>
             <div className="flex items-center gap-3">
                <p className="text-gray-600 font-medium uppercase tracking-[0.1em] text-[10px]">{t('products.subtitle')}</p>
-               {getLimit('products') && (
+               {!checkingFeatures && productLimit && (
                   <>
                     <div className="h-1 w-1 rounded-full bg-gray-800"></div>
                     <span className="text-[10px] text-primary font-black uppercase tracking-[0.2em]">
-                       {products.length} / {getLimit('products') === 'unlimited' ? '∞' : getLimit('products')} {t('products.limit_label')}
+                       {products.length} / {productLimit === 'unlimited' ? '∞' : productLimit} {t('products.limit_label')}
                     </span>
                   </>
                )}
             </div>
           </div>
-          <Button onClick={() => handleActionWithCompliance(handleCreateProduct)} className="px-10 py-4 bg-primary text-white rounded-[1.5rem] shadow-2xl shadow-primary/30 border-none font-black uppercase tracking-widest text-xs flex items-center gap-3 active:scale-95 transition-all">
+          <Button disabled={checkingFeatures} onClick={() => handleActionWithCompliance(handleCreateProduct)} className="px-10 py-4 bg-primary text-white rounded-[1.5rem] shadow-2xl shadow-primary/30 border-none font-black uppercase tracking-widest text-xs flex items-center gap-3 active:scale-95 transition-all">
             <Plus className="w-5 h-5" /> {t('products.create_btn')}
           </Button>
         </div>
