@@ -30,6 +30,8 @@ const ALLOWED_ENDPOINTS = [
     'account-flags',
     'upgrade-intents',
     'system-update-runner',
+    'create-passport-ticket',
+    'revoke-passport-ticket',
 ];
 
 // CORS Whitelist (Fase 15.1 — Hardening)
@@ -181,6 +183,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(500).json({ error: 'Server configuration error: missing credentials' });
     }
 
+    if (endpoint === 'request-activation-link') {
+        if (req.method !== 'POST') {
+            return res.status(405).json({ error: 'Method not allowed' });
+        }
+
+        const centralAnon = process.env.VITE_CENTRAL_SUPABASE_ANON_KEY || DEFAULT_CENTRAL_ANON_KEY;
+        const response = await fetch(`${centralApiUrl}/${endpoint}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                apikey: centralAnon,
+                Authorization: `Bearer ${centralAnon}`,
+            },
+            body: JSON.stringify(requestBody),
+        });
+        const responseData = await response.text();
+        const contentType = response.headers.get('content-type');
+        if (contentType) {
+            res.setHeader('Content-Type', contentType);
+        }
+        return res.status(response.status).send(responseData);
+    }
+
     // --- 3. Validate JWT ---
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -276,6 +301,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             } else if (endpoint === 'system-update-runner') {
                 const action = requestBody?.action;
                 if (['test', 'sync', 'rollback'].includes(action)) {
+                    isAllowed = true;
+                }
+            } else if (endpoint === 'create-passport-ticket') {
+                const targetEmail = requestBody?.email;
+                if (!targetEmail || String(targetEmail).toLowerCase() === userEmail) {
                     isAllowed = true;
                 }
             }

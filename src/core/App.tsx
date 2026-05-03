@@ -48,6 +48,7 @@ import { MemberLogin } from './pages/member/MemberLogin';
 import { MemberSignup } from './pages/member/MemberSignup';
 import Setup from './pages/public/Setup';
 import { Register } from './pages/public/Register';
+import { PassportExchange } from './pages/PassportExchange';
 import { MemberAreaWrapper } from './pages/member/MemberAreaWrapper';
 import { MemberProducts } from './pages/member/MemberProducts';
 import { MyProducts } from './pages/member/MyProducts';
@@ -396,6 +397,7 @@ const DomainDispatcher = () => {
       <Route path="/setup" element={<Setup />} />
       <Route path="/debug-auth" element={<AuthDebug />} />
       <Route path="/login" element={<HostAwareLoginRoute />} />
+      <Route path="/passport" element={<PassportExchange />} />
       <Route path="/register" element={<Register />} />
       <Route path="/update-password" element={<UpdatePassword />} />
       <Route path="/privacy-policy" element={<PublicPrivacy />} />
