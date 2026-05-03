@@ -7,6 +7,7 @@ import { emailService } from './emailService';
 import { getApiUrl, getBaseUrl } from '../utils/apiUtils';
 import { translatePaymentError } from '../utils/errorTranslator';
 import i18n from '../i18n/config';
+import type { UpgradeIntentContext } from './licenseService';
 
 // Helper for UUID generation
 const generateUUID = () => {
@@ -42,6 +43,7 @@ export interface ProcessPaymentRequest {
   stripePaymentMethodId?: string; // New: For Apple/Google Pay express checkout
   installments?: number; // New: Number of installments
   upgradeIntentToken?: string;
+  upgradeIntentContext?: UpgradeIntentContext;
 }
 
 export interface ProcessPaymentResult {
@@ -75,6 +77,71 @@ export interface ProcessPaymentResult {
  */
 class PaymentService {
   // Adapter is now instantiated per request to support multiple accounts/dynamic keys
+
+  private buildOrderMetadata(request: ProcessPaymentRequest) {
+    const token = request.upgradeIntentToken?.trim();
+    const context = request.upgradeIntentContext;
+
+    const payerSnapshot = {
+      name: request.customerName || null,
+      email: request.customerEmail || null,
+      phone: request.customerPhone || null,
+      cpf: request.customerCpf || null,
+    };
+
+    if (!token) {
+      return {
+        payer_snapshot: payerSnapshot,
+        reconciliation: {
+          status: 'not_required',
+          reason: 'public_checkout_without_upgrade_intent',
+        },
+      };
+    }
+
+    return {
+      upgrade_intent_token: token,
+      upgrade_intent: {
+        token,
+        status: context?.status || null,
+        target_plan_slug: context?.target_plan_slug || null,
+        target_license_key: context?.target_license_key || null,
+        checkout_id: context?.checkout_id || request.checkoutId,
+        product_id: context?.product_id || null,
+        source_surface: context?.source_surface || null,
+        source_context: context?.source_context || {},
+        expires_at: context?.expires_at || null,
+        can_auto_apply: Boolean(context?.can_auto_apply),
+      },
+      beneficiary: {
+        display_name: context?.beneficiary?.display_name || null,
+        display_email_masked: context?.beneficiary?.display_email_masked || null,
+        target_license_key: context?.target_license_key || null,
+        target_plan_slug: context?.target_plan_slug || null,
+      },
+      payer_snapshot: payerSnapshot,
+      reconciliation: {
+        status: context?.can_auto_apply ? 'intent_attached' : 'manual_review_required',
+        reason: context?.can_auto_apply ? null : 'upgrade_intent_cannot_auto_apply',
+      },
+    };
+  }
+
+  private buildGatewayMetadata(order: Order) {
+    const metadata = order.metadata && typeof order.metadata === 'object' ? order.metadata : {};
+    const upgradeIntent = metadata.upgrade_intent && typeof metadata.upgrade_intent === 'object'
+      ? metadata.upgrade_intent
+      : {};
+
+    return {
+      order_id: order.id,
+      customer_user_id: order.customer_user_id || '',
+      upgrade_intent_token: metadata.upgrade_intent_token || '',
+      upgrade_target_license_key: upgradeIntent.target_license_key || metadata.upgrade_target_license_key || '',
+      upgrade_target_plan_slug: upgradeIntent.target_plan_slug || metadata.upgrade_target_plan_slug || '',
+      upgrade_source_surface: upgradeIntent.source_surface || '',
+    };
+  }
 
   /**
    * MOTOR FINANCEIRO HÍBRIDO
@@ -225,11 +292,7 @@ class PaymentService {
               status: OrderStatus.PENDING,
               payment_method: request.paymentMethod,
               items: request.items,
-              metadata: request.upgradeIntentToken
-                ? {
-                    upgrade_intent_token: request.upgradeIntentToken
-                  }
-                : undefined,
+              metadata: this.buildOrderMetadata(request),
               created_at: new Date().toISOString(),
               customer_user_id: request.customerUserId
             };
@@ -476,8 +539,7 @@ class PaymentService {
           checkoutId: order.checkout_id,
           selectedBumpIds: request.selectedBumps,
           metadata: {
-            order_id: order.id,
-            customer_user_id: order.customer_user_id || ''
+            ...this.buildGatewayMetadata(order)
           }
         })
       });

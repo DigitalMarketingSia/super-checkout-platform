@@ -850,6 +850,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
             currency: data.product.currency || 'BRL',
             customerUserId: userId,
             upgradeIntentToken: upgradeIntentToken || undefined,
+            upgradeIntentContext: upgradeIntentContext || undefined,
             stripePaymentMethodId: stripePaymentMethodId, // TOKEN PASSADO AQUI
             installments: Number(customer.installments || 1),
             // Pass Card Data only if it's NOT a Stripe payment
@@ -1580,6 +1581,8 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                            data={data}
                            selectedBumps={selectedBumps}
                            userId={userId}
+                           upgradeIntentToken={upgradeIntentToken || undefined}
+                           upgradeIntentContext={upgradeIntentContext || undefined}
                            showAlert={showAlert}
                            stripe={stripe}
                         />
@@ -1711,6 +1714,8 @@ const WalletExpressButton = ({
    data, 
    selectedBumps, 
    userId, 
+   upgradeIntentToken,
+   upgradeIntentContext,
    showAlert,
    stripe
 }: { 
@@ -1719,6 +1724,8 @@ const WalletExpressButton = ({
    data: any; 
    selectedBumps: string[]; 
    userId: string | undefined;
+   upgradeIntentToken?: string;
+   upgradeIntentContext?: UpgradeIntentContext;
    showAlert: (t: string, m: string, v?: any) => void;
    stripe: any;
 }) => {
@@ -1796,6 +1803,8 @@ const WalletExpressButton = ({
                items: items,
                currency: data.product.currency || 'BRL',
                customerUserId: userId,
+               upgradeIntentToken,
+               upgradeIntentContext,
                stripePaymentMethodId: ev.paymentMethod.id
             });
 
@@ -1820,7 +1829,7 @@ const WalletExpressButton = ({
       return () => {
          paymentRequest.off('paymentmethod', handlePaymentMethod);
       };
-   }, [stripe, paymentRequest, data, selectedBumps, userId, navigate, showAlert]);
+   }, [stripe, paymentRequest, data, selectedBumps, userId, upgradeIntentToken, upgradeIntentContext, navigate, showAlert]);
 
    if (!isVisible || !paymentRequest) return null;
 

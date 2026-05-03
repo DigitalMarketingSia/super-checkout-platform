@@ -19,6 +19,7 @@ import { buildPlatformUrl, platformUrls } from '../../config/platformUrls';
 import { licenseService, UpgradeIntentRow } from '../../services/licenseService';
 
 const statusMeta: Record<string, { label: string; className: string; icon: React.ElementType }> = {
+  attention: { label: 'Atencao', className: 'text-red-300 bg-red-500/10 border-red-500/20', icon: AlertCircle },
   created: { label: 'Criado', className: 'text-sky-300 bg-sky-500/10 border-sky-500/20', icon: Clock },
   opened: { label: 'Aberto', className: 'text-blue-300 bg-blue-500/10 border-blue-500/20', icon: Link2 },
   paid: { label: 'Pago', className: 'text-emerald-300 bg-emerald-500/10 border-emerald-500/20', icon: CheckCircle },
@@ -28,7 +29,7 @@ const statusMeta: Record<string, { label: string; className: string; icon: React
   failed: { label: 'Falhou', className: 'text-red-300 bg-red-500/10 border-red-500/20', icon: AlertCircle },
 };
 
-const statusOptions = ['all', 'created', 'opened', 'paid', 'consumed', 'expired', 'failed'];
+const statusOptions = ['all', 'attention', 'created', 'opened', 'paid', 'consumed', 'expired', 'failed'];
 
 function formatDate(value?: string | null) {
   if (!value) return '-';
@@ -44,8 +45,20 @@ function shortToken(token?: string | null) {
 }
 
 function getIntentState(intent: UpgradeIntentRow) {
-  if (intent.paid_order_id || intent.consumed_at) return 'consumed';
-  return String(intent.status || 'created').toLowerCase();
+  const status = String(intent.status || 'created').toLowerCase();
+  if (needsManualReview(intent)) return 'attention';
+  if (intent.consumed_at || status === 'consumed') return 'consumed';
+  if (intent.paid_order_id || intent.paid_at || status === 'paid') return 'paid';
+  return status;
+}
+
+function needsManualReview(intent: UpgradeIntentRow) {
+  const status = String(intent.status || '').toLowerCase();
+  if (intent.failure_reason) return true;
+  if (status === 'failed') return true;
+  if (intent.paid_order_id && !intent.consumed_at && status !== 'consumed') return true;
+  if (status === 'expired' && intent.paid_order_id) return true;
+  return false;
 }
 
 function buildCheckoutLink(intent: UpgradeIntentRow) {
@@ -68,7 +81,7 @@ export const UpgradeIntents = () => {
 
     try {
       const data = await licenseService.listUpgradeIntents({
-        status,
+        status: status === 'attention' ? 'all' : status,
         search,
         limit: 100,
       });
@@ -91,19 +104,45 @@ export const UpgradeIntents = () => {
       (acc, intent) => {
         const state = getIntentState(intent);
         acc.total += 1;
+        if (state === 'attention') acc.attention += 1;
         if (state === 'consumed') acc.consumed += 1;
         if (state === 'expired') acc.expired += 1;
         if (state === 'created' || state === 'opened') acc.open += 1;
         return acc;
       },
-      { total: 0, consumed: 0, expired: 0, open: 0 },
+      { total: 0, attention: 0, consumed: 0, expired: 0, open: 0 },
     );
   }, [intents]);
+
+  const visibleIntents = useMemo(() => {
+    if (status !== 'attention') return intents;
+    return intents.filter(needsManualReview);
+  }, [intents, status]);
 
   const copyText = async (value: string, label: string) => {
     if (!value) return;
     await navigator.clipboard.writeText(value);
     toast.success(`${label} copiado.`);
+  };
+
+  const copyReconciliationPacket = async (intent: UpgradeIntentRow) => {
+    const packet = {
+      token: intent.token,
+      status: intent.status,
+      paid_order_id: intent.paid_order_id,
+      paid_at: intent.paid_at,
+      failure_reason: intent.failure_reason,
+      target_user_id: intent.target_user_id,
+      target_account_id: intent.target_account_id,
+      target_license_key: intent.target_license_key,
+      target_plan_slug: intent.target_plan_slug,
+      payer_email_snapshot: intent.payer_email_snapshot,
+      checkout_id: intent.checkout_id,
+      source_surface: intent.source_surface,
+      source_context: intent.source_context,
+    };
+
+    await copyText(JSON.stringify(packet, null, 2), 'Pacote de conciliacao');
   };
 
   return (
@@ -126,11 +165,12 @@ export const UpgradeIntents = () => {
           </Button>
         </div>
 
-        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 xl:grid-cols-5 gap-3">
           {[
             ['Total', stats.total],
             ['Abertos', stats.open],
             ['Consumidos', stats.consumed],
+            ['Atencao', stats.attention],
             ['Expirados', stats.expired],
           ].map(([label, value]) => (
             <div key={label} className="border border-white/10 bg-white/[0.03] rounded-lg p-4">
@@ -194,18 +234,19 @@ export const UpgradeIntents = () => {
                       Carregando intents...
                     </td>
                   </tr>
-                ) : intents.length === 0 ? (
+                ) : visibleIntents.length === 0 ? (
                   <tr>
                     <td colSpan={9} className="px-4 py-12 text-center text-gray-500 text-sm">
                       Nenhum intent encontrado.
                     </td>
                   </tr>
                 ) : (
-                  intents.map((intent) => {
+                  visibleIntents.map((intent) => {
                     const state = getIntentState(intent);
                     const meta = statusMeta[state] || statusMeta.created;
                     const Icon = meta.icon;
                     const checkoutLink = buildCheckoutLink(intent);
+                    const reviewRequired = needsManualReview(intent);
 
                     return (
                       <tr key={intent.id} className="border-b border-white/5 hover:bg-white/[0.02]">
@@ -251,6 +292,15 @@ export const UpgradeIntents = () => {
                                 title="Copiar link do checkout"
                               >
                                 <Link2 className="w-4 h-4" />
+                              </button>
+                            )}
+                            {reviewRequired && (
+                              <button
+                                onClick={() => copyReconciliationPacket(intent)}
+                                className="w-9 h-9 rounded-lg border border-red-500/20 text-red-300 hover:text-white hover:bg-red-500/10 flex items-center justify-center"
+                                title="Copiar pacote de conciliacao"
+                              >
+                                <AlertCircle className="w-4 h-4" />
                               </button>
                             )}
                             {checkoutLink && (
