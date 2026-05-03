@@ -30,7 +30,8 @@ import {
   RefreshCw,
   Download,
   Terminal,
-  Cpu
+  Cpu,
+  Link2
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
@@ -263,6 +264,21 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
                       <ShieldCheck className="w-5 h-5 flex-shrink-0" />
                       <div className={`ml-3 truncate transition-all duration-300 ${(!sidebarOpen && !mobileMenuOpen) ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
                         {t('nav.global_management', 'Gestão Global')}
+                      </div>
+                    </Link>
+
+                    <Link
+                      to="/admin/upgrade-intents"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={`flex items-center rounded-xl transition-all duration-300 group relative overflow-hidden ${(!sidebarOpen && !mobileMenuOpen) ? 'justify-center px-0 py-3' : 'px-3 py-2'} text-[10px] font-black uppercase tracking-[0.2em] ${location.pathname === '/admin/upgrade-intents'
+                        ? 'text-emerald-400 bg-emerald-400/10 border border-emerald-400/20'
+                        : 'text-gray-600 hover:text-emerald-400 hover:bg-white/5'
+                        }`}
+                      title="Upgrade Intents"
+                    >
+                      <Link2 className="w-5 h-5 flex-shrink-0" />
+                      <div className={`ml-3 truncate transition-all duration-300 ${(!sidebarOpen && !mobileMenuOpen) ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
+                        Upgrade Intents
                       </div>
                     </Link>
 

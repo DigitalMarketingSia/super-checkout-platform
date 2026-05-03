@@ -74,6 +74,29 @@ export interface UpgradeIntentContext {
     can_auto_apply: boolean;
 }
 
+export interface UpgradeIntentRow {
+    id: string;
+    token: string;
+    status: 'created' | 'opened' | 'paid' | 'consumed' | 'expired' | 'canceled' | 'failed' | string;
+    target_user_id: string | null;
+    target_account_id: string | null;
+    target_license_key: string | null;
+    target_plan_slug: string | null;
+    checkout_id: string | null;
+    product_id: string | null;
+    source_surface: string | null;
+    source_context: Record<string, unknown> | null;
+    payer_email_snapshot: string | null;
+    paid_order_id: string | null;
+    expires_at: string | null;
+    opened_at: string | null;
+    paid_at: string | null;
+    consumed_at: string | null;
+    failure_reason: string | null;
+    created_at: string;
+    updated_at: string | null;
+}
+
 /**
  * Get JWT-only headers for Central API calls.
  * The x-admin-secret is now added server-side by /api/central-proxy.
@@ -496,5 +519,39 @@ export const licenseService = {
         }
 
         return json.data;
+    },
+
+    async listUpgradeIntents(params: {
+        status?: string;
+        search?: string;
+        limit?: number;
+    } = {}): Promise<UpgradeIntentRow[]> {
+        const response = await fetch(getProxyUrl('upgrade-intents'), {
+            method: 'POST',
+            headers: await getHeaders(),
+            body: JSON.stringify({
+                action: 'list_recent_upgrade_intents',
+                status: params.status || 'all',
+                search: params.search || '',
+                limit: params.limit || 100
+            })
+        });
+
+        const raw = await response.text();
+        const json = raw
+            ? (() => {
+                try {
+                    return JSON.parse(raw);
+                } catch {
+                    return {};
+                }
+            })()
+            : {};
+
+        if (!response.ok) {
+            throw new Error(json?.error || raw || 'Falha ao consultar upgrade intents');
+        }
+
+        return json.data || [];
     }
 };

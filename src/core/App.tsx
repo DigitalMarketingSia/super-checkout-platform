@@ -20,6 +20,7 @@ import { Webhooks } from './pages/admin/Webhooks';
 import { Licenses } from './pages/admin/Licenses';
 import { SystemLicenses } from './pages/admin/SystemLicenses';
 import { SecurityEvents } from './pages/admin/SecurityEvents';
+import { UpgradeIntents } from './pages/admin/UpgradeIntents';
 // import { SetupWizard } from './pages/admin/SetupWizard';
 import { BusinessSettings } from './pages/admin/BusinessSettings';
 // import { MyLicense } from './pages/admin/saas/MyLicense';
@@ -400,6 +401,7 @@ const DomainDispatcher = () => {
       <Route path="/admin/webhooks" element={<AdminRoute><Webhooks /></AdminRoute>} />
       <Route path="/admin/licenses" element={<AdminRoute><Licenses /></AdminRoute>} />
       <Route path="/admin/system-licenses" element={<AdminRoute><SystemLicenses /></AdminRoute>} />
+      <Route path="/admin/upgrade-intents" element={<AdminRoute><UpgradeIntents /></AdminRoute>} />
       <Route path="/admin/security-events" element={<AdminRoute><SecurityEvents /></AdminRoute>} />
       <Route path="/admin/updates" element={<AdminRoute><SystemUpdates /></AdminRoute>} />
 
