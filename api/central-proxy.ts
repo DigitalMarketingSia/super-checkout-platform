@@ -21,6 +21,7 @@ const ALLOWED_ENDPOINTS = [
     'create-commercial-license',
     'get-license-status',
     'request-activation-link',
+    'request-recovery-link',
     'generate-install-token',
     'manage-user-installations',
     'activate-free-license',
@@ -183,7 +184,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(500).json({ error: 'Server configuration error: missing credentials' });
     }
 
-    if (endpoint === 'request-activation-link') {
+    if (endpoint === 'request-activation-link' || endpoint === 'request-recovery-link') {
         if (req.method !== 'POST') {
             return res.status(405).json({ error: 'Method not allowed' });
         }

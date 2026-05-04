@@ -272,6 +272,20 @@ export const licenseService = {
         }
     },
 
+    async requestRecoveryLink(email: string): Promise<void> {
+        const response = await fetch(getProxyUrl('request-recovery-link'), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ email })
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to request recovery link');
+        }
+    },
+
     async generateInstallToken(
         licenseKey: string,
         options: { resetExisting?: boolean } = {}

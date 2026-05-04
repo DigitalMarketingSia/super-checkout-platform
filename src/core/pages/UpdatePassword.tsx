@@ -1,11 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
+import { centralSupabase } from '../services/centralClient';
 import { useNavigate } from 'react-router-dom';
 import { Lock, Loader2, AlertCircle, CheckCircle, ArrowRight } from 'lucide-react';
 import { logSecurityEvent } from '../services/securityAuditClient';
 
 export const UpdatePassword = () => {
     const navigate = useNavigate();
+    const searchParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+    const isCentralRecovery = searchParams.get('scope') === 'central';
+    const nextPath = searchParams.get('next') || (isCentralRecovery ? '/activate/setup' : '/admin');
+    const authClient = isCentralRecovery ? centralSupabase : supabase;
     const [loading, setLoading] = useState(false);
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -14,12 +19,12 @@ export const UpdatePassword = () => {
 
     useEffect(() => {
         // Check if we have a session (user clicked magic link)
-        supabase.auth.getSession().then(({ data: { session } }) => {
+        authClient.auth.getSession().then(({ data: { session } }) => {
             if (!session) {
-                navigate('/login');
+                navigate(isCentralRecovery ? '/activate' : '/login');
             }
         });
-    }, [navigate]);
+    }, [authClient, isCentralRecovery, navigate]);
 
     const handleUpdate = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -33,7 +38,7 @@ export const UpdatePassword = () => {
         setSuccess(null);
 
         try {
-            const { error } = await supabase.auth.updateUser({
+            const { error } = await authClient.auth.updateUser({
                 password: password
             });
 
@@ -42,7 +47,7 @@ export const UpdatePassword = () => {
             await logSecurityEvent('password_changed', { flow: 'recovery' }, 'INFO');
             setSuccess('Senha atualizada com sucesso! Redirecionando...');
             setTimeout(() => {
-                navigate('/admin');
+                navigate(nextPath.startsWith('/') && !nextPath.startsWith('//') ? nextPath : '/admin');
             }, 2000);
         } catch (err: any) {
             console.error(err);

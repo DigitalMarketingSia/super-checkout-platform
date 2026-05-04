@@ -18,6 +18,7 @@ export const ActivationLogin = () => {
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [linkLoading, setLinkLoading] = useState(false);
+    const [recoveryLoading, setRecoveryLoading] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [verifyingToken, setVerifyingToken] = useState(!!token);
@@ -197,6 +198,28 @@ export const ActivationLogin = () => {
         }
     };
 
+    const handleRequestRecoveryLink = async () => {
+        setError('');
+        setSuccess('');
+
+        if (!email.trim()) {
+            setError('Informe seu e-mail para receber o link de recuperacao.');
+            return;
+        }
+
+        setRecoveryLoading(true);
+
+        try {
+            await licenseService.requestRecoveryLink(email);
+            setSuccess('Se este e-mail existir, enviaremos um link de recuperacao em instantes.');
+        } catch (err: any) {
+            console.error('Recovery link request failed:', err);
+            setSuccess('Se este e-mail existir, enviaremos um link de recuperacao em instantes.');
+        } finally {
+            setRecoveryLoading(false);
+        }
+    };
+
     if (verifyingToken) {
         return (
             <div className="min-h-screen bg-[#05050A] flex flex-col items-center justify-center p-4">
@@ -284,7 +307,7 @@ export const ActivationLogin = () => {
                         <button
                             type="button"
                             onClick={handleRequestAccessLink}
-                            disabled={linkLoading || loading}
+                            disabled={linkLoading || loading || recoveryLoading}
                             className="w-full border border-white/10 bg-white/5 text-white py-3.5 rounded-xl font-bold hover:bg-white/10 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
                         >
                             {linkLoading ? (
@@ -295,6 +318,15 @@ export const ActivationLogin = () => {
                                     <Mail className="w-4 h-4" />
                                 </>
                             )}
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={handleRequestRecoveryLink}
+                            disabled={recoveryLoading || loading || linkLoading}
+                            className="mx-auto flex items-center justify-center text-sm font-medium text-gray-400 hover:text-white transition-colors disabled:opacity-60"
+                        >
+                            {recoveryLoading ? 'Enviando...' : 'Esqueci minha senha'}
                         </button>
                     </form>
                 </div>
