@@ -179,6 +179,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         : (comparison.license?.plan === 'master' || license?.plan === 'master') ? 'owner' : 'client';
 
                     const centralLicense = comparison.license || {};
+                    const authoritativeInstallationId = comparison.installation_id || installationId;
 
                     await supabase
                         .from('licenses')
@@ -198,16 +199,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                     await touchLocalInstallation(supabase, {
                         licenseKey: key,
-                        installationId,
+                        installationId: authoritativeInstallationId,
                         domain: getRequestDomain(req, domain || centralLicense.allowed_domain || license?.allowed_domain)
                     });
 
-                    if (installationId) {
+                    if (authoritativeInstallationId) {
                         await supabase
                             .from('app_config')
                             .upsert({
                                 key: 'installation_id',
-                                value: JSON.stringify(installationId)
+                                value: JSON.stringify(authoritativeInstallationId)
                             }, { onConflict: 'key' });
                     }
 
@@ -215,7 +216,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         valid: true,
                         usage_type: comparison.usage_type || (license?.plan === 'commercial' ? 'commercial' : 'personal'),
                         role: derivedRole,
-                        installation_id: installationId,
+                        installation_id: authoritativeInstallationId,
                         license: centralLicense || license,
                         permissions: {
                             create_license: derivedRole === 'owner',
