@@ -432,7 +432,7 @@ export const SystemManager = {
   },
 
   /**
-   * Executes a raw SQL query via the secure exec_sql function
+   * Executes migration SQL through the admin API so exec_sql is never exposed to browser roles.
    */
   async runMigration(version: string, sql: string, description: string): Promise<boolean> {
     const startTime = Date.now();
@@ -445,10 +445,24 @@ export const SystemManager = {
         return true;
       }
 
-      const { data, error } = await supabase.rpc('exec_sql', { sql_query: sql });
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('Admin session required to run migrations.');
+      }
 
-      if (error || !(data as any)?.success) {
-        const errorMsg = error?.message || (data as any)?.error || 'Unknown error';
+      const response = await fetch('/api/admin?action=run-migration', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ version, sql })
+      });
+
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok || !result?.success) {
+        const errorMsg = result?.error || response.statusText || 'Unknown error';
         console.error(`[SystemManager] Migration ${version} failed:`, errorMsg);
         await this.logMigration(version, description, false, Date.now() - startTime, errorMsg);
         return false;

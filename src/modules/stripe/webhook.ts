@@ -27,6 +27,28 @@ const getRawBody = async (req: VercelRequest): Promise<string> => {
     });
 };
 
+function safeCompare(a?: string | null, b?: string | null): boolean {
+    if (!a || !b) return false;
+
+    const left = Buffer.from(a);
+    const right = Buffer.from(b);
+    if (left.length !== right.length) return false;
+
+    return crypto.timingSafeEqual(left, right);
+}
+
+const WEBHOOK_TIMESTAMP_TOLERANCE = 300;
+
+function isStripeTimestampFresh(timestamp?: string | null): boolean {
+    if (!timestamp || !/^\d+$/.test(timestamp)) return false;
+
+    const timestampSeconds = Number(timestamp);
+    if (!Number.isFinite(timestampSeconds)) return false;
+
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    return Math.abs(nowSeconds - timestampSeconds) <= WEBHOOK_TIMESTAMP_TOLERANCE;
+}
+
 // --- MAIN HANDLER ---
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     // CORS
@@ -109,10 +131,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const parts = signature.split(',');
                 const timestamp = parts.find(p => p.startsWith('t='))?.split('=')[1];
                 const stripeSig = parts.find(p => p.startsWith('v1='))?.split('=')[1];
+
+                if (!isStripeTimestampFresh(timestamp)) {
+                    const msg = 'Stripe signature timestamp is missing, invalid, or outside tolerance';
+                    console.error(`[Stripe Webhook] ${msg}`);
+                    await logWebhook('webhook.stripe_timestamp_error', payload, 400, msg);
+                    return res.status(400).json({ error: msg });
+                }
+
                 const signedPayload = `${timestamp}.${rawBody}`;
                 const expectedSig = crypto.createHmac('sha256', webhookSecret).update(signedPayload).digest('hex');
 
-                if (stripeSig !== expectedSig) {
+                if (!safeCompare(stripeSig, expectedSig)) {
                     const msg = 'Signature mismatch - check your Stripe Webhook Secret';
                     console.error(`[Stripe Webhook] ${msg}`);
                     await logWebhook('webhook.stripe_signature_error', payload, 400, msg);

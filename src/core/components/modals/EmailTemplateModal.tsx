@@ -3,6 +3,7 @@ import { X, Save, Loader2, Info, Eye, Code, Type } from 'lucide-react';
 import { supabase } from '../../services/supabase';
 import { Button } from '../ui/Button';
 import Editor from 'react-simple-wysiwyg';
+import { sanitizeTranslationHtml } from '../../utils/sanitize';
 
 interface EmailTemplate {
     id: string;
@@ -136,7 +137,7 @@ export const EmailTemplateModal: React.FC<EmailTemplateModalProps> = ({ isOpen, 
             preview = preview.split(key).join(dummyData[key]);
         });
 
-        return preview;
+        return sanitizeTranslationHtml(preview);
     };
 
     return (

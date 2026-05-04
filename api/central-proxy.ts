@@ -55,8 +55,6 @@ const ALLOWED_ORIGINS = [
 
 const DEFAULT_CENTRAL_API_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co/functions/v1';
 const DEFAULT_CENTRAL_SUPABASE_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co';
-const DEFAULT_CENTRAL_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJjbW5yeXhqd2Vpb3Zyd216dHBuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc2NjM2MjMsImV4cCI6MjA4MzIzOTYyM30.F86wf0xwTR1K_P9500JwnESStPb2bCo3dwuouHBPcQM';
-const DEFAULT_CENTRAL_SHARED_SECRET = 'd8c36148-5c4e-4f7f-8c3e-9b6f12345678';
 
 const getHostnameFromUrl = (url?: string | null) => {
     if (!url) return null;
@@ -178,9 +176,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // --- 2. Validate required env vars ---
     const centralApiUrl = process.env.VITE_CENTRAL_API_URL || DEFAULT_CENTRAL_API_URL;
-    const centralSecret = process.env.CENTRAL_SHARED_SECRET || DEFAULT_CENTRAL_SHARED_SECRET;
-    if (!centralApiUrl || !centralSecret) {
-        console.error('[Central Proxy] Missing CENTRAL_API_URL or trusted fallback secret');
+    const centralSecret = process.env.CENTRAL_SHARED_SECRET;
+    const centralAnonEnv = process.env.VITE_CENTRAL_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_ANON_KEY;
+    if (!centralApiUrl || !centralSecret || !centralAnonEnv) {
+        console.error('[Central Proxy] Missing CENTRAL_API_URL, CENTRAL_SHARED_SECRET or CENTRAL_SUPABASE_ANON_KEY');
         return res.status(500).json({ error: 'Server configuration error: missing credentials' });
     }
 
@@ -189,7 +188,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(405).json({ error: 'Method not allowed' });
         }
 
-        const centralAnon = process.env.VITE_CENTRAL_SUPABASE_ANON_KEY || DEFAULT_CENTRAL_ANON_KEY;
+        const centralAnon = centralAnonEnv;
         const response = await fetch(`${centralApiUrl}/${endpoint}`, {
             method: 'POST',
             headers: {
@@ -221,7 +220,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const localAnonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
         const localServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
         const centralSupUrl = process.env.VITE_CENTRAL_SUPABASE_URL || process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_URL || centralApiUrl.replace('/functions/v1', '') || DEFAULT_CENTRAL_SUPABASE_URL;
-        const centralAnon = process.env.VITE_CENTRAL_SUPABASE_ANON_KEY || DEFAULT_CENTRAL_ANON_KEY;
+        const centralAnon = centralAnonEnv;
         const centralServiceKey = process.env.CENTRAL_SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_CENTRAL_SUPABASE_SERVICE_ROLE_KEY;
 
         const validationTargets = [

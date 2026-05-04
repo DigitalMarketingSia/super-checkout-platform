@@ -17,6 +17,23 @@ const ALLOWED_ROUTES: { pattern: RegExp; methods: string[] }[] = [
     { pattern: /^\/v1\/payments\/\d+$/,                         methods: ['GET'] },
 ];
 
+const ALLOWED_ORIGINS = [
+    process.env.APP_URL,
+    process.env.SUPER_CHECKOUT_APP_URL,
+    process.env.SUPER_CHECKOUT_PORTAL_URL,
+    process.env.SUPER_CHECKOUT_INSTALL_URL,
+    process.env.VITE_SUPER_CHECKOUT_APP_URL,
+    process.env.VITE_SUPER_CHECKOUT_PORTAL_URL,
+    process.env.VITE_SUPER_CHECKOUT_INSTALL_URL,
+    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
+    process.env.NEXT_PUBLIC_APP_URL,
+    'https://app.supercheckout.app',
+    'https://portal.supercheckout.app',
+    'https://install.supercheckout.app',
+    'http://localhost:3000',
+    'http://localhost:5173'
+].filter(Boolean);
+
 function isEndpointAllowed(endpoint: string, method: string): boolean {
     return ALLOWED_ROUTES.some(
         route => route.pattern.test(endpoint) && route.methods.includes(method)
@@ -25,7 +42,13 @@ function isEndpointAllowed(endpoint: string, method: string): boolean {
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     // 1. Handle CORS
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    const origin = req.headers.origin;
+    if (origin && ALLOWED_ORIGINS.includes(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+    } else {
+        res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGINS[0] || 'https://app.supercheckout.app');
+    }
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS, POST');
     res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization, X-Idempotency-Key');
 

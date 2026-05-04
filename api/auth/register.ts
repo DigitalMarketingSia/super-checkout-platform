@@ -29,7 +29,6 @@ const DEFAULT_LAUNCH_SETTINGS: LaunchSettings = {
 };
 const DEFAULT_CENTRAL_API_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co/functions/v1';
 const DEFAULT_CENTRAL_SUPABASE_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co';
-const DEFAULT_CENTRAL_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJjbW5yeXhqd2Vpb3Zyd216dHBuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc2NjM2MjMsImV4cCI6MjA4MzIzOTYyM30.F86wf0xwTR1K_P9500JwnESStPb2bCo3dwuouHBPcQM';
 const SIGNUP_PROFILE_RETRY_DELAYS_MS = [0, 250, 750] as const;
 
 interface SignupPersistenceParams {
@@ -197,7 +196,9 @@ function getCentralClient(): SupabaseClient | null {
         || process.env.VITE_CENTRAL_API_URL?.replace('/functions/v1', '')
         || DEFAULT_CENTRAL_API_URL.replace('/functions/v1', '')
         || DEFAULT_CENTRAL_SUPABASE_URL;
-    const supabaseAnonKey = process.env.VITE_CENTRAL_SUPABASE_ANON_KEY || DEFAULT_CENTRAL_ANON_KEY;
+    const supabaseAnonKey =
+        process.env.VITE_CENTRAL_SUPABASE_ANON_KEY
+        || process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_ANON_KEY;
 
     if (!supabaseUrl || !supabaseAnonKey) {
         return null;

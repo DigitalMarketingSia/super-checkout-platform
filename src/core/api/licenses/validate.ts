@@ -1,8 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-const DEFAULT_CENTRAL_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJjbW5yeXhqd2Vpb3Zyd216dHBuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc2NjM2MjMsImV4cCI6MjA4MzIzOTYyM30.F86wf0xwTR1K_P9500JwnESStPb2bCo3dwuouHBPcQM';
-
 const getRequestDomain = (req: VercelRequest, fallback?: string | null) => {
     const host = fallback || req.headers['x-forwarded-host'] || req.headers.host || 'unknown';
     return String(Array.isArray(host) ? host[0] : host)
@@ -138,8 +136,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s timeout
                 const centralAnonKey =
                     process.env.VITE_CENTRAL_SUPABASE_ANON_KEY ||
-                    process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_ANON_KEY ||
-                    DEFAULT_CENTRAL_ANON_KEY;
+                    process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_ANON_KEY;
+
+                if (!centralAnonKey) {
+                    console.warn('Missing Central anon key; skipping Central license validation fallback.');
+                    throw new Error('MISSING_CENTRAL_ANON_KEY');
+                }
 
                 // Hardened Validation: Including x-admin-secret server-side
                 const validationRes = await fetch('https://bcmnryxjweiovrwmztpn.supabase.co/functions/v1/validate-license', {

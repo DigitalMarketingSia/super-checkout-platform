@@ -35,12 +35,10 @@ const ALLOWED_ORIGINS = [
 
 const DEFAULT_CENTRAL_API_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co/functions/v1';
 const DEFAULT_CENTRAL_SUPABASE_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co';
-const DEFAULT_CENTRAL_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJjbW5yeXhqd2Vpb3Zyd216dHBuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc2NjM2MjMsImV4cCI6MjA4MzIzOTYyM30.F86wf0xwTR1K_P9500JwnESStPb2bCo3dwuouHBPcQM';
 
-// --- Rate Limiting (In-Memory) ---
-// Note: In-memory state is per-instance on Vercel Serverless.
-// For coordinated multi-instance rate limiting, use a DB or Redis.
-// This provides ~90% protection against single-origin brute force.
+// --- Rate Limiting ---
+// Upstash Redis coordinates limits across serverless instances when configured.
+// In-memory state remains as a conservative fallback for local/dev or outages.
 
 interface RateLimitEntry {
     attempts: number;
@@ -60,6 +58,11 @@ const RATE_LIMIT = {
     ],
 };
 
+const RATE_LIMIT_MAX_BLOCK_MS = Math.max(...RATE_LIMIT.LEVELS.map((level) => level.blockMs));
+const RATE_LIMIT_TTL_SEC = Math.ceil((RATE_LIMIT.WINDOW_MS + RATE_LIMIT_MAX_BLOCK_MS) / 1000);
+
+type UpstashResponse<T> = { result?: T; error?: string };
+
 function getUserAgent(req: VercelRequest): string | null {
     return (req.headers['user-agent'] as string) || null;
 }
@@ -76,6 +79,84 @@ function normalizeEmail(email: string): string {
 
 function emailFingerprint(email: string): string {
     return createHash('sha256').update(normalizeEmail(email)).digest('hex');
+}
+
+function getRateLimitRedisConfig(): { url: string; token: string } | null {
+    const url = process.env.UPSTASH_REDIS_REST_URL?.replace(/\/+$/, '');
+    const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+    if (!url || !token) return null;
+    return { url, token };
+}
+
+function rateLimitRedisKey(key: string): string {
+    const hash = createHash('sha256').update(key || 'unknown').digest('hex');
+    return `sc:auth:login:${hash}`;
+}
+
+async function upstashRedisCommand<T>(command: Array<string | number>): Promise<T> {
+    const config = getRateLimitRedisConfig();
+    if (!config) {
+        throw new Error('Upstash Redis is not configured.');
+    }
+
+    const response = await fetch(config.url, {
+        method: 'POST',
+        headers: {
+            Authorization: `Bearer ${config.token}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(command),
+    });
+
+    const payload = await response.json().catch(() => ({})) as UpstashResponse<T>;
+    if (!response.ok || payload.error) {
+        throw new Error(payload.error || `Upstash Redis request failed with ${response.status}`);
+    }
+
+    return payload.result as T;
+}
+
+async function getDistributedRateLimitEntry(key: string): Promise<RateLimitEntry | null | undefined> {
+    if (!getRateLimitRedisConfig()) return undefined;
+
+    try {
+        const value = await upstashRedisCommand<string | null>(['GET', rateLimitRedisKey(key)]);
+        if (!value) return null;
+        return JSON.parse(value) as RateLimitEntry;
+    } catch (error: any) {
+        console.warn('[Auth/Login] Redis rate limit read failed, using memory fallback:', error?.message || error);
+        return undefined;
+    }
+}
+
+async function setDistributedRateLimitEntry(key: string, entry: RateLimitEntry): Promise<boolean> {
+    if (!getRateLimitRedisConfig()) return false;
+
+    try {
+        await upstashRedisCommand<string>([
+            'SET',
+            rateLimitRedisKey(key),
+            JSON.stringify(entry),
+            'EX',
+            RATE_LIMIT_TTL_SEC,
+        ]);
+        return true;
+    } catch (error: any) {
+        console.warn('[Auth/Login] Redis rate limit write failed, using memory fallback:', error?.message || error);
+        return false;
+    }
+}
+
+async function deleteDistributedRateLimitEntry(key: string): Promise<boolean> {
+    if (!getRateLimitRedisConfig()) return false;
+
+    try {
+        await upstashRedisCommand<number>(['DEL', rateLimitRedisKey(key)]);
+        return true;
+    } catch (error: any) {
+        console.warn('[Auth/Login] Redis rate limit delete failed, using memory fallback:', error?.message || error);
+        return false;
+    }
 }
 
 function getNextThreshold(attempts: number): number | null {
@@ -274,9 +355,11 @@ async function sendProgressiveBlockNotification(params: {
     }
 }
 
-function isRateLimited(key: string): { limited: boolean; retryAfterSec?: number; attempts?: number; blockLevel?: number } {
+async function isRateLimited(key: string): Promise<{ limited: boolean; retryAfterSec?: number; attempts?: number; blockLevel?: number }> {
     const now = Date.now();
-    const entry = rateLimitMap.get(key);
+    const distributedEntry = await getDistributedRateLimitEntry(key);
+    const usesDistributedStore = distributedEntry !== undefined;
+    const entry = usesDistributedStore ? distributedEntry : rateLimitMap.get(key);
 
     if (!entry) return { limited: false };
 
@@ -288,19 +371,33 @@ function isRateLimited(key: string): { limited: boolean; retryAfterSec?: number;
 
     // Reset if window expired
     if (now - entry.firstAttempt > RATE_LIMIT.WINDOW_MS) {
-        rateLimitMap.delete(key);
+        if (usesDistributedStore) {
+            await deleteDistributedRateLimitEntry(key);
+        } else {
+            rateLimitMap.delete(key);
+        }
         return { limited: false };
     }
 
     return { limited: false };
 }
 
-function recordFailedAttempt(key: string): { attempts: number; blockLevel?: typeof RATE_LIMIT.LEVELS[number]; retryAfterSec?: number } {
+async function persistRateLimitEntry(key: string, entry: RateLimitEntry, usesDistributedStore: boolean): Promise<void> {
+    if (usesDistributedStore) {
+        const persisted = await setDistributedRateLimitEntry(key, entry);
+        if (persisted) return;
+    }
+    rateLimitMap.set(key, entry);
+}
+
+async function recordFailedAttempt(key: string): Promise<{ attempts: number; blockLevel?: typeof RATE_LIMIT.LEVELS[number]; retryAfterSec?: number }> {
     const now = Date.now();
-    const entry = rateLimitMap.get(key);
+    const distributedEntry = await getDistributedRateLimitEntry(key);
+    const usesDistributedStore = distributedEntry !== undefined;
+    const entry = usesDistributedStore ? distributedEntry : rateLimitMap.get(key);
 
     if (!entry || (now - entry.firstAttempt > RATE_LIMIT.WINDOW_MS)) {
-        rateLimitMap.set(key, { attempts: 1, firstAttempt: now, blockedUntil: 0 });
+        await persistRateLimitEntry(key, { attempts: 1, firstAttempt: now, blockedUntil: 0 }, usesDistributedStore);
         return { attempts: 1 };
     }
 
@@ -310,6 +407,7 @@ function recordFailedAttempt(key: string): { attempts: number; blockLevel?: type
     if (blockLevel) {
         entry.blockedUntil = now + blockLevel.blockMs;
         entry.blockLevel = blockLevel.attempts;
+        await persistRateLimitEntry(key, entry, usesDistributedStore);
         return {
             attempts: entry.attempts,
             blockLevel,
@@ -317,28 +415,33 @@ function recordFailedAttempt(key: string): { attempts: number; blockLevel?: type
         };
     }
 
+    await persistRateLimitEntry(key, entry, usesDistributedStore);
     return { attempts: entry.attempts };
 }
 
-function applyProgressiveBlock(key: string, attempts: number, blockLevel: typeof RATE_LIMIT.LEVELS[number]): number {
+async function applyProgressiveBlock(key: string, attempts: number, blockLevel: typeof RATE_LIMIT.LEVELS[number]): Promise<number> {
     const now = Date.now();
-    const entry = rateLimitMap.get(key) || { attempts, firstAttempt: now, blockedUntil: 0 };
+    const distributedEntry = await getDistributedRateLimitEntry(key);
+    const usesDistributedStore = distributedEntry !== undefined;
+    const entry = distributedEntry || rateLimitMap.get(key) || { attempts, firstAttempt: now, blockedUntil: 0 };
     entry.attempts = Math.max(entry.attempts, attempts);
     entry.blockedUntil = now + blockLevel.blockMs;
     entry.blockLevel = blockLevel.attempts;
-    rateLimitMap.set(key, entry);
+    await persistRateLimitEntry(key, entry, usesDistributedStore);
     return Math.ceil(blockLevel.blockMs / 1000);
 }
 
-function resetAttempts(key: string): void {
-    rateLimitMap.delete(key);
+async function resetAttempts(key: string): Promise<void> {
+    const deleted = await deleteDistributedRateLimitEntry(key);
+    if (!deleted) {
+        rateLimitMap.delete(key);
+    }
 }
 
 function cleanupStaleRateLimitEntries(): void {
     const now = Date.now();
-    const maxBlockMs = Math.max(...RATE_LIMIT.LEVELS.map((level) => level.blockMs));
     for (const [key, entry] of rateLimitMap.entries()) {
-        if (now - entry.firstAttempt > RATE_LIMIT.WINDOW_MS + maxBlockMs) {
+        if (now - entry.firstAttempt > RATE_LIMIT.WINDOW_MS + RATE_LIMIT_MAX_BLOCK_MS) {
             rateLimitMap.delete(key);
         }
     }
@@ -368,7 +471,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
              || 'unknown';
 
     // --- Rate Limit Check (FAIL-CLOSED) ---
-    const { limited, retryAfterSec, attempts: limitedAttempts, blockLevel } = isRateLimited(ip);
+    const { limited, retryAfterSec, attempts: limitedAttempts, blockLevel } = await isRateLimited(ip);
     if (limited) {
         console.warn(`[Auth/Login] 🚫 Rate limited IP: ${ip} (retry in ${retryAfterSec}s)`);
         await logAuthEvent({
@@ -414,7 +517,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             || process.env.VITE_CENTRAL_API_URL?.replace('/functions/v1', '')
             || DEFAULT_CENTRAL_API_URL.replace('/functions/v1', '')
             || DEFAULT_CENTRAL_SUPABASE_URL;
-        supabaseAnonKey = process.env.VITE_CENTRAL_SUPABASE_ANON_KEY || DEFAULT_CENTRAL_ANON_KEY;
+        supabaseAnonKey =
+            process.env.VITE_CENTRAL_SUPABASE_ANON_KEY
+            || process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_ANON_KEY
+            || '';
     } else {
         // Default: Local Supabase (Login.tsx, MemberLogin.tsx)
         supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -437,7 +543,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (error) {
             console.warn(`[Auth/Login] ❌ Failed login for ${email} from IP ${ip}: ${error.message}`);
             
-            const failedAttempt = recordFailedAttempt(ip);
+            const failedAttempt = await recordFailedAttempt(ip);
             await logAuthEvent({
                 supabaseUrl: auditSupabaseUrl,
                 serviceKey,
@@ -465,7 +571,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const blockLevel = failedAttempt.blockLevel || thresholdBlock;
 
             if (blockLevel) {
-                const retryAfterSec = applyProgressiveBlock(ip, effectiveAttempts, blockLevel);
+                const retryAfterSec = await applyProgressiveBlock(ip, effectiveAttempts, blockLevel);
                 const blockedUntilIso = new Date(Date.now() + retryAfterSec * 1000).toISOString();
 
                 await logAuthEvent({
@@ -523,7 +629,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         // --- Success: Reset rate limit for this IP ---
-        resetAttempts(ip);
+        await resetAttempts(ip);
         console.log(`[Auth/Login] ✅ Successful login for ${email} from IP ${ip}`);
         await logAuthEvent({
             supabaseUrl: auditSupabaseUrl,

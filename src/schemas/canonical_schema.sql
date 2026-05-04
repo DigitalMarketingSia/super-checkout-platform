@@ -49,7 +49,6 @@ CREATE TABLE IF NOT EXISTS public.system_updates_log(
 
 ALTER TABLE public.system_info ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_updates_log ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Authenticated users can manage system info" ON public.system_info FOR ALL USING(auth.role() = 'authenticated') WITH CHECK(auth.role() = 'authenticated');
 CREATE POLICY "Authenticated users can manage system update logs" ON public.system_updates_log FOR ALL USING(auth.role() = 'authenticated') WITH CHECK(auth.role() = 'authenticated');
 
 CREATE TABLE IF NOT EXISTS public.system_email_templates(
@@ -1020,11 +1019,17 @@ CREATE POLICY "Public can create payments" ON payments FOR INSERT WITH CHECK(tru
 -- NOTA: Webhooks usam service_role (bypass RLS). Frontend admin usa is_admin().
 
 -- Email Templates
-CREATE POLICY "Admins can manage email templates" ON public.email_templates 
-FOR ALL USING (public.is_admin());
+CREATE POLICY "Admins can read email templates" ON public.email_templates
+FOR SELECT TO authenticated USING (public.is_admin());
 
-CREATE POLICY "Public/Members can read active templates" ON public.email_templates 
-FOR SELECT USING (active = true);
+CREATE POLICY "Admins can insert email templates" ON public.email_templates
+FOR INSERT TO authenticated WITH CHECK (public.is_admin());
+
+CREATE POLICY "Admins can update email templates" ON public.email_templates
+FOR UPDATE TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+CREATE POLICY "Admins can delete email templates" ON public.email_templates
+FOR DELETE TO authenticated USING (public.is_admin());
 
 -- Contents
 CREATE POLICY "Users can manage their own contents" ON contents FOR ALL USING(
@@ -1082,6 +1087,29 @@ CREATE POLICY "Public can read business settings" ON public.business_settings
 FOR SELECT USING(true);
 
 -- Config Tables
+CREATE POLICY "Admins can read system info" ON public.system_info
+FOR SELECT TO authenticated USING (public.is_admin());
+
+CREATE POLICY "Admins can insert system info" ON public.system_info
+FOR INSERT TO authenticated WITH CHECK (public.is_admin());
+
+CREATE POLICY "Admins can update system info" ON public.system_info
+FOR UPDATE TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+ALTER TABLE public.system_email_templates ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Admins can read system email templates" ON public.system_email_templates
+FOR SELECT TO authenticated USING (public.is_admin());
+
+CREATE POLICY "Admins can insert system email templates" ON public.system_email_templates
+FOR INSERT TO authenticated WITH CHECK (public.is_admin());
+
+CREATE POLICY "Admins can update system email templates" ON public.system_email_templates
+FOR UPDATE TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+CREATE POLICY "Admins can delete system email templates" ON public.system_email_templates
+FOR DELETE TO authenticated USING (public.is_admin());
+
 CREATE POLICY "Admins can manage member notes" ON public.member_notes FOR ALL USING(EXISTS(SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'));
 CREATE POLICY "Admins can manage member tags" ON public.member_tags FOR ALL USING(EXISTS(SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'));
 
@@ -1101,8 +1129,14 @@ USING(account_id IN (SELECT id FROM public.accounts WHERE owner_user_id = auth.u
 CREATE POLICY "Users can manage their own integrations" ON public.integrations FOR ALL USING(auth.uid() = user_id);
 
 -- Licenses
-CREATE POLICY "Admin can manage licenses" ON licenses USING(auth.role() = 'authenticated') WITH CHECK(auth.role() = 'authenticated');
-CREATE POLICY "Admin can view validation logs" ON validation_logs FOR SELECT USING(auth.role() = 'authenticated');
+CREATE POLICY "Users can view own license" ON public.licenses FOR SELECT TO authenticated USING(auth.uid() = owner_id OR public.is_admin());
+CREATE POLICY "Admins can insert licenses" ON public.licenses FOR INSERT TO authenticated WITH CHECK(public.is_admin());
+CREATE POLICY "Admins can update licenses" ON public.licenses FOR UPDATE TO authenticated USING(public.is_admin()) WITH CHECK(public.is_admin());
+CREATE POLICY "Admins can delete licenses" ON public.licenses FOR DELETE TO authenticated USING(public.is_admin());
+CREATE POLICY "Service Role full access licenses" ON public.licenses TO service_role USING(true) WITH CHECK(true);
+
+CREATE POLICY "Admins can view validation logs" ON public.validation_logs FOR SELECT TO authenticated USING(public.is_admin());
+CREATE POLICY "Service Role full access validation logs" ON public.validation_logs TO service_role USING(true) WITH CHECK(true);
 
 -- Product Contents
 CREATE POLICY "Users can manage product contents" ON product_contents FOR ALL USING(
@@ -1132,33 +1166,45 @@ DROP POLICY IF EXISTS "Authenticated Upload Checkouts" ON storage.objects;
 DROP POLICY IF EXISTS "Authenticated Update Checkouts" ON storage.objects;
 DROP POLICY IF EXISTS "Authenticated Delete Checkouts" ON storage.objects;
 DROP POLICY IF EXISTS "Public Access Products" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated Read Products" ON storage.objects;
 DROP POLICY IF EXISTS "Authenticated Upload Products" ON storage.objects;
 DROP POLICY IF EXISTS "Authenticated Update Products" ON storage.objects;
 DROP POLICY IF EXISTS "Authenticated Delete Products" ON storage.objects;
 DROP POLICY IF EXISTS "Public Access Avatars" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated Read Avatars" ON storage.objects;
 DROP POLICY IF EXISTS "Authenticated Upload Avatars" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated Read Member Areas" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated Read Contents" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated Read Checkouts" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated Read Modules" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated Read Activation Assets" ON storage.objects;
+DROP POLICY IF EXISTS "Public Access Modules" ON storage.objects;
+DROP POLICY IF EXISTS "Public Access Activation Assets" ON storage.objects;
 
 -- Re-create Storage Policies
-CREATE POLICY "Public Access Member Areas" ON storage.objects FOR SELECT USING(bucket_id = 'member-areas');
+CREATE POLICY "Authenticated Read Member Areas" ON storage.objects FOR SELECT TO authenticated USING(bucket_id = 'member-areas');
 CREATE POLICY "Authenticated Upload Member Areas" ON storage.objects FOR INSERT WITH CHECK(bucket_id = 'member-areas' AND auth.role() = 'authenticated');
 CREATE POLICY "Authenticated Update Member Areas" ON storage.objects FOR UPDATE USING(bucket_id = 'member-areas' AND auth.role() = 'authenticated');
 
-CREATE POLICY "Public Access Contents" ON storage.objects FOR SELECT USING(bucket_id = 'contents');
+CREATE POLICY "Authenticated Read Contents" ON storage.objects FOR SELECT TO authenticated USING(bucket_id = 'contents');
 CREATE POLICY "Authenticated Upload Contents" ON storage.objects FOR INSERT WITH CHECK(bucket_id = 'contents' AND auth.role() = 'authenticated');
 CREATE POLICY "Authenticated Update Contents" ON storage.objects FOR UPDATE USING(bucket_id = 'contents' AND auth.role() = 'authenticated');
 
-CREATE POLICY "Public Access Checkouts" ON storage.objects FOR SELECT USING(bucket_id = 'checkouts');
+CREATE POLICY "Authenticated Read Checkouts" ON storage.objects FOR SELECT TO authenticated USING(bucket_id = 'checkouts');
 CREATE POLICY "Authenticated Upload Checkouts" ON storage.objects FOR INSERT WITH CHECK(bucket_id = 'checkouts' AND auth.role() = 'authenticated');
 CREATE POLICY "Authenticated Update Checkouts" ON storage.objects FOR UPDATE USING(bucket_id = 'checkouts' AND auth.role() = 'authenticated');
 CREATE POLICY "Authenticated Delete Checkouts" ON storage.objects FOR DELETE USING(bucket_id = 'checkouts' AND auth.role() = 'authenticated');
 
-CREATE POLICY "Public Access Products" ON storage.objects FOR SELECT USING(bucket_id = 'products');
+CREATE POLICY "Authenticated Read Products" ON storage.objects FOR SELECT TO authenticated USING(bucket_id = 'products');
 CREATE POLICY "Authenticated Upload Products" ON storage.objects FOR INSERT WITH CHECK(bucket_id = 'products' AND auth.role() = 'authenticated');
 CREATE POLICY "Authenticated Update Products" ON storage.objects FOR UPDATE USING(bucket_id = 'products' AND auth.role() = 'authenticated');
 CREATE POLICY "Authenticated Delete Products" ON storage.objects FOR DELETE USING(bucket_id = 'products' AND auth.role() = 'authenticated');
 
-CREATE POLICY "Public Access Avatars" ON storage.objects FOR SELECT USING(bucket_id = 'avatars');
+CREATE POLICY "Authenticated Read Avatars" ON storage.objects FOR SELECT TO authenticated USING(bucket_id = 'avatars');
 CREATE POLICY "Authenticated Upload Avatars" ON storage.objects FOR INSERT WITH CHECK(bucket_id = 'avatars' AND auth.role() = 'authenticated');
+
+CREATE POLICY "Authenticated Read Modules" ON storage.objects FOR SELECT TO authenticated USING(bucket_id = 'modules');
+CREATE POLICY "Authenticated Read Activation Assets" ON storage.objects FOR SELECT TO authenticated USING(bucket_id = 'activation-assets');
 
 -- ==========================================
 -- 8. LICENSE SECURITY SHIELD (Critical)

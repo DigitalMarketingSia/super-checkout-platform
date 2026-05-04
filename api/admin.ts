@@ -4,6 +4,7 @@ import membersHandler from '../src/core/api/admin/members.js';
 import saveGatewayHandler from '../src/core/api/admin/save-gateway.js';
 import securityEventsHandler from '../src/core/api/admin/security-events.js';
 import schemaAuditHandler from '../src/core/api/admin/schema-audit.js';
+import runMigrationHandler from '../src/core/api/admin/run-migration.js';
 import systemInfoHandler from '../src/core/api/admin/system-info.js';
 import updateLogHandler from '../src/core/api/admin/update-log.js';
 
@@ -43,6 +44,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return await securityEventsHandler(req, res);
             case 'schema-audit':
                 return await schemaAuditHandler(req, res);
+            case 'run-migration':
+                return await runMigrationHandler(req, res);
             case 'system-info':
                 return await systemInfoHandler(req, res);
             case 'update-log':

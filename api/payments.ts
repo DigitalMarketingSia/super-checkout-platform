@@ -9,8 +9,17 @@ import { securityService } from '../src/core/services/securityService.js';
  */
 const ALLOWED_ORIGINS = [
     process.env.APP_URL,
+    process.env.SUPER_CHECKOUT_APP_URL,
+    process.env.SUPER_CHECKOUT_PORTAL_URL,
+    process.env.SUPER_CHECKOUT_INSTALL_URL,
+    process.env.VITE_SUPER_CHECKOUT_APP_URL,
+    process.env.VITE_SUPER_CHECKOUT_PORTAL_URL,
+    process.env.VITE_SUPER_CHECKOUT_INSTALL_URL,
     process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
     process.env.NEXT_PUBLIC_APP_URL,
+    'https://app.supercheckout.app',
+    'https://portal.supercheckout.app',
+    'https://install.supercheckout.app',
     'http://localhost:3000',
     'http://localhost:5173'
 ].filter(Boolean);
@@ -21,7 +30,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (origin && ALLOWED_ORIGINS.includes(origin)) {
         res.setHeader('Access-Control-Allow-Origin', origin);
     } else {
-        res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGINS[0] || '*');
+        res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGINS[0] || 'https://app.supercheckout.app');
     }
     
     res.setHeader('Access-Control-Allow-Credentials', 'true');

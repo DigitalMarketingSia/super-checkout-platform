@@ -75,6 +75,26 @@ const invokeFulfillOrder = async (
 // --- ANTI-REPLAY: Timestamp validation (5 min window) ---
 const WEBHOOK_TIMESTAMP_TOLERANCE = 300; // 5 minutes in seconds
 
+function safeCompare(a?: string | null, b?: string | null): boolean {
+    if (!a || !b) return false;
+
+    const left = Buffer.from(a);
+    const right = Buffer.from(b);
+    if (left.length !== right.length) return false;
+
+    return crypto.timingSafeEqual(left, right);
+}
+
+function isStripeTimestampFresh(timestamp?: string | null): boolean {
+    if (!timestamp || !/^\d+$/.test(timestamp)) return false;
+
+    const timestampSeconds = Number(timestamp);
+    if (!Number.isFinite(timestampSeconds)) return false;
+
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    return Math.abs(nowSeconds - timestampSeconds) <= WEBHOOK_TIMESTAMP_TOLERANCE;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { action } = req.query;
 
@@ -170,9 +190,11 @@ async function handleStripe(req: VercelRequest, res: VercelResponse, rawBody: st
         const parts = signature.split(',');
         const timestamp = (parts.find(p => p.startsWith('t=')) || '').split('=')[1];
         const stripeSig = (parts.find(p => p.startsWith('v1=')) || '').split('=')[1];
+
+        if (!isStripeTimestampFresh(timestamp)) return res.status(401).json({ status: 'STALE_SIGNATURE' });
         
         const expectedSig = crypto.createHmac('sha256', secret).update(`${timestamp}.${rawBody}`).digest('hex');
-        if (stripeSig !== expectedSig) return res.status(401).json({ status: 'INVALID_SIGNATURE' });
+        if (!safeCompare(stripeSig, expectedSig)) return res.status(401).json({ status: 'INVALID_SIGNATURE' });
     } catch (e) { return res.status(401).json({ status: 'SIG_ERROR' }); }
 
     const successEvents = ['payment_intent.succeeded', 'charge.succeeded', 'checkout.session.completed'];
@@ -287,7 +309,7 @@ async function handleCentral(req: VercelRequest, res: VercelResponse, rawBody: s
     const centralSecret = process.env.CENTRAL_SHARED_SECRET;
     const incomingSig = req.headers['x-super-checkout-signature'] as string;
 
-    if (!centralSecret || incomingSig !== centralSecret) return res.status(401).json({ status: 'UNAUTHORIZED' });
+    if (!centralSecret || !safeCompare(incomingSig, centralSecret)) return res.status(401).json({ status: 'UNAUTHORIZED' });
     if (!event || !CENTRAL_ALLOWED_EVENTS.includes(event)) return res.status(400).json({ status: 'INVALID_EVENT' });
 
     const centralIdempotencyKey = `central_${event}_${data?.license_key}`;

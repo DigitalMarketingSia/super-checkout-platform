@@ -579,6 +579,7 @@ ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.member_notes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.member_tags ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.activity_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.system_config ENABLE ROW LEVEL SECURITY;
 
 -- Drop all existing policies to avoid conflicts (safest approach for installer)
 DO $$
@@ -663,6 +664,11 @@ CREATE POLICY "Users can update their own profile" ON public.profiles FOR UPDATE
 CREATE POLICY "Admins can manage all profiles" ON public.profiles FOR ALL USING (public.is_admin());
 
 -- Config Tables
+CREATE POLICY "Admins can read system config" ON public.system_config FOR SELECT TO authenticated USING (public.is_admin());
+CREATE POLICY "Admins can insert system config" ON public.system_config FOR INSERT TO authenticated WITH CHECK (public.is_admin());
+CREATE POLICY "Admins can update system config" ON public.system_config FOR UPDATE TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+CREATE POLICY "Admins can delete system config" ON public.system_config FOR DELETE TO authenticated USING (public.is_admin());
+
 CREATE POLICY "Admins can manage member notes" ON public.member_notes FOR ALL USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'));
 CREATE POLICY "Admins can manage member tags" ON public.member_tags FOR ALL USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'));
 
@@ -672,8 +678,14 @@ CREATE POLICY "Users can view their own logs" ON public.activity_logs FOR SELECT
 CREATE POLICY "Admins can view all logs" ON public.activity_logs FOR SELECT USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'));
 
 -- Licenses
-CREATE POLICY "Admin can manage licenses" ON licenses USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
-CREATE POLICY "Admin can view validation logs" ON validation_logs FOR SELECT USING (auth.role() = 'authenticated');
+CREATE POLICY "Users can view own license" ON public.licenses FOR SELECT TO authenticated USING (auth.uid() = owner_id OR public.is_admin());
+CREATE POLICY "Admins can insert licenses" ON public.licenses FOR INSERT TO authenticated WITH CHECK (public.is_admin());
+CREATE POLICY "Admins can update licenses" ON public.licenses FOR UPDATE TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+CREATE POLICY "Admins can delete licenses" ON public.licenses FOR DELETE TO authenticated USING (public.is_admin());
+CREATE POLICY "Service Role full access licenses" ON public.licenses TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY "Admins can view validation logs" ON public.validation_logs FOR SELECT TO authenticated USING (public.is_admin());
+CREATE POLICY "Service Role full access validation logs" ON public.validation_logs TO service_role USING (true) WITH CHECK (true);
 
 -- ==========================================
 -- 6. STORAGE BUCKETS (Idempotent)
@@ -696,28 +708,44 @@ DROP POLICY IF EXISTS "Authenticated Upload Checkouts" ON storage.objects;
 DROP POLICY IF EXISTS "Authenticated Update Checkouts" ON storage.objects;
 DROP POLICY IF EXISTS "Authenticated Delete Checkouts" ON storage.objects;
 DROP POLICY IF EXISTS "Public Access Products" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated Read Products" ON storage.objects;
 DROP POLICY IF EXISTS "Authenticated Upload Products" ON storage.objects;
 DROP POLICY IF EXISTS "Authenticated Update Products" ON storage.objects;
 DROP POLICY IF EXISTS "Authenticated Delete Products" ON storage.objects;
+DROP POLICY IF EXISTS "Public Access Avatars" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated Read Avatars" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated Upload Avatars" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated Read Member Areas" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated Read Contents" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated Read Checkouts" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated Read Modules" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated Read Activation Assets" ON storage.objects;
+DROP POLICY IF EXISTS "Public Access Modules" ON storage.objects;
+DROP POLICY IF EXISTS "Public Access Activation Assets" ON storage.objects;
 
 -- Re-create Storage Policies
-CREATE POLICY "Public Access Member Areas" ON storage.objects FOR SELECT USING (bucket_id = 'member-areas');
+CREATE POLICY "Authenticated Read Member Areas" ON storage.objects FOR SELECT TO authenticated USING (bucket_id = 'member-areas');
 CREATE POLICY "Authenticated Upload Member Areas" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'member-areas' AND auth.role() = 'authenticated');
 CREATE POLICY "Authenticated Update Member Areas" ON storage.objects FOR UPDATE USING (bucket_id = 'member-areas' AND auth.role() = 'authenticated');
 
-CREATE POLICY "Public Access Contents" ON storage.objects FOR SELECT USING (bucket_id = 'contents');
+CREATE POLICY "Authenticated Read Contents" ON storage.objects FOR SELECT TO authenticated USING (bucket_id = 'contents');
 CREATE POLICY "Authenticated Upload Contents" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'contents' AND auth.role() = 'authenticated');
 CREATE POLICY "Authenticated Update Contents" ON storage.objects FOR UPDATE USING (bucket_id = 'contents' AND auth.role() = 'authenticated');
 
-CREATE POLICY "Public Access Checkouts" ON storage.objects FOR SELECT USING (bucket_id = 'checkouts');
+CREATE POLICY "Authenticated Read Checkouts" ON storage.objects FOR SELECT TO authenticated USING (bucket_id = 'checkouts');
 CREATE POLICY "Authenticated Upload Checkouts" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'checkouts' AND auth.role() = 'authenticated');
 CREATE POLICY "Authenticated Update Checkouts" ON storage.objects FOR UPDATE USING (bucket_id = 'checkouts' AND auth.role() = 'authenticated');
 CREATE POLICY "Authenticated Delete Checkouts" ON storage.objects FOR DELETE USING (bucket_id = 'checkouts' AND auth.role() = 'authenticated');
 
-CREATE POLICY "Public Access Products" ON storage.objects FOR SELECT USING (bucket_id = 'products');
+CREATE POLICY "Authenticated Read Products" ON storage.objects FOR SELECT TO authenticated USING (bucket_id = 'products');
 CREATE POLICY "Authenticated Upload Products" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'products' AND auth.role() = 'authenticated');
 CREATE POLICY "Authenticated Update Products" ON storage.objects FOR UPDATE USING (bucket_id = 'products' AND auth.role() = 'authenticated');
 CREATE POLICY "Authenticated Delete Products" ON storage.objects FOR DELETE USING (bucket_id = 'products' AND auth.role() = 'authenticated');
+
+CREATE POLICY "Authenticated Read Avatars" ON storage.objects FOR SELECT TO authenticated USING (bucket_id = 'avatars');
+CREATE POLICY "Authenticated Upload Avatars" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'avatars' AND auth.role() = 'authenticated');
+CREATE POLICY "Authenticated Read Modules" ON storage.objects FOR SELECT TO authenticated USING (bucket_id = 'modules');
+CREATE POLICY "Authenticated Read Activation Assets" ON storage.objects FOR SELECT TO authenticated USING (bucket_id = 'activation-assets');
 `;
 
 export const config = {
