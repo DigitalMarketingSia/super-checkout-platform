@@ -897,7 +897,7 @@ class StorageService {
     console.warn('Public gateway view failed, trying server fallback:', error?.message);
 
     try {
-      const response = await fetch(`/api/public-gateway?id=${encodeURIComponent(id)}`);
+      const response = await fetch(`/api/system?action=public-gateway&id=${encodeURIComponent(id)}`);
       const json = await response.json().catch(() => ({}));
 
       if (!response.ok) {

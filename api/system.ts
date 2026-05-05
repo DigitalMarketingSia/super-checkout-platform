@@ -41,6 +41,59 @@ async function fallbackCheckStatusHandler(req: VercelRequest, res: VercelRespons
     return res.status(200).json({ status, fallback: true });
 }
 
+async function publicGatewayHandler(req: VercelRequest, res: VercelResponse) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+    if (req.method === 'OPTIONS') return res.status(200).end();
+    if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+
+    const id = String(req.query.id || '').trim();
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
+        return res.status(400).json({ error: 'Invalid gateway id' });
+    }
+
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !serviceKey) {
+        return res.status(500).json({ error: 'Server configuration error' });
+    }
+
+    const gatewayRes = await fetch(
+        `${supabaseUrl}/rest/v1/gateways?id=eq.${encodeURIComponent(id)}&select=id,name,provider,public_key,active,is_active,config&limit=1`,
+        {
+            headers: {
+                apikey: serviceKey,
+                Authorization: `Bearer ${serviceKey}`,
+            },
+        },
+    );
+
+    if (!gatewayRes.ok) {
+        const text = await gatewayRes.text();
+        console.error('[System] public-gateway lookup failed:', text);
+        return res.status(500).json({ error: 'Failed to load gateway' });
+    }
+
+    const rows = await gatewayRes.json();
+    const gateway = rows?.[0];
+    if (!gateway || (gateway.active === false && gateway.is_active === false)) {
+        return res.status(404).json({ error: 'Gateway not found' });
+    }
+
+    return res.status(200).json({
+        id: gateway.id,
+        name: gateway.name || gateway.provider,
+        provider: gateway.provider || gateway.name,
+        public_key: gateway.public_key,
+        active: gateway.active,
+        is_active: gateway.is_active,
+        config: gateway.config || {},
+    });
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { action } = req.query;
 
@@ -61,6 +114,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return await proxyHandler(req, res);
             case 'send-email':
                 return await sendEmailHandler(req, res);
+            case 'public-gateway':
+                return await publicGatewayHandler(req, res);
             default:
                 return res.status(404).json({ error: `Action ${action} not found in System Controller` });
         }
