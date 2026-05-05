@@ -14,6 +14,110 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey || '', {
     }
 });
 
+async function resolveMemberAreaAccessIds(memberAreaId?: string) {
+    if (!memberAreaId) return { contentIds: [] as string[], productIds: [] as string[] };
+
+    const { data: contents, error: contentsError } = await supabaseAdmin
+        .from('contents')
+        .select('id')
+        .eq('member_area_id', memberAreaId);
+
+    if (contentsError) throw contentsError;
+
+    const contentIds = (contents || []).map((content: any) => content.id).filter(Boolean);
+    if (contentIds.length === 0) return { contentIds, productIds: [] as string[] };
+
+    const { data: productLinks, error: productLinksError } = await supabaseAdmin
+        .from('product_contents')
+        .select('product_id')
+        .in('content_id', contentIds);
+
+    if (productLinksError) throw productLinksError;
+
+    const productIds = Array.from(new Set((productLinks || []).map((link: any) => link.product_id).filter(Boolean)));
+    return { contentIds, productIds };
+}
+
+async function updateMemberAreaAccess(userId: string, status: 'active' | 'suspended' | 'revoked', memberAreaId?: string) {
+    const { contentIds, productIds } = await resolveMemberAreaAccessIds(memberAreaId);
+    const updates: PromiseLike<any>[] = [];
+
+    if (memberAreaId) {
+        if (productIds.length > 0) {
+            updates.push(
+                supabaseAdmin
+                    .from('access_grants')
+                    .update({ status })
+                    .eq('user_id', userId)
+                    .in('product_id', productIds),
+            );
+        }
+
+        if (contentIds.length > 0) {
+            updates.push(
+                supabaseAdmin
+                    .from('access_grants')
+                    .update({ status })
+                    .eq('user_id', userId)
+                    .in('content_id', contentIds),
+            );
+        }
+
+        if (updates.length === 0) return;
+    } else {
+        updates.push(
+            supabaseAdmin
+                .from('access_grants')
+                .update({ status })
+                .eq('user_id', userId),
+        );
+    }
+
+    const results = await Promise.all(updates);
+    const failed = results.find((result: any) => result.error);
+    if (failed?.error) throw failed.error;
+}
+
+async function deleteMemberAreaAccess(userId: string, memberAreaId?: string) {
+    const { contentIds, productIds } = await resolveMemberAreaAccessIds(memberAreaId);
+    const deletes: PromiseLike<any>[] = [];
+
+    if (memberAreaId) {
+        if (productIds.length > 0) {
+            deletes.push(
+                supabaseAdmin
+                    .from('access_grants')
+                    .delete()
+                    .eq('user_id', userId)
+                    .in('product_id', productIds),
+            );
+        }
+
+        if (contentIds.length > 0) {
+            deletes.push(
+                supabaseAdmin
+                    .from('access_grants')
+                    .delete()
+                    .eq('user_id', userId)
+                    .in('content_id', contentIds),
+            );
+        }
+
+        if (deletes.length === 0) return;
+    } else {
+        deletes.push(
+            supabaseAdmin
+                .from('access_grants')
+                .delete()
+                .eq('user_id', userId),
+        );
+    }
+
+    const results = await Promise.all(deletes);
+    const failed = results.find((result: any) => result.error);
+    if (failed?.error) throw failed.error;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     // CORS
     res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -226,35 +330,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             // --- SUSPEND / BLOCK ---
             if (action === 'suspend') {
-                const { userId } = data;
+                const { userId, memberAreaId } = data;
                 if (!userId) return res.status(400).json({ error: 'UserId required' });
+                if (!memberAreaId) return res.status(400).json({ error: 'MemberAreaId required for area access suspension' });
 
-                // Update Profile status
-                const { error } = await supabaseAdmin
-                    .from('profiles')
-                    .update({ status: 'suspended' })
-                    .eq('id', userId);
-
-                if (error) throw error;
-
-                // Also potentially ban in Auth?
-                await supabaseAdmin.auth.admin.updateUserById(userId, { ban_duration: '876000h' }); // Ban for 100 years
+                await updateMemberAreaAccess(userId, 'suspended', memberAreaId);
 
                 return res.status(200).json({ success: true });
             }
 
             // --- ACTIVATE ---
             if (action === 'activate') {
-                const { userId } = data;
+                const { userId, memberAreaId } = data;
+                if (!userId) return res.status(400).json({ error: 'UserId required' });
+                if (!memberAreaId) return res.status(400).json({ error: 'MemberAreaId required for area access activation' });
 
-                // Update Profile
-                await supabaseAdmin
-                    .from('profiles')
-                    .update({ status: 'active' })
-                    .eq('id', userId);
-
-                // Unban in Auth
-                await supabaseAdmin.auth.admin.updateUserById(userId, { ban_duration: '0' });
+                await updateMemberAreaAccess(userId, 'active', memberAreaId);
 
                 return res.status(200).json({ success: true });
             }
@@ -286,7 +377,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             // --- DELETE USER ---
             if (action === 'delete') {
-                const { userId, email } = data;
+                const { userId, email, memberAreaId } = data;
                 let targetId = userId;
 
                 if (!targetId && email) {
@@ -312,16 +403,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
 
                 if (!targetId) return res.status(400).json({ error: 'UserId required' });
+                if (!memberAreaId) return res.status(400).json({ error: 'MemberAreaId required for area member removal' });
 
-                // 1. Delete from Auth (Cascade should handle profile? No, usually other way around or manual)
-                const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(targetId);
-                if (deleteError) {
-                    console.error('Error deleting auth user:', deleteError);
-                    return res.status(400).json({ error: deleteError.message });
-                }
-
-                // 2. Delete from Profiles (Manually to be safe if cascade missing)
-                await supabaseAdmin.from('profiles').delete().eq('id', targetId);
+                await deleteMemberAreaAccess(targetId, memberAreaId);
 
                 return res.status(200).json({ success: true });
             }

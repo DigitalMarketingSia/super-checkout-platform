@@ -194,46 +194,31 @@ export const memberService = {
         return data;
     },
 
-    async updateMemberStatus(userId: string, status: 'active' | 'suspended' | 'disabled') {
+    async updateMemberStatus(userId: string, status: 'active' | 'suspended' | 'disabled', memberAreaId?: string) {
         const action = status === 'suspended' ? 'suspend' : status === 'active' ? 'activate' : 'disable';
 
-        try {
-            const response = await fetch('/api/admin/members', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action, userId })
-            });
-
-            const contentType = response.headers.get("content-type");
-            if (!response.ok || (contentType && contentType.includes("text/html"))) {
-                throw new Error('API unavailable');
-            }
-            // Log success
-            this.logActivity(userId, `status_changed_to_${status}`, { action, p: 'admin' });
-        } catch (e) {
-            console.warn('Backend API failed, trying direct Supabase update (Local Dev Fallback)', e);
-            const { error } = await supabase
-                .from('profiles')
-                .update({ status: status })
-                .eq('id', userId);
-
-            if (error) {
-                console.error('Direct update failed:', error);
-                throw new Error('Falha ao atualizar status via API e Banco de Dados.');
-            }
-            console.info('Status updated via direct DB access (Local Mode)');
-            this.logActivity(userId, `status_changed_to_${status}`, { mode: 'direct_db' });
-        }
-    },
-
-    async deleteMember(userId: string) {
         const response = await fetch('/api/admin/members', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'delete', userId })
+            body: JSON.stringify({ action, userId, memberAreaId })
+        });
+
+        const contentType = response.headers.get("content-type");
+        if (!response.ok || (contentType && contentType.includes("text/html"))) {
+            throw new Error(await response.text() || 'Falha ao atualizar acesso do membro.');
+        }
+
+        this.logActivity(userId, `member_area_access_changed_to_${status}`, { action, memberAreaId });
+    },
+
+    async deleteMember(userId: string, memberAreaId?: string) {
+        const response = await fetch('/api/admin/members', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'delete', userId, memberAreaId })
         });
         if (!response.ok) throw new Error(await response.text());
-        // Can't log if deleted, but maybe before?
+        this.logActivity(userId, 'member_area_access_removed', { memberAreaId });
     },
 
     async grantAccess(userId: string, productIds: string[]) {

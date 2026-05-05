@@ -74,7 +74,7 @@ export const MemberAreaMembers: React.FC<MemberAreaMembersProps> = ({ area }) =>
         if (!deleteModal.memberId) return;
         setIsDeleting(true);
         try {
-            await memberService.deleteMember(deleteModal.memberId);
+            await memberService.deleteMember(deleteModal.memberId, area.id);
             setDeleteModal({ isOpen: false, memberId: null, memberName: null });
             loadMembers();
         } catch (error) {
@@ -348,6 +348,7 @@ export const MemberAreaMembers: React.FC<MemberAreaMembersProps> = ({ area }) =>
                         setSelectedMember(null);
                     }}
                     member={selectedMember}
+                    memberAreaId={area.id}
                     onUpdate={loadMembers}
                 />
             )}

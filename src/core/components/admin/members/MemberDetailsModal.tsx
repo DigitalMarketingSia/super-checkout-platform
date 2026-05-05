@@ -12,12 +12,16 @@ interface MemberDetailsModalProps {
     member: any; // Using enriched member type
     isOpen: boolean;
     onClose: () => void;
+    memberAreaId?: string;
     onUpdate?: () => void;
 }
 
 const formatLogEvent = (event: string) => {
     switch (event) {
         case 'login': return 'Acesso ao Sistema';
+        case 'member_area_access_changed_to_suspended': return 'Acesso da Área Suspenso';
+        case 'member_area_access_changed_to_active': return 'Acesso da Área Reativado';
+        case 'member_area_access_removed': return 'Removido da Área de Membros';
         case 'status_changed_to_suspended': return 'Conta Suspensa';
         case 'status_changed_to_active': return 'Conta Ativada';
         case 'status_changed_to_disabled': return 'Conta Desativada';
@@ -45,7 +49,7 @@ const formatLogMetadata = (log: ActivityLog) => {
     return parts.join(' • ');
 };
 
-export const MemberDetailsModal: React.FC<MemberDetailsModalProps> = ({ member, isOpen, onClose, onUpdate }) => {
+export const MemberDetailsModal: React.FC<MemberDetailsModalProps> = ({ member, isOpen, onClose, memberAreaId, onUpdate }) => {
     const [activeTab, setActiveTab] = useState('overview');
     const [details, setDetails] = useState<any>(null);
     const [loading, setLoading] = useState(true);
@@ -150,14 +154,14 @@ export const MemberDetailsModal: React.FC<MemberDetailsModalProps> = ({ member, 
         try {
             if (action === 'suspend') {
                 setCurrentStatus('suspended');
-                await memberService.updateMemberStatus(member.user_id, 'suspended');
+                await memberService.updateMemberStatus(member.user_id, 'suspended', memberAreaId);
                 setConfirmModal({ isOpen: false, action: '' });
                 setAlertModal({ isOpen: true, title: 'Sucesso', message: 'Membro suspenso com sucesso.', variant: 'success' });
                 if (onUpdate) onUpdate();
             }
             else if (action === 'activate') {
                 setCurrentStatus('active');
-                await memberService.updateMemberStatus(member.user_id, 'active');
+                await memberService.updateMemberStatus(member.user_id, 'active', memberAreaId);
                 setConfirmModal({ isOpen: false, action: '' });
                 setAlertModal({ isOpen: true, title: 'Sucesso', message: 'Membro reativado com sucesso.', variant: 'success' });
                 if (onUpdate) onUpdate();
