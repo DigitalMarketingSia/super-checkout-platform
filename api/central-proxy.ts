@@ -115,6 +115,15 @@ const getRequestBody = (body: unknown): Record<string, any> => {
     return {};
 };
 
+const getRequestDomain = (req: VercelRequest, fallback?: string | null) => {
+    const forwardedHost = req.headers['x-forwarded-host'];
+    const host = Array.isArray(forwardedHost)
+        ? forwardedHost[0]
+        : forwardedHost || req.headers.host || fallback || '';
+
+    return normalizeHost(String(host));
+};
+
 async function validateJwtWithSupabase(url: string, key: string, jwt: string, label: string) {
     try {
         const response = await fetch(`${url}/auth/v1/user`, {
@@ -178,8 +187,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const centralApiUrl = process.env.VITE_CENTRAL_API_URL || DEFAULT_CENTRAL_API_URL;
     const centralSecret = process.env.CENTRAL_SHARED_SECRET;
     const centralAnonEnv = process.env.VITE_CENTRAL_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_ANON_KEY;
-    if (!centralApiUrl || !centralSecret || !centralAnonEnv) {
-        console.error('[Central Proxy] Missing CENTRAL_API_URL, CENTRAL_SHARED_SECRET or CENTRAL_SUPABASE_ANON_KEY');
+    const sharedSecretRequired = ![
+        'system-update-runner',
+        'request-activation-link',
+        'request-recovery-link',
+    ].includes(endpoint);
+
+    if (!centralApiUrl || !centralAnonEnv || (sharedSecretRequired && !centralSecret)) {
+        console.error('[Central Proxy] Missing CENTRAL_API_URL, CENTRAL_SUPABASE_ANON_KEY or required CENTRAL_SHARED_SECRET');
         return res.status(500).json({ error: 'Server configuration error: missing credentials' });
     }
 
@@ -347,8 +362,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             'Content-Type': 'application/json',
             'apikey': centralAnon,
             'Authorization': `Bearer ${centralFunctionAuthToken}`,
-            'x-admin-secret': centralSecret,
         };
+        if (centralSecret) {
+            forwardHeaders['x-admin-secret'] = centralSecret;
+        }
 
         const fetchOptions: RequestInit = {
             method: req.method || 'GET',
@@ -363,6 +380,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 bodyObj._user_id = user.id;
                 bodyObj._user_email = user.email;
                 bodyObj._user_name = user.user_metadata?.full_name || user.email;
+
+                if (endpoint === 'system-update-runner') {
+                    bodyObj.license_key = bodyObj.license_key || process.env.VITE_LICENSE_KEY || process.env.NEXT_PUBLIC_LICENSE_KEY;
+                    bodyObj.current_domain = getRequestDomain(req, bodyObj.current_domain);
+                    bodyObj.proxy_authenticated = true;
+                }
+
                 fetchOptions.body = JSON.stringify(bodyObj);
             } catch (e) {
                 fetchOptions.body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);

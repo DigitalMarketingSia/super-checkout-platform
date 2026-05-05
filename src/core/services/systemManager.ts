@@ -2,6 +2,7 @@ import { supabase } from './supabase';
 import { SystemInfo, SystemFeature, SystemUpdateLog } from '../types';
 import { SCHEMA_VERSION } from '../config/version';
 import { GITHUB_UPDATE_CONFIG } from '../config/github';
+import { getEnv } from '../utils/env';
 
 // Import all migrations from the migrations directory
 // We use eager: true to have the content immediately available
@@ -19,6 +20,12 @@ export const SystemManager = {
       throw new Error('SessÃ£o expirada. Entre novamente para continuar.');
     }
 
+    const localInstallationId = typeof window !== 'undefined'
+      ? window.localStorage.getItem('installation_id')
+      : null;
+    const licenseKey = getEnv('VITE_LICENSE_KEY') || getEnv('LICENSE_KEY');
+    const currentDomain = typeof window !== 'undefined' ? window.location.hostname : undefined;
+
     const response = await fetch('/api/central-proxy?endpoint=system-update-runner', {
       method: 'POST',
       headers: {
@@ -28,6 +35,9 @@ export const SystemManager = {
       body: JSON.stringify({
         action,
         installation_id: info.github_installation_id,
+        local_installation_id: localInstallationId,
+        license_key: licenseKey,
+        current_domain: currentDomain,
         repository: info.github_repository,
         source_repository: GITHUB_UPDATE_CONFIG.SOURCE_REPOSITORY,
         ...payload
