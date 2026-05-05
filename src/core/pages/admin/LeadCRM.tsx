@@ -718,26 +718,15 @@ export const LeadCRM: React.FC = () => {
         return (
             <div className="min-h-screen bg-[#05050A] flex items-center justify-center px-6">
                 <div className="relative flex flex-col items-center text-center">
-                    <div className="relative w-24 h-24 mb-8 flex items-center justify-center">
-                        <div className="absolute inset-0 rounded-full border border-white/10" />
-                        <div className="absolute inset-2 rounded-full border-2 border-transparent border-t-primary border-r-primary/70 animate-spin" />
-                        <div className="absolute inset-5 rounded-full border border-white/10 animate-pulse" />
-                        <div className="w-11 h-11 rounded-2xl bg-white text-black flex items-center justify-center shadow-[0_18px_45px_rgba(255,255,255,0.16)]">
-                            <Zap className="w-5 h-5" />
+                    <div className="relative w-16 h-16 mb-6 flex items-center justify-center">
+                        <div className="absolute inset-0 rounded-2xl border border-primary/30 animate-ping" />
+                        <div className="w-14 h-14 rounded-2xl bg-white text-black flex items-center justify-center shadow-[0_18px_45px_rgba(255,255,255,0.14)]">
+                            <Loader2 className="w-6 h-6 animate-spin" />
                         </div>
                     </div>
-
-                    <p className="text-[10px] font-black uppercase tracking-[0.35em] text-primary mb-3">
-                        Sincronizando acesso
+                    <p className="text-[11px] font-black uppercase tracking-[0.28em] text-white/60">
+                        Carregando CRM
                     </p>
-                    <h1 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-tight italic">
-                        Carregando recursos
-                    </h1>
-                    <div className="mt-6 flex items-center gap-2" aria-hidden="true">
-                        <span className="w-2 h-2 rounded-full bg-primary animate-bounce" />
-                        <span className="w-2 h-2 rounded-full bg-white/70 animate-bounce [animation-delay:120ms]" />
-                        <span className="w-2 h-2 rounded-full bg-white/40 animate-bounce [animation-delay:240ms]" />
-                    </div>
                 </div>
             </div>
         );
@@ -752,6 +741,24 @@ export const LeadCRM: React.FC = () => {
     const allowedRoles = ['owner', 'master_admin', 'admin'];
     if (!hasCrmAccess && (!profile?.role || !allowedRoles.includes(profile.role))) {
         return <div className="p-8 text-center text-gray-500">Acesso negado.</div>;
+    }
+
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-[#05050A] flex items-center justify-center px-6">
+                <div className="relative flex flex-col items-center text-center">
+                    <div className="relative w-16 h-16 mb-6 flex items-center justify-center">
+                        <div className="absolute inset-0 rounded-2xl border border-primary/30 animate-ping" />
+                        <div className="w-14 h-14 rounded-2xl bg-white text-black flex items-center justify-center shadow-[0_18px_45px_rgba(255,255,255,0.14)]">
+                            <Loader2 className="w-6 h-6 animate-spin" />
+                        </div>
+                    </div>
+                    <p className="text-[11px] font-black uppercase tracking-[0.28em] text-white/60">
+                        Carregando CRM
+                    </p>
+                </div>
+            </div>
+        );
     }
 
     return (
@@ -953,12 +960,7 @@ export const LeadCRM: React.FC = () => {
                             : 'Last sync pending'}
                     </p>
                 </div>
-                {loading ? (
-                    <div className="flex flex-col items-center justify-center py-40">
-                        <div className="w-12 h-12 border-2 border-primary border-t-transparent rounded-full animate-spin mb-4" />
-                        <p className="text-[10px] font-black text-white/20 uppercase tracking-[0.4em]">Synchronizing Registry...</p>
-                    </div>
-                ) : filteredUsers.length === 0 ? (
+                {filteredUsers.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-40 text-white/5 text-center">
                         <Users className="w-16 h-16 mb-4 opacity-10" />
                         <p className="text-[10px] font-black uppercase tracking-[0.4em]">No leads detected in current node</p>
