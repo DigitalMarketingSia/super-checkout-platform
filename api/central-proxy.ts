@@ -191,7 +191,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         'system-update-runner',
         'request-activation-link',
         'request-recovery-link',
-    ].includes(endpoint);
+    ].includes(endpoint) && !(endpoint === 'upgrade-intents' && requestBody?.action === 'create_upgrade_intent');
 
     if (!centralApiUrl || !centralAnonEnv || (sharedSecretRequired && !centralSecret)) {
         console.error('[Central Proxy] Missing CENTRAL_API_URL, CENTRAL_SUPABASE_ANON_KEY or required CENTRAL_SHARED_SECRET');
@@ -381,7 +381,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 bodyObj._user_email = user.email;
                 bodyObj._user_name = user.user_metadata?.full_name || user.email;
 
-                if (endpoint === 'system-update-runner') {
+                if (endpoint === 'system-update-runner' || (endpoint === 'upgrade-intents' && bodyObj.action === 'create_upgrade_intent')) {
                     bodyObj.license_key = bodyObj.license_key || process.env.VITE_LICENSE_KEY || process.env.NEXT_PUBLIC_LICENSE_KEY;
                     bodyObj.current_domain = getRequestDomain(req, bodyObj.current_domain);
                     bodyObj.proxy_authenticated = true;
