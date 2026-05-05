@@ -515,6 +515,42 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
             // 2. Get Main Product (Public)
             const mainProduct = await storage.getPublicProduct(checkout.product_id);
 
+            // Member-area checkouts can arrive without checkout.user_id in public reads.
+            // In that case, resolve the merchant through the checkout product owner.
+            if (!checkout.user_id && checkout.product_id) {
+               try {
+                  const { data: productOwner } = await supabase
+                     .from('products')
+                     .select('user_id')
+                     .eq('id', checkout.product_id)
+                     .maybeSingle();
+
+                  if (productOwner?.user_id) {
+                     const { data: account } = await supabase
+                        .from('accounts')
+                        .select('id')
+                        .eq('owner_user_id', productOwner.user_id)
+                        .maybeSingle();
+
+                     if (account?.id) {
+                        const { data: settings } = await supabase
+                           .from('business_settings')
+                           .select('business_name, support_email, show_legal_footer')
+                           .eq('account_id', account.id)
+                           .maybeSingle();
+
+                        if (settings) {
+                           if (settings.business_name) setBusinessName(settings.business_name);
+                           if (settings.support_email) setSupportEmail(settings.support_email);
+                           setShowLegalFooter(settings.show_legal_footer ?? true);
+                        }
+                     }
+                  }
+               } catch (bsFallbackErr) {
+                  console.warn("Could not load fallback business settings", bsFallbackErr);
+               }
+            }
+
             // 3. Get Gateway (Public)
             const gateway = await storage.getPublicGateway(checkout.gateway_id);
 
