@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { storage } from '../../services/storageService';
 import { MemberArea } from '../../types';
 import { Button } from '../../components/ui/Button';
@@ -11,6 +11,7 @@ export const MemberLogin = ({ forcedSlug }: { forcedSlug?: string }) => {
     const { slug: paramSlug } = useParams<{ slug: string }>();
     const slug = forcedSlug || paramSlug;
     const navigate = useNavigate();
+    const location = useLocation();
     const [memberArea, setMemberArea] = useState<MemberArea | null>(null);
     const [loading, setLoading] = useState(true);
     const [email, setEmail] = useState('');
@@ -37,6 +38,21 @@ export const MemberLogin = ({ forcedSlug }: { forcedSlug?: string }) => {
         } finally {
             setLoading(false);
         }
+    };
+
+    const getSafeRedirectPath = () => {
+        const fallbackPath = forcedSlug ? '/' : `/app/${slug}`;
+        const nextPath = new URLSearchParams(location.search).get('next');
+
+        if (!nextPath || !nextPath.startsWith('/') || nextPath.startsWith('//')) {
+            return fallbackPath;
+        }
+
+        if (forcedSlug) {
+            return nextPath;
+        }
+
+        return nextPath.startsWith(`/app/${slug}`) ? nextPath : fallbackPath;
     };
 
     const handleLogin = async (e: React.FormEvent) => {
@@ -83,7 +99,7 @@ export const MemberLogin = ({ forcedSlug }: { forcedSlug?: string }) => {
             }
 
             if (loginData.user) {
-                navigate(`/app/${slug}`);
+                navigate(getSafeRedirectPath(), { replace: true });
             }
         } catch (error: any) {
             console.error('Login error:', error);

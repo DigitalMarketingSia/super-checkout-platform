@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Outlet, useParams, useNavigate } from 'react-router-dom';
+import { Outlet, useParams, useNavigate, useLocation } from 'react-router-dom';
 import { MemberAreaLayout } from './MemberAreaLayout';
 import { storage } from '../../services/storageService';
 import { MemberArea } from '../../types';
 import { Loader2 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 export const MemberAreaWrapper = ({ forcedSlug }: { forcedSlug?: string }) => {
     const { slug: paramSlug } = useParams<{ slug: string }>();
     const slug = forcedSlug || paramSlug;
     const navigate = useNavigate();
+    const location = useLocation();
+    const { user, loading: authLoading } = useAuth();
     const [memberArea, setMemberArea] = useState<MemberArea | null>(null);
     const [loading, setLoading] = useState(true);
 
@@ -35,7 +38,26 @@ export const MemberAreaWrapper = ({ forcedSlug }: { forcedSlug?: string }) => {
         loadMemberArea();
     }, [slug, navigate]);
 
-    if (loading) {
+    useEffect(() => {
+        if (loading || authLoading || !memberArea || user) return;
+
+        const isCustomDomain = Boolean(forcedSlug);
+        const loginPath = isCustomDomain ? '/login' : `/app/${memberArea.slug}/login`;
+        const nextPath = `${location.pathname}${location.search}`;
+
+        navigate(`${loginPath}?next=${encodeURIComponent(nextPath)}`, { replace: true });
+    }, [
+        authLoading,
+        forcedSlug,
+        loading,
+        location.pathname,
+        location.search,
+        memberArea,
+        navigate,
+        user,
+    ]);
+
+    if (loading || authLoading || !user) {
         return (
             <div className="min-h-screen bg-[#0E1012] flex items-center justify-center">
                 <Loader2 className="w-8 h-8 animate-spin text-red-600" />
