@@ -890,11 +890,26 @@ class StorageService {
       .eq('id', id)
       .single();
 
-    if (error) {
-      console.error('Error fetching public gateway:', error.message);
+    if (!error && data) {
+      return data as Gateway;
+    }
+
+    console.warn('Public gateway view failed, trying server fallback:', error?.message);
+
+    try {
+      const response = await fetch(`/api/public-gateway?id=${encodeURIComponent(id)}`);
+      const json = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        console.error('Public gateway fallback failed:', json.error || response.statusText);
+        return null;
+      }
+
+      return json as Gateway;
+    } catch (fallbackError) {
+      console.error('Error fetching public gateway fallback:', fallbackError);
       return null;
     }
-    return data as Gateway;
   }
 
   async getMemberAreaByDomain(domainId: string): Promise<MemberArea | null> {

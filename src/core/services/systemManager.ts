@@ -346,6 +346,10 @@ export const SystemManager = {
       return hasSystemTemplateLanguage && hasBusinessTemplateLanguage;
     }
 
+    if (version === '1.0.3') {
+      return hasColumn('public_gateways', 'public_key');
+    }
+
     return false;
   },
 
