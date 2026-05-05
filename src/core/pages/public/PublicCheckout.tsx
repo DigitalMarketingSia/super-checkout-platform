@@ -492,14 +492,14 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                       .from('accounts')
                       .select('id')
                       .eq('owner_user_id', checkout.user_id)
-                      .single();
+                      .maybeSingle();
  
                    if (account?.id) {                       // Fetch Settings
                        const { data: settings } = await supabase
                           .from('business_settings')
                           .select('business_name, support_email, show_legal_footer')
                           .eq('account_id', account.id)
-                          .single();
+                          .maybeSingle();
  
                        if (settings) {
                          if (settings.business_name) setBusinessName(settings.business_name);
@@ -515,9 +515,9 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
             // 2. Get Main Product (Public)
             const mainProduct = await storage.getPublicProduct(checkout.product_id);
 
-            // Member-area checkouts can arrive without checkout.user_id in public reads.
-            // In that case, resolve the merchant through the checkout product owner.
-            if (!checkout.user_id && checkout.product_id) {
+            // Member-area checkouts can point checkout.user_id to an access/user context.
+            // The public legal footer must follow the checkout product owner.
+            if (checkout.product_id) {
                try {
                   const { data: productOwner } = await supabase
                      .from('products')
