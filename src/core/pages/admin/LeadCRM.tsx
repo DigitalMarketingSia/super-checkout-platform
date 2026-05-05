@@ -715,7 +715,32 @@ export const LeadCRM: React.FC = () => {
     });
 
     if (featuresLoading) {
-        return <div className="min-h-screen bg-[#05050A] flex items-center justify-center text-gray-400">Carregando recursos...</div>;
+        return (
+            <div className="min-h-screen bg-[#05050A] flex items-center justify-center px-6">
+                <div className="relative flex flex-col items-center text-center">
+                    <div className="relative w-24 h-24 mb-8 flex items-center justify-center">
+                        <div className="absolute inset-0 rounded-full border border-white/10" />
+                        <div className="absolute inset-2 rounded-full border-2 border-transparent border-t-primary border-r-primary/70 animate-spin" />
+                        <div className="absolute inset-5 rounded-full border border-white/10 animate-pulse" />
+                        <div className="w-11 h-11 rounded-2xl bg-white text-black flex items-center justify-center shadow-[0_18px_45px_rgba(255,255,255,0.16)]">
+                            <Zap className="w-5 h-5" />
+                        </div>
+                    </div>
+
+                    <p className="text-[10px] font-black uppercase tracking-[0.35em] text-primary mb-3">
+                        Sincronizando acesso
+                    </p>
+                    <h1 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-tight italic">
+                        Carregando recursos
+                    </h1>
+                    <div className="mt-6 flex items-center gap-2" aria-hidden="true">
+                        <span className="w-2 h-2 rounded-full bg-primary animate-bounce" />
+                        <span className="w-2 h-2 rounded-full bg-white/70 animate-bounce [animation-delay:120ms]" />
+                        <span className="w-2 h-2 rounded-full bg-white/40 animate-bounce [animation-delay:240ms]" />
+                    </div>
+                </div>
+            </div>
+        );
     }
 
     if (isWhiteLabel || !hasCrmAccess) {
