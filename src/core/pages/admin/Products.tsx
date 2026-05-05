@@ -382,7 +382,7 @@ export const Products = () => {
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-600 mt-2">Configuração de Produto</p>
           </div>
         </div>
-        <Button onClick={handleSave} isLoading={loading} className="px-10 py-5 bg-white text-black font-black uppercase text-xs tracking-widest rounded-3xl border-none shadow-2xl transition-all active:scale-95 flex items-center gap-3">
+        <Button onClick={handleSave} isLoading={loading} variant="primary" className="px-10 py-5 font-black uppercase text-xs tracking-widest rounded-3xl border-none shadow-2xl transition-all active:scale-95 flex items-center gap-3">
           <Save className="w-5 h-5" /> {t('products.save_btn')}
         </Button>
       </div>

@@ -286,7 +286,7 @@ export const CheckoutEditor = () => {
                         >
                            <Save className="w-4 h-4 group-hover/save:rotate-12 transition-transform" />
                            <span className="font-black uppercase italic tracking-tighter text-sm">
-                              {isNew ? 'Efetivar Deploy' : 'Sincronizar Nodes'}
+                              Salvar
                            </span>
                         </Button>
                      </div>
@@ -1020,7 +1020,7 @@ export const CheckoutEditor = () => {
                      >
                         {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
                         <div className="flex flex-col items-start leading-none">
-                           <span className="text-sm">{isNew ? 'Publicar Checkout' : 'Salvar Alterações'}</span>
+                           <span className="text-sm">{isNew ? 'Salvar Checkout' : 'Salvar Alterações'}</span>
                            <span className="text-[8px] opacity-60 font-medium uppercase tracking-[0.2em]">Deploy para infraestrutura live</span>
                         </div>
                      </Button>

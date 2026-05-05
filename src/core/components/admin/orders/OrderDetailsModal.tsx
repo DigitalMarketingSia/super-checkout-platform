@@ -41,7 +41,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, isO
                 setAlertModal({
                     isOpen: true,
                     title: 'Sucesso',
-                    message: 'E-mail de confirmação de venda reenviado com sucesso!',
+                    message: 'E-mail de confirmação de acesso reenviado com sucesso!',
                     variant: 'success'
                 });
             } else {
@@ -213,7 +213,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, isO
                                     ) : (
                                         <Mail className="w-4 h-4 mr-2" />
                                     )}
-                                    Reenviar E-mail de Venda
+                                    Reenviar E-mail de Acesso
                                 </Button>
                             )}
                             <Button variant="secondary" onClick={onClose} className="bg-purple-600 hover:bg-purple-700 text-white border-none">

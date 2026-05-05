@@ -409,7 +409,7 @@ export const Domains = () => {
 
           <div className="pt-4 flex justify-end gap-4">
              <button type="button" onClick={() => setIsAddModalOpen(false)} className="px-6 py-3 text-[10px] font-black text-gray-600 uppercase tracking-widest">Abortar</button>
-             <Button onClick={handleSave} disabled={isLoading} className="px-10 py-5 bg-white text-black font-black uppercase text-xs tracking-widest rounded-3xl border-none shadow-2xl transition-all">
+             <Button onClick={handleSave} disabled={isLoading} variant="primary" className="px-10 py-5 font-black uppercase text-xs tracking-widest rounded-3xl border-none shadow-2xl transition-all">
                {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Registrar Domínio'}
              </Button>
           </div>
@@ -521,7 +521,8 @@ export const Domains = () => {
                        </div>
                        <Button 
                          onClick={() => setIsDnsModalOpen(false)} 
-                         className="w-full lg:w-auto px-12 py-5 bg-white text-black font-black uppercase text-xs tracking-widest rounded-3xl border-none shadow-2xl hover:scale-105 active:scale-95 transition-all"
+                         variant="primary"
+                         className="w-full lg:w-auto px-12 py-5 font-black uppercase text-xs tracking-widest rounded-3xl border-none shadow-2xl hover:scale-105 active:scale-95 transition-all"
                        >
                           Painel Admin
                        </Button>

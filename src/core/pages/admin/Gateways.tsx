@@ -359,7 +359,7 @@ export const Gateways = () => {
              </div>
              <div className="flex gap-4">
                <button type="button" onClick={() => setIsModalOpen(false)} className="px-6 py-4 text-[10px] font-black text-gray-600 uppercase tracking-widest">Abortar</button>
-               <Button type="submit" className="px-10 py-5 bg-white text-black font-black uppercase text-xs tracking-widest rounded-3xl border-none shadow-2xl">Vincular Motor</Button>
+               <Button type="submit" variant="primary" className="px-10 py-5 font-black uppercase text-xs tracking-widest rounded-3xl border-none shadow-2xl">Vincular Motor</Button>
              </div>
           </div>
         </form>

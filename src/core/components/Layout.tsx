@@ -80,7 +80,7 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
 
   const navItems = [
     { path: '/admin', icon: LayoutDashboard, label: t('nav.overview', 'Visão Geral') },
-    { path: '/admin/business-settings', icon: Settings, label: t('nav.business_config', 'Seu Negócio') },
+    { path: '/admin/business-settings', icon: Settings, label: t('nav.business_config', 'Meu Negócio') },
     { path: '/admin/products', icon: ShoppingBag, label: t('nav.products', 'Produtos') },
     { path: '/admin/gateways', icon: CreditCard, label: t('nav.gateways', 'Gateways') },
     { path: '/admin/domains', icon: Globe, label: t('nav.domains', 'Domínios') },
@@ -183,6 +183,11 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
 
             {/* SECTION: MEU NEGÓCIO (Business Console) */}
             <div className="mb-6">
+              {(sidebarOpen || mobileMenuOpen) && (
+                <h3 className="text-[10px] font-black text-gray-700 uppercase tracking-[0.3em] px-3 mb-4 animate-in fade-in flex items-center gap-2 not-italic">
+                  {t('nav.settings', 'Meu Negócio')}
+                </h3>
+              )}
               <div className="space-y-1">
                 {navItems.map((item) => {
                   const isActive = location.pathname === item.path;
@@ -211,11 +216,11 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
               </div>
             </div>
 
-            {/* SECTION: CONFIGURAÇÕES */}
+            {/* SECTION: SISTEMA / CONFIGURAÇÕES */}
             <div className="mt-2 pt-4 border-t border-white/5">
               {(sidebarOpen || mobileMenuOpen) && (
                 <h3 className="text-[10px] font-black text-gray-700 uppercase tracking-[0.3em] px-3 mb-4 animate-in fade-in flex items-center gap-2 not-italic">
-                  {t('nav.settings', 'Outros')}
+                  {t('nav.system_settings', 'Sistema')}
                 </h3>
               )}
 
@@ -305,7 +310,7 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
                       >
                         <Link2 className="w-5 h-5 flex-shrink-0" />
                         <div className={`ml-3 truncate transition-all duration-300 ${(!sidebarOpen && !mobileMenuOpen) ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
-                          Upgrade Intents
+                          {t('nav.upgrade_intents', 'Upgrade Intents')}
                         </div>
                       </Link>
                     )}
@@ -321,7 +326,7 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
                     >
                       <Activity className="w-5 h-5 flex-shrink-0" />
                       <div className={`ml-3 truncate transition-all duration-300 ${(!sidebarOpen && !mobileMenuOpen) ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
-                        Auditoria Segurança
+                        {t('nav.security_auditory', 'Auditoria Segurança')}
                       </div>
                     </Link>
 

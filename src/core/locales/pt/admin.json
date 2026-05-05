@@ -5,7 +5,8 @@
     "loading": "Carregando...",
     "save": "Salvar",
     "test": "Testar",
-    "processing": "Processando..."
+    "processing": "Processando...",
+    "setup": "Configurar DNS"
   },
   "dashboard": "Dashboard",
   "dashboard_desc": "Visão geral do seu negócio em tempo real.",
@@ -73,7 +74,7 @@
   "agency_managed_desc": "Esta instalação é gerenciada por uma licença Agency. Entre em contato com o proprietário para alterações.",
   "manage_installations_desc": "Gerencie suas instalações e acesse o instalador.",
   "business_settings": {
-    "title": "Seu Negócio",
+    "title": "Meu Negócio",
     "subtitle": "Essas informações aparecerão nos seus checkouts e nos e-mails enviados aos seus clientes.",
     "form": {
       "business_name": "Nome do Negócio (Público)",
@@ -353,7 +354,7 @@
   },
   "nav": {
     "overview": "Visão Geral",
-    "business_config": "Seu Negócio",
+    "business_config": "Meu Negócio",
     "products": "Produtos",
     "gateways": "Gateways",
     "domains": "Domínios",
@@ -361,7 +362,9 @@
     "orders": "Pedidos",
     "integrations": "Integrações",
     "notifications": "Notificações",
-    "settings": "Outros",
+    "settings": "Meu Negócio",
+    "others": "Outros",
+    "system_settings": "Sistema",
     "leads_crm": "Leads CRM",
     "my_license": "Minha Licença",
     "installations": "Instalações",
@@ -370,7 +373,9 @@
     "service_provider": "Prestador de Serviços",
     "member_area": "Área de Membros",
     "manage_members": "Gerenciar alunos",
-    "updates": "Atualizações"
+    "updates": "Atualizações",
+    "upgrade_intents": "Upgrade Intents",
+    "security_auditory": "Auditoria Segurança"
   },
   "compliance_banner": {
     "title": "Configuração Obrigatória",
