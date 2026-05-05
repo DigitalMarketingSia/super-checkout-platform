@@ -17,7 +17,9 @@ export const MemberLogin = ({ forcedSlug }: { forcedSlug?: string }) => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loggingIn, setLoggingIn] = useState(false);
+    const [recovering, setRecovering] = useState(false);
     const [error, setError] = useState('');
+    const [success, setSuccess] = useState('');
 
     useEffect(() => {
         if (slug) {
@@ -59,6 +61,7 @@ export const MemberLogin = ({ forcedSlug }: { forcedSlug?: string }) => {
         e.preventDefault();
         setLoggingIn(true);
         setError('');
+        setSuccess('');
 
         try {
             // Fase 15.3 — Rate-limited login via Vercel Serverless proxy
@@ -106,6 +109,36 @@ export const MemberLogin = ({ forcedSlug }: { forcedSlug?: string }) => {
             setError(error.message || 'Email ou senha incorretos.');
         } finally {
             setLoggingIn(false);
+        }
+    };
+
+    const handlePasswordRecovery = async () => {
+        if (!email) {
+            setError('Informe seu email para receber o link de recuperacao.');
+            return;
+        }
+
+        setRecovering(true);
+        setError('');
+        setSuccess('');
+
+        try {
+            const redirectUrl = `${window.location.origin}/update-password`;
+            const { error: recoveryError } = await supabase.functions.invoke('request-password-reset', {
+                body: {
+                    email,
+                    redirect_url: redirectUrl,
+                },
+            });
+
+            if (recoveryError) throw recoveryError;
+
+            setSuccess('Se este email tiver acesso, enviaremos um link para criar ou alterar a senha.');
+        } catch (error: any) {
+            console.error('Password recovery error:', error);
+            setError(error.message || 'Nao foi possivel enviar o link agora.');
+        } finally {
+            setRecovering(false);
         }
     };
 
@@ -164,6 +197,12 @@ export const MemberLogin = ({ forcedSlug }: { forcedSlug?: string }) => {
                         </div>
                     )}
 
+                    {success && (
+                        <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-4 rounded-xl text-sm">
+                            {success}
+                        </div>
+                    )}
+
                     <form onSubmit={handleLogin} className="space-y-6">
                         <div>
                             <label className="block text-sm font-medium text-gray-400 mb-2">Email</label>
@@ -182,7 +221,17 @@ export const MemberLogin = ({ forcedSlug }: { forcedSlug?: string }) => {
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-gray-400 mb-2">Senha</label>
+                            <div className="flex items-center justify-between gap-4 mb-2">
+                                <label className="block text-sm font-medium text-gray-400">Senha</label>
+                                <button
+                                    type="button"
+                                    onClick={handlePasswordRecovery}
+                                    disabled={recovering}
+                                    className="text-xs font-semibold text-gray-300 hover:text-white transition-colors disabled:opacity-50"
+                                >
+                                    {recovering ? 'Enviando...' : 'Criar/recuperar senha'}
+                                </button>
+                            </div>
                             <div className="relative">
                                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 w-5 h-5" />
                                 <input
@@ -199,7 +248,7 @@ export const MemberLogin = ({ forcedSlug }: { forcedSlug?: string }) => {
 
                         <button
                             type="submit"
-                            disabled={loggingIn}
+                            disabled={loggingIn || recovering}
                             className="w-full py-4 rounded-xl font-bold text-white shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                             style={{ backgroundColor: primaryColor }}
                         >
