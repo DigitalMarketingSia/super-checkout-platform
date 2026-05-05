@@ -58,6 +58,73 @@ class EmailService {
         return currentLang.split('-')[0];
     }
 
+    private getAppOrigin(): string {
+        if (typeof window !== 'undefined' && window.location?.origin) {
+            return window.location.origin.replace(/\/+$/, '');
+        }
+        return 'https://app.supercheckout.app';
+    }
+
+    private async resolveMembersAreaUrl(order: Order): Promise<string> {
+        const origin = this.getAppOrigin();
+        const productIds = Array.from(new Set((order.items || [])
+            .map((item: any) => item.product_id || item.id)
+            .filter(Boolean)));
+
+        if (productIds.length === 0) return `${origin}/login`;
+
+        try {
+            const { data: products } = await supabase
+                .from('products')
+                .select('id, member_area_id')
+                .in('id', productIds);
+
+            const directAreaId = (products || []).find((product: any) => product.member_area_id)?.member_area_id;
+            if (directAreaId) {
+                const directUrl = await this.resolveMemberAreaUrlById(directAreaId, origin);
+                if (directUrl) return directUrl;
+            }
+        } catch (error) {
+            console.warn('[EmailService] Direct product member area lookup failed:', error);
+        }
+
+        try {
+            const { data: links } = await supabase
+                .from('product_contents')
+                .select('content:contents(member_area_id)')
+                .in('product_id', productIds)
+                .limit(1);
+
+            const linkedAreaId = (links || []).find((link: any) => link.content?.member_area_id)?.content?.member_area_id;
+            if (linkedAreaId) {
+                const linkedUrl = await this.resolveMemberAreaUrlById(linkedAreaId, origin);
+                if (linkedUrl) return linkedUrl;
+            }
+        } catch (error) {
+            console.warn('[EmailService] Product content member area lookup failed:', error);
+        }
+
+        return `${origin}/login`;
+    }
+
+    private async resolveMemberAreaUrlById(memberAreaId: string, origin: string): Promise<string | null> {
+        const { data: area, error } = await supabase
+            .from('member_areas')
+            .select('slug, domains(domain)')
+            .eq('id', memberAreaId)
+            .maybeSingle();
+
+        if (error || !area) {
+            if (error) console.warn('[EmailService] Member area lookup failed:', error);
+            return null;
+        }
+
+        const customDomain = (area as any).domains?.domain;
+        if (customDomain) return `https://${customDomain}`;
+        if (area.slug) return `${origin}/app/${area.slug}`;
+        return null;
+    }
+
     async sendPaymentApproved(order: Order) {
         const lang = this.getLang();
         
@@ -70,7 +137,7 @@ class EmailService {
             .single();
 
         const productName = order.items?.[0]?.name || 'seu produto';
-        const membersAreaUrl = 'https://app.supercheckout.com/login';
+        const membersAreaUrl = await this.resolveMembersAreaUrl(order);
 
         if (template) {
             const variables: Record<string, string> = {
