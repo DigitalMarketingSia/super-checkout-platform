@@ -44,6 +44,10 @@ export const SystemManager = {
     })() : {};
 
     if (!response.ok || data.success === false) {
+      if (data.code === 'CENTRAL_SECRET_MISMATCH') {
+        throw new Error(data.error || 'Falha de autenticaÃ§Ã£o com a Central. Atualize CENTRAL_SHARED_SECRET na Vercel desta instalaÃ§Ã£o e tente novamente.');
+      }
+
       throw new Error(data.message || data.error || 'Falha no serviÃ§o central de atualizaÃ§Ã£o.');
     }
 

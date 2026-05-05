@@ -372,6 +372,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const response = await fetch(targetUrl, fetchOptions);
         const responseData = await response.text();
 
+        if (endpoint === 'system-update-runner' && response.status === 401) {
+            const centralPayload = (() => {
+                try {
+                    return JSON.parse(responseData);
+                } catch {
+                    return {};
+                }
+            })();
+            const centralError = String(centralPayload?.error || centralPayload?.message || responseData || '');
+
+            if (/unauthorized/i.test(centralError)) {
+                console.error('[Central Proxy] system-update-runner rejected x-admin-secret. Check CENTRAL_SHARED_SECRET in the installation Vercel project and Central Supabase secrets.');
+                return res.status(502).json({
+                    success: false,
+                    code: 'CENTRAL_SECRET_MISMATCH',
+                    error: 'Falha de autenticacao entre esta instalacao e a Central. Confira se CENTRAL_SHARED_SECRET na Vercel desta instalacao existe e esta igual ao segredo configurado na Central.'
+                });
+            }
+        }
+
         // --- 7. Return Central's response ---
         res.status(response.status);
         
