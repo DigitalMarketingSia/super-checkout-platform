@@ -551,6 +551,19 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                }
             }
 
+            // Final single-tenant fallback: on Vercel installs the checkout/member-area
+            // URL may not map to a custom domain, so use the installation business settings.
+            try {
+               const hostnameSettings = await storage.getBusinessSettingsByHostname(window.location.hostname);
+               if (hostnameSettings) {
+                  if (hostnameSettings.business_name) setBusinessName(hostnameSettings.business_name);
+                  if (hostnameSettings.support_email) setSupportEmail(hostnameSettings.support_email);
+                  setShowLegalFooter(hostnameSettings.show_legal_footer ?? true);
+               }
+            } catch (hostnameSettingsErr) {
+               console.warn("Could not load hostname business settings", hostnameSettingsErr);
+            }
+
             // 3. Get Gateway (Public)
             const gateway = await storage.getPublicGateway(checkout.gateway_id);
 
