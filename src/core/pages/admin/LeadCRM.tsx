@@ -3,6 +3,7 @@ import { supabase } from '../../services/supabase';
 import { CENTRAL_CONFIG } from '../../config/central';
 import { getRegisterUrl } from '../../config/platformUrls';
 import { useAuth } from '../../context/AuthContext';
+import { useFeatures } from '../../hooks/useFeatures';
 import { Layout } from '../../components/Layout';
 import { Link } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
@@ -133,6 +134,8 @@ const getAccountStatusMeta = (user: FreeUserRow) => {
 export const LeadCRM: React.FC = () => {
     const { isWhiteLabel, profile, user, session } = useAuth();
     const isAdmin = user?.email === 'contato.jeandamin@gmail.com';
+    const { hasFeature, isOwner, loading: featuresLoading } = useFeatures();
+    const hasCrmAccess = isOwner || isAdmin || hasFeature('FEATURE_CRM_LEADS');
 
     // CRM States
     const [users, setUsers] = useState<FreeUserRow[]>([]);
@@ -711,14 +714,18 @@ export const LeadCRM: React.FC = () => {
         return matchesSearch;
     });
 
-    if (isWhiteLabel || !isAdmin) {
+    if (featuresLoading) {
+        return <div className="min-h-screen bg-[#05050A] flex items-center justify-center text-gray-400">Carregando recursos...</div>;
+    }
+
+    if (isWhiteLabel || !hasCrmAccess) {
         return <div className="min-h-screen bg-[#05050A] flex items-center justify-center text-gray-400">Acesso negado.</div>;
     }
     // Updated security check to use the new role if context provides it,
 
     // but the backend RLS will now handle the real enforcement.
     const allowedRoles = ['owner', 'master_admin', 'admin'];
-    if (!profile?.role || !allowedRoles.includes(profile.role)) {
+    if (!hasCrmAccess && (!profile?.role || !allowedRoles.includes(profile.role))) {
         return <div className="p-8 text-center text-gray-500">Acesso negado.</div>;
     }
 
