@@ -69,6 +69,33 @@ async function stripeRequest(secretKey: string, endpoint: string, method: string
     return responseData;
 }
 
+async function invokeFulfillOrder(
+    supabaseUrl: string,
+    supabaseKey: string,
+    payload: { order_id: string; email?: string | null; name?: string | null },
+) {
+    const fulfillRes = await fetch(`${supabaseUrl}/functions/v1/fulfill-order`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${supabaseKey}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+    });
+
+    const responseText = await fulfillRes.text();
+    if (!fulfillRes.ok) {
+        throw new Error(responseText || `fulfill-order failed with status ${fulfillRes.status}`);
+    }
+}
+
+function translateStripeIntentStatus(status: string): 'paid' | 'pending' | 'failed' | 'canceled' {
+    if (status === 'succeeded') return 'paid';
+    if (status === 'requires_payment_method') return 'failed';
+    if (status === 'canceled') return 'canceled';
+    return 'pending';
+}
+
 // --- MAIN HANDLER ---
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -116,7 +143,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         // --- FETCH GATEWAY SECRET KEY FROM SUPABASE ---
         const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://vixlzrmhqsbzjhpgfwdn.supabase.co';
-        const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+        const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+        const supabaseKey = serviceRoleKey || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
         if (!supabaseUrl || !supabaseKey) {
             console.error('[CreatePaymentIntent] Missing Supabase credentials');
@@ -248,19 +276,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         console.log(`[CreatePaymentIntent] PI created: ${paymentIntent.id} — Status: ${paymentIntent.status}`);
 
-        // --- NEW: PERSIST PAYMENT IN DATABASE (SERVER-SIDE) ---
-        // This ensures the record exists BEFORE the webhook arrives.
+        // --- PERSIST PAYMENT/ORDER IN DATABASE (SERVER-SIDE) ---
+        // Stripe can confirm synchronously. Persist the final status here so the
+        // admin does not depend exclusively on webhook delivery/configuration.
+        let serverPersisted = false;
+        let fulfillmentTriggered = false;
+        const internalPaymentStatus = translateStripeIntentStatus(paymentIntent.status);
         try {
             const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
             const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
 
             if (url && key) {
-                // Re-use supabaseAdmin created above
+                const supabaseService = createClient(url, key);
                 
                 // Get user_id (merchant) from order to ensure ownership
-                const { data: orderData } = await supabaseAdmin
+                const { data: orderData } = await supabaseService
                     .from('orders')
-                    .select('user_id')
+                    .select('user_id, status, customer_email, customer_name')
                     .eq('id', metadata.order_id)
                     .single();
 
@@ -268,19 +300,52 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     order_id: metadata.order_id,
                     transaction_id: paymentIntent.id,
                     gateway_id: gatewayId,
-                    status: 'pending', // Initial status
-                    user_id: orderData?.user_id
+                    status: internalPaymentStatus,
+                    user_id: orderData?.user_id,
+                    raw_response: paymentIntent
                 };
 
-                // Usamos .insert() simples para evitar erro de constraint única (transaction_id não é unique no banco)
-                const { error: dbError } = await supabaseAdmin
+                // Avoid duplicate records when Stripe/webhook retries reuse the same PaymentIntent.
+                const { data: existingPayment } = await supabaseService
                     .from('payments')
-                    .insert(paymentData);
+                    .select('id')
+                    .eq('transaction_id', paymentIntent.id)
+                    .maybeSingle();
 
-                if (dbError) {
-                    console.error('[CreatePaymentIntent] DB Error:', dbError.message);
+                const paymentWrite = existingPayment?.id
+                    ? supabaseService.from('payments').update(paymentData).eq('id', existingPayment.id)
+                    : supabaseService.from('payments').insert(paymentData);
+
+                const { error: paymentError } = await paymentWrite;
+                if (paymentError) {
+                    console.error('[CreatePaymentIntent] Payment DB Error:', paymentError.message);
                 } else {
-                    console.log(`[CreatePaymentIntent] Payment persisted to DB: ${paymentIntent.id}`);
+                    serverPersisted = true;
+                    console.log(`[CreatePaymentIntent] Payment persisted to DB: ${paymentIntent.id} (${internalPaymentStatus})`);
+                }
+
+                if (internalPaymentStatus === 'paid') {
+                    const { error: orderError } = await supabaseService
+                        .from('orders')
+                        .update({ status: 'paid', payment_id: paymentIntent.id })
+                        .eq('id', metadata.order_id);
+
+                    if (orderError) {
+                        console.error('[CreatePaymentIntent] Order status update error:', orderError.message);
+                    } else {
+                        console.log(`[CreatePaymentIntent] Order ${metadata.order_id} marked as PAID from synchronous Stripe confirmation.`);
+                    }
+
+                    try {
+                        await invokeFulfillOrder(url, key, {
+                            order_id: metadata.order_id,
+                            email: orderData?.customer_email || customerEmail,
+                            name: orderData?.customer_name || customerName,
+                        });
+                        fulfillmentTriggered = true;
+                    } catch (fulfillError: any) {
+                        console.error('[CreatePaymentIntent] fulfill-order trigger failed:', fulfillError.message || fulfillError);
+                    }
                 }
             } else {
                 console.warn('[CreatePaymentIntent] Supabase env vars missing. Skipping server-side save.');
@@ -295,6 +360,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             paymentIntentId: paymentIntent.id,
             status: paymentIntent.status,
             clientSecret: paymentIntent.client_secret,
+            serverPersisted,
+            orderStatus: internalPaymentStatus,
+            fulfillmentTriggered,
             // For 3D Secure: if status is 'requires_action', frontend needs client_secret
             requiresAction: paymentIntent.status === 'requires_action',
             lastPaymentError: paymentIntent.last_payment_error?.message || null

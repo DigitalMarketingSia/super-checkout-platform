@@ -575,11 +575,15 @@ class PaymentService {
         created_at: new Date().toISOString()
       };
 
-      try {
-        await this.savePayment(newPayment);
-        console.log('[PaymentService] Stripe Payment saved successfully');
-      } catch (err) {
-        console.error('[PaymentService] Stripe Payment save failed:', err);
+      if (!result.serverPersisted) {
+        try {
+          await this.savePayment(newPayment);
+          console.log('[PaymentService] Stripe Payment saved successfully');
+        } catch (err) {
+          console.error('[PaymentService] Stripe Payment save failed:', err);
+        }
+      } else {
+        console.log('[PaymentService] Stripe Payment already persisted by server');
       }
 
       // Handle 3D Secure (requires_action)
