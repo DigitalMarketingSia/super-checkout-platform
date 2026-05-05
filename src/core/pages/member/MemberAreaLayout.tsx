@@ -21,7 +21,20 @@ export const MemberAreaLayout: React.FC<MemberAreaLayoutProps> = ({ children, me
     const [scrolled, setScrolled] = useState(false);
     const [expandedSections, setExpandedSections] = useState<string[]>([]);
 
-    if (profile?.status === 'suspended') {
+    // Detect if we're on a custom domain
+    // If hostname is not the default Vercel domain, we're on a custom domain
+    const isCustomDomain = typeof window !== 'undefined' &&
+        !window.location.hostname.includes('vercel.app') &&
+        !window.location.hostname.includes('localhost') &&
+        window.location.pathname.startsWith('/app/') === false;
+
+    // If on custom domain, use root paths. Otherwise use /app/slug paths
+    const appLink = isCustomDomain ? '' : (memberArea ? `/app/${memberArea.slug}` : '/app');
+    const memberLoginPath = `${appLink}/login`;
+
+    const shouldShowGlobalSuspension = profile?.status === 'suspended' && !memberArea;
+
+    if (shouldShowGlobalSuspension) {
         return (
             <div className="min-h-screen bg-[#0E1012] flex items-center justify-center text-white p-4 font-sans">
                 <div className="max-w-md w-full bg-[#1A1D21] p-8 rounded-2xl border border-red-500/20 text-center space-y-6 shadow-2xl">
@@ -34,7 +47,10 @@ export const MemberAreaLayout: React.FC<MemberAreaLayoutProps> = ({ children, me
                         </p>
                     </div>
                     <button
-                        onClick={() => { signOut(); navigate('/login'); }}
+                        onClick={async () => {
+                            await signOut();
+                            navigate(memberLoginPath, { replace: true });
+                        }}
                         className="w-full py-3 bg-white/5 hover:bg-white/10 active:bg-white/15 rounded-xl font-medium transition-all duration-200 flex items-center justify-center gap-2 text-sm border border-white/5 hover:border-white/10"
                     >
                         <LogOut className="w-4 h-4" />
@@ -47,16 +63,6 @@ export const MemberAreaLayout: React.FC<MemberAreaLayoutProps> = ({ children, me
             </div>
         );
     }
-
-    // Detect if we're on a custom domain
-    // If hostname is not the default Vercel domain, we're on a custom domain
-    const isCustomDomain = typeof window !== 'undefined' &&
-        !window.location.hostname.includes('vercel.app') &&
-        !window.location.hostname.includes('localhost') &&
-        window.location.pathname.startsWith('/app/') === false;
-
-    // If on custom domain, use root paths. Otherwise use /app/slug paths
-    const appLink = isCustomDomain ? '' : (memberArea ? `/app/${memberArea.slug}` : '/app');
 
     useEffect(() => {
         const handleScroll = () => {

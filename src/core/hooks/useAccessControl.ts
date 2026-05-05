@@ -19,7 +19,7 @@ interface UseAccessControlResult {
 }
 
 export const useAccessControl = (accessGrants: AccessGrant[] = []): UseAccessControlResult => {
-    const { user, profile } = useAuth();
+    const { user } = useAuth();
     const navigate = useNavigate();
     const { memberArea } = useOutletContext<{ memberArea: any }>() || {};
 
@@ -27,11 +27,6 @@ export const useAccessControl = (accessGrants: AccessGrant[] = []): UseAccessCon
         item: TrackItem | Content | Module | Lesson | Product,
         context?: { content?: Content; module?: Module }
     ): AccessAction => {
-        // 0. Global Suspension Check
-        if (profile?.status === 'suspended') {
-            return 'SUSPENDED';
-        }
-
         // Normalize item to check properties
         let isFree = false;
         let productId: string | undefined;
