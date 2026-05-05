@@ -1,5 +1,13 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
+const CRM_READ_ACTIONS = new Set([
+    'get_partners',
+    'get_launch_settings',
+    'get_registration_approval_queue',
+    'get_crm_data',
+    'get_crm_user_details',
+]);
+
 /**
  * Central Proxy — Backend-for-Frontend (BFF)
  * 
@@ -192,7 +200,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         'request-activation-link',
         'request-recovery-link',
         'check-entitlement',
-    ].includes(endpoint) && !(endpoint === 'upgrade-intents' && requestBody?.action === 'create_upgrade_intent');
+    ].includes(endpoint)
+        && !(endpoint === 'upgrade-intents' && requestBody?.action === 'create_upgrade_intent')
+        && !(endpoint === 'manage-licenses' && CRM_READ_ACTIONS.has(requestBody?.action));
 
     if (!centralApiUrl || !centralAnonEnv || (sharedSecretRequired && !centralSecret)) {
         console.error('[Central Proxy] Missing CENTRAL_API_URL, CENTRAL_SUPABASE_ANON_KEY or required CENTRAL_SHARED_SECRET');
@@ -284,7 +294,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     'generate_token',
                     'reinstall',
                     'revoke_installation',
-                    'get_license_features'
+                    'get_license_features',
+                    ...CRM_READ_ACTIONS
                 ];
 
                 if (allowedActions.includes(action)) {
@@ -382,7 +393,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 bodyObj._user_email = user.email;
                 bodyObj._user_name = user.user_metadata?.full_name || user.email;
 
-                if (endpoint === 'system-update-runner' || endpoint === 'check-entitlement' || (endpoint === 'upgrade-intents' && bodyObj.action === 'create_upgrade_intent')) {
+                if (
+                    endpoint === 'system-update-runner'
+                    || endpoint === 'check-entitlement'
+                    || (endpoint === 'manage-licenses' && CRM_READ_ACTIONS.has(bodyObj.action))
+                    || (endpoint === 'upgrade-intents' && bodyObj.action === 'create_upgrade_intent')
+                ) {
                     bodyObj.license_key = bodyObj.license_key || process.env.VITE_LICENSE_KEY || process.env.NEXT_PUBLIC_LICENSE_KEY;
                     bodyObj.current_domain = getRequestDomain(req, bodyObj.current_domain);
                     bodyObj.proxy_authenticated = true;
