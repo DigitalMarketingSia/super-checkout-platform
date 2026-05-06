@@ -59,7 +59,7 @@ async function sendPaymentApprovedEmail(orderId: string, order: any, productName
       '{{order_id}}': orderId ? `#${orderId.split('-')[0]}` : '',
       '{{customer_name}}': order.customer_name || 'Cliente',
       '{{product_names}}': productName || 'seu produto',
-      '{{members_area_url}}': 'https://app.supercheckout.com/login'
+      '{{members_area_url}}': order.membersAreaUrl || 'https://app.supercheckout.app/login'
     };
 
     let subject = template?.subject || 'Pagamento Aprovado - Acesso Liberado!';
@@ -254,7 +254,40 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
     await supabaseAdmin.from('orders').update(updatedOrder).eq('id', orderId);
 
     if (paidStatus) {
-      await sendPaymentApprovedEmail(orderId, { ...checkout, ...updatedOrder, customer_email: customerEmail, customer_name: customerName }, mainProduct.name);
+      // Resolve member area URL dynamically
+      let membersAreaUrl = 'https://app.supercheckout.app/login';
+      const { data: links } = await supabaseAdmin
+          .from('product_contents')
+          .select('content:contents(member_area_id, member_areas(slug, domains(domain)))')
+          .eq('product_id', mainProduct.id)
+          .limit(1);
+
+      const area = links?.[0]?.content?.member_areas;
+      if (area?.slug) membersAreaUrl = `https://app.supercheckout.app/app/${area.slug}`;
+      if (area?.domains?.domain) membersAreaUrl = `https://${area.domains.domain}`;
+
+      // Fulfill order before sending email to generate user accounts/access grants
+      try {
+          const resFulfill = await fetch(`${supabaseUrl}/functions/v1/fulfill-order`, {
+              method: 'POST',
+              headers: {
+                  'Authorization': `Bearer ${supabaseServiceKey}`,
+                  'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                  order_id: orderId,
+                  email: customerEmail,
+                  name: customerName,
+              }),
+          });
+          if (!resFulfill.ok) {
+              console.error('[MP-FETCH] fulfill-order failed:', await resFulfill.text());
+          }
+      } catch (err) {
+          console.error('[MP-FETCH] invokeFulfillOrder error:', err);
+      }
+
+      await sendPaymentApprovedEmail(orderId, { ...checkout, ...updatedOrder, customer_email: customerEmail, customer_name: customerName, membersAreaUrl }, mainProduct.name);
     }
 
     return {

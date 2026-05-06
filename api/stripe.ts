@@ -122,6 +122,11 @@ const resolveMembersAreaUrl = async (supabaseAdmin: any, order: any, origin: str
             options: { redirectTo },
         });
 
+        if (linkData?.properties?.hashed_token) {
+            const separator = redirectTo.includes('?') ? '&' : '?';
+            return `${redirectTo}${separator}auth_token=${linkData.properties.hashed_token}&auth_email=${encodeURIComponent(email)}`;
+        }
+
         return linkData?.properties?.action_link || redirectTo;
     } catch (error: any) {
         console.warn('[Webhook Email Fallback] Failed to resolve member area magic link:', error.message || error);

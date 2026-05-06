@@ -27,7 +27,7 @@ type TwoFactorChallenge = {
 
 authenticator.options = {
   ...authenticator.options,
-  window: 1,
+  window: 2,
 };
 
 function looksEncrypted(value: string) {
