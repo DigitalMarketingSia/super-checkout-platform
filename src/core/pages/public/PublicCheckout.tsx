@@ -65,6 +65,18 @@ const CheckoutTracker = () => {
 type PaymentMethod = 'credit_card' | 'pix' | 'boleto' | 'apple_pay' | 'google_pay';
 type ProcessState = 'idle' | 'processing' | 'error' | 'success';
 
+const getUpsellOrderSessionKey = (orderId?: string) => `upsell-original-order:${orderId || 'unknown'}`;
+
+const persistUpsellOrderContext = (orderId: string | undefined, order: Partial<Order>) => {
+   if (!orderId || typeof window === 'undefined') return;
+
+   try {
+      sessionStorage.setItem(getUpsellOrderSessionKey(orderId), JSON.stringify(order));
+   } catch (storageError) {
+      console.warn('[PublicCheckout] Failed to persist upsell order context:', storageError);
+   }
+};
+
 // --- PROCESSING MODAL (UX ESTILO TICTO) ---
 const ProcessingModal = ({ 
    isOpen, 
@@ -910,6 +922,20 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
 
          if (result.success) {
             console.log('[PublicCheckout] Payment success. Method:', paymentMethod);
+            persistUpsellOrderContext(result.orderId, {
+               id: result.orderId,
+               checkout_id: data.checkout.id,
+               amount: totalAmount,
+               customer_name: customer.name || 'Cliente',
+               customer_email: customer.email || 'cliente@email.com',
+               customer_phone: customer.phone,
+               customer_cpf: customer.cpf,
+               payment_method: paymentMethod,
+               status: OrderStatus.PENDING,
+               items,
+               customer_user_id: userId,
+               created_at: new Date().toISOString()
+            });
             
             // Treat pending/in_process credit cards correctly (wait UI, redirect but maybe show feedback)
             if (paymentMethod === 'credit_card' && result.message === 'in_process') {
@@ -1852,6 +1878,19 @@ const WalletExpressButton = ({
             });
 
             if (result.success) {
+               persistUpsellOrderContext(result.orderId, {
+                  id: result.orderId,
+                  checkout_id: data.checkout.id,
+                  amount: totalAmount,
+                  customer_name: ev.payerName || 'Cliente Wallet',
+                  customer_email: ev.payerEmail || 'cliente@wallet.com',
+                  customer_phone: ev.payerPhone || '',
+                  payment_method: 'credit_card',
+                  status: OrderStatus.PENDING,
+                  items,
+                  customer_user_id: userId,
+                  created_at: new Date().toISOString()
+               });
                ev.complete('success');
                if (data.checkout.config?.upsell?.active) {
                   navigate(`/upsell/${result.orderId}`);

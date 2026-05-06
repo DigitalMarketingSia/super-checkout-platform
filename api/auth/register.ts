@@ -343,12 +343,16 @@ async function verifyCaptcha(params: {
 
 function getCentralClient(): SupabaseClient | null {
     const supabaseUrl =
-        process.env.VITE_CENTRAL_SUPABASE_URL
+        process.env.CENTRAL_SUPABASE_URL
+        || process.env.VITE_CENTRAL_SUPABASE_URL
+        || process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_URL
         || process.env.VITE_CENTRAL_API_URL?.replace('/functions/v1', '')
+        || process.env.NEXT_PUBLIC_CENTRAL_API_URL?.replace('/functions/v1', '')
         || getDevFallback(DEV_CENTRAL_API_URL.replace('/functions/v1', ''))
         || getDevFallback(DEV_CENTRAL_SUPABASE_URL);
     const supabaseAnonKey =
-        process.env.VITE_CENTRAL_SUPABASE_ANON_KEY
+        process.env.CENTRAL_SUPABASE_ANON_KEY
+        || process.env.VITE_CENTRAL_SUPABASE_ANON_KEY
         || process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_ANON_KEY;
 
     if (!supabaseUrl || !supabaseAnonKey) {
@@ -365,13 +369,15 @@ function getCentralClient(): SupabaseClient | null {
 
 function getCentralAdminClient(): SupabaseClient | null {
     const supabaseUrl =
-        process.env.VITE_CENTRAL_SUPABASE_URL
+        process.env.CENTRAL_SUPABASE_URL
+        || process.env.VITE_CENTRAL_SUPABASE_URL
+        || process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_URL
         || process.env.VITE_CENTRAL_API_URL?.replace('/functions/v1', '')
+        || process.env.NEXT_PUBLIC_CENTRAL_API_URL?.replace('/functions/v1', '')
         || getDevFallback(DEV_CENTRAL_API_URL.replace('/functions/v1', ''))
         || getDevFallback(DEV_CENTRAL_SUPABASE_URL);
     const serviceRoleKey =
-        process.env.CENTRAL_SUPABASE_SERVICE_ROLE_KEY
-        || process.env.VITE_CENTRAL_SUPABASE_SERVICE_ROLE_KEY;
+        process.env.CENTRAL_SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseUrl || !serviceRoleKey) {
         return null;

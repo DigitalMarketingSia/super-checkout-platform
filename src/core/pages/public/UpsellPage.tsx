@@ -10,6 +10,8 @@ import { CheckCircle, X, Play, Image as ImageIcon, CreditCard, Lock } from 'luci
 
 import { supabase } from '../../services/supabase';
 
+const getUpsellOrderSessionKey = (orderId?: string) => `upsell-original-order:${orderId || 'unknown'}`;
+
 export const UpsellPage = () => {
     const { orderId } = useParams<{ orderId: string }>();
     const navigate = useNavigate();
@@ -39,13 +41,28 @@ export const UpsellPage = () => {
             try {
                 if (!orderId) return;
 
-                // 1. Fetch Original Order (Direct Supabase Query for Anon Access)
-                // storage.getOrders() fails if user is not logged in (e.g. public checkout)
-                const { data: order, error: orderError } = await supabase
-                    .from('orders')
-                    .select('*')
-                    .eq('id', orderId)
-                    .single();
+                let order: any = null;
+                let orderError: any = null;
+
+                try {
+                    const rawOrderContext = sessionStorage.getItem(getUpsellOrderSessionKey(orderId));
+                    if (rawOrderContext) {
+                        order = JSON.parse(rawOrderContext);
+                    }
+                } catch (storageError) {
+                    console.warn('[UpsellPage] Failed to restore original order context:', storageError);
+                }
+
+                if (!order) {
+                    // Fallback for older links. RLS may block anonymous reads, so the session context above is the preferred path.
+                    const response = await supabase
+                        .from('orders')
+                        .select('*')
+                        .eq('id', orderId)
+                        .single();
+                    order = response.data;
+                    orderError = response.error;
+                }
 
                 if (orderError || !order) {
                     console.error('Order fetch error:', orderError);
