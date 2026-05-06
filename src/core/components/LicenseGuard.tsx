@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Lock, AlertTriangle } from 'lucide-react';
 import { supabase } from '../services/supabase';
 import { getEnv } from '../utils/env';
+import { Loading } from './ui/Loading';
 
 interface LicenseGuardProps {
     children: React.ReactNode;
@@ -245,11 +246,7 @@ export const LicenseGuard: React.FC<LicenseGuardProps> = ({ children }) => {
     }, []);
 
     if (loading) {
-        return (
-            <div className="min-h-screen bg-[#0F0F13] flex items-center justify-center">
-                <div className="w-8 h-8 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
-            </div>
-        );
+        return <Loading label="Validando licenca" />;
     }
 
     if (isValid === false) {

@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Layout } from '../../components/Layout';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
+import { Loading } from '../../components/ui/Loading';
 import { licenseService, Installation } from '../../services/licenseService';
 import { supabase } from '../../services/supabase';
 import { Globe, Calendar, Trash2, Loader2, AlertCircle, RefreshCw, Activity, Server, Shuffle, ChevronRight, ExternalLink, Clock } from 'lucide-react';
@@ -127,16 +128,7 @@ export const MyInstallations = () => {
     if (loading) {
         return (
             <Layout>
-                <div className="flex flex-col items-center justify-center h-[70vh] space-y-8">
-                    <div className="relative">
-                        <div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full animate-pulse" />
-                        <Loader2 className="relative w-16 h-16 animate-spin text-primary" />
-                    </div>
-                    <div className="text-center space-y-2">
-                        <p className="text-[10px] text-primary font-black uppercase tracking-[0.4em] animate-pulse">Scanning Infrastructure</p>
-                        <p className="text-sm text-gray-500 font-medium italic">Sincronizando nós ativos...</p>
-                    </div>
-                </div>
+                <Loading label="Carregando instalacoes" className="min-h-[70vh]" />
             </Layout>
         );
     }

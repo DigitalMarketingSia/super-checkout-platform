@@ -13,6 +13,7 @@ import { PaymentRequestButtonElement, Elements, useStripe, useElements, CardNumb
 import { validateName, validateEmail, validatePhone, validateCPF, maskPhone, maskCPF } from '../../utils/validations';
 import { PhoneInput } from '../../components/ui/PhoneInput';
 import { AlertModal } from '../../components/ui/Modal';
+import { Loading } from '../../components/ui/Loading';
 
 import { TrackingProvider, useTracking } from '../../context/TrackingContext';
 import { translatePaymentError } from '../../utils/errorTranslator';
@@ -231,7 +232,7 @@ const StripeWrapper = ({ children, checkoutId: propId }: { children: React.React
       loadGateway();
    }, [id]);
 
-   if (!stripePromise) return <div className="min-h-screen flex items-center justify-center bg-[#f9fafb]"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#10B981]"></div></div>;
+   if (!stripePromise) return <Loading label="Carregando checkout" />;
 
    if (stripePromise === 'not_stripe' || stripePromise === 'no_gateway' || stripePromise === 'error') {
       return <>{children}</>;
@@ -1040,7 +1041,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
       );
    };
 
-   if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#f9fafb]"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#10B981]"></div></div>;
+   if (loading) return <Loading label="Carregando checkout" />;
    if (error || !data) return <div className="min-h-screen flex items-center justify-center bg-[#f9fafb] text-gray-500">{error}</div>;
 
    const totalAmount = calculateTotal();
@@ -1929,7 +1930,7 @@ const PublicCheckoutContent = ({ checkoutId }: { checkoutId?: string }) => {
       loadGateway();
    }, [id]);
 
-   if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#f9fafb]"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#10B981]"></div></div>;
+   if (loading) return <Loading label="Carregando checkout" />;
 
    return (
       <StripeHooksBridge gatewayName={gatewayName}>

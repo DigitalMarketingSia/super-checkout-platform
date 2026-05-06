@@ -18,6 +18,7 @@ import { EmailVerificationGate } from './components/EmailVerificationGate';
 import { getPlatformPrivacyUrl, getPlatformTermsUrl } from '../../config/platformUrls';
 import { useTranslation } from 'react-i18next';
 import { LanguageSelector } from '../../components/ui/LanguageSelector';
+import { Loading } from '../../components/ui/Loading';
 import { Loader2, LogOut, LayoutDashboard, Key, Download, PlayCircle, Shield, Menu, X, User, Crown, BarChart3, Check, ArrowRight, ShieldCheck, TrendingUp } from 'lucide-react';
 import './ActivationPortal.css';
 
@@ -268,11 +269,7 @@ export const ActivationPortal: React.FC = () => {
     };
 
     if (loading) {
-        return (
-            <div className="min-h-screen bg-[#05050A] flex items-center justify-center text-white">
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            </div>
-        );
+        return <Loading label="Carregando portal" />;
     }
 
     if (isEmailUnconfirmed && centralUser) {

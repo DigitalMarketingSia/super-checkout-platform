@@ -5,6 +5,7 @@ import { storage } from '../../services/storageService';
 import { paymentService } from '../../services/paymentService';
 import { Order, Checkout, Product, CheckoutConfig } from '../../types';
 import { Button } from '../../components/ui/Button';
+import { Loading } from '../../components/ui/Loading';
 import { CheckCircle, X, Play, Image as ImageIcon, CreditCard, Lock } from 'lucide-react';
 
 import { supabase } from '../../services/supabase';
@@ -172,7 +173,7 @@ export const UpsellPage = () => {
         navigate(`/thank-you/${orderId}`);
     };
 
-    if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-white">Carregando oferta...</div>;
+    if (loading) return <Loading label="Carregando oferta" />;
     if (error) return <div className="min-h-screen bg-black flex items-center justify-center text-white">{error}</div>;
 
     const config = checkout?.config.upsell!;

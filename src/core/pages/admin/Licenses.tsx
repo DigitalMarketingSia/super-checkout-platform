@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Layout } from '../../components/Layout';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
+import { Loading } from '../../components/ui/Loading';
 import { ConfirmModal } from '../../components/ui/Modal';
 import { Key, Plus, Copy, CheckCircle, ShieldCheck, Server, AlertTriangle, Loader2, Globe, RefreshCw, Trash2, Activity, HardDrive, Shield, ChevronRight, Clock } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -281,16 +282,7 @@ export const Licenses = () => {
     if (loading) {
         return (
             <Layout>
-                <div className="flex flex-col items-center justify-center h-[70vh] space-y-8">
-                    <div className="relative">
-                        <div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full animate-pulse" />
-                        <Loader2 className="relative w-16 h-16 animate-spin text-primary" />
-                    </div>
-                    <div className="text-center space-y-2">
-                        <p className="text-[10px] text-primary font-black uppercase tracking-[0.4em] animate-pulse">Initializing Protocol</p>
-                        <p className="text-sm text-gray-500 font-medium italic">{t('loading_license')}</p>
-                    </div>
-                </div>
+                <Loading label={t('loading_license')} className="min-h-[70vh]" />
             </Layout>
         );
     }

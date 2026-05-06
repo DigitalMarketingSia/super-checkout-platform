@@ -29,6 +29,7 @@ import {
 
 import { toast } from 'sonner';
 import { Modal } from '../../components/ui/Modal';
+import { Loading } from '../../components/ui/Loading';
 
 // Define strict interface for the join query result
 // Update interface to reflect CRM requirements
@@ -715,21 +716,7 @@ export const LeadCRM: React.FC = () => {
     });
 
     if (featuresLoading) {
-        return (
-            <div className="min-h-screen bg-[#05050A] flex items-center justify-center px-6">
-                <div className="relative flex flex-col items-center text-center">
-                    <div className="relative w-16 h-16 mb-6 flex items-center justify-center">
-                        <div className="absolute inset-0 rounded-2xl border border-primary/30 animate-ping" />
-                        <div className="w-14 h-14 rounded-2xl bg-white text-black flex items-center justify-center shadow-[0_18px_45px_rgba(255,255,255,0.14)]">
-                            <Loader2 className="w-6 h-6 animate-spin" />
-                        </div>
-                    </div>
-                    <p className="text-[11px] font-black uppercase tracking-[0.28em] text-white/60">
-                        Carregando CRM
-                    </p>
-                </div>
-            </div>
-        );
+        return <Loading label="Carregando CRM" />;
     }
 
     if (isWhiteLabel || !hasCrmAccess) {
@@ -744,21 +731,7 @@ export const LeadCRM: React.FC = () => {
     }
 
     if (loading) {
-        return (
-            <div className="min-h-screen bg-[#05050A] flex items-center justify-center px-6">
-                <div className="relative flex flex-col items-center text-center">
-                    <div className="relative w-16 h-16 mb-6 flex items-center justify-center">
-                        <div className="absolute inset-0 rounded-2xl border border-primary/30 animate-ping" />
-                        <div className="w-14 h-14 rounded-2xl bg-white text-black flex items-center justify-center shadow-[0_18px_45px_rgba(255,255,255,0.14)]">
-                            <Loader2 className="w-6 h-6 animate-spin" />
-                        </div>
-                    </div>
-                    <p className="text-[11px] font-black uppercase tracking-[0.28em] text-white/60">
-                        Carregando CRM
-                    </p>
-                </div>
-            </div>
-        );
+        return <Loading label="Carregando CRM" />;
     }
 
     return (

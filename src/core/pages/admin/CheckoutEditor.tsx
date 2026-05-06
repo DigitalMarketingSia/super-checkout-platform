@@ -6,6 +6,7 @@ import { storage } from '../../services/storageService';
 import { Checkout, Product, Gateway, Domain, DomainStatus, CheckoutConfig, GatewayProvider, DomainUsage } from '../../types';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
+import { Loading } from '../../components/ui/Loading';
 import {
    ArrowLeft,
    Save,
@@ -242,12 +243,7 @@ export const CheckoutEditor = () => {
    return (
       <Layout>
          {loading ? (
-            <div className="flex items-center justify-center min-h-[60vh]">
-               <div className="flex flex-col items-center gap-4">
-                  <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                  <p className="text-gray-400 text-sm">Carregando editor...</p>
-               </div>
-            </div>
+            <Loading label="Carregando editor" className="min-h-[70vh]" />
          ) : (
             <>
                <div className="sticky top-0 z-40 bg-[#05050A]/60 backdrop-blur-xl py-6 border-b border-white/5 mb-10 -mx-4 px-8 lg:-mx-8">

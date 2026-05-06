@@ -7,6 +7,7 @@ import { supabase } from '../../services/supabase';
 import { Order, OrderStatus } from '../../types';
 
 import { AlertModal } from '../../components/ui/Modal';
+import { Loading } from '../../components/ui/Loading';
 import { getApiUrl } from '../../utils/apiUtils';
 
 // Mocks de segurança conforme solicitado
@@ -421,11 +422,7 @@ export const PixPayment = () => {
 
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
+    return <Loading label="Carregando pagamento" />;
   }
 
   return (

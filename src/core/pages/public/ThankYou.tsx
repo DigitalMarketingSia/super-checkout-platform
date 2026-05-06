@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { CheckCircle, Package, Mail, ArrowRight, ShoppingBag } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
+import { Loading } from '../../components/ui/Loading';
 import { supabase } from '../../services/supabase';
 import { Order } from '../../types';
 import { TrackingProvider, useTracking } from '../../context/TrackingContext';
@@ -65,14 +66,7 @@ export const ThankYou = () => {
   }, [orderId]);
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-pulse flex flex-col items-center gap-4">
-          <div className="w-12 h-12 bg-gray-200 rounded-full"></div>
-          <div className="h-4 w-32 bg-gray-200 rounded"></div>
-        </div>
-      </div>
-    );
+    return <Loading label="Carregando pedido" />;
   }
 
   // Ensure config exists
