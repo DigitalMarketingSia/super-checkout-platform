@@ -29,12 +29,15 @@ const ALLOWED_ORIGINS = [
     'https://app.supercheckout.app',
     'https://portal.supercheckout.app',
     'https://install.supercheckout.app',
-    'http://localhost:3000',
-    'http://localhost:5173'
+    ...(process.env.NODE_ENV !== 'production' ? ['http://localhost:3000', 'http://localhost:5173'] : [])
 ].filter(Boolean);
 
-const DEFAULT_CENTRAL_API_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co/functions/v1';
-const DEFAULT_CENTRAL_SUPABASE_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co';
+const DEV_CENTRAL_API_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co/functions/v1';
+const DEV_CENTRAL_SUPABASE_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co';
+
+function getDevFallback(value: string) {
+    return process.env.NODE_ENV !== 'production' ? value : '';
+}
 
 // --- Rate Limiting ---
 // Upstash Redis coordinates limits across serverless instances when configured.
@@ -476,7 +479,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         console.warn(`[Auth/Login] 🚫 Rate limited IP: ${ip} (retry in ${retryAfterSec}s)`);
         await logAuthEvent({
             supabaseUrl: process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-            serviceKey: process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || '',
+            serviceKey: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
             eventType: 'login_rate_limited',
             severity: 'WARNING',
             ip,
@@ -504,6 +507,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!email || !password) {
         return res.status(400).json({ error: 'Email e senha são obrigatórios.' });
     }
+    const maskedEmail = maskEmail(email);
 
     // --- Determine Target Supabase (local vs central) ---
     let supabaseUrl: string;
@@ -515,8 +519,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             process.env.VITE_CENTRAL_SUPABASE_URL
             || process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_URL
             || process.env.VITE_CENTRAL_API_URL?.replace('/functions/v1', '')
-            || DEFAULT_CENTRAL_API_URL.replace('/functions/v1', '')
-            || DEFAULT_CENTRAL_SUPABASE_URL;
+            || getDevFallback(DEV_CENTRAL_API_URL.replace('/functions/v1', ''))
+            || getDevFallback(DEV_CENTRAL_SUPABASE_URL);
         supabaseAnonKey =
             process.env.VITE_CENTRAL_SUPABASE_ANON_KEY
             || process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_ANON_KEY
@@ -532,7 +536,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(500).json({ error: 'Erro de configuração do servidor.' });
     }
 
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || '';
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
     const auditSupabaseUrl = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || supabaseUrl;
 
     try {
@@ -541,7 +545,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
         if (error) {
-            console.warn(`[Auth/Login] ❌ Failed login for ${email} from IP ${ip}: ${error.message}`);
+            console.warn(`[Auth/Login] ❌ Failed login for ${maskedEmail} from IP ${ip}: ${error.message}`);
             
             const failedAttempt = await recordFailedAttempt(ip);
             await logAuthEvent({
@@ -553,7 +557,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 userAgent: getUserAgent(req),
                 metadata: {
                     target: target || 'local',
-                    email: maskEmail(email),
+                    email: maskedEmail,
                     reason: error.message,
                     failed_attempts: failedAttempt.attempts,
                     next_threshold: getNextThreshold(failedAttempt.attempts),
@@ -583,7 +587,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     userAgent: getUserAgent(req),
                     metadata: {
                         target: target || 'local',
-                        email: maskEmail(email),
+                        email: maskedEmail,
                         email_fingerprint: emailFingerprint(email),
                         failed_attempts: effectiveAttempts,
                         threshold: blockLevel.attempts,
@@ -630,7 +634,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         // --- Success: Reset rate limit for this IP ---
         await resetAttempts(ip);
-        console.log(`[Auth/Login] ✅ Successful login for ${email} from IP ${ip}`);
+        console.log(`[Auth/Login] ✅ Successful login for ${maskedEmail} from IP ${ip}`);
         await logAuthEvent({
             supabaseUrl: auditSupabaseUrl,
             serviceKey,
@@ -641,7 +645,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             userId: target === 'central' ? null : data.user?.id,
             metadata: {
                 target: target || 'local',
-                email: maskEmail(email)
+                email: maskedEmail
             }
         });
 
@@ -670,7 +674,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 if (profile?.totp_enabled) {
                     if (!profile.totp_secret_encrypted) {
-                        console.warn(`[Auth/Login] 2FA enabled but secret missing for ${email}. Falling back to normal login.`);
+                        console.warn(`[Auth/Login] 2FA enabled but secret missing for ${maskedEmail}. Falling back to normal login.`);
                     } else {
                         const challengePayload = {
                             session: data.session,
@@ -692,7 +696,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             userId: data.user.id,
                             metadata: {
                                 target: target || 'local',
-                                email: maskEmail(email),
+                                email: maskedEmail,
                                 source: 'auth_login_proxy',
                                 two_factor_required: true
                             }
@@ -707,7 +711,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
                 }
             } catch (inspectionError: any) {
-                console.warn(`[Auth/Login] 2FA inspection skipped for ${email}:`, inspectionError?.message || inspectionError);
+                console.warn(`[Auth/Login] 2FA inspection skipped for ${maskedEmail}:`, inspectionError?.message || inspectionError);
             }
         }
 
@@ -755,7 +759,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     });
                 }
             } catch (centralProfileError: any) {
-                console.warn(`[Auth/Login] Central approval check skipped for ${email}:`, centralProfileError?.message || centralProfileError);
+                console.warn(`[Auth/Login] Central approval check skipped for ${maskedEmail}:`, centralProfileError?.message || centralProfileError);
             }
         }
 
@@ -766,7 +770,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
 
     } catch (err: any) {
-        console.error(`[Auth/Login] Fatal error for ${email} from IP ${ip}:`, err.message);
+        console.error(`[Auth/Login] Fatal error for ${maskedEmail} from IP ${ip}:`, err.message);
         return res.status(500).json({ error: 'Erro interno do servidor.' });
     }
 }

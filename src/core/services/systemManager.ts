@@ -450,9 +450,9 @@ export const SystemManager = {
   },
 
   /**
-   * Executes migration SQL through the admin API so exec_sql is never exposed to browser roles.
+   * Requests a pre-approved migration by version. Raw SQL never leaves the server allowlist.
    */
-  async runMigration(version: string, sql: string, description: string): Promise<boolean> {
+  async runMigration(version: string, _sql: string, description: string): Promise<boolean> {
     const startTime = Date.now();
     try {
       console.log(`[SystemManager] Running migration ${version}...`);
@@ -474,7 +474,7 @@ export const SystemManager = {
           Authorization: `Bearer ${session.access_token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ version, sql })
+        body: JSON.stringify({ version })
       });
 
       const result = await response.json().catch(() => ({}));

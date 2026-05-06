@@ -10,14 +10,40 @@ import { encrypt } from '../../utils/cryptoUtils.js';
  * "Encrypted at Rest" no banco de dados.
  */
 
+function parseBody(req: VercelRequest) {
+  if (!req.body) return {};
+  if (typeof req.body === 'string') {
+    try {
+      return JSON.parse(req.body);
+    } catch {
+      return {};
+    }
+  }
+  return req.body;
+}
+
+async function validateLocalUser(supabaseUrl: string, anonKey: string, jwt: string) {
+  const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
+    headers: {
+      apikey: anonKey,
+      Authorization: `Bearer ${jwt}`
+    }
+  });
+
+  if (!response.ok) return null;
+  const user = await response.json();
+  return user?.id ? user : null;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || '';
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
-  if (!supabaseUrl || !supabaseServiceKey) {
-    console.error('[AdminSaveGateway] CRITICAL: SUPABASE_URL or SERVICE_KEY missing in environment!');
+  if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceKey) {
+    console.error('[AdminSaveGateway] CRITICAL: SUPABASE_URL, ANON_KEY or SERVICE_KEY missing in environment!');
     return res.status(500).json({ error: 'System configuration error: Missing DB credentials.' });
   }
 
@@ -50,7 +76,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   };
 
   try {
-    const { id, name, public_key, private_key, webhook_secret, config, user_id, provider, active } = req.body;
+    const authHeader = req.headers.authorization || '';
+    const jwt = authHeader.startsWith('Bearer ') ? authHeader.replace('Bearer ', '') : '';
+    if (!jwt) return res.status(401).json({ error: 'Unauthorized' });
+
+    const user = await validateLocalUser(supabaseUrl, supabaseAnonKey, jwt);
+    if (!user?.id) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (profileError || !['admin', 'owner', 'master_admin'].includes(profile?.role)) {
+      await logGatewayAudit('gateway_credentials_change_rejected', 'WARNING', {
+        user_id: user.id,
+        reason: 'insufficient_role',
+        role: profile?.role || null
+      });
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { id, name, public_key, private_key, webhook_secret, config, user_id, provider, active } = parseBody(req);
+
+    if (user_id !== user.id) {
+      await logGatewayAudit('gateway_credentials_change_rejected', 'CRITICAL', {
+        user_id: user.id,
+        requested_user_id: user_id || null,
+        reason: 'user_id_mismatch',
+        gateway_id: id || null
+      });
+      return res.status(403).json({ error: 'Gateway owner mismatch' });
+    }
 
     // --- DEBUG LOGS (Fase 11 Debug) ---
     console.log('[AdminSaveGateway] Incoming Request:', { 
@@ -84,7 +142,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       private_key: encryptedPrivateKey,
       webhook_secret: encryptedWebhookSecret,
       config: config || {},
-      active: active ?? true
+      active: active ?? true,
+      user_id: user.id
     };
 
     let result;
@@ -92,21 +151,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (id) {
       // Update existing
       console.log('[AdminSaveGateway] Updating gateway:', id);
+      const { data: existingGateway, error: existingGatewayError } = await supabaseAdmin
+        .from('gateways')
+        .select('id,user_id')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (existingGatewayError) throw existingGatewayError;
+      if (!existingGateway) return res.status(404).json({ error: 'Gateway not found' });
+
+      if (existingGateway.user_id && existingGateway.user_id !== user.id) {
+        await logGatewayAudit('gateway_credentials_change_rejected', 'CRITICAL', {
+          user_id: user.id,
+          requested_user_id: existingGateway.user_id,
+          reason: 'gateway_owner_mismatch',
+          gateway_id: id
+        });
+        return res.status(403).json({ error: 'Gateway owner mismatch' });
+      }
+
       result = await supabaseAdmin
         .from('gateways')
         .update(gatewayData)
         .eq('id', id);
     } else {
       // Create new
-      if (!user_id) throw new Error('user_id is required for new gateways');
-      
-      console.log('[AdminSaveGateway] Creating new gateway for user:', user_id);
+      console.log('[AdminSaveGateway] Creating new gateway for user:', user.id);
       result = await supabaseAdmin
         .from('gateways')
-        .insert({
-          ...gatewayData,
-          user_id
-        });
+        .insert(gatewayData);
     }
 
     if (result.error) {
@@ -142,9 +215,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   } catch (error: any) {
     console.error('[AdminSaveGateway] Runtime Error:', error.message);
-    return res.status(500).json({ 
-      error: error.message || 'Internal Server Error',
-      details: error.details || undefined
-    });
+    return res.status(500).json({ error: 'Internal Server Error' });
   }
 }

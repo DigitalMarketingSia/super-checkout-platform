@@ -15,14 +15,17 @@ const ALLOWED_ORIGINS = [
   'https://app.supercheckout.app',
   'https://portal.supercheckout.app',
   'https://install.supercheckout.app',
-  'http://localhost:3000',
-  'http://localhost:5173',
+  ...(process.env.NODE_ENV !== 'production' ? ['http://localhost:3000', 'http://localhost:5173'] : []),
 ].filter(Boolean);
 
 export const TWO_FACTOR_ISSUER = 'Super Checkout';
 export const TWO_FACTOR_CHALLENGE_TTL_MS = 5 * 60 * 1000;
-const DEFAULT_CENTRAL_API_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co/functions/v1';
-const DEFAULT_CENTRAL_SUPABASE_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co';
+const DEV_CENTRAL_API_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co/functions/v1';
+const DEV_CENTRAL_SUPABASE_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co';
+
+function getDevFallback(value: string) {
+  return process.env.NODE_ENV !== 'production' ? value : '';
+}
 
 export function applyCors(req: VercelRequest, res: VercelResponse) {
   const origin = req.headers.origin;
@@ -89,8 +92,8 @@ export function getSupabaseUrl(target?: string): string {
     return process.env.VITE_CENTRAL_SUPABASE_URL
       || process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_URL
       || process.env.VITE_CENTRAL_API_URL?.replace('/functions/v1', '')
-      || DEFAULT_CENTRAL_API_URL.replace('/functions/v1', '')
-      || DEFAULT_CENTRAL_SUPABASE_URL;
+      || getDevFallback(DEV_CENTRAL_API_URL.replace('/functions/v1', ''))
+      || getDevFallback(DEV_CENTRAL_SUPABASE_URL);
   }
   return process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 }
@@ -103,7 +106,7 @@ export function getSupabaseAnonKey(target?: string): string {
 }
 
 export function getSupabaseServiceKey(): string {
-  return process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || '';
+  return process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 }
 
 export function encryptChallenge(payload: Record<string, any>): string {

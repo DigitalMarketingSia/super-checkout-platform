@@ -35,6 +35,12 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const maskEmail = (email?: string | null) => {
+  const [name, domain] = String(email || '').split('@');
+  if (!name || !domain) return 'unknown';
+  return `${name.slice(0, 2)}***@${domain}`;
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
@@ -146,9 +152,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { data: { session } } = await supabase.auth.getSession();
       if (disposed) return;
 
-      console.log('[AuthProvider] Initial session check:', session?.user?.email);
+      console.log('[AuthProvider] Initial session check:', maskEmail(session?.user?.email));
       if (session && isSessionTooOld(session)) {
-        console.warn(`[AuthProvider] Session expired by policy (${getSessionPolicyLabel()}):`, session.user?.email);
+        console.warn(`[AuthProvider] Session expired by policy (${getSessionPolicyLabel()}):`, maskEmail(session.user?.email));
         try {
           await supabase.auth.signOut();
         } catch (error) {
@@ -182,9 +188,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (disposed) return;
 
-      console.log('[AuthProvider] Auth state change:', _event, session?.user?.email);
+      console.log('[AuthProvider] Auth state change:', _event, maskEmail(session?.user?.email));
       if (session && isSessionTooOld(session)) {
-        console.warn(`[AuthProvider] Rejecting stale auth session (${getSessionPolicyLabel()}):`, session.user?.email);
+        console.warn(`[AuthProvider] Rejecting stale auth session (${getSessionPolicyLabel()}):`, maskEmail(session.user?.email));
         supabase.auth.signOut().catch((error) => {
           console.warn('[AuthProvider] signOut after stale session failed:', error);
         });

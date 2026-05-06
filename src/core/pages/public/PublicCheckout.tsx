@@ -14,6 +14,7 @@ import { validateName, validateEmail, validatePhone, validateCPF, maskPhone, mas
 import { PhoneInput } from '../../components/ui/PhoneInput';
 import { AlertModal } from '../../components/ui/Modal';
 import { Loading } from '../../components/ui/Loading';
+import './PublicCheckout.css';
 
 import { TrackingProvider, useTracking } from '../../context/TrackingContext';
 import { translatePaymentError } from '../../utils/errorTranslator';
@@ -133,14 +134,6 @@ const ProcessingModal = ({
                </>
             )}
          </div>
-
-         <style dangerouslySetInnerHTML={{__html: `
-            @keyframes progress {
-               0% { transform: translateX(-100%); }
-               50% { transform: translateX(100%); }
-               100% { transform: translateX(-100%); }
-            }
-         `}} />
       </div>
    );
 };

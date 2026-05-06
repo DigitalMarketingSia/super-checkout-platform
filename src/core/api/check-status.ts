@@ -17,8 +17,7 @@ const ALLOWED_ORIGINS = [
     process.env.APP_URL,
     process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
     process.env.NEXT_PUBLIC_APP_URL,
-    'http://localhost:3000',
-    'http://localhost:5173'
+    ...(process.env.NODE_ENV !== 'production' ? ['http://localhost:3000', 'http://localhost:5173'] : [])
 ].filter(Boolean);
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -74,7 +73,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     
     // 🔥 CRITICAL: Use SERVICE_ROLE_KEY for backend operations to bypass RLS
     // Fallback to Anon only for read-only identification if needed, but PATCH REQUIRES Service Role
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
     console.log(`[CheckStatus] Checking order: ${orderId} (Key Length: ${supabaseKey?.length || 0})`);
 

@@ -14,6 +14,12 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey || '', {
     }
 });
 
+function maskEmail(email?: string | null) {
+    const [name, domain] = String(email || '').split('@');
+    if (!name || !domain) return 'unknown';
+    return `${name.slice(0, 2)}***@${domain}`;
+}
+
 async function resolveMemberAreaAccessIds(memberAreaId?: string) {
     if (!memberAreaId) return { contentIds: [] as string[], productIds: [] as string[] };
 
@@ -148,7 +154,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 let isNewUser = false;
                 const tempPassword = Math.random().toString(36).slice(-12) + "A1!";
 
-                console.log(`[Admin] Processing member add for ${email}`);
+                console.log(`[Admin] Processing member add for ${maskEmail(email)}`);
 
                 // 1. Resolve User (Check Profile -> Create Auth -> Recover Auth)
 
@@ -415,7 +421,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const { email } = data;
                 if (!email) return res.status(400).json({ error: 'Email required' });
 
-                console.log('Promoting user to admin:', email);
+                console.log('Promoting user to admin:', maskEmail(email));
 
                 // 1. Find User in Auth
                 const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers({

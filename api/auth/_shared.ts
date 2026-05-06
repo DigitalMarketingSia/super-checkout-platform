@@ -15,8 +15,7 @@ export const ALLOWED_ORIGINS = [
     'https://app.supercheckout.app',
     'https://portal.supercheckout.app',
     'https://install.supercheckout.app',
-    'http://localhost:3000',
-    'http://localhost:5173'
+    ...(process.env.NODE_ENV !== 'production' ? ['http://localhost:3000', 'http://localhost:5173'] : [])
 ].filter(Boolean) as string[];
 
 export type SecuritySeverity = 'INFO' | 'WARNING' | 'CRITICAL' | 'FATAL';
@@ -77,7 +76,11 @@ export function emailFingerprint(email: string): string {
 }
 
 export function isLocalOrigin(origin?: string | null): boolean {
-    return Boolean(origin && ['http://localhost:3000', 'http://localhost:5173'].includes(origin));
+    return Boolean(
+        process.env.NODE_ENV !== 'production'
+        && origin
+        && ['http://localhost:3000', 'http://localhost:5173'].includes(origin)
+    );
 }
 
 export function getPortalBaseUrl(origin?: string | null): string {
@@ -94,7 +97,7 @@ export function getPortalBaseUrl(origin?: string | null): string {
 
 export function getAuditClient() {
     const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || '';
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
     if (!supabaseUrl || !serviceKey) {
         return null;

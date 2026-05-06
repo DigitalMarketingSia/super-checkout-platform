@@ -85,6 +85,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
 
     // --- EMAIL HELPERS ---
+    const maskEmail = (email?: string | null) => {
+        const [name, domain] = String(email || '').split('@');
+        if (!name || !domain) return 'unknown';
+        return `${name.slice(0, 2)}***@${domain}`;
+    };
+
     const sendOrderEmail = async (
         order: any,
         supabaseUrl: string,
@@ -106,7 +112,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return;
             }
 
-            console.log(`[Webhook] Attempting to send email for Order ${order.id} to ${recipientEmail}`);
+            console.log(`[Webhook] Attempting to send email for Order ${order.id} to ${maskEmail(recipientEmail)}`);
 
             // 1. Fetch Resend Integration
             const intRes = await fetch(`${supabaseUrl}/rest/v1/integrations?name=eq.resend&active=eq.true&select=*&limit=1`, {
@@ -203,7 +209,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         }
                     })
                 });
-                console.log(`[Webhook] Email sent to ${recipientEmail}`);
+                console.log(`[Webhook] Email sent to ${maskEmail(recipientEmail)}`);
             }
 
         } catch (error: any) {

@@ -262,6 +262,76 @@ function isStripeTimestampFresh(timestamp?: string | null): boolean {
     return Math.abs(nowSeconds - timestampSeconds) <= WEBHOOK_TIMESTAMP_TOLERANCE;
 }
 
+function isMercadoPagoTimestampFresh(timestamp?: string | null): boolean {
+    if (!timestamp || !/^\d+$/.test(timestamp)) return false;
+
+    const rawTimestamp = Number(timestamp);
+    if (!Number.isFinite(rawTimestamp)) return false;
+
+    const timestampMs = rawTimestamp > 10_000_000_000 ? rawTimestamp : rawTimestamp * 1000;
+    return Math.abs(Date.now() - timestampMs) <= WEBHOOK_TIMESTAMP_TOLERANCE * 1000;
+}
+
+function getSingleQueryValue(value: string | string[] | undefined): string {
+    if (Array.isArray(value)) return value[0] || '';
+    return value || '';
+}
+
+function getHeaderValue(value: string | string[] | undefined): string {
+    if (Array.isArray(value)) return value[0] || '';
+    return value || '';
+}
+
+function parseMercadoPagoSignature(signature: string): { ts: string; v1: string } | null {
+    const parsed = new Map<string, string>();
+
+    for (const part of signature.split(',')) {
+        const [key, value] = part.split('=');
+        if (key && value) parsed.set(key.trim(), value.trim());
+    }
+
+    const ts = parsed.get('ts') || '';
+    const v1 = parsed.get('v1') || '';
+    return ts && v1 ? { ts, v1 } : null;
+}
+
+function buildMercadoPagoSignatureManifest(dataId: string, requestId: string, ts: string): string {
+    const parts: string[] = [];
+    if (dataId) parts.push(`id:${dataId}`);
+    if (requestId) parts.push(`request-id:${requestId}`);
+    if (ts) parts.push(`ts:${ts}`);
+    return `${parts.join(';')};`;
+}
+
+function verifyMercadoPagoSignature(req: VercelRequest, webhookSecret: string) {
+    const contentType = getHeaderValue(req.headers['content-type']);
+    if (!contentType.toLowerCase().includes('application/json')) {
+        return { ok: false, status: 'INVALID_CONTENT_TYPE' };
+    }
+
+    const signatureHeader = getHeaderValue(req.headers['x-signature']);
+    const requestId = getHeaderValue(req.headers['x-request-id']);
+    const parsedSignature = parseMercadoPagoSignature(signatureHeader);
+
+    if (!webhookSecret || !signatureHeader || !requestId || !parsedSignature) {
+        return { ok: false, status: 'MISSING_SIGNATURE' };
+    }
+
+    if (!isMercadoPagoTimestampFresh(parsedSignature.ts)) {
+        return { ok: false, status: 'STALE_SIGNATURE' };
+    }
+
+    const dataId = getSingleQueryValue(req.query['data.id']) || getSingleQueryValue(req.query.id);
+    const manifest = buildMercadoPagoSignatureManifest(dataId, requestId, parsedSignature.ts);
+    const expectedSig = crypto.createHmac('sha256', webhookSecret).update(manifest).digest('hex');
+
+    if (!safeCompare(parsedSignature.v1, expectedSig)) {
+        return { ok: false, status: 'INVALID_SIGNATURE' };
+    }
+
+    return { ok: true, status: 'OK' };
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { action } = req.query;
 
@@ -422,6 +492,13 @@ async function handleMercadoPago(req: VercelRequest, res: VercelResponse, rawBod
     const { data: gateways } = await supabaseAdmin.from('gateways').select('*').or('name.ilike.%mercado%,name.eq.mercado_pago').eq('active', true);
     const gatewayRecord = gateways?.[0];
     if (!gatewayRecord?.private_key) return res.status(200).json({ status: 'GATEWAY_NOT_FOUND' });
+
+    const webhookSecret = decrypt(gatewayRecord?.webhook_secret || '');
+    const signatureResult = verifyMercadoPagoSignature(req, webhookSecret);
+    if (!signatureResult.ok) {
+        await logWebhook(supabaseAdmin, `webhook.mp_${signatureResult.status.toLowerCase()}`, signatureResult.status, 401, rawBody);
+        return res.status(401).json({ status: signatureResult.status });
+    }
 
     try {
         const decodedKey = decrypt(gatewayRecord.private_key).trim();

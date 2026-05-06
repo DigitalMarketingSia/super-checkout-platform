@@ -14,7 +14,7 @@ import Aurora from '../../components/ui/Aurora';
 
 export const Gateways = () => {
   const { t } = useTranslation(['admin', 'common']);
-  const { compliance, user } = useAuth();
+  const { compliance, user, session } = useAuth();
   const [gateways, setGateways] = useState<Gateway[]>([]);
   const [showComplianceModal, setShowComplianceModal] = useState(false);
   const [mpConfig, setMpConfig] = useState({
@@ -107,7 +107,10 @@ export const Gateways = () => {
       
       const saveResponse = await fetch(`/api/admin?action=save-gateway`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {})
+        },
         body: JSON.stringify({
           id: index >= 0 ? gateways[index].id : undefined,
           provider: provider,

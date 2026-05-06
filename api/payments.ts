@@ -20,8 +20,7 @@ const ALLOWED_ORIGINS = [
     'https://app.supercheckout.app',
     'https://portal.supercheckout.app',
     'https://install.supercheckout.app',
-    'http://localhost:3000',
-    'http://localhost:5173'
+    ...(process.env.NODE_ENV !== 'production' ? ['http://localhost:3000', 'http://localhost:5173'] : [])
 ].filter(Boolean);
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

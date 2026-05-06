@@ -51,6 +51,47 @@ const getSafeRedirectPath = (path?: string) => {
     return path;
 };
 
+const normalizeOrigin = (origin?: string) => {
+    if (!origin) return null;
+
+    try {
+        return new URL(origin).origin;
+    } catch {
+        return null;
+    }
+};
+
+const getTrustedPassportOrigins = () => {
+    const origins = [
+        platformUrls.marketing,
+        platformUrls.app,
+        platformUrls.portal,
+        platformUrls.install,
+        window.location.origin,
+        import.meta.env.VITE_SUPER_CHECKOUT_MARKETING_URL,
+        import.meta.env.VITE_SUPER_CHECKOUT_APP_URL,
+        import.meta.env.VITE_SUPER_CHECKOUT_PORTAL_URL,
+        import.meta.env.VITE_SUPER_CHECKOUT_INSTALL_URL,
+    ]
+        .map((origin) => normalizeOrigin(origin))
+        .filter(Boolean) as string[];
+
+    if (import.meta.env.DEV) {
+        origins.push('http://localhost:3000', 'http://localhost:5173');
+    }
+
+    return new Set(origins);
+};
+
+const assertTrustedPassportOrigin = (origin?: string) => {
+    const normalized = normalizeOrigin(origin);
+    if (!normalized || !getTrustedPassportOrigins().has(normalized)) {
+        throw new Error('Destino de redirecionamento nao confiavel. Solicite um novo acesso.');
+    }
+
+    return normalized;
+};
+
 export const PassportExchange: React.FC = () => {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
@@ -105,7 +146,8 @@ export const PassportExchange: React.FC = () => {
                     setMessage('Acesso liberado. Redirecionando...');
 
                     if (data.target_origin && data.target_origin !== window.location.origin) {
-                        window.location.href = new URL(redirectPath, data.target_origin).toString();
+                        const targetOrigin = assertTrustedPassportOrigin(data.target_origin);
+                        window.location.href = new URL(redirectPath, targetOrigin).toString();
                         return;
                     }
 
@@ -114,6 +156,7 @@ export const PassportExchange: React.FC = () => {
                 }
 
                 if (data.auth?.method === 'action_link' && data.auth.action_link) {
+                    assertTrustedPassportOrigin(data.auth.action_link);
                     window.location.href = data.auth.action_link;
                     return;
                 }

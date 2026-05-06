@@ -1,5 +1,23 @@
 import { createClient } from '@supabase/supabase-js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { createHash } from 'node:crypto';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+const MIGRATION_ALLOWLIST: Record<string, { file: string; sha256: string }> = {
+  '1.0.1': {
+    file: 'v1.0.1.sql',
+    sha256: 'a0e7c52cac13245c6d8f68387dfffa67e180efb523696dc8989f140cf2e77896'
+  },
+  '1.0.2': {
+    file: 'v1.0.2.sql',
+    sha256: 'd21ce0cf568115c9bd4dbfc53d97c4f9a47495b22d8da11b0699b415725e146b'
+  },
+  '1.0.3': {
+    file: 'v1.0.3.sql',
+    sha256: '3a63df2ffab5f47cc1707d68a69137f3852bd27a1ee54dfbbc1aadea69290596'
+  }
+};
 
 function parseBody(req: VercelRequest) {
   if (!req.body) return {};
@@ -26,13 +44,35 @@ async function validateLocalUser(supabaseUrl: string, anonKey: string, jwt: stri
   return user?.id ? user : null;
 }
 
+function loadApprovedMigrationSql(version: string) {
+  const migration = MIGRATION_ALLOWLIST[version];
+  if (!migration) return null;
+
+  const candidatePaths = [
+    join(process.cwd(), 'src', 'migrations', migration.file),
+    join(process.cwd(), 'dist', 'src', 'migrations', migration.file)
+  ];
+  const migrationPath = candidatePaths.find((path) => existsSync(path));
+  if (!migrationPath) {
+    throw new Error(`Approved migration file not found for version ${version}`);
+  }
+
+  const sql = readFileSync(migrationPath, 'utf8');
+  const actualHash = createHash('sha256').update(sql, 'utf8').digest('hex');
+  if (actualHash !== migration.sha256) {
+    throw new Error(`Approved migration hash mismatch for version ${version}`);
+  }
+
+  return { sql, sha256: actualHash, file: migration.file };
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !anonKey || !serviceKey) {
     return res.status(500).json({ error: 'Server configuration error' });
@@ -61,18 +101,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const body = parseBody(req);
   const version = String(body.version || '').trim();
-  const sql = String(body.sql || '').trim();
 
-  if (!version || !sql) {
-    return res.status(400).json({ error: 'Missing migration version or SQL.' });
+  if (!version) {
+    return res.status(400).json({ error: 'Missing migration version.' });
   }
 
-  const { data, error } = await supabase.rpc('exec_sql', { sql_query: sql });
+  if (body.sql) {
+    console.warn('[run-migration] Rejected raw SQL payload for approved migration endpoint.');
+    return res.status(400).json({ error: 'Raw SQL payloads are not accepted.' });
+  }
+
+  const approvedMigration = loadApprovedMigrationSql(version);
+  if (!approvedMigration) {
+    return res.status(400).json({ error: 'Migration version is not approved.' });
+  }
+
+  const { data, error } = await supabase.rpc('exec_sql', { sql_query: approvedMigration.sql });
 
   if (error || !(data as any)?.success) {
     const errorMsg = error?.message || (data as any)?.error || 'Migration failed';
     return res.status(500).json({ success: false, error: errorMsg });
   }
 
-  return res.status(200).json({ success: true, data });
+  return res.status(200).json({
+    success: true,
+    data,
+    migration: {
+      version,
+      file: approvedMigration.file,
+      sha256: approvedMigration.sha256
+    }
+  });
 }

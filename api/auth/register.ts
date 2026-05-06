@@ -21,15 +21,21 @@ interface MemoryBucket {
     blockedUntil: number;
 }
 
+type UpstashResponse<T> = { result?: T; error?: string };
+
 const SOURCE = 'auth_register_api';
 const memoryBuckets = new Map<string, MemoryBucket>();
 const DEFAULT_LAUNCH_SETTINGS: LaunchSettings = {
     registrationOpen: true,
     manualApprovalEnabled: false
 };
-const DEFAULT_CENTRAL_API_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co/functions/v1';
-const DEFAULT_CENTRAL_SUPABASE_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co';
+const DEV_CENTRAL_API_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co/functions/v1';
+const DEV_CENTRAL_SUPABASE_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co';
 const SIGNUP_PROFILE_RETRY_DELAYS_MS = [0, 250, 750] as const;
+
+function getDevFallback(value: string) {
+    return process.env.NODE_ENV !== 'production' ? value : '';
+}
 
 interface SignupPersistenceParams {
     userId: string;
@@ -51,6 +57,13 @@ const HARD_LIMITS = {
     resendEmail: { max: 3, windowMs: 60 * 60 * 1000, blockMs: 60 * 60 * 1000 },
     trackIp: { max: 30, windowMs: 10 * 60 * 1000, blockMs: 10 * 60 * 1000 }
 } as const;
+
+const RATE_LIMIT_MAX_TTL_SEC = Math.ceil(
+    (
+        Math.max(...Object.values(HARD_LIMITS).map((limit) => limit.windowMs + limit.blockMs))
+        + 24 * 60 * 60 * 1000
+    ) / 1000
+);
 
 const CAPTCHA_THRESHOLDS = {
     signupIp: { count: 2, windowMs: 30 * 60 * 1000 },
@@ -126,6 +139,144 @@ function incrementMemoryBucket(key: string, config: { max: number; windowMs: num
     return { count: bucket.count, retryAfterSec: 0 };
 }
 
+function getRateLimitRedisConfig(): { url: string; token: string } | null {
+    const url = process.env.UPSTASH_REDIS_REST_URL?.replace(/\/+$/, '');
+    const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+    if (!url || !token) return null;
+    return { url, token };
+}
+
+function rateLimitRedisKey(key: string): string {
+    return `sc:auth:register:${emailFingerprint(key)}`;
+}
+
+async function upstashRedisCommand<T>(command: Array<string | number>): Promise<T> {
+    const config = getRateLimitRedisConfig();
+    if (!config) throw new Error('Upstash Redis is not configured.');
+
+    const response = await fetch(config.url, {
+        method: 'POST',
+        headers: {
+            Authorization: `Bearer ${config.token}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(command),
+    });
+
+    const payload = await response.json().catch(() => ({})) as UpstashResponse<T>;
+    if (!response.ok || payload.error) {
+        throw new Error(payload.error || `Upstash Redis request failed with ${response.status}`);
+    }
+
+    return payload.result as T;
+}
+
+async function getDistributedBucket(key: string): Promise<MemoryBucket | null | undefined> {
+    if (!getRateLimitRedisConfig()) return undefined;
+
+    try {
+        const value = await upstashRedisCommand<string | null>(['GET', rateLimitRedisKey(key)]);
+        if (!value) return null;
+        return JSON.parse(value) as MemoryBucket;
+    } catch (error: any) {
+        console.warn(`[${SOURCE}] Redis rate limit read failed, using memory fallback:`, error?.message || error);
+        return undefined;
+    }
+}
+
+async function setDistributedBucket(key: string, bucket: MemoryBucket): Promise<boolean> {
+    if (!getRateLimitRedisConfig()) return false;
+
+    try {
+        await upstashRedisCommand<string>([
+            'SET',
+            rateLimitRedisKey(key),
+            JSON.stringify(bucket),
+            'EX',
+            RATE_LIMIT_MAX_TTL_SEC,
+        ]);
+        return true;
+    } catch (error: any) {
+        console.warn(`[${SOURCE}] Redis rate limit write failed, using memory fallback:`, error?.message || error);
+        return false;
+    }
+}
+
+async function deleteDistributedBucket(key: string): Promise<boolean> {
+    if (!getRateLimitRedisConfig()) return false;
+
+    try {
+        await upstashRedisCommand<number>(['DEL', rateLimitRedisKey(key)]);
+        return true;
+    } catch (error: any) {
+        console.warn(`[${SOURCE}] Redis rate limit delete failed, using memory fallback:`, error?.message || error);
+        return false;
+    }
+}
+
+function inspectBucketValue(bucket: MemoryBucket | null | undefined, config: { max: number; windowMs: number; blockMs: number }) {
+    const now = Date.now();
+
+    if (!bucket) {
+        return { blocked: false, count: 0, retryAfterSec: 0, expired: false };
+    }
+
+    if (bucket.blockedUntil > now) {
+        return {
+            blocked: true,
+            count: bucket.count,
+            retryAfterSec: Math.ceil((bucket.blockedUntil - now) / 1000),
+            expired: false
+        };
+    }
+
+    if (now - bucket.firstHitAt > config.windowMs) {
+        return { blocked: false, count: 0, retryAfterSec: 0, expired: true };
+    }
+
+    return { blocked: false, count: bucket.count, retryAfterSec: 0, expired: false };
+}
+
+async function inspectRateLimitBucket(key: string, config: { max: number; windowMs: number; blockMs: number }) {
+    const distributedBucket = await getDistributedBucket(key);
+    if (distributedBucket !== undefined) {
+        const inspection = inspectBucketValue(distributedBucket, config);
+        if (inspection.expired) {
+            await deleteDistributedBucket(key);
+        }
+        return inspection;
+    }
+
+    return inspectMemoryBucket(key, config);
+}
+
+async function incrementRateLimitBucket(key: string, config: { max: number; windowMs: number; blockMs: number }) {
+    const distributedBucket = await getDistributedBucket(key);
+    if (distributedBucket !== undefined) {
+        const now = Date.now();
+        const bucket = !distributedBucket || now - distributedBucket.firstHitAt > config.windowMs
+            ? { count: 1, firstHitAt: now, blockedUntil: 0 }
+            : {
+                ...distributedBucket,
+                count: distributedBucket.count + 1,
+            };
+
+        if (bucket.count > config.max) {
+            bucket.blockedUntil = now + config.blockMs;
+        }
+
+        const persisted = await setDistributedBucket(key, bucket);
+        if (persisted) {
+            return {
+                count: bucket.count,
+                retryAfterSec: bucket.blockedUntil > now ? Math.ceil((bucket.blockedUntil - now) / 1000) : 0
+            };
+        }
+    }
+
+    return incrementMemoryBucket(key, config);
+}
+
 function isValidEmail(email: string) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
@@ -194,8 +345,8 @@ function getCentralClient(): SupabaseClient | null {
     const supabaseUrl =
         process.env.VITE_CENTRAL_SUPABASE_URL
         || process.env.VITE_CENTRAL_API_URL?.replace('/functions/v1', '')
-        || DEFAULT_CENTRAL_API_URL.replace('/functions/v1', '')
-        || DEFAULT_CENTRAL_SUPABASE_URL;
+        || getDevFallback(DEV_CENTRAL_API_URL.replace('/functions/v1', ''))
+        || getDevFallback(DEV_CENTRAL_SUPABASE_URL);
     const supabaseAnonKey =
         process.env.VITE_CENTRAL_SUPABASE_ANON_KEY
         || process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_ANON_KEY;
@@ -216,8 +367,8 @@ function getCentralAdminClient(): SupabaseClient | null {
     const supabaseUrl =
         process.env.VITE_CENTRAL_SUPABASE_URL
         || process.env.VITE_CENTRAL_API_URL?.replace('/functions/v1', '')
-        || DEFAULT_CENTRAL_API_URL.replace('/functions/v1', '')
-        || DEFAULT_CENTRAL_SUPABASE_URL;
+        || getDevFallback(DEV_CENTRAL_API_URL.replace('/functions/v1', ''))
+        || getDevFallback(DEV_CENTRAL_SUPABASE_URL);
     const serviceRoleKey =
         process.env.CENTRAL_SUPABASE_SERVICE_ROLE_KEY
         || process.env.VITE_CENTRAL_SUPABASE_SERVICE_ROLE_KEY;
@@ -493,7 +644,7 @@ async function enforceRateLimit(params: {
             : { ip: HARD_LIMITS.trackIp, email: null, eventType: 'register_track_event' };
 
     const ipKey = `${params.action}:ip:${params.ip}`;
-    const ipInspection = inspectMemoryBucket(ipKey, configs.ip);
+    const ipInspection = await inspectRateLimitBucket(ipKey, configs.ip);
     if (ipInspection.blocked) {
         return { blocked: true, retryAfterSec: ipInspection.retryAfterSec, dimension: 'ip' as const };
     }
@@ -505,13 +656,13 @@ async function enforceRateLimit(params: {
     });
 
     if (persistedIpCount >= configs.ip.max) {
-        const bumped = incrementMemoryBucket(ipKey, configs.ip);
+        const bumped = await incrementRateLimitBucket(ipKey, configs.ip);
         return { blocked: true, retryAfterSec: bumped.retryAfterSec || Math.ceil(configs.ip.blockMs / 1000), dimension: 'ip' as const };
     }
 
     if (params.email && configs.email) {
         const emailKey = `${params.action}:email:${emailFingerprint(params.email)}`;
-        const emailInspection = inspectMemoryBucket(emailKey, configs.email);
+        const emailInspection = await inspectRateLimitBucket(emailKey, configs.email);
         if (emailInspection.blocked) {
             return { blocked: true, retryAfterSec: emailInspection.retryAfterSec, dimension: 'email' as const };
         }
@@ -523,7 +674,7 @@ async function enforceRateLimit(params: {
         });
 
         if (persistedEmailCount >= configs.email.max) {
-            const bumped = incrementMemoryBucket(emailKey, configs.email);
+            const bumped = await incrementRateLimitBucket(emailKey, configs.email);
             return { blocked: true, retryAfterSec: bumped.retryAfterSec || Math.ceil(configs.email.blockMs / 1000), dimension: 'email' as const };
         }
     }
@@ -573,7 +724,7 @@ async function handleTrack(req: VercelRequest, res: VercelResponse, ip: string) 
         return res.status(202).json({ success: false });
     }
 
-    incrementMemoryBucket(`track:ip:${ip}`, HARD_LIMITS.trackIp);
+    await incrementRateLimitBucket(`track:ip:${ip}`, HARD_LIMITS.trackIp);
 
     await logSecurityEvent({
         eventType: TRACK_EVENT_MAP[event as PublicTrackEvent],
@@ -758,8 +909,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (action === 'waitlist') {
-        incrementMemoryBucket(`waitlist:ip:${ip}`, HARD_LIMITS.waitlistIp);
-        incrementMemoryBucket(`waitlist:email:${emailFingerprint(email)}`, HARD_LIMITS.waitlistEmail);
+        await incrementRateLimitBucket(`waitlist:ip:${ip}`, HARD_LIMITS.waitlistIp);
+        await incrementRateLimitBucket(`waitlist:email:${emailFingerprint(email)}`, HARD_LIMITS.waitlistEmail);
 
         await logSecurityEvent({
             eventType: 'register_waitlist_join_attempt',
@@ -857,8 +1008,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(400).json({ error: 'Informe seu telefone ou WhatsApp.' });
         }
 
-        incrementMemoryBucket(`signup:ip:${ip}`, HARD_LIMITS.signupIp);
-        incrementMemoryBucket(`signup:email:${emailFingerprint(email)}`, HARD_LIMITS.signupEmail);
+        await incrementRateLimitBucket(`signup:ip:${ip}`, HARD_LIMITS.signupIp);
+        await incrementRateLimitBucket(`signup:email:${emailFingerprint(email)}`, HARD_LIMITS.signupEmail);
 
         await logSecurityEvent({
             eventType: 'register_signup_attempt',
@@ -1234,8 +1385,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
     }
 
-    incrementMemoryBucket(`resend:ip:${ip}`, HARD_LIMITS.resendIp);
-    incrementMemoryBucket(`resend:email:${emailFingerprint(email)}`, HARD_LIMITS.resendEmail);
+    await incrementRateLimitBucket(`resend:ip:${ip}`, HARD_LIMITS.resendIp);
+    await incrementRateLimitBucket(`resend:email:${emailFingerprint(email)}`, HARD_LIMITS.resendEmail);
 
     await logSecurityEvent({
         eventType: 'register_resend_attempt',

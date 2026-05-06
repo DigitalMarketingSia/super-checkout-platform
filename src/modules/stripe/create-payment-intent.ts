@@ -143,7 +143,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         // --- FETCH GATEWAY SECRET KEY FROM SUPABASE ---
         const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://vixlzrmhqsbzjhpgfwdn.supabase.co';
-        const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+        const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
         const supabaseKey = serviceRoleKey || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
         if (!supabaseUrl || !supabaseKey) {
@@ -284,7 +284,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const internalPaymentStatus = translateStripeIntentStatus(paymentIntent.status);
         try {
             const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-            const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+            const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
             if (url && key) {
                 const supabaseService = createClient(url, key);

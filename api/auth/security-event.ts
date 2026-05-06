@@ -14,8 +14,7 @@ const ALLOWED_ORIGINS = [
     'https://app.supercheckout.app',
     'https://portal.supercheckout.app',
     'https://install.supercheckout.app',
-    'http://localhost:3000',
-    'http://localhost:5173'
+    ...(process.env.NODE_ENV !== 'production' ? ['http://localhost:3000', 'http://localhost:5173'] : [])
 ].filter(Boolean);
 
 const ALLOWED_EVENTS = new Set([
@@ -55,7 +54,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || '';
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
     if (!supabaseUrl || !serviceKey) {
         return res.status(500).json({ error: 'Security audit is not configured.' });

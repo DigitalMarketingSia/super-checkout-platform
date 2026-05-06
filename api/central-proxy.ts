@@ -8,6 +8,19 @@ const CRM_READ_ACTIONS = new Set([
     'get_crm_user_details',
 ]);
 
+function getMasterAdminEmails() {
+    return (process.env.MASTER_ADMIN_EMAILS || '')
+        .split(',')
+        .map((email) => email.trim().toLowerCase())
+        .filter(Boolean);
+}
+
+function maskEmail(email?: string | null): string {
+    const [name, domain] = String(email || '').split('@');
+    if (!name || !domain) return 'unknown';
+    return `${name.slice(0, 2)}***@${domain}`;
+}
+
 /**
  * Central Proxy — Backend-for-Frontend (BFF)
  * 
@@ -57,12 +70,16 @@ const ALLOWED_ORIGINS = [
     'https://app.supercheckout.app',
     'https://portal.supercheckout.app',
     'https://install.supercheckout.app',
-    'http://localhost:3000',
-    'http://localhost:5173'
+    ...(process.env.NODE_ENV !== 'production' ? ['http://localhost:3000', 'http://localhost:5173'] : [])
 ].filter(Boolean);
 
-const DEFAULT_CENTRAL_API_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co/functions/v1';
-const DEFAULT_CENTRAL_SUPABASE_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co';
+const DEV_CENTRAL_API_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co/functions/v1';
+const DEV_CENTRAL_SUPABASE_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co';
+const DEV_LOCAL_SUPABASE_URL = 'https://vixlzrmhqsbzjhpgfwdn.supabase.co';
+
+function getDevFallback(value: string) {
+    return process.env.NODE_ENV !== 'production' ? value : '';
+}
 
 const getHostnameFromUrl = (url?: string | null) => {
     if (!url) return null;
@@ -150,7 +167,7 @@ async function validateJwtWithSupabase(url: string, key: string, jwt: string, la
 
         const user = await response.json();
         if (user?.id) {
-            console.log(`[Central Proxy] JWT validated via ${label} for ${user.email}`);
+            console.log(`[Central Proxy] JWT validated via ${label} for ${maskEmail(user.email)}`);
             return user;
         }
 
@@ -192,7 +209,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // --- 2. Validate required env vars ---
-    const centralApiUrl = process.env.VITE_CENTRAL_API_URL || DEFAULT_CENTRAL_API_URL;
+    const centralApiUrl = process.env.VITE_CENTRAL_API_URL || getDevFallback(DEV_CENTRAL_API_URL);
     const centralSecret = process.env.CENTRAL_SHARED_SECRET;
     const centralAnonEnv = process.env.VITE_CENTRAL_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_ANON_KEY;
     const sharedSecretRequired = ![
@@ -242,10 +259,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     try {
         let user: any = null;
-        const localSupabaseUrl = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://vixlzrmhqsbzjhpgfwdn.supabase.co';
+        const localSupabaseUrl = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || getDevFallback(DEV_LOCAL_SUPABASE_URL);
         const localAnonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-        const localServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
-        const centralSupUrl = process.env.VITE_CENTRAL_SUPABASE_URL || process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_URL || centralApiUrl.replace('/functions/v1', '') || DEFAULT_CENTRAL_SUPABASE_URL;
+        const localServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        const centralSupUrl = process.env.VITE_CENTRAL_SUPABASE_URL || process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_URL || centralApiUrl.replace('/functions/v1', '') || getDevFallback(DEV_CENTRAL_SUPABASE_URL);
         const centralAnon = centralAnonEnv;
         const centralServiceKey = process.env.CENTRAL_SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_CENTRAL_SUPABASE_SERVICE_ROLE_KEY;
 
@@ -276,9 +293,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         // --- 4. Verify Roles & Granular Permissions ---
-        const MASTER_ADMINS = ['contato.jeandamin@gmail.com', 'admin@supercheckout.app'];
         const userEmail = user.email ? user.email.toLowerCase() : '';
-        const isMasterAdmin = MASTER_ADMINS.includes(userEmail);
+        const maskedUserEmail = maskEmail(user.email);
+        const isMasterAdmin = getMasterAdminEmails().includes(userEmail);
 
         if (!isMasterAdmin) {
             let isAllowed = false;
@@ -338,7 +355,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             if (!isAllowed) {
-                console.warn(`[Central Proxy] Forbidden access attempt by ${user.email} on ${endpoint} action ${requestBody?.action}`);
+                console.warn(`[Central Proxy] Forbidden access attempt by ${maskedUserEmail} on ${endpoint} action ${requestBody?.action}`);
                 return res.status(403).json({ error: 'Insufficient permissions or email mismatch' });
             }
         }

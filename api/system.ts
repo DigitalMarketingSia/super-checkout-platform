@@ -3,6 +3,53 @@ import healthHandler from '../src/core/api/health.js';
 import proxyHandler from '../src/core/api/proxy.js';
 import sendEmailHandler from '../src/core/api/send-email.js';
 
+const DEFAULT_ALLOWED_ORIGIN = 'https://app.supercheckout.app';
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const DEV_LOCAL_SUPABASE_URL = 'https://vixlzrmhqsbzjhpgfwdn.supabase.co';
+
+function getDevFallback(value: string) {
+    return process.env.NODE_ENV !== 'production' ? value : '';
+}
+
+function getSupabaseAnonKey() {
+    return process.env.SUPABASE_ANON_KEY ||
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+        process.env.VITE_SUPABASE_ANON_KEY;
+}
+
+function getAllowedOrigins() {
+    const origins = [
+        DEFAULT_ALLOWED_ORIGIN,
+        'https://supercheckout.app',
+        'https://portal.supercheckout.app',
+        'https://install.supercheckout.app',
+        process.env.APP_URL,
+        process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
+        process.env.NEXT_PUBLIC_APP_URL,
+    ];
+
+    if (process.env.NODE_ENV !== 'production') {
+        origins.push('http://localhost:3000', 'http://localhost:5173');
+    }
+
+    return Array.from(new Set(origins.filter(Boolean) as string[]));
+}
+
+function applyPublicCors(req: VercelRequest, res: VercelResponse) {
+    const origin = req.headers.origin;
+    const allowedOrigins = getAllowedOrigins();
+
+    if (!origin) {
+        res.setHeader('Access-Control-Allow-Origin', DEFAULT_ALLOWED_ORIGIN);
+        return true;
+    }
+
+    if (!allowedOrigins.includes(origin)) return false;
+
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    return true;
+}
+
 async function fallbackCheckStatusHandler(req: VercelRequest, res: VercelResponse) {
     const { orderId } = req.query;
 
@@ -10,20 +57,22 @@ async function fallbackCheckStatusHandler(req: VercelRequest, res: VercelRespons
         return res.status(400).json({ error: 'Missing orderId' });
     }
 
+    if (!UUID_REGEX.test(orderId)) {
+        return res.status(400).json({ error: 'Invalid orderId' });
+    }
+
     const supabaseUrl =
         process.env.NEXT_PUBLIC_SUPABASE_URL ||
         process.env.VITE_SUPABASE_URL ||
-        'https://vixlzrmhqsbzjhpgfwdn.supabase.co';
-    const supabaseKey =
-        process.env.SUPABASE_SERVICE_ROLE_KEY ||
-        process.env.VITE_SUPABASE_SERVICE_ROLE_KEY ||
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+        getDevFallback(DEV_LOCAL_SUPABASE_URL);
+    const supabaseKey = getSupabaseAnonKey();
 
     if (!supabaseKey) {
         return res.status(200).json({ status: 'pending', fallback: true, reason: 'missing_supabase_key' });
     }
 
-    const orderRes = await fetch(`${supabaseUrl}/rest/v1/orders?id=eq.${orderId}&select=status`, {
+    const encodedOrderId = encodeURIComponent(orderId);
+    const orderRes = await fetch(`${supabaseUrl}/rest/v1/orders?id=eq.${encodedOrderId}&select=status`, {
         headers: {
             apikey: supabaseKey,
             Authorization: `Bearer ${supabaseKey}`
@@ -42,22 +91,23 @@ async function fallbackCheckStatusHandler(req: VercelRequest, res: VercelRespons
 }
 
 async function publicGatewayHandler(req: VercelRequest, res: VercelResponse) {
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    const corsAllowed = applyPublicCors(req, res);
     res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
+    if (!corsAllowed) return res.status(403).json({ error: 'Origin not allowed' });
     if (req.method === 'OPTIONS') return res.status(200).end();
     if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
     const id = String(req.query.id || '').trim();
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
+    if (!UUID_REGEX.test(id)) {
         return res.status(400).json({ error: 'Invalid gateway id' });
     }
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+    const anonKey = getSupabaseAnonKey();
 
-    if (!supabaseUrl || !serviceKey) {
+    if (!supabaseUrl || !anonKey) {
         return res.status(500).json({ error: 'Server configuration error' });
     }
 
@@ -65,8 +115,8 @@ async function publicGatewayHandler(req: VercelRequest, res: VercelResponse) {
         `${supabaseUrl}/rest/v1/gateways?id=eq.${encodeURIComponent(id)}&select=id,name,provider,public_key,active,is_active,config&limit=1`,
         {
             headers: {
-                apikey: serviceKey,
-                Authorization: `Bearer ${serviceKey}`,
+                apikey: anonKey,
+                Authorization: `Bearer ${anonKey}`,
             },
         },
     );
