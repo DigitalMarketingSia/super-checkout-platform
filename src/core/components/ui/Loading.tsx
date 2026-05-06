@@ -19,7 +19,7 @@ export const Loading: React.FC<LoadingProps> = ({
                     <div className="absolute inset-2 rounded-full border border-primary/25 animate-ping" />
                     <div className="absolute inset-3 rounded-full border-2 border-transparent border-t-primary border-r-primary/70 animate-spin" />
                     <div className="absolute inset-6 rounded-full bg-primary/10 blur-xl" />
-                    <div className="relative w-16 h-16 rounded-full bg-black border border-white/10 shadow-[0_24px_70px_rgba(138,43,226,0.22)] flex items-center justify-center overflow-hidden">
+                    <div className="relative w-16 h-16 rounded-full shadow-[0_24px_70px_rgba(138,43,226,0.22)] flex items-center justify-center overflow-hidden">
                         <img
                             src="/logo.png"
                             alt="Super Checkout"
