@@ -15,6 +15,30 @@ export const MemberAreaWrapper = ({ forcedSlug }: { forcedSlug?: string }) => {
     useEffect(() => {
         const loadMemberArea = async () => {
             console.log('[Wrapper] Loading Member Area for slug:', slug);
+
+            const params = new URLSearchParams(window.location.search);
+            const authToken = params.get('auth_token');
+            const authEmail = params.get('auth_email');
+            
+            if (authToken && authEmail) {
+                console.log('[Wrapper] Found custom auth token, verifying...');
+                try {
+                    const { supabase } = await import('../../services/supabase');
+                    await supabase.auth.verifyOtp({
+                        email: authEmail,
+                        token_hash: authToken,
+                        type: 'magiclink'
+                    });
+                    
+                    params.delete('auth_token');
+                    params.delete('auth_email');
+                    const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '') + window.location.hash;
+                    window.history.replaceState({}, document.title, newUrl);
+                    console.log('[Wrapper] Custom auth successful');
+                } catch (e) {
+                    console.error('[Wrapper] Custom auth failed:', e);
+                }
+            }
             if (!slug) return;
             try {
                 const area = await storage.getMemberAreaBySlug(slug);

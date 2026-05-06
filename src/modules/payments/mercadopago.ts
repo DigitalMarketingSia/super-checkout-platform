@@ -266,6 +266,21 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
       if (area?.slug) membersAreaUrl = `https://app.supercheckout.app/app/${area.slug}`;
       if (area?.domains?.domain) membersAreaUrl = `https://${area.domains.domain}`;
 
+      // Generate magic link token for auto-login
+      try {
+          const { data: linkData } = await supabaseAdmin.auth.admin.generateLink({
+              type: 'magiclink',
+              email: customerEmail,
+              options: { redirectTo: membersAreaUrl }
+          });
+          if (linkData?.properties?.hashed_token) {
+              const separator = membersAreaUrl.includes('?') ? '&' : '?';
+              membersAreaUrl = `${membersAreaUrl}${separator}auth_token=${linkData.properties.hashed_token}&auth_email=${encodeURIComponent(customerEmail)}`;
+          }
+      } catch (err) {
+          console.error('[MP] Failed to generate magic link:', err);
+      }
+
       // Fulfill order before sending email to generate user accounts/access grants
       try {
           const resFulfill = await fetch(`${supabaseUrl}/functions/v1/fulfill-order`, {
