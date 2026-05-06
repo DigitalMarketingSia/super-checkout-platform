@@ -386,6 +386,7 @@ export const Login = () => {
     if (m.includes('email not confirmed')) return t('login.email_not_confirmed');
     if (m.includes('user not found')) return t('login.user_not_found');
     if (m.includes('too many requests')) return t('login.too_many_requests');
+    if (m.includes('payment_encryption_key') || m.includes('totp_secret_decryption_failed') || m.includes('configuração local de 2fa')) return msg;
     if (m.includes('two-factor') || m.includes('totp')) return 'O código informado não é válido.';
     return t('login.generic_error', { error: msg });
   };

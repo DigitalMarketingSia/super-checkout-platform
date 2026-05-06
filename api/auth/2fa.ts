@@ -25,6 +25,34 @@ type TwoFactorChallenge = {
   expiresAt: number;
 };
 
+authenticator.options = {
+  ...authenticator.options,
+  window: 1,
+};
+
+function looksEncrypted(value: string) {
+  if (!value || typeof value !== 'string') return false;
+  const normalized = value.startsWith('iv:') ? value.slice(3) : value;
+  return normalized.split(':').length === 3;
+}
+
+function resolveTotpSecret(encryptedSecret: string) {
+  const secretPayload = decrypt(encryptedSecret);
+
+  if (!secretPayload || (secretPayload === encryptedSecret && looksEncrypted(encryptedSecret))) {
+    throw new Error('TOTP_DECRYPTION_FAILED');
+  }
+
+  try {
+    const parsed = JSON.parse(secretPayload);
+    if (parsed?.secret) return String(parsed.secret);
+  } catch {
+    // Stored as plain encrypted string from earlier versions.
+  }
+
+  return secretPayload;
+}
+
 function getAction(req: VercelRequest): string {
   const raw = req.query.action;
   return Array.isArray(raw) ? raw[0] : String(raw || '').trim();
@@ -142,13 +170,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(403).json({ error: '2FA não está habilitado para esta conta.' });
       }
 
-      const secretPayload = decrypt(profile.totp_secret_encrypted);
-      let secret = secretPayload;
+      let secret = '';
       try {
-        const parsed = JSON.parse(secretPayload);
-        if (parsed?.secret) secret = parsed.secret;
-      } catch {
-        // Stored as plain encrypted string from earlier versions.
+        secret = resolveTotpSecret(profile.totp_secret_encrypted);
+      } catch (secretError: any) {
+        if (secretError?.message === 'TOTP_DECRYPTION_FAILED') {
+          return res.status(500).json({
+            error: 'Configuração local de 2FA incompatível. Verifique se PAYMENT_ENCRYPTION_KEY é a mesma do ambiente onde a 2FA foi ativada.',
+            error_code: 'totp_secret_decryption_failed',
+          });
+        }
+        throw secretError;
       }
 
       if (!authenticator.check(normalizedCode, secret)) {
@@ -211,13 +243,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Configure a 2FA antes de validar o código.' });
     }
 
-    const secretPayload = decrypt(profile.totp_secret_encrypted);
-    let secret = secretPayload;
+    let secret = '';
     try {
-      const parsed = JSON.parse(secretPayload);
-      if (parsed?.secret) secret = parsed.secret;
-    } catch {
-      // Stored as plain encrypted string from earlier versions.
+      secret = resolveTotpSecret(profile.totp_secret_encrypted);
+    } catch (secretError: any) {
+      if (secretError?.message === 'TOTP_DECRYPTION_FAILED') {
+        return res.status(500).json({
+          error: 'Configuração local de 2FA incompatível. Verifique se PAYMENT_ENCRYPTION_KEY é a mesma do ambiente onde a 2FA foi preparada.',
+          error_code: 'totp_secret_decryption_failed',
+        });
+      }
+      throw secretError;
     }
 
     if (!authenticator.check(normalizedCode, secret)) {
@@ -300,13 +336,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: '2FA já está desativado.' });
     }
 
-    const secretPayload = decrypt(profile.totp_secret_encrypted);
-    let secret = secretPayload;
+    let secret = '';
     try {
-      const parsed = JSON.parse(secretPayload);
-      if (parsed?.secret) secret = parsed.secret;
-    } catch {
-      // Stored as plain encrypted string from earlier versions.
+      secret = resolveTotpSecret(profile.totp_secret_encrypted);
+    } catch (secretError: any) {
+      if (secretError?.message === 'TOTP_DECRYPTION_FAILED') {
+        return res.status(500).json({
+          error: 'Configuração local de 2FA incompatível. Verifique se PAYMENT_ENCRYPTION_KEY é a mesma do ambiente onde a 2FA foi ativada.',
+          error_code: 'totp_secret_decryption_failed',
+        });
+      }
+      throw secretError;
     }
 
     if (!authenticator.check(normalizedCode, secret)) {
