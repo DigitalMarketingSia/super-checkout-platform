@@ -1,4 +1,5 @@
 import React from 'react';
+import { APP_VERSION } from '../../config/version';
 
 interface LoadingProps {
     label?: string;
@@ -21,7 +22,7 @@ export const Loading: React.FC<LoadingProps> = ({
                     <div className="absolute inset-6 rounded-full bg-primary/10 blur-xl" />
                     <div className="relative w-16 h-16 rounded-full shadow-[0_24px_70px_rgba(138,43,226,0.22)] flex items-center justify-center overflow-hidden">
                         <img
-                            src="/logo.png"
+                            src={`/logo.png?v=${APP_VERSION}`}
                             alt="Super Checkout"
                             className="w-full h-full object-cover"
                             draggable={false}
