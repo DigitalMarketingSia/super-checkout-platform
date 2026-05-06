@@ -31,6 +31,7 @@ const DEFAULT_LAUNCH_SETTINGS: LaunchSettings = {
 };
 const DEV_CENTRAL_API_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co/functions/v1';
 const DEV_CENTRAL_SUPABASE_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co';
+const OFFICIAL_CENTRAL_SUPABASE_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co';
 const SIGNUP_PROFILE_RETRY_DELAYS_MS = [0, 250, 750] as const;
 
 function getDevFallback(value: string) {
@@ -348,6 +349,7 @@ function getCentralClient(): SupabaseClient | null {
         || process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_URL
         || process.env.VITE_CENTRAL_API_URL?.replace('/functions/v1', '')
         || process.env.NEXT_PUBLIC_CENTRAL_API_URL?.replace('/functions/v1', '')
+        || OFFICIAL_CENTRAL_SUPABASE_URL
         || getDevFallback(DEV_CENTRAL_API_URL.replace('/functions/v1', ''))
         || getDevFallback(DEV_CENTRAL_SUPABASE_URL);
     const supabaseAnonKey =
@@ -374,6 +376,7 @@ function getCentralAdminClient(): SupabaseClient | null {
         || process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_URL
         || process.env.VITE_CENTRAL_API_URL?.replace('/functions/v1', '')
         || process.env.NEXT_PUBLIC_CENTRAL_API_URL?.replace('/functions/v1', '')
+        || OFFICIAL_CENTRAL_SUPABASE_URL
         || getDevFallback(DEV_CENTRAL_API_URL.replace('/functions/v1', ''))
         || getDevFallback(DEV_CENTRAL_SUPABASE_URL);
     const serviceRoleKey =
