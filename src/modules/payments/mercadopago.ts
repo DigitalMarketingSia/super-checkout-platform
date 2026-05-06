@@ -59,7 +59,7 @@ async function sendPaymentApprovedEmail(orderId: string, order: any, productName
       '{{order_id}}': orderId ? `#${orderId.split('-')[0]}` : '',
       '{{customer_name}}': order.customer_name || 'Cliente',
       '{{product_names}}': productName || 'seu produto',
-      '{{members_area_url}}': order.membersAreaUrl || 'https://app.supercheckout.app/login'
+      '{{members_area_url}}': order.membersAreaUrl || (process.env.VITE_SITE_URL ? `${process.env.VITE_SITE_URL}/login` : 'https://app.supercheckout.app/login')
     };
 
     let subject = template?.subject || 'Pagamento Aprovado - Acesso Liberado!';
@@ -255,7 +255,8 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
 
     if (paidStatus) {
       // Resolve member area URL dynamically
-      let membersAreaUrl = 'https://app.supercheckout.app/login';
+      const baseUrl = process.env.VITE_SITE_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://app.supercheckout.app');
+      let membersAreaUrl = `${baseUrl}/login`;
       const { data: links } = await supabaseAdmin
           .from('product_contents')
           .select('content:contents(member_area_id, member_areas(slug, domains(domain)))')
@@ -263,7 +264,7 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
           .limit(1);
 
       const area = links?.[0]?.content?.member_areas;
-      if (area?.slug) membersAreaUrl = `https://app.supercheckout.app/app/${area.slug}`;
+      if (area?.slug) membersAreaUrl = `${baseUrl}/app/${area.slug}`;
       if (area?.domains?.domain) membersAreaUrl = `https://${area.domains.domain}`;
 
       // Generate magic link token for auto-login
