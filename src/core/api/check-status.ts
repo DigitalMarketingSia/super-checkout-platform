@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { decrypt, verifySignature } from '../utils/cryptoUtils.js';
+import { applyCors } from './_cors.js';
 
 // Define types locally since we are in a serverless function structure that might not share types easily with frontend
 interface Order {
@@ -13,29 +14,8 @@ interface Order {
     items?: any[];
 }
 
-const ALLOWED_ORIGINS = [
-    process.env.APP_URL,
-    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
-    process.env.NEXT_PUBLIC_APP_URL,
-    ...(process.env.NODE_ENV !== 'production' ? ['http://localhost:3000', 'http://localhost:5173'] : [])
-].filter(Boolean);
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-    // 1. CORS Whitelist (Fase 11F)
-    const origin = req.headers.origin;
-    if (origin && ALLOWED_ORIGINS.includes(origin)) {
-        res.setHeader('Access-Control-Allow-Origin', origin);
-    } else {
-        // Fallback for non-browser or matched origins
-        res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGINS[0] || '*');
-    }
-    
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
-    res.setHeader(
-        'Access-Control-Allow-Headers',
-        'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
-    );
+    applyCors(req, res, 'GET,OPTIONS');
 
     // Prevent Caching
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');

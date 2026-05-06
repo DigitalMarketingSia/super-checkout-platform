@@ -1,18 +1,26 @@
 
 import { createClient } from '@supabase/supabase-js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { applyCors } from './_cors.js';
 
 // Vercel Serverless Function Config
 export const config = {
     maxDuration: 60,
 };
 
+function maskEmail(email?: string | null) {
+    const [name, domain] = String(email || '').split('@');
+    if (!name || !domain) return 'unknown';
+    return `${name.slice(0, 2)}***@${domain}`;
+}
+
+function maskRecipients(to: unknown) {
+    const recipients = Array.isArray(to) ? to : [to];
+    return recipients.map((email) => maskEmail(String(email || ''))).join(', ');
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-    // 1. CORS Headers (Essential for calling from the frontend)
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
-    res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
+    applyCors(req, res, 'GET,OPTIONS,POST');
 
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
@@ -86,7 +94,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (html) emailBody.html = html;
         if (plain_text) emailBody.text = plain_text;
 
-        console.log(`[Send-Email] Sending to ${to} via Resend as '${fromIdentity}'...`);
+        console.log(`[Send-Email] Sending to ${maskRecipients(to)} via Resend as '${fromIdentity}'...`);
 
         // 5. Send via Resend
         const resendRes = await fetch("https://api.resend.com/emails", {
@@ -113,7 +121,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).json(dataRes);
 
     } catch (error: any) {
-        console.error("[Send-Email] Critical Error:", error);
-        return res.status(500).json({ error: error.message || 'Internal Server Error' });
+        console.error("[Send-Email] Critical Error:", error?.message || error);
+        return res.status(500).json({ error: 'Internal Server Error' });
     }
 }

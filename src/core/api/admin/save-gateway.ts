@@ -44,7 +44,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceKey) {
     console.error('[AdminSaveGateway] CRITICAL: SUPABASE_URL, ANON_KEY or SERVICE_KEY missing in environment!');
-    return res.status(500).json({ error: 'System configuration error: Missing DB credentials.' });
+    return res.status(500).json({ error: 'Internal Server Error' });
   }
 
   const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);

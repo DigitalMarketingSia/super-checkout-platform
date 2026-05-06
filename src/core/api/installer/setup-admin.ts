@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { applyCors } from '../_cors.js';
 
 type SetupBody = {
     name?: string;
@@ -11,11 +12,8 @@ type SetupBody = {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-function sendCors(res: VercelResponse) {
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+function sendCors(req: VercelRequest, res: VercelResponse) {
+    applyCors(req, res, 'POST,OPTIONS');
 }
 
 function parseBody(req: VercelRequest): SetupBody {
@@ -164,7 +162,7 @@ async function ensureAccountContext(supabase: any, params: {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-    sendCors(res);
+    sendCors(req, res);
 
     if (req.method === 'OPTIONS') return res.status(200).end();
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });

@@ -64,6 +64,12 @@ const CheckoutTracker = () => {
 
 type PaymentMethod = 'credit_card' | 'pix' | 'boleto' | 'apple_pay' | 'google_pay';
 type ProcessState = 'idle' | 'processing' | 'error' | 'success';
+type WalletAvailability = { applePay?: boolean; googlePay?: boolean; link?: boolean; simulated?: boolean };
+
+const isLocalWalletSimulationHost = () => (
+   typeof window !== 'undefined' &&
+   (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+);
 
 const getUpsellOrderSessionKey = (orderId?: string) => `upsell-original-order:${orderId || 'unknown'}`;
 
@@ -299,7 +305,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
       variant: 'info'
    });
    const [paymentRequest, setPaymentRequest] = useState<PaymentRequest | null>(null);
-   const [walletAvailability, setWalletAvailability] = useState<{applePay?: boolean, googlePay?: boolean, link?: boolean} | null>(null);
+   const [walletAvailability, setWalletAvailability] = useState<WalletAvailability | null>(null);
 
    const showAlert = (title: string, message: string, variant: 'success' | 'error' | 'info' = 'info') => {
       setAlertState({ isOpen: true, title, message, variant });
@@ -616,10 +622,9 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                    if (result) {
                       setPaymentRequest(pr);
                       setWalletAvailability(result);
-                   } else if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-                      // Fake security bypass for localhost UX testing
+                   } else if (isLocalWalletSimulationHost()) {
                       setPaymentRequest(pr);
-                      setWalletAvailability({ googlePay: true, applePay: true });
+                      setWalletAvailability({ googlePay: true, applePay: true, simulated: true });
                    }
                 }
              }
@@ -1272,6 +1277,12 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                   {/* SEÇÃO CARTEIRA DIGITAL */}
                   {(paymentMethod === 'apple_pay' || paymentMethod === 'google_pay') && (
                      <div className="p-6 bg-gray-50 border border-gray-200 rounded-xl text-center animate-in fade-in duration-300">
+                        {walletAvailability?.simulated && (
+                           <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-amber-700">
+                              <AlertCircle className="h-3.5 w-3.5" />
+                              Modo simulado
+                           </div>
+                        )}
                         {paymentMethod === 'apple_pay' ? (
                            <AppleIcon className="w-12 h-12 text-gray-900 mx-auto mb-3" />
                         ) : (
@@ -1654,6 +1665,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                            upgradeIntentContext={upgradeIntentContext || undefined}
                            showAlert={showAlert}
                            stripe={stripe}
+                           simulated={!!walletAvailability?.simulated}
                         />
                      </div>
                   ) : (
@@ -1733,13 +1745,12 @@ const WalletTabButton = ({
    setPaymentMethod
 }: { 
    type: 'apple' | 'google';
-   walletAvailability: {applePay?: boolean, googlePay?: boolean, link?: boolean};
+   walletAvailability: WalletAvailability;
    paymentMethod: PaymentMethod | null;
    setPaymentMethod: (m: PaymentMethod) => void;
 }) => {
    let isVisible = false;
-   // Always show in localhost for testing UX
-   if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+   if (walletAvailability.simulated || isLocalWalletSimulationHost()) {
       isVisible = true;
    } else {
       if (type === 'apple' && walletAvailability.applePay) isVisible = true;
@@ -1772,6 +1783,11 @@ const WalletTabButton = ({
             <GoogleIcon className={`w-5 h-5 ${isActive ? '' : 'text-gray-500'}`} monochrome={!isActive} />
          )}
          <span className="text-sm font-bold">{label}</span>
+         {walletAvailability.simulated && (
+            <span className="absolute bottom-1 right-1 rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase leading-none text-amber-700">
+               Simulado
+            </span>
+         )}
       </button>
    );
 };
@@ -1786,7 +1802,8 @@ const WalletExpressButton = ({
    upgradeIntentToken,
    upgradeIntentContext,
    showAlert,
-   stripe
+   stripe,
+   simulated
 }: { 
    paymentRequest: PaymentRequest; 
    type: 'apple' | 'google';
@@ -1797,6 +1814,7 @@ const WalletExpressButton = ({
    upgradeIntentContext?: UpgradeIntentContext;
    showAlert: (t: string, m: string, v?: any) => void;
    stripe: any;
+   simulated?: boolean;
 }) => {
    const navigate = useNavigate();
    const [isVisible, setIsVisible] = useState(false);
@@ -1809,10 +1827,12 @@ const WalletExpressButton = ({
             if (type === 'apple' && result.applePay) setIsVisible(true);
             if (type === 'google' && result.googlePay) setIsVisible(true);
             if (result && !result.applePay && !result.googlePay) setIsVisible(true);
+         } else if (simulated) {
+            setIsVisible(true);
          }
       };
       checkAvailability();
-   }, [paymentRequest, type]);
+   }, [paymentRequest, type, simulated]);
 
    // Dynamically update Stripe sheet total when Bumps are selected
    useEffect(() => {
@@ -1914,6 +1934,17 @@ const WalletExpressButton = ({
    }, [stripe, paymentRequest, data, selectedBumps, userId, upgradeIntentToken, upgradeIntentContext, navigate, showAlert]);
 
    if (!isVisible || !paymentRequest) return null;
+
+   if (simulated) {
+      return (
+         <div className="w-full rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center">
+            <p className="text-xs font-bold uppercase tracking-wide text-amber-700">Modo simulado</p>
+            <p className="mt-1 text-sm font-medium text-amber-900">
+               Carteiras exibidas apenas para validação visual em localhost.
+            </p>
+         </div>
+      );
+   }
 
    return (
       <div className="w-full h-[52px] overflow-hidden rounded-xl bg-black hover:opacity-90 transition-opacity relative group">

@@ -170,6 +170,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return res.status(404).json({ error: `Action ${action} not found in System Controller` });
         }
     } catch (error: any) {
-        return res.status(500).json({ error: error.message || 'Internal Server Error' });
+        console.error('[System] Controller error:', error?.message || error);
+        return res.status(500).json({ error: 'Internal Server Error' });
     }
 }

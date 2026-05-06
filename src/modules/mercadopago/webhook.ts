@@ -15,6 +15,8 @@ interface WebhookLog {
 }
 
 // --- HELPERS ---
+const DEFAULT_ALLOWED_ORIGIN = 'https://app.supercheckout.app';
+
 const generateUUID = () => {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -25,9 +27,8 @@ const generateUUID = () => {
 
 // --- MAIN HANDLER ---
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-    // Enable CORS
     res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Origin', DEFAULT_ALLOWED_ORIGIN);
     res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
     res.setHeader(
         'Access-Control-Allow-Headers',

@@ -38,6 +38,7 @@ function safeCompare(a?: string | null, b?: string | null): boolean {
 }
 
 const WEBHOOK_TIMESTAMP_TOLERANCE = 300;
+const DEFAULT_ALLOWED_ORIGIN = 'https://app.supercheckout.app';
 
 function isStripeTimestampFresh(timestamp?: string | null): boolean {
     if (!timestamp || !/^\d+$/.test(timestamp)) return false;
@@ -51,8 +52,7 @@ function isStripeTimestampFresh(timestamp?: string | null): boolean {
 
 // --- MAIN HANDLER ---
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-    // CORS
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Origin', DEFAULT_ALLOWED_ORIGIN);
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Stripe-Signature');
 

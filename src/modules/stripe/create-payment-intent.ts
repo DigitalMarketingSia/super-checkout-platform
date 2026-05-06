@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import { decrypt } from '../../core/utils/cryptoUtils.js';
 import { securityService } from '../../core/services/securityService.js';
+import { applyCors } from '../../core/api/_cors.js';
 
 // --- CONFIG ---
 /**
@@ -69,6 +70,12 @@ async function stripeRequest(secretKey: string, endpoint: string, method: string
     return responseData;
 }
 
+function maskEmail(email?: string | null) {
+    const [name, domain] = String(email || '').split('@');
+    if (!name || !domain) return 'unknown';
+    return `${name.slice(0, 2)}***@${domain}`;
+}
+
 async function invokeFulfillOrder(
     supabaseUrl: string,
     supabaseKey: string,
@@ -99,11 +106,7 @@ function translateStripeIntentStatus(status: string): 'paid' | 'pending' | 'fail
 // --- MAIN HANDLER ---
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-    // CORS
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    applyCors(req, res, 'POST,OPTIONS');
 
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
@@ -270,7 +273,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         const idempotencyKey = metadata?.order_id || `new_pi_${Date.now()}`;
-        console.log(`[CreatePaymentIntent] Creating PI: ${amountInCents} ${currency} for ${customerEmail} (Key: ${idempotencyKey})`);
+        console.log(`[CreatePaymentIntent] Creating PI: ${amountInCents} ${currency} for ${maskEmail(customerEmail)} (Key: ${idempotencyKey})`);
 
         const paymentIntent = await stripeRequest(secretKey, '/payment_intents', 'POST', paymentIntentData, idempotencyKey);
 
