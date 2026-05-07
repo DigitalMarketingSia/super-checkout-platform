@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { applyCors } from './_cors.js';
+import { APP_VERSION, SCHEMA_VERSION } from '../config/version.js';
 
 /**
  * HEALTH / KEEP-ALIVE ENDPOINT
@@ -42,6 +43,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         res.status(200).json({
             status: 'healthy',
             message: 'Supabase keep-alive successful',
+            app_version: APP_VERSION,
+            schema_version: SCHEMA_VERSION,
+            fulfillment_pipeline: 'vercel',
+            hotfix: 'paid-checkout-side-effects',
             timestamp: new Date().toISOString()
         });
     } catch (error: any) {
