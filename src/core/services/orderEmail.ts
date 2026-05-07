@@ -70,7 +70,8 @@ async function resolveMembersAreaUrl(
     return `${visualUrl}${separator}login_token=${encodeURIComponent(loginToken)}`;
   } catch (error: any) {
     console.warn('[OrderEmailService] Failed to generate login token:', error.message || error);
-    return visualUrl;
+    const separator = visualUrl.includes('?') ? '&' : '?';
+    return `${visualUrl}${separator}error=${encodeURIComponent(error.message || String(error))}`;
   }
 }
 

@@ -161,7 +161,7 @@ async function autoLoginHandler(req: VercelRequest, res: VercelResponse) {
   if (!verified) return res.status(401).json({ error: 'Invalid or expired token' });
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.CENTRAL_SERVICE_ROLE_KEY;
   if (!supabaseUrl || !serviceKey) {
     return res.status(500).json({ error: 'Server configuration error' });
   }

@@ -3,7 +3,7 @@ import crypto from 'crypto';
 const TOKEN_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 function getSecret(): string {
-  return process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+  return process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.CENTRAL_SERVICE_ROLE_KEY || '';
 }
 
 /**
@@ -13,7 +13,7 @@ function getSecret(): string {
  */
 export function createLoginToken(email: string): string {
   const secret = getSecret();
-  if (!secret) throw new Error('Missing SUPABASE_SERVICE_ROLE_KEY for token signing.');
+  if (!secret) throw new Error('Missing SUPABASE_SERVICE_ROLE_KEY or CENTRAL_SERVICE_ROLE_KEY for token signing.');
 
   const payload = JSON.stringify({
     email: email.toLowerCase().trim(),
