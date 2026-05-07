@@ -46,9 +46,14 @@ function getAreaDomain(area: any): string {
 
 function ensureTokenizedAccessLink(html: string, membersAreaUrl: string) {
   if (!html) return html;
-  if (html.includes('login_token=') || html.includes('auth_token=')) return html;
+  let output = /<\/?[a-z][\s\S]*>/i.test(html)
+    ? html
+    : `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #222; line-height: 1.5;">
+        ${html.split(/\n+/).map((line) => line.trim()).filter(Boolean).map((line) => `<p>${line}</p>`).join('')}
+      </div>`;
 
-  let output = html;
+  if (output.includes('login_token=') || output.includes('auth_token=')) return output;
+
   let visualUrl = membersAreaUrl;
   try {
     const parsed = new URL(membersAreaUrl);
@@ -77,6 +82,33 @@ function ensureTokenizedAccessLink(html: string, membersAreaUrl: string) {
     <div style="margin-top: 24px; text-align: center;">
       <a href="${membersAreaUrl}" style="background-color: #0070f3; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">Acessar area de membros</a>
     </div>`;
+}
+
+async function getOrderCompletedTemplate(supabaseAdmin: SupabaseAdmin) {
+  const baseQuery = () => supabaseAdmin
+    .from('email_templates')
+    .select('*')
+    .eq('event_type', 'ORDER_COMPLETED')
+    .eq('active', true);
+
+  try {
+    const { data } = await baseQuery()
+      .eq('language', 'pt')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (data) return data;
+  } catch (error: any) {
+    console.warn('[OrderEmailService] Localized template lookup failed:', error?.message || error);
+  }
+
+  const { data } = await baseQuery()
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return data;
 }
 
 async function resolveMembersAreaUrl(
@@ -161,6 +193,35 @@ export async function sendOrderAccessEmail(
     return { skipped: true, reason: 'already_sent' };
   }
 
+  let emailMetadata = metadata;
+  if (!input.force) {
+    const sendingAt = new Date().toISOString();
+    const { data: lockRows, error: lockError } = await supabaseAdmin
+      .from('orders')
+      .update({
+        metadata: {
+          ...metadata,
+          order_completed_email_sending_at: sendingAt,
+        },
+      })
+      .eq('id', orderId)
+      .is('metadata->>order_completed_email_sent_at', null)
+      .is('metadata->>order_completed_email_sending_at', null)
+      .select('id')
+      .limit(1);
+
+    if (lockError) {
+      console.warn('[OrderEmailService] Could not acquire email send lock:', lockError.message);
+    } else if (!lockRows || lockRows.length === 0) {
+      return { skipped: true, reason: 'send_in_progress_or_already_sent' };
+    } else {
+      emailMetadata = {
+        ...metadata,
+        order_completed_email_sending_at: sendingAt,
+      };
+    }
+  }
+
   const to = input.email || order.customer_email;
   const name = input.name || order.customer_name || 'Cliente';
   if (!to) throw new Error(`Order ${orderId} has no recipient email.`);
@@ -192,13 +253,7 @@ export async function sendOrderAccessEmail(
   const fromEmail = integration?.config?.senderEmail || integration?.config?.from_email || 'onboarding@resend.dev';
   if (!apiKey) throw new Error("Email provider 'resend' is not active or configured.");
 
-  const { data: template } = await supabaseAdmin
-    .from('email_templates')
-    .select('*')
-    .eq('event_type', 'ORDER_COMPLETED')
-    .eq('active', true)
-    .limit(1)
-    .maybeSingle();
+  const template = await getOrderCompletedTemplate(supabaseAdmin);
 
   let settings: any = null;
   if (merchantUserId) {
@@ -270,6 +325,17 @@ export async function sendOrderAccessEmail(
 
   const resendData = await resendRes.json().catch(() => ({}));
   if (!resendRes.ok) {
+    await supabaseAdmin
+      .from('orders')
+      .update({
+        metadata: {
+          ...emailMetadata,
+          order_completed_email_sending_at: null,
+          order_completed_email_error: JSON.stringify(resendData),
+          order_completed_email_failed_at: new Date().toISOString(),
+        },
+      })
+      .eq('id', orderId);
     throw new Error(`Resend rejected order email: ${JSON.stringify(resendData)}`);
   }
 
@@ -277,7 +343,8 @@ export async function sendOrderAccessEmail(
     .from('orders')
     .update({
       metadata: {
-        ...metadata,
+        ...emailMetadata,
+        order_completed_email_sending_at: null,
         order_completed_email_sent_at: new Date().toISOString(),
         order_completed_email_resend_id: resendData?.id || null,
         order_completed_email_source: 'vercel',
