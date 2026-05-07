@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import healthHandler from '../src/core/api/health.js';
 import proxyHandler from '../src/core/api/proxy.js';
 import sendEmailHandler from '../src/core/api/send-email.js';
+import { createLoginToken, verifyLoginToken } from '../src/core/utils/loginToken.js';
 
 const DEFAULT_ALLOWED_ORIGIN = 'https://app.supercheckout.app';
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -144,46 +145,6 @@ async function publicGatewayHandler(req: VercelRequest, res: VercelResponse) {
     });
 }
 
-import crypto from 'crypto';
-
-const AUTO_LOGIN_TOKEN_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
-
-function getServiceRoleKey(): string {
-  return process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-}
-
-export function createLoginToken(email: string): string {
-  const secret = getServiceRoleKey();
-  if (!secret) throw new Error('Missing SUPABASE_SERVICE_ROLE_KEY for token signing.');
-
-  const payload = JSON.stringify({ email: email.toLowerCase().trim(), exp: Date.now() + AUTO_LOGIN_TOKEN_MAX_AGE_MS });
-  const payloadB64 = Buffer.from(payload).toString('base64url');
-  const sig = crypto.createHmac('sha256', secret).update(payloadB64).digest('base64url');
-  return `${payloadB64}.${sig}`;
-}
-
-function verifyLoginToken(token: string): { email: string } | null {
-  const secret = getServiceRoleKey();
-  if (!secret || !token) return null;
-
-  const parts = token.split('.');
-  if (parts.length !== 2) return null;
-
-  const [payloadB64, sig] = parts;
-  const expectedSig = crypto.createHmac('sha256', secret).update(payloadB64).digest('base64url');
-
-  if (sig.length !== expectedSig.length) return null;
-  if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expectedSig))) return null;
-
-  try {
-    const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString());
-    if (!payload.email || !payload.exp) return null;
-    if (Date.now() > payload.exp) return null;
-    return { email: payload.email };
-  } catch {
-    return null;
-  }
-}
 
 async function autoLoginHandler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
@@ -200,7 +161,7 @@ async function autoLoginHandler(req: VercelRequest, res: VercelResponse) {
   if (!verified) return res.status(401).json({ error: 'Invalid or expired token' });
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-  const serviceKey = getServiceRoleKey();
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!supabaseUrl || !serviceKey) {
     return res.status(500).json({ error: 'Server configuration error' });
   }

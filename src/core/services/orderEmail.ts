@@ -1,3 +1,5 @@
+import { createLoginToken } from '../utils/loginToken.js';
+
 type SupabaseAdmin = any;
 
 export interface SendOrderAccessEmailInput {
@@ -62,9 +64,7 @@ async function resolveMembersAreaUrl(
 
     // Generate a self-signed token containing the email.
     // The frontend will send this to POST /api/system?action=auto-login
-    // which verifies it, creates a magic link server-side, verifies it
-    // server-side, and returns a ready session. Zero external config needed.
-    const { createLoginToken } = await import('../../../api/system.js');
+    // which verifies it server-side and returns a ready session.
     const loginToken = createLoginToken(email);
     const separator = visualUrl.includes('?') ? '&' : '?';
     return `${visualUrl}${separator}login_token=${encodeURIComponent(loginToken)}`;
