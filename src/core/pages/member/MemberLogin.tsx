@@ -4,7 +4,6 @@ import { storage } from '../../services/storageService';
 import { MemberArea } from '../../types';
 import { Button } from '../../components/ui/Button';
 import { Lock, ArrowRight, Mail, User } from 'lucide-react';
-import { supabase } from '../../services/supabase';
 import { getApiUrl } from '../../utils/apiUtils';
 
 export const MemberLogin = ({ forcedSlug }: { forcedSlug?: string }) => {
@@ -123,15 +122,17 @@ export const MemberLogin = ({ forcedSlug }: { forcedSlug?: string }) => {
         setSuccess('');
 
         try {
-            const redirectUrl = `${window.location.origin}/update-password`;
-            const { error: recoveryError } = await supabase.functions.invoke('request-password-reset', {
-                body: {
+            const response = await fetch('/api/system?action=member-password-reset', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
                     email,
-                    redirect_url: redirectUrl,
-                },
+                    member_area_slug: slug,
+                }),
             });
 
-            if (recoveryError) throw recoveryError;
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(data?.error || 'Nao foi possivel enviar o link agora.');
 
             setSuccess('Se este email tiver acesso, enviaremos um link para criar ou alterar a senha.');
         } catch (error: any) {

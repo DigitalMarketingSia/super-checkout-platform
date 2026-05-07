@@ -41,6 +41,8 @@ export const MemberProfile = () => {
     const [loading, setLoading] = useState(true);
     const [passwordLoading, setPasswordLoading] = useState(false);
     const [passwordMessage, setPasswordMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
 
     const displayName = user?.user_metadata?.full_name || user?.user_metadata?.name || t('profile.user', 'Usuario');
     const initials = String(displayName || user?.email || 'US').slice(0, 2).toUpperCase();
@@ -101,25 +103,46 @@ export const MemberProfile = () => {
         }
     };
 
-    const handlePasswordSetup = async () => {
-        if (!user?.email) return;
+    const handlePasswordSetup = async (event: React.FormEvent) => {
+        event.preventDefault();
+        if (newPassword.length < 6) {
+            setPasswordMessage({
+                type: 'error',
+                text: t('profile.password_min_length', 'A senha deve ter pelo menos 6 caracteres.'),
+            });
+            return;
+        }
+        if (newPassword !== confirmPassword) {
+            setPasswordMessage({
+                type: 'error',
+                text: t('profile.password_mismatch', 'As senhas nao coincidem.'),
+            });
+            return;
+        }
+
         setPasswordLoading(true);
         setPasswordMessage(null);
 
         try {
-            const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
-                redirectTo: `${window.location.origin}/update-password`,
+            const { error } = await supabase.auth.updateUser({
+                password: newPassword,
+                data: {
+                    ...user?.user_metadata,
+                    requires_password_setup: false,
+                },
             });
 
             if (error) throw error;
+            setNewPassword('');
+            setConfirmPassword('');
             setPasswordMessage({
                 type: 'success',
-                text: t('profile.password_email_sent', 'Enviamos um link para criar ou redefinir sua senha.'),
+                text: t('profile.password_saved', 'Senha salva com sucesso. Agora voce pode entrar com email e senha.'),
             });
         } catch (error: any) {
             setPasswordMessage({
                 type: 'error',
-                text: error?.message || t('profile.password_email_error', 'Nao foi possivel enviar o link de senha agora.'),
+                text: error?.message || t('profile.password_save_error', 'Nao foi possivel salvar a senha agora.'),
             });
         } finally {
             setPasswordLoading(false);
@@ -178,25 +201,51 @@ export const MemberProfile = () => {
                                 </div>
                             </div>
 
-                            <div>
-                                <label className="block text-xs text-gray-500 uppercase mb-1">{t('profile.password', 'Senha')}</label>
-                                <div className="bg-black/20 p-3 rounded-lg border border-white/10">
-                                    <div className="flex items-center gap-2 text-gray-300">
-                                        <KeyRound className="w-4 h-4 text-gray-500" />
-                                        <span>{t('profile.password_setup_hint', 'Crie a primeira senha ou redefina sua senha atual.')}</span>
+                            <form onSubmit={handlePasswordSetup} className="space-y-3">
+                                <div>
+                                    <label className="block text-xs text-gray-500 uppercase mb-1">{t('profile.password', 'Senha')}</label>
+                                    <div className="bg-black/20 p-3 rounded-lg border border-white/10">
+                                        <div className="flex items-center gap-2 text-gray-300 text-sm">
+                                            <KeyRound className="w-4 h-4 text-gray-500 shrink-0" />
+                                            <span>{t('profile.password_setup_hint', 'Crie a primeira senha ou redefina sua senha atual.')}</span>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
 
-                            <button
-                                onClick={handlePasswordSetup}
-                                disabled={passwordLoading}
-                                className="w-full flex items-center justify-center gap-2 text-sm font-bold text-white py-3 rounded-lg transition-colors disabled:opacity-60"
-                                style={{ backgroundColor: memberArea?.primary_color || '#D4143C' }}
-                            >
-                                {passwordLoading ? <Clock className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
-                                {passwordLoading ? t('profile.sending', 'Enviando...') : t('profile.setup_password', 'Criar ou redefinir senha')}
-                            </button>
+                                <div>
+                                    <label className="block text-xs text-gray-500 uppercase mb-1">{t('profile.new_password', 'Nova senha')}</label>
+                                    <input
+                                        type="password"
+                                        minLength={6}
+                                        value={newPassword}
+                                        onChange={(event) => setNewPassword(event.target.value)}
+                                        className="w-full bg-black/20 p-3 rounded-lg border border-white/10 text-white outline-none focus:border-white/30"
+                                        placeholder="******"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs text-gray-500 uppercase mb-1">{t('profile.confirm_password', 'Confirmar senha')}</label>
+                                    <input
+                                        type="password"
+                                        minLength={6}
+                                        value={confirmPassword}
+                                        onChange={(event) => setConfirmPassword(event.target.value)}
+                                        className="w-full bg-black/20 p-3 rounded-lg border border-white/10 text-white outline-none focus:border-white/30"
+                                        placeholder="******"
+                                    />
+                                </div>
+
+                                <button
+                                    type="submit"
+                                    disabled={passwordLoading || !newPassword || !confirmPassword}
+                                    className="w-full flex items-center justify-center gap-2 text-sm font-bold text-white py-3 rounded-lg transition-colors disabled:opacity-60"
+                                    style={{ backgroundColor: memberArea?.primary_color || '#D4143C' }}
+                                >
+                                    {passwordLoading ? <Clock className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
+                                    {passwordLoading ? t('profile.saving', 'Salvando...') : t('profile.save_password', 'Salvar senha')}
+                                </button>
+                            </form>
 
                             {passwordMessage && (
                                 <div className={`flex items-start gap-2 text-sm p-3 rounded-lg border ${passwordMessage.type === 'success'

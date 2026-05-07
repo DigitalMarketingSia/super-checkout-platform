@@ -1,15 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
 import { centralSupabase } from '../services/centralClient';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Lock, Loader2, AlertCircle, CheckCircle, ArrowRight } from 'lucide-react';
 import { logSecurityEvent } from '../services/securityAuditClient';
 
 export const UpdatePassword = () => {
     const navigate = useNavigate();
+    const { slug } = useParams<{ slug: string }>();
     const searchParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
     const isCentralRecovery = searchParams.get('scope') === 'central';
-    const nextPath = searchParams.get('next') || (isCentralRecovery ? '/activate/setup' : '/admin');
+    const isMemberRecovery = searchParams.get('scope') === 'member' || Boolean(slug);
+    const defaultMemberNext = slug ? `/app/${slug}/login` : '/login';
+    const nextPath = searchParams.get('next') || (isCentralRecovery ? '/activate/setup' : isMemberRecovery ? defaultMemberNext : '/admin');
     const authClient = isCentralRecovery ? centralSupabase : supabase;
     const [loading, setLoading] = useState(false);
     const [password, setPassword] = useState('');
@@ -18,18 +21,17 @@ export const UpdatePassword = () => {
     const [success, setSuccess] = useState<string | null>(null);
 
     useEffect(() => {
-        // Check if we have a session (user clicked magic link)
         authClient.auth.getSession().then(({ data: { session } }) => {
             if (!session) {
-                navigate(isCentralRecovery ? '/activate' : '/login');
+                navigate(isCentralRecovery ? '/activate' : isMemberRecovery ? defaultMemberNext : '/login');
             }
         });
-    }, [authClient, isCentralRecovery, navigate]);
+    }, [authClient, defaultMemberNext, isCentralRecovery, isMemberRecovery, navigate]);
 
     const handleUpdate = async (e: React.FormEvent) => {
         e.preventDefault();
         if (password !== confirmPassword) {
-            setError('As senhas não coincidem');
+            setError('As senhas nao coincidem');
             return;
         }
 
@@ -39,15 +41,16 @@ export const UpdatePassword = () => {
 
         try {
             const { error } = await authClient.auth.updateUser({
-                password: password
+                password,
             });
 
             if (error) throw error;
 
-            await logSecurityEvent('password_changed', { flow: 'recovery' }, 'INFO');
+            await logSecurityEvent('password_changed', { flow: isMemberRecovery ? 'member_recovery' : 'recovery' }, 'INFO');
             setSuccess('Senha atualizada com sucesso! Redirecionando...');
             setTimeout(() => {
-                navigate(nextPath.startsWith('/') && !nextPath.startsWith('//') ? nextPath : '/admin');
+                const fallbackPath = isMemberRecovery ? defaultMemberNext : '/admin';
+                navigate(nextPath.startsWith('/') && !nextPath.startsWith('//') ? nextPath : fallbackPath);
             }, 2000);
         } catch (err: any) {
             console.error(err);
@@ -65,9 +68,13 @@ export const UpdatePassword = () => {
                         <div className="w-12 h-12 bg-primary/20 rounded-xl flex items-center justify-center mx-auto mb-4">
                             <Lock className="w-6 h-6 text-primary" />
                         </div>
-                        <h2 className="text-xl font-bold mb-2">Definir Nova Senha</h2>
+                        <h2 className="text-xl font-bold mb-2">
+                            {isMemberRecovery ? 'Definir senha da area de membros' : 'Definir Nova Senha'}
+                        </h2>
                         <p className="text-gray-400 text-sm">
-                            Digite sua nova senha abaixo para recuperar o acesso à sua conta.
+                            {isMemberRecovery
+                                ? 'Digite uma nova senha para acessar seus produtos pela area de membros.'
+                                : 'Digite sua nova senha abaixo para recuperar o acesso a sua conta.'}
                         </p>
                     </div>
 
@@ -93,7 +100,7 @@ export const UpdatePassword = () => {
                                     required
                                     minLength={6}
                                     className="w-full bg-black/20 border border-white/10 rounded-xl pl-12 pr-4 py-3.5 text-white outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all placeholder:text-gray-600"
-                                    placeholder="••••••••"
+                                    placeholder="********"
                                     value={password}
                                     onChange={e => setPassword(e.target.value)}
                                 />
@@ -109,7 +116,7 @@ export const UpdatePassword = () => {
                                     required
                                     minLength={6}
                                     className="w-full bg-black/20 border border-white/10 rounded-xl pl-12 pr-4 py-3.5 text-white outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all placeholder:text-gray-600"
-                                    placeholder="••••••••"
+                                    placeholder="********"
                                     value={confirmPassword}
                                     onChange={e => setConfirmPassword(e.target.value)}
                                 />

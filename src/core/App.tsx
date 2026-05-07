@@ -371,6 +371,7 @@ const DomainDispatcher = () => {
         {/* Login and Signup at root level for custom domain */}
         <Route path="/login" element={<MemberLogin forcedSlug={customMemberAreaSlug} />} />
         <Route path="/signup" element={<MemberSignup forcedSlug={customMemberAreaSlug} />} />
+        <Route path="/update-password" element={<UpdatePassword />} />
 
         {/* Member Area Routes */}
         <Route path="/" element={<MemberAreaWrapper forcedSlug={customMemberAreaSlug} />}>
@@ -460,6 +461,7 @@ const DomainDispatcher = () => {
       {/* Member Area Public Routes (Standard) */}
       <Route path="/app/:slug/login" element={<MemberLogin />} />
       <Route path="/app/:slug/signup" element={<MemberSignup />} />
+      <Route path="/app/:slug/update-password" element={<UpdatePassword />} />
 
       {/* Member Area App Routes with Slug (Standard) */}
       <Route path="/app/:slug" element={<MemberAreaWrapper />}>
