@@ -40,7 +40,6 @@ async function resolveMembersAreaUrl(
 ) {
   const safeOrigin = normalizeOrigin(origin);
   let visualUrl = `${safeOrigin}/login`;
-  let tokenRedirectTo = visualUrl;
   const items = Array.isArray(order.items) ? order.items : [];
   const productIds = items.map((item: any) => item.product_id || item.id).filter(Boolean);
 
@@ -54,43 +53,23 @@ async function resolveMembersAreaUrl(
 
       const area = links?.[0]?.content?.member_areas;
       if (area?.slug) {
-        tokenRedirectTo = `${safeOrigin}/app/${area.slug}`;
-        visualUrl = tokenRedirectTo;
+        visualUrl = `${safeOrigin}/app/${area.slug}`;
       }
       if (area?.domains?.domain) {
         visualUrl = `https://${area.domains.domain}`;
       }
     }
 
-    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'magiclink',
-      email,
-      options: { redirectTo: tokenRedirectTo },
-    });
-
-    if (linkError) throw linkError;
-
-    // PRIMARY: Use Supabase's native action_link. It verifies the token
-    // server-side at supabase.co/auth/v1/verify, then redirects the user
-    // to tokenRedirectTo with #access_token=...&refresh_token=... in the
-    // URL hash. The Supabase JS client on the page automatically detects
-    // these hash fragments and creates a session. No custom client-side
-    // verifyOtp needed.
-    if (linkData?.properties?.action_link) {
-      console.log(`[OrderEmailService] Using native action_link for ${email}. Redirect: ${tokenRedirectTo}`);
-      return linkData.properties.action_link;
-    }
-
-    // FALLBACK: If action_link is somehow missing, try hashed_token
-    if (linkData?.properties?.hashed_token) {
-      console.warn(`[OrderEmailService] action_link missing, falling back to auth_token for ${email}`);
-      const separator = visualUrl.includes('?') ? '&' : '?';
-      return `${visualUrl}${separator}auth_token=${linkData.properties.hashed_token}&auth_email=${encodeURIComponent(email)}`;
-    }
-
-    return visualUrl;
+    // Generate a self-signed token containing the email.
+    // The frontend will send this to POST /api/system?action=auto-login
+    // which verifies it, creates a magic link server-side, verifies it
+    // server-side, and returns a ready session. Zero external config needed.
+    const { createLoginToken } = await import('../../../api/system.js');
+    const loginToken = createLoginToken(email);
+    const separator = visualUrl.includes('?') ? '&' : '?';
+    return `${visualUrl}${separator}login_token=${encodeURIComponent(loginToken)}`;
   } catch (error: any) {
-    console.warn('[OrderEmailService] Failed to generate member magic link:', error.message || error);
+    console.warn('[OrderEmailService] Failed to generate login token:', error.message || error);
     return visualUrl;
   }
 }

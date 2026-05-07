@@ -17,37 +17,59 @@ export const MemberAreaWrapper = ({ forcedSlug }: { forcedSlug?: string }) => {
             console.log('[Wrapper] Loading Member Area for slug:', slug);
 
             const params = new URLSearchParams(window.location.search);
+            const loginToken = params.get('login_token');
             const authToken = params.get('auth_token');
             const authEmail = params.get('auth_email');
-            
-            if (authToken && authEmail) {
-                console.log('[Wrapper] Found custom auth token, verifying...');
+
+            // NEW: Server-side auto-login (login_token from purchase emails)
+            if (loginToken) {
+                console.log('[Wrapper] Found login_token, authenticating via server...');
                 try {
-                    const { supabase } = await import('../../services/supabase');
-                    // CRITICAL: Supabase admin.generateLink({ type: 'magiclink' }) produces
-                    // a hashed_token that MUST be verified with verifyOtp type 'email',
-                    // NOT 'magiclink'. Tokens are one-time-use — using the wrong type
-                    // consumes and invalidates them, making retries impossible.
-                    const { data, error } = await supabase.auth.verifyOtp({
-                        email: authEmail,
-                        token_hash: authToken,
-                        type: 'email',
+                    const res = await fetch(`/api/system?action=auto-login`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ token: loginToken }),
                     });
 
-                    if (error) {
-                        throw error;
+                    if (res.ok) {
+                        const { access_token, refresh_token } = await res.json();
+                        if (access_token && refresh_token) {
+                            const { supabase } = await import('../../services/supabase');
+                            await supabase.auth.setSession({ access_token, refresh_token });
+                            console.log('[Wrapper] Server-side auto-login successful');
+                        }
+                    } else {
+                        const err = await res.json().catch(() => ({}));
+                        console.error('[Wrapper] Auto-login failed:', err);
                     }
-                    if (!data?.session) {
-                        throw new Error('Token verified but no session was returned.');
-                    }
-                    
+
+                    params.delete('login_token');
+                    const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '') + window.location.hash;
+                    window.history.replaceState({}, document.title, newUrl);
+                } catch (e) {
+                    console.error('[Wrapper] Auto-login error:', e);
+                }
+            }
+            // LEGACY FALLBACK: auth_token from older emails
+            else if (authToken && authEmail) {
+                console.log('[Wrapper] Found legacy auth_token, verifying...');
+                try {
+                    const { supabase } = await import('../../services/supabase');
+                    const { data, error } = await supabase.auth.verifyOtp({
+                        token_hash: authToken,
+                        type: 'email' as any,
+                    });
+
+                    if (error) throw error;
+                    if (!data?.session) throw new Error('Token verified but no session returned.');
+
                     params.delete('auth_token');
                     params.delete('auth_email');
                     const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '') + window.location.hash;
                     window.history.replaceState({}, document.title, newUrl);
-                    console.log('[Wrapper] Custom auth successful');
+                    console.log('[Wrapper] Legacy auth successful');
                 } catch (e) {
-                    console.error('[Wrapper] Custom auth failed:', e);
+                    console.error('[Wrapper] Legacy auth failed:', e);
                 }
             }
             if (!slug) return;
