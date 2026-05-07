@@ -3,6 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 import { decrypt } from '../src/core/utils/cryptoUtils.js';
 import { MercadoPagoConfig, Payment } from 'mercadopago';
+import { fulfillOrder } from '../src/core/services/fulfillment.js';
+import { sendOrderAccessEmail } from '../src/core/services/orderEmail.js';
 
 // --- CONFIG ---
 export const config = {
@@ -36,212 +38,6 @@ const isAlreadyProcessed = async (supabaseAdmin: any, eventId: string): Promise<
     if (!eventId) return false;
     const { data } = await supabaseAdmin.from('webhook_logs').select('id').eq('event', eventId).eq('processed', true).limit(1);
     return !!(data && data.length > 0);
-};
-
-const invokeFulfillOrder = async (
-    supabaseUrl: string,
-    supabaseKey: string,
-    payload: { order_id: string; email?: string | null; name?: string | null },
-) => {
-    const fulfillRes = await fetch(`${supabaseUrl}/functions/v1/fulfill-order`, {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${supabaseKey}`,
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-    });
-
-    const responseText = await fulfillRes.text();
-    let responseData: any = null;
-
-    try {
-        responseData = responseText ? JSON.parse(responseText) : null;
-    } catch {
-        responseData = null;
-    }
-
-    if (!fulfillRes.ok) {
-        throw new Error(
-            responseData?.error
-            || responseText
-            || `fulfill-order failed with status ${fulfillRes.status}`,
-        );
-    }
-
-    return responseData;
-};
-
-const replaceTemplateVars = (template: string, variables: Record<string, string>) => {
-    let output = template || '';
-    for (const [key, value] of Object.entries(variables)) {
-        output = output.replace(new RegExp(key, 'g'), value || '');
-    }
-    return output;
-};
-
-const hasBusinessEventPipelineRecord = async (supabaseAdmin: any, orderId: string) => {
-    const { data, error } = await supabaseAdmin
-        .from('app_events')
-        .select('id,status')
-        .in('type', ['ORDER_COMPLETED', 'ACCESS_GRANTED'])
-        .eq('payload->>order_id', orderId)
-        .limit(1);
-
-    if (error) {
-        const message = String(error.message || '').toLowerCase();
-        if (error.code === '42P01' || message.includes('app_events')) return false;
-        console.warn('[Webhook Email Fallback] Could not inspect app_events:', error.message);
-        return true;
-    }
-
-    return Boolean(data?.length);
-};
-
-const resolveMembersAreaUrl = async (supabaseAdmin: any, order: any, origin: string, email: string) => {
-    let redirectTo = `${origin.replace(/\/+$/, '')}/login`;
-    const items = Array.isArray(order.items) ? order.items : [];
-    const productIds = items.map((item: any) => item.product_id || item.id).filter(Boolean);
-
-    try {
-        if (productIds.length > 0) {
-            const { data: links } = await supabaseAdmin
-                .from('product_contents')
-                .select('content:contents(member_area_id, member_areas(slug, domains(domain)))')
-                .in('product_id', productIds)
-                .limit(1);
-
-            const area = links?.[0]?.content?.member_areas;
-            if (area?.slug) redirectTo = `${origin.replace(/\/+$/, '')}/app/${area.slug}`;
-            if (area?.domains?.domain) redirectTo = `https://${area.domains.domain}`;
-        }
-
-        const { data: linkData } = await supabaseAdmin.auth.admin.generateLink({
-            type: 'magiclink',
-            email,
-            options: { redirectTo },
-        });
-
-        if (linkData?.properties?.hashed_token) {
-            const separator = redirectTo.includes('?') ? '&' : '?';
-            return `${redirectTo}${separator}auth_token=${linkData.properties.hashed_token}&auth_email=${encodeURIComponent(email)}`;
-        }
-
-        return linkData?.properties?.action_link || redirectTo;
-    } catch (error: any) {
-        console.warn('[Webhook Email Fallback] Failed to resolve member area magic link:', error.message || error);
-        return redirectTo;
-    }
-};
-
-const sendBusinessOrderEmailFallback = async (
-    supabaseAdmin: any,
-    orderId: string,
-    origin: string,
-    recipient?: { email?: string | null; name?: string | null } | null,
-) => {
-    const { data: order, error: orderError } = await supabaseAdmin
-        .from('orders')
-        .select('id, customer_email, customer_name, items, metadata, checkout_id, checkouts(user_id)')
-        .eq('id', orderId)
-        .single();
-
-    if (orderError || !order) throw new Error(`Order ${orderId} not found for email fallback.`);
-
-    const metadata = order.metadata && typeof order.metadata === 'object' ? order.metadata : {};
-    if (metadata.order_completed_email_sent_at) {
-        console.log(`[Webhook Email Fallback] Email already sent for order ${orderId}. Skipping.`);
-        return { skipped: true, reason: 'already_sent' };
-    }
-
-    if (await hasBusinessEventPipelineRecord(supabaseAdmin, orderId)) {
-        console.log(`[Webhook Email Fallback] app_events pipeline present for order ${orderId}. Skipping direct send.`);
-        return { skipped: true, reason: 'event_pipeline_present' };
-    }
-
-    const to = recipient?.email || order.customer_email;
-    const name = recipient?.name || order.customer_name || 'Cliente';
-    if (!to) throw new Error(`Order ${orderId} has no recipient email.`);
-
-    const { data: integration } = await supabaseAdmin
-        .from('integrations')
-        .select('*')
-        .eq('name', 'resend')
-        .eq('active', true)
-        .limit(1)
-        .maybeSingle();
-
-    const apiKey = integration?.config?.apiKey || integration?.config?.api_key;
-    const fromEmail = integration?.config?.senderEmail || integration?.config?.from_email || 'onboarding@resend.dev';
-    if (!apiKey) throw new Error("Email provider 'resend' is not active or configured.");
-
-    const { data: template } = await supabaseAdmin
-        .from('email_templates')
-        .select('*')
-        .eq('event_type', 'ORDER_COMPLETED')
-        .eq('active', true)
-        .limit(1)
-        .maybeSingle();
-
-    const { data: settings } = await supabaseAdmin
-        .from('business_settings')
-        .select('sender_name,business_name')
-        .limit(1)
-        .maybeSingle();
-
-    const productNames = Array.isArray(order.items) && order.items.length > 0
-        ? order.items.map((item: any) => item.name).filter(Boolean).join(', ')
-        : 'Produto';
-    const membersAreaUrl = await resolveMembersAreaUrl(supabaseAdmin, order, origin, to);
-    const variables = {
-        '{{order_id}}': orderId ? `#${orderId.split('-')[0]}` : '',
-        '{{customer_name}}': name,
-        '{{name}}': name,
-        '{{email}}': to,
-        '{{product_names}}': productNames || 'Produto',
-        '{{members_area_url}}': membersAreaUrl,
-        '{{business_name}}': settings?.business_name || 'Super Checkout',
-    };
-
-    const subject = replaceTemplateVars(template?.subject || 'Pagamento aprovado - acesso liberado', variables);
-    const html = replaceTemplateVars(template?.html_body || `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h1>Ola, {{customer_name}}!</h1>
-            <p>Seu pagamento foi aprovado.</p>
-            <p>Produto(s): <strong>{{product_names}}</strong></p>
-            <p><a href="{{members_area_url}}">Acessar area de membros</a></p>
-        </div>
-    `, variables);
-
-    const senderName = settings?.sender_name || settings?.business_name;
-    const from = senderName ? `${senderName} <${fromEmail.replace(/.*<|>/g, '')}>` : fromEmail;
-    const resendRes = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({ from, to: [to], subject, html }),
-    });
-
-    const resendData = await resendRes.json().catch(() => ({}));
-    if (!resendRes.ok) {
-        throw new Error(`Resend rejected order email: ${JSON.stringify(resendData)}`);
-    }
-
-    await supabaseAdmin
-        .from('orders')
-        .update({
-            metadata: {
-                ...metadata,
-                order_completed_email_sent_at: new Date().toISOString(),
-                order_completed_email_resend_id: resendData?.id || null,
-                order_completed_email_source: 'webhook_fallback',
-            },
-        })
-        .eq('id', orderId);
-
-    return { sent: true, id: resendData?.id };
 };
 
 // --- ANTI-REPLAY: Timestamp validation (5 min window) ---
@@ -451,14 +247,16 @@ async function handleStripe(req: VercelRequest, res: VercelResponse, rawBody: st
             updates.push(supabaseAdmin.from('payments').update({ status: 'paid', raw_response: rawBody }).eq('id', paymentRecord.id));
         }
         await Promise.all(updates);
-        await invokeFulfillOrder(supabaseUrl, supabaseKey, {
-            order_id: oid,
+        await fulfillOrder(supabaseAdmin, {
+            orderId: oid,
             email: orderData?.customer_email,
             name: orderData?.customer_name,
         });
         try {
             const origin = `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host}`;
-            const emailResult = await sendBusinessOrderEmailFallback(supabaseAdmin, oid, origin, {
+            const emailResult = await sendOrderAccessEmail(supabaseAdmin, {
+                orderId: oid,
+                origin,
                 email: orderData?.customer_email,
                 name: orderData?.customer_name,
             });
@@ -544,14 +342,16 @@ async function handleMercadoPago(req: VercelRequest, res: VercelResponse, rawBod
                 throw new Error('Missing Supabase runtime config for fulfill-order.');
             }
 
-            await invokeFulfillOrder(supabaseUrl, supabaseKey, {
-                order_id: oid,
+            await fulfillOrder(supabaseAdmin, {
+                orderId: oid,
                 email: orderData?.customer_email,
                 name: orderData?.customer_name,
             });
             try {
                 const origin = `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host}`;
-                const emailResult = await sendBusinessOrderEmailFallback(supabaseAdmin, oid, origin, {
+                const emailResult = await sendOrderAccessEmail(supabaseAdmin, {
+                    orderId: oid,
+                    origin,
                     email: orderData?.customer_email,
                     name: orderData?.customer_name,
                 });

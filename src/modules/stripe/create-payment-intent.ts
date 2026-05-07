@@ -3,6 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 import { decrypt } from '../../core/utils/cryptoUtils.js';
 import { securityService } from '../../core/services/securityService.js';
 import { applyCors } from '../../core/api/_cors.js';
+import { fulfillOrder } from '../../core/services/fulfillment.js';
+import { sendOrderAccessEmail } from '../../core/services/orderEmail.js';
 
 // --- CONFIG ---
 /**
@@ -74,26 +76,6 @@ function maskEmail(email?: string | null) {
     const [name, domain] = String(email || '').split('@');
     if (!name || !domain) return 'unknown';
     return `${name.slice(0, 2)}***@${domain}`;
-}
-
-async function invokeFulfillOrder(
-    supabaseUrl: string,
-    supabaseKey: string,
-    payload: { order_id: string; email?: string | null; name?: string | null },
-) {
-    const fulfillRes = await fetch(`${supabaseUrl}/functions/v1/fulfill-order`, {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${supabaseKey}`,
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-    });
-
-    const responseText = await fulfillRes.text();
-    if (!fulfillRes.ok) {
-        throw new Error(responseText || `fulfill-order failed with status ${fulfillRes.status}`);
-    }
 }
 
 function translateStripeIntentStatus(status: string): 'paid' | 'pending' | 'failed' | 'canceled' {
@@ -340,14 +322,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
 
                     try {
-                        await invokeFulfillOrder(url, key, {
-                            order_id: metadata.order_id,
+                        await fulfillOrder(supabaseService, {
+                            orderId: metadata.order_id,
                             email: orderData?.customer_email || customerEmail,
                             name: orderData?.customer_name || customerName,
                         });
                         fulfillmentTriggered = true;
+                        const origin = String(req.headers.origin || req.headers.referer || '').replace(/\/+$/, '')
+                            || `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host}`;
+                        await sendOrderAccessEmail(supabaseService, {
+                            orderId: metadata.order_id,
+                            origin,
+                            email: orderData?.customer_email || customerEmail,
+                            name: orderData?.customer_name || customerName,
+                        });
                     } catch (fulfillError: any) {
-                        console.error('[CreatePaymentIntent] fulfill-order trigger failed:', fulfillError.message || fulfillError);
+                        console.error('[CreatePaymentIntent] Vercel fulfillment/email failed:', fulfillError.message || fulfillError);
                     }
                 }
             } else {

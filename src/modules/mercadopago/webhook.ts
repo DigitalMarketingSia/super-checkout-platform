@@ -1,6 +1,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 import { decrypt } from '../../core/utils/cryptoUtils.js';
+import { fulfillOrder } from '../../core/services/fulfillment.js';
+import { sendOrderAccessEmail } from '../../core/services/orderEmail.js';
 
 // --- TYPES ---
 interface WebhookLog {
@@ -478,47 +481,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // This centralizes user creation, access grants, and SaaS licensing
         if (orderStatus === 'paid' && order && supabaseKey) {
             let fulfillmentRecipient: { email?: string | null; name?: string | null } | null = null;
+            let vercelEmailHandled = false;
             try {
-                console.log(`[Webhook] Triggering internal fulfillment for Order ${order.id}`);
-
-                // We use the same service role key to call our internal function
-                // Note: In Client Install, this function might NOT exist. 
-                // We wrap in try/catch and logging implies it's optional for basic email flow now.
-                const fulfillRes = await fetch(`${supabaseUrl}/functions/v1/fulfill-order`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${supabaseKey}`
-                    },
-                    body: JSON.stringify({
-                        order_id: order.id,
-                        email: order.customer_email,
-                        name: order.customer_name
-                    })
+                console.log(`[Webhook] Running Vercel fulfillment for Order ${order.id}`);
+                const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
+                const fulfillJson = await fulfillOrder(supabaseAdmin, {
+                    orderId: order.id,
+                    email: order.customer_email,
+                    name: order.customer_name
                 });
+                fulfillmentRecipient = {
+                    email: fulfillJson?.beneficiaryEmail || null,
+                    name: fulfillJson?.beneficiaryName || null
+                };
 
-                if (!fulfillRes.ok) {
-                    console.warn(`[Webhook] fulfill-order function might be missing (Client Install?). Status: ${fulfillRes.status}`);
-                } else {
-                    const fulfillJson = await fulfillRes.json().catch(() => ({}));
-                    fulfillmentRecipient = {
-                        email: fulfillJson?.beneficiary_email || null,
-                        name: fulfillJson?.beneficiary_name || null
-                    };
+                const origin = `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host}`;
+                const emailResult = await sendOrderAccessEmail(supabaseAdmin, {
+                    orderId: order.id,
+                    origin,
+                    email: fulfillmentRecipient.email || order.customer_email,
+                    name: fulfillmentRecipient.name || order.customer_name
+                });
+                vercelEmailHandled = Boolean((emailResult as any)?.sent || (emailResult as any)?.skipped);
 
-                    await logToSupabase('webhook.fulfillment_triggered', {
-                        orderId: order.id,
-                        email: fulfillmentRecipient.email || order.customer_email
-                    }, true, paymentRecord?.gateway_id);
-                }
+                await logToSupabase('webhook.fulfillment_triggered', {
+                    orderId: order.id,
+                    email: fulfillmentRecipient.email || order.customer_email
+                }, true, paymentRecord?.gateway_id);
 
             } catch (fulfillError: any) {
-                console.error('[Webhook] Failed to trigger fulfillment:', fulfillError);
+                console.error('[Webhook] Failed to process Vercel fulfillment:', fulfillError);
                 await logToSupabase('webhook.fulfillment_trigger_error', { error: fulfillError.message }, false);
             }
 
-            // A. Send Email after fulfillment so upgrade intents can target the beneficiary correctly
-            if (order._shouldSendEmail) {
+            // Legacy fallback: only used if the new Vercel service did not mark the e-mail as sent.
+            if (order._shouldSendEmail && !vercelEmailHandled) {
                 await sendOrderEmail(order, supabaseUrl, supabaseKey, fulfillmentRecipient || undefined);
             } else {
                 console.log('[Webhook] Skipping email (Duplicate/Idempotency check).');

@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
+import { fulfillOrder } from '../../core/services/fulfillment.js';
 
 // --- CONFIG ---
 export const config = {
@@ -175,12 +176,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 console.log(`[Stripe Webhook] SUCCESS: Order ${orderId} is now PAID`);
                 await logWebhook('webhook.stripe_success', payload, 200, `Order ${orderId} paid`);
                 
-                // Trigger fulfillment Edge Function
-                fetch(`${supabaseUrl}/functions/v1/fulfill-order`, {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${supabaseKey}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ order_id: orderId })
-                }).catch(e => console.error('[Stripe Webhook] Fulfillment trigger error:', e.message));
+                try {
+                    await fulfillOrder(supabaseAdmin, { orderId });
+                } catch (e: any) {
+                    console.error('[Stripe Webhook] Vercel fulfillment error:', e.message || e);
+                }
             }
         } else {
             // Ignored event

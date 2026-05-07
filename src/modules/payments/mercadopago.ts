@@ -1,6 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import { decrypt, generateSignature } from '../../core/utils/cryptoUtils.js';
 import { securityService } from '../../core/services/securityService.js';
+import { fulfillOrder } from '../../core/services/fulfillment.js';
+import { sendOrderAccessEmail } from '../../core/services/orderEmail.js';
 
 /**
  * MODULE: MERCADO PAGO HANDLER v6 (FETCH NATIVE - BYPASS SDK)
@@ -282,28 +284,27 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
           console.error('[MP] Failed to generate magic link:', err);
       }
 
-      // Fulfill order before sending email to generate user accounts/access grants
+      let vercelEmailSent = false;
       try {
-          const resFulfill = await fetch(`${supabaseUrl}/functions/v1/fulfill-order`, {
-              method: 'POST',
-              headers: {
-                  'Authorization': `Bearer ${supabaseServiceKey}`,
-                  'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                  order_id: orderId,
-                  email: customerEmail,
-                  name: customerName,
-              }),
+          await fulfillOrder(supabaseAdmin, {
+            orderId,
+            email: customerEmail,
+            name: customerName,
           });
-          if (!resFulfill.ok) {
-              console.error('[MP-FETCH] fulfill-order failed:', await resFulfill.text());
-          }
+          const emailResult = await sendOrderAccessEmail(supabaseAdmin, {
+            orderId,
+            origin: baseUrl,
+            email: customerEmail,
+            name: customerName,
+          });
+          vercelEmailSent = Boolean((emailResult as any)?.sent || (emailResult as any)?.skipped);
       } catch (err) {
-          console.error('[MP-FETCH] invokeFulfillOrder error:', err);
+          console.error('[MP-FETCH] Vercel fulfillment/email error:', err);
       }
 
-      await sendPaymentApprovedEmail(orderId, { ...checkout, ...updatedOrder, customer_email: customerEmail, customer_name: customerName, membersAreaUrl }, mainProduct.name);
+      if (!vercelEmailSent) {
+        await sendPaymentApprovedEmail(orderId, { ...checkout, ...updatedOrder, customer_email: customerEmail, customer_name: customerName, membersAreaUrl }, mainProduct.name);
+      }
     }
 
     return {
