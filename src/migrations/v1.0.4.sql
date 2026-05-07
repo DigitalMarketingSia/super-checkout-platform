@@ -2,6 +2,10 @@
 -- Ensures buyers and members created with user_metadata.name/customer_name are
 -- persisted into public.profiles.full_name, and repairs existing null/generic rows.
 
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS installation_id TEXT,
+  ADD COLUMN IF NOT EXISTS central_user_id UUID;
+
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -20,7 +24,12 @@ BEGIN
     NEW.raw_user_meta_data ->> 'display_name'
   )), '');
 
-  v_central_id := NULLIF(BTRIM(COALESCE(NEW.raw_user_meta_data ->> 'central_user_id', '')), '')::UUID;
+  BEGIN
+    v_central_id := NULLIF(BTRIM(COALESCE(NEW.raw_user_meta_data ->> 'central_user_id', '')), '')::UUID;
+  EXCEPTION
+    WHEN OTHERS THEN
+      v_central_id := NULL;
+  END;
   v_role := CASE
     WHEN is_first_user THEN 'admin'
     ELSE COALESCE(NULLIF(BTRIM(NEW.raw_user_meta_data ->> 'role'), ''), 'member')
