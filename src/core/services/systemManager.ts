@@ -350,6 +350,10 @@ export const SystemManager = {
       return hasColumn('public_gateways', 'public_key');
     }
 
+    if (version === '1.0.4') {
+      return hasColumn('profiles', 'full_name');
+    }
+
     return false;
   },
 

@@ -450,21 +450,31 @@ CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 DECLARE
   is_first_user BOOLEAN;
+  v_full_name TEXT;
 BEGIN
   -- Check if this is the first user registered to make them admin
   SELECT NOT EXISTS (SELECT 1 FROM public.profiles) INTO is_first_user;
+
+  v_full_name := NULLIF(BTRIM(COALESCE(
+    NEW.raw_user_meta_data->>'full_name',
+    NEW.raw_user_meta_data->>'name',
+    NEW.raw_user_meta_data->>'customer_name',
+    NEW.raw_user_meta_data->>'display_name'
+  )), '');
 
   INSERT INTO public.profiles (id, email, full_name, role)
   VALUES (
     NEW.id,
     NEW.email,
-    NEW.raw_user_meta_data->>'full_name',
+    v_full_name,
     CASE 
       WHEN is_first_user THEN 'admin' 
       ELSE COALESCE(NEW.raw_user_meta_data->>'role', 'member') 
     END
   )
-  ON CONFLICT (id) DO NOTHING;
+  ON CONFLICT (id) DO UPDATE SET
+    email = COALESCE(EXCLUDED.email, public.profiles.email),
+    full_name = COALESCE(NULLIF(BTRIM(public.profiles.full_name), ''), EXCLUDED.full_name);
   
   -- Auto-seed default 'resend' integration (Inactive state, but valid provider)
   INSERT INTO integrations (user_id, name, provider, active, config)

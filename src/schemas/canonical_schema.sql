@@ -687,10 +687,12 @@ BEGIN
   SELECT NOT EXISTS(SELECT 1 FROM public.profiles) INTO is_first_user;
   
   -- Flexible name retrieval
-  v_full_name := COALESCE(
-    NEW.raw_user_meta_data ->> 'full_name', 
-    NEW.raw_user_meta_data ->> 'name'
-  );
+  v_full_name := NULLIF(BTRIM(COALESCE(
+    NEW.raw_user_meta_data ->> 'full_name',
+    NEW.raw_user_meta_data ->> 'name',
+    NEW.raw_user_meta_data ->> 'customer_name',
+    NEW.raw_user_meta_data ->> 'display_name'
+  )), '');
 
   v_central_id := (NEW.raw_user_meta_data ->> 'central_user_id')::UUID;
   v_role := CASE
@@ -708,9 +710,9 @@ BEGIN
     v_central_id
   )
   ON CONFLICT(id) DO UPDATE SET
+    full_name = COALESCE(NULLIF(BTRIM(public.profiles.full_name), ''), EXCLUDED.full_name),
     installation_id = COALESCE(EXCLUDED.installation_id, public.profiles.installation_id),
-    central_user_id = EXCLUDED.central_user_id
-  WHERE public.profiles.role = 'admin';
+    central_user_id = COALESCE(EXCLUDED.central_user_id, public.profiles.central_user_id);
 
   IF v_role IN ('admin', 'owner') THEN
     INSERT INTO public.accounts(owner_user_id, plan_type, status, trust_score)
