@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import healthHandler from '../src/core/api/health.js';
 import proxyHandler from '../src/core/api/proxy.js';
 import sendEmailHandler from '../src/core/api/send-email.js';
+import { sendOrderAccessEmail } from '../src/core/services/orderEmail.js';
 import { verifyLoginToken } from '../src/core/utils/loginToken.js';
 
 const DEFAULT_ALLOWED_ORIGIN = 'https://app.supercheckout.app';
@@ -216,6 +217,84 @@ async function autoLoginHandler(req: VercelRequest, res: VercelResponse) {
   }
 }
 
+async function resendOrderAccessHandler(req: VercelRequest, res: VercelResponse) {
+  const corsAllowed = applyPublicCors(req, res);
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  if (!corsAllowed) return res.status(403).json({ error: 'Origin not allowed' });
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceKey) {
+    return res.status(500).json({ error: 'Server configuration error' });
+  }
+
+  const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+  const orderId = String(body.orderId || '').trim();
+  if (!UUID_REGEX.test(orderId)) {
+    return res.status(400).json({ error: 'Invalid orderId' });
+  }
+
+  const authHeader = String(req.headers.authorization || '');
+  const accessToken = authHeader.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : '';
+  if (!accessToken) return res.status(401).json({ error: 'Missing authorization token' });
+
+  try {
+    const supabaseAdmin = createClient(supabaseUrl, serviceKey);
+    const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(accessToken);
+    const user = userData?.user;
+    if (userError || !user?.id) return res.status(401).json({ error: 'Invalid authorization token' });
+
+    const { data: order, error: orderError } = await supabaseAdmin
+      .from('orders')
+      .select('id, customer_email, customer_name, checkouts(user_id)')
+      .eq('id', orderId)
+      .single();
+
+    if (orderError || !order) return res.status(404).json({ error: 'Order not found' });
+
+    const merchantUserId = (order as any).checkouts?.user_id;
+    if (merchantUserId && merchantUserId !== user.id) {
+      const { data: profile } = await supabaseAdmin
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (!['admin', 'owner'].includes(String(profile?.role || ''))) {
+        return res.status(403).json({ error: 'Not allowed for this order' });
+      }
+    }
+
+    const origin = normalizeRequestOrigin(req);
+    const result = await sendOrderAccessEmail(supabaseAdmin, {
+      orderId,
+      origin,
+      email: order.customer_email,
+      name: order.customer_name,
+      force: true,
+    });
+
+    return res.status(200).json(result);
+  } catch (err: any) {
+    console.error('[System] resend-order-access failed:', err?.message || err);
+    return res.status(500).json({ error: err?.message || 'Failed to resend access email' });
+  }
+}
+
+function normalizeRequestOrigin(req: VercelRequest) {
+  const headerOrigin = String(req.headers.origin || '');
+  if (headerOrigin) {
+    try {
+      return new URL(headerOrigin).origin;
+    } catch {}
+  }
+  return `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host || 'app.supercheckout.app'}`;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { action } = req.query;
 
@@ -240,6 +319,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return await publicGatewayHandler(req, res);
             case 'auto-login':
                 return await autoLoginHandler(req, res);
+            case 'resend-order-access':
+                return await resendOrderAccessHandler(req, res);
             default:
                 return res.status(404).json({ error: `Action ${action} not found in System Controller` });
         }

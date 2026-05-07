@@ -3,7 +3,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { X, User, ShoppingBag, MessageCircle, Calendar, FileText, Mail, Phone, MapPin, RefreshCw } from 'lucide-react';
 import { Button } from '../../ui/Button';
 import { AlertModal } from '../../ui/Modal';
-import { emailService } from '../../../services/emailService';
+import { resendOrderAccessEmail } from '../../../services/orderAccessEmailService';
 import { storage } from '../../../services/storageService';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -37,6 +37,12 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({ cust
 
     const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
     const formatDate = (dateStr: string) => new Date(dateStr).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
+    const emailService = {
+        sendPaymentApproved: async (order: any) => {
+            await resendOrderAccessEmail(order.id);
+            return true;
+        }
+    };
 
     const openWhatsApp = () => {
         if (!customer.phone) return;

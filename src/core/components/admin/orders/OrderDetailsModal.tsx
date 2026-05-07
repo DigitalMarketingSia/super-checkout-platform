@@ -4,7 +4,7 @@ import { X, User, ShoppingBag, MessageCircle, CreditCard, Calendar, Mail, FileTe
 import { Order, OrderStatus } from '../../../types';
 import { Button } from '../../ui/Button';
 import { AlertModal } from '../../ui/Modal';
-import { emailService } from '../../../services/emailService';
+import { resendOrderAccessEmail } from '../../../services/orderAccessEmailService';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -26,6 +26,12 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, isO
     if (!order) return null;
 
     const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+    const emailService = {
+        sendPaymentApproved: async (targetOrder: Order) => {
+            await resendOrderAccessEmail(targetOrder.id);
+            return true;
+        }
+    };
 
     const openWhatsApp = () => {
         if (!order.customer_phone) return;

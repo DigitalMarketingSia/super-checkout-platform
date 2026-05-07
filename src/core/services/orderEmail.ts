@@ -253,9 +253,8 @@ export async function sendOrderAccessEmail(
     </div>
   `, variables), membersAreaUrl);
 
-  const configuredFrom = settings?.sender_email || fromEmail;
   const senderName = settings?.sender_name || settings?.business_name;
-  const cleanFromEmail = String(configuredFrom).replace(/.*<|>/g, '');
+  const cleanFromEmail = String(fromEmail).replace(/.*<|>/g, '');
   const from = senderName ? `${senderName} <${cleanFromEmail}>` : cleanFromEmail;
 
   console.log(`[OrderEmailService] Sending access email for ${orderId} to ${maskEmail(to)}.`);
