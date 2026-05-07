@@ -1991,9 +1991,10 @@ class StorageService {
 
     const { data, error } = await supabase
       .from('access_grants')
-      .select('*')
+      .select('*, product:products(*), content:contents(*)')
       .eq('user_id', user.id)
-      .eq('status', 'active');
+      .eq('status', 'active')
+      .order('granted_at', { ascending: false });
 
     if (error) {
       console.error('Error fetching access grants:', error.message);

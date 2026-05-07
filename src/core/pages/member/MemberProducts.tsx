@@ -39,9 +39,9 @@ export const MemberProducts: React.FC = () => {
                 setAccessGrants(grants);
 
                 // Filter out products user already owns
-                const activeProductIds = grants
+                const activeProductIds = Array.from(new Set(grants
                     .filter(g => g.product_id && g.status === 'active')
-                    .map(g => g.product_id);
+                    .map(g => g.product_id)));
 
                 const availableProducts = productsData.filter(
                     product => !activeProductIds.includes(product.id)

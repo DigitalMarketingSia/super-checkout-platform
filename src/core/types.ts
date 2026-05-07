@@ -349,6 +349,7 @@ export interface AccessGrant {
   product_id?: string;
   granted_at: string;
   status: 'active' | 'revoked' | 'expired';
+  product?: Product;
   content?: Content; // Joined
   expires_at?: string; // New: Subscription expiration
   is_subscription?: boolean; // New

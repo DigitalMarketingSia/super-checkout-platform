@@ -24,9 +24,9 @@ export const MyProducts: React.FC = () => {
         try {
             // Get user's access grants
             const grants = await storage.getAccessGrants();
-            const productIds = grants
+            const productIds = Array.from(new Set(grants
                 .filter(g => g.product_id && g.status === 'active')
-                .map(g => g.product_id as string);
+                .map(g => g.product_id as string)));
 
             if (productIds.length === 0) {
                 setOwnedProducts([]);
