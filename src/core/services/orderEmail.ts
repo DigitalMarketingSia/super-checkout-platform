@@ -84,12 +84,15 @@ function ensureTokenizedAccessLink(html: string, membersAreaUrl: string) {
     </div>`;
 }
 
-async function getOrderCompletedTemplate(supabaseAdmin: SupabaseAdmin) {
-  const baseQuery = () => supabaseAdmin
+async function findTemplateByEvent(supabaseAdmin: SupabaseAdmin, eventType: string, activeOnly = true) {
+  const baseQuery = () => {
+    let query = supabaseAdmin
     .from('email_templates')
     .select('*')
-    .eq('event_type', 'ORDER_COMPLETED')
-    .eq('active', true);
+      .eq('event_type', eventType);
+    if (activeOnly) query = query.eq('active', true);
+    return query;
+  };
 
   try {
     const { data } = await baseQuery()
@@ -109,6 +112,22 @@ async function getOrderCompletedTemplate(supabaseAdmin: SupabaseAdmin) {
     .maybeSingle();
 
   return data;
+}
+
+async function getAccessEmailTemplate(supabaseAdmin: SupabaseAdmin) {
+  for (const activeOnly of [true, false]) {
+    for (const eventType of ['ACCESS_GRANTED', 'ORDER_COMPLETED']) {
+      const template = await findTemplateByEvent(supabaseAdmin, eventType, activeOnly);
+      if (template) {
+        if (!activeOnly) {
+          console.warn(`[OrderEmailService] Using inactive ${eventType} template because no active access template was found.`);
+        }
+        return template;
+      }
+    }
+  }
+
+  throw new Error('No email template found for ACCESS_GRANTED or ORDER_COMPLETED.');
 }
 
 async function resolveMembersAreaUrl(
@@ -254,7 +273,7 @@ export async function sendOrderAccessEmail(
   const fromEmail = integration?.config?.senderEmail || integration?.config?.from_email || 'onboarding@resend.dev';
   if (!apiKey) throw new Error("Email provider 'resend' is not active or configured.");
 
-  const template = await getOrderCompletedTemplate(supabaseAdmin);
+  const template = await getAccessEmailTemplate(supabaseAdmin);
 
   let settings: any = null;
   if (merchantUserId) {
@@ -299,15 +318,8 @@ export async function sendOrderAccessEmail(
     '{{business_name}}': settings?.business_name || 'Super Checkout',
   };
 
-  const subject = replaceTemplateVars(template?.subject || 'Pagamento aprovado - acesso liberado', variables);
-  const html = ensureTokenizedAccessLink(replaceTemplateVars(template?.html_body || `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h1>Ola, {{customer_name}}!</h1>
-      <p>Seu pagamento foi aprovado.</p>
-      <p>Produto(s): <strong>{{product_names}}</strong></p>
-      <p><a href="{{members_area_url}}">Acessar area de membros</a></p>
-    </div>
-  `, variables), membersAreaUrl);
+  const subject = replaceTemplateVars(template.subject, variables);
+  const html = ensureTokenizedAccessLink(replaceTemplateVars(template.html_body, variables), membersAreaUrl);
 
   const senderName = settings?.sender_name || settings?.business_name;
   const cleanFromEmail = String(fromEmail).replace(/.*<|>/g, '');
