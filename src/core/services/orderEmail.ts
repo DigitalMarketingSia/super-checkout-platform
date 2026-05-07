@@ -34,6 +34,12 @@ function normalizeOrigin(origin: string) {
   }
 }
 
+function getAreaDomain(area: any): string {
+  const domains = area?.domains;
+  if (Array.isArray(domains)) return domains[0]?.domain || '';
+  return domains?.domain || '';
+}
+
 async function resolveMembersAreaUrl(
   supabaseAdmin: SupabaseAdmin,
   order: any,
@@ -47,6 +53,28 @@ async function resolveMembersAreaUrl(
 
   try {
     if (productIds.length > 0) {
+      const { data: products } = await supabaseAdmin
+        .from('products')
+        .select('id, member_area_id')
+        .in('id', productIds);
+
+      const directAreaId = (products || []).find((product: any) => product.member_area_id)?.member_area_id;
+      if (directAreaId) {
+        const { data: area } = await supabaseAdmin
+          .from('member_areas')
+          .select('slug, domains(domain)')
+          .eq('id', directAreaId)
+          .maybeSingle();
+
+        if (area?.slug) {
+          visualUrl = `${safeOrigin}/app/${area.slug}`;
+        }
+        const domain = getAreaDomain(area);
+        if (domain) {
+          visualUrl = `https://${domain}`;
+        }
+      }
+
       const { data: links } = await supabaseAdmin
         .from('product_contents')
         .select('content:contents(member_area_id, member_areas(slug, domains(domain)))')
@@ -54,25 +82,24 @@ async function resolveMembersAreaUrl(
         .limit(1);
 
       const area = links?.[0]?.content?.member_areas;
-      if (area?.slug) {
+      if (area?.slug && visualUrl === `${safeOrigin}/login`) {
         visualUrl = `${safeOrigin}/app/${area.slug}`;
       }
-      if (area?.domains?.domain) {
-        visualUrl = `https://${area.domains.domain}`;
+      const domain = getAreaDomain(area);
+      if (domain) {
+        visualUrl = `https://${domain}`;
       }
     }
-
-    // Generate a self-signed token containing the email.
-    // The frontend will send this to POST /api/system?action=auto-login
-    // which verifies it server-side and returns a ready session.
-    const loginToken = createLoginToken(email);
-    const separator = visualUrl.includes('?') ? '&' : '?';
-    return `${visualUrl}${separator}login_token=${encodeURIComponent(loginToken)}`;
   } catch (error: any) {
-    console.warn('[OrderEmailService] Failed to generate login token:', error.message || error);
-    const separator = visualUrl.includes('?') ? '&' : '?';
-    return `${visualUrl}${separator}error=${encodeURIComponent(error.message || String(error))}`;
+    console.warn('[OrderEmailService] Failed to resolve member area URL:', error.message || error);
   }
+
+  // Generate a self-signed token containing the email.
+  // The frontend will send this to POST /api/system?action=auto-login
+  // which verifies it server-side and returns a ready session.
+  const loginToken = createLoginToken(email);
+  const separator = visualUrl.includes('?') ? '&' : '?';
+  return `${visualUrl}${separator}login_token=${encodeURIComponent(loginToken)}`;
 }
 
 export async function sendOrderAccessEmail(
@@ -108,7 +135,19 @@ export async function sendOrderAccessEmail(
     .limit(1);
 
   if (merchantUserId) integrationQuery = integrationQuery.eq('user_id', merchantUserId);
-  const { data: integration } = await integrationQuery.maybeSingle();
+  const { data: merchantIntegration } = await integrationQuery.maybeSingle();
+  let integration = merchantIntegration;
+
+  if (!integration && merchantUserId) {
+    const { data: globalIntegration } = await supabaseAdmin
+      .from('integrations')
+      .select('*')
+      .eq('name', 'resend')
+      .eq('active', true)
+      .limit(1)
+      .maybeSingle();
+    integration = globalIntegration;
+  }
 
   const apiKey = integration?.config?.apiKey || integration?.config?.api_key;
   const fromEmail = integration?.config?.senderEmail || integration?.config?.from_email || 'onboarding@resend.dev';
