@@ -70,12 +70,25 @@ async function resolveMembersAreaUrl(
 
     if (linkError) throw linkError;
 
+    // PRIMARY: Use Supabase's native action_link. It verifies the token
+    // server-side at supabase.co/auth/v1/verify, then redirects the user
+    // to tokenRedirectTo with #access_token=...&refresh_token=... in the
+    // URL hash. The Supabase JS client on the page automatically detects
+    // these hash fragments and creates a session. No custom client-side
+    // verifyOtp needed.
+    if (linkData?.properties?.action_link) {
+      console.log(`[OrderEmailService] Using native action_link for ${email}. Redirect: ${tokenRedirectTo}`);
+      return linkData.properties.action_link;
+    }
+
+    // FALLBACK: If action_link is somehow missing, try hashed_token
     if (linkData?.properties?.hashed_token) {
+      console.warn(`[OrderEmailService] action_link missing, falling back to auth_token for ${email}`);
       const separator = visualUrl.includes('?') ? '&' : '?';
       return `${visualUrl}${separator}auth_token=${linkData.properties.hashed_token}&auth_email=${encodeURIComponent(email)}`;
     }
 
-    return linkData?.properties?.action_link || visualUrl;
+    return visualUrl;
   } catch (error: any) {
     console.warn('[OrderEmailService] Failed to generate member magic link:', error.message || error);
     return visualUrl;
