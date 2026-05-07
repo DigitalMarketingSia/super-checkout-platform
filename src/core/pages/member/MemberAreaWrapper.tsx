@@ -24,11 +24,24 @@ export const MemberAreaWrapper = ({ forcedSlug }: { forcedSlug?: string }) => {
                 console.log('[Wrapper] Found custom auth token, verifying...');
                 try {
                     const { supabase } = await import('../../services/supabase');
-                    await supabase.auth.verifyOtp({
+                    const { data, error } = await supabase.auth.verifyOtp({
                         email: authEmail,
                         token_hash: authToken,
                         type: 'magiclink'
                     });
+
+                    if (error) {
+                        console.warn('[Wrapper] magiclink verification failed, retrying as email token:', error.message);
+                        const retry = await supabase.auth.verifyOtp({
+                            email: authEmail,
+                            token_hash: authToken,
+                            type: 'email' as any
+                        });
+                        if (retry.error) throw retry.error;
+                        if (!retry.data?.session) throw new Error('Magic link verified without session.');
+                    } else if (!data?.session) {
+                        throw new Error('Magic link verified without session.');
+                    }
                     
                     params.delete('auth_token');
                     params.delete('auth_email');

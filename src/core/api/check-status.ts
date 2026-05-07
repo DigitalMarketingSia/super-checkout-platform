@@ -1,6 +1,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { createClient } from '@supabase/supabase-js';
 import { decrypt, verifySignature } from '../utils/cryptoUtils.js';
 import { applyCors } from './_cors.js';
+import { fulfillOrder } from '../services/fulfillment.js';
+import { sendOrderAccessEmail } from '../services/orderEmail.js';
 
 // Define types locally since we are in a serverless function structure that might not share types easily with frontend
 interface Order {
@@ -12,6 +15,57 @@ interface Order {
     customer_name: string;
     customer_user_id?: string;
     items?: any[];
+    metadata?: any;
+}
+
+async function processPaidSideEffects(params: {
+    supabaseUrl: string;
+    serviceRoleKey?: string;
+    orderId: string;
+    origin: string;
+    knownOrder?: Order;
+}) {
+    const { supabaseUrl, serviceRoleKey, orderId, origin, knownOrder } = params;
+    if (!serviceRoleKey) {
+        console.warn(`[CheckStatus] Missing service role key; cannot run paid side effects for ${orderId}.`);
+        return;
+    }
+
+    try {
+        const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
+        const order = knownOrder?.customer_email
+            ? knownOrder
+            : (await supabaseAdmin
+                .from('orders')
+                .select('id,status,customer_email,customer_name,customer_user_id,items,metadata')
+                .eq('id', orderId)
+                .single()).data;
+
+        const metadata = order?.metadata && typeof order.metadata === 'object' ? order.metadata : {};
+        const needsFulfillment = !order?.customer_user_id || !metadata.fulfilled_at;
+        const needsEmail = !metadata.order_completed_email_sent_at;
+
+        if (!needsFulfillment && !needsEmail) return;
+
+        if (needsFulfillment) {
+            await fulfillOrder(supabaseAdmin, {
+                orderId,
+                email: order?.customer_email,
+                name: order?.customer_name,
+            });
+        }
+
+        if (needsEmail) {
+            await sendOrderAccessEmail(supabaseAdmin, {
+                orderId,
+                origin,
+                email: order?.customer_email,
+                name: order?.customer_name,
+            });
+        }
+    } catch (error: any) {
+        console.error(`[CheckStatus] Paid side effects failed for ${orderId}:`, error?.message || error);
+    }
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -53,7 +107,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     
     // 🔥 CRITICAL: Use SERVICE_ROLE_KEY for backend operations to bypass RLS
     // Fallback to Anon only for read-only identification if needed, but PATCH REQUIRES Service Role
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const supabaseKey = serviceRoleKey || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+    const protocol = req.headers['x-forwarded-proto'] || 'https';
+    const host = req.headers.host;
+    const origin = `${protocol}://${host}`;
 
     console.log(`[CheckStatus] Checking order: ${orderId} (Key Length: ${supabaseKey?.length || 0})`);
 
@@ -80,6 +138,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // If already paid, return immediately (Case-insensitive check)
     const status = (order.status || '').toLowerCase();
     if (status === 'paid' || status === 'approved') {
+        await processPaidSideEffects({
+            supabaseUrl,
+            serviceRoleKey,
+            orderId: orderId as string,
+            origin,
+            knownOrder: order,
+        });
         return res.status(200).json({ status: 'paid' });
     }
 
@@ -122,6 +187,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 body: JSON.stringify({ status: 'paid' })
             });
         }
+        await processPaidSideEffects({
+            supabaseUrl,
+            serviceRoleKey,
+            orderId: orderId as string,
+            origin,
+            knownOrder: { ...order, status: 'paid' },
+        });
         return res.status(200).json({ status: 'paid' });
     }
 
@@ -327,26 +399,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 });
             }
 
-            // Trigger Webhook Logic for Side Effects
+            // Run Vercel side effects directly. This endpoint already verified the
+            // Mercado Pago payment with gateway credentials, while webhook replay
+            // from here would fail MP signature validation.
             if (newStatus === 'paid' && currentStatusNorm === 'pending') {
-                const protocol = req.headers['x-forwarded-proto'] || 'https';
-                const host = req.headers.host;
-                const webhookUrl = `${protocol}://${host}/api/webhooks/mercadopago`;
-
-                console.log(`[CheckStatus] Status changed to paid, triggering webhook once at ${webhookUrl}`);
-
-                try {
-                    await fetch(webhookUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            action: 'payment.updated',
-                            data: { id: mpData.id }
-                        })
-                    });
-                } catch (whErr) {
-                    console.error('Failed to trigger webhook from check-status:', whErr);
-                }
+                console.log(`[CheckStatus] Status changed to paid, running Vercel side effects for ${orderId}`);
+                await processPaidSideEffects({
+                    supabaseUrl,
+                    serviceRoleKey,
+                    orderId: orderId as string,
+                    origin,
+                    knownOrder: { ...order, status: 'paid' },
+                });
             }
         }
 
