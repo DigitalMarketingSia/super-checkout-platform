@@ -219,6 +219,7 @@ export async function fulfillOrder(
         email_confirm: true,
         password: generateTemporaryPassword(),
         user_metadata: {
+          full_name: payerName,
           name: payerName,
           requires_password_setup: true,
           created_by: 'vercel-fulfillment',
@@ -240,6 +241,23 @@ export async function fulfillOrder(
   }
 
   if (!userId) throw new Error(`Could not create or locate customer user for ${maskEmail(payerEmail)}.`);
+
+  try {
+    await supabaseAdmin.auth.admin.updateUserById(userId, {
+      user_metadata: {
+        full_name: payerName,
+        name: payerName,
+      },
+    });
+  } catch (metadataError: any) {
+    console.warn('[FulfillmentService] Could not sync buyer auth metadata:', metadataError?.message || metadataError);
+  }
+
+  await supabaseAdmin
+    .from('profiles')
+    .update({ full_name: payerName })
+    .eq('id', userId)
+    .or('full_name.is.null,full_name.eq.Usuario,full_name.eq.User');
 
   const mergedMetadata: Record<string, any> = {
     ...orderMetadata,

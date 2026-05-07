@@ -33,7 +33,7 @@ const getGrantName = (grant: AccessGrant) => {
 };
 
 export const MemberProfile = () => {
-    const { user, signOut } = useAuth();
+    const { user, profile, signOut } = useAuth();
     const { t } = useTranslation('member');
     const navigate = useNavigate();
     const { memberArea } = useOutletContext<MemberAreaContextType>();
@@ -43,8 +43,10 @@ export const MemberProfile = () => {
     const [passwordMessage, setPasswordMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
+    const [orderCustomerName, setOrderCustomerName] = useState('');
 
-    const displayName = user?.user_metadata?.full_name || user?.user_metadata?.name || t('profile.user', 'Usuario');
+    const fullDisplayName = profile?.full_name || user?.user_metadata?.full_name || user?.user_metadata?.name || orderCustomerName || t('profile.user', 'Usuario');
+    const displayName = String(fullDisplayName).trim().split(/\s+/)[0] || t('profile.user', 'Usuario');
     const initials = String(displayName || user?.email || 'US').slice(0, 2).toUpperCase();
 
     const displayGrants = useMemo<DisplayGrant[]>(() => {
@@ -85,8 +87,23 @@ export const MemberProfile = () => {
 
     const loadData = async () => {
         try {
-            const grants = await storage.getAccessGrants();
+            const [grants, latestOrder] = await Promise.all([
+                storage.getAccessGrants(),
+                user?.id
+                    ? supabase
+                        .from('orders')
+                        .select('customer_name')
+                        .eq('customer_user_id', user.id)
+                        .order('created_at', { ascending: false })
+                        .limit(1)
+                        .maybeSingle()
+                    : Promise.resolve({ data: null }),
+            ]);
+
             setAccessGrants(grants);
+            if ((latestOrder as any)?.data?.customer_name) {
+                setOrderCustomerName((latestOrder as any).data.customer_name);
+            }
         } catch (error) {
             console.error('Error loading profile data:', error);
         } finally {
