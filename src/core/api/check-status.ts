@@ -3,7 +3,6 @@ import { createClient } from '@supabase/supabase-js';
 import { decrypt, verifySignature } from '../utils/cryptoUtils.js';
 import { applyCors } from './_cors.js';
 import { fulfillOrder } from '../services/fulfillment.js';
-import { sendOrderAccessEmail } from '../services/orderEmail.js';
 
 // Define types locally since we are in a serverless function structure that might not share types easily with frontend
 interface Order {
@@ -22,10 +21,9 @@ async function processPaidSideEffects(params: {
     supabaseUrl: string;
     serviceRoleKey?: string;
     orderId: string;
-    origin: string;
     knownOrder?: Order;
 }) {
-    const { supabaseUrl, serviceRoleKey, orderId, origin, knownOrder } = params;
+    const { supabaseUrl, serviceRoleKey, orderId, knownOrder } = params;
     if (!serviceRoleKey) {
         console.warn(`[CheckStatus] Missing service role key; cannot run paid side effects for ${orderId}.`);
         return;
@@ -43,22 +41,12 @@ async function processPaidSideEffects(params: {
 
         const metadata = order?.metadata && typeof order.metadata === 'object' ? order.metadata : {};
         const needsFulfillment = !order?.customer_user_id || !metadata.fulfilled_at;
-        const needsEmail = !metadata.order_completed_email_sent_at;
 
-        if (!needsFulfillment && !needsEmail) return;
+        if (!needsFulfillment) return;
 
         if (needsFulfillment) {
             await fulfillOrder(supabaseAdmin, {
                 orderId,
-                email: order?.customer_email,
-                name: order?.customer_name,
-            });
-        }
-
-        if (needsEmail) {
-            await sendOrderAccessEmail(supabaseAdmin, {
-                orderId,
-                origin,
                 email: order?.customer_email,
                 name: order?.customer_name,
             });
@@ -109,10 +97,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Fallback to Anon only for read-only identification if needed, but PATCH REQUIRES Service Role
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     const supabaseKey = serviceRoleKey || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
-    const protocol = req.headers['x-forwarded-proto'] || 'https';
-    const host = req.headers.host;
-    const origin = `${protocol}://${host}`;
-
     console.log(`[CheckStatus] Checking order: ${orderId} (Key Length: ${supabaseKey?.length || 0})`);
 
     try {
@@ -142,7 +126,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             supabaseUrl,
             serviceRoleKey,
             orderId: orderId as string,
-            origin,
             knownOrder: order,
         });
         return res.status(200).json({ status: 'paid' });
@@ -191,7 +174,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             supabaseUrl,
             serviceRoleKey,
             orderId: orderId as string,
-            origin,
             knownOrder: { ...order, status: 'paid' },
         });
         return res.status(200).json({ status: 'paid' });
@@ -408,7 +390,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     supabaseUrl,
                     serviceRoleKey,
                     orderId: orderId as string,
-                    origin,
                     knownOrder: { ...order, status: 'paid' },
                 });
             }

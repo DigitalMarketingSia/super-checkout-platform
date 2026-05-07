@@ -252,20 +252,6 @@ async function handleStripe(req: VercelRequest, res: VercelResponse, rawBody: st
             email: orderData?.customer_email,
             name: orderData?.customer_name,
         });
-        try {
-            const origin = `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host}`;
-            const emailResult = await sendOrderAccessEmail(supabaseAdmin, {
-                orderId: oid,
-                origin,
-                email: orderData?.customer_email,
-                name: orderData?.customer_name,
-            });
-            if ((emailResult as any)?.sent) {
-                await logWebhook(supabaseAdmin, `${eventId}_email_fallback`, `Business email sent: ${oid}`, 200, rawBody);
-            }
-        } catch (emailError: any) {
-            await logWebhook(supabaseAdmin, `${eventId}_email_fallback_error`, emailError.message, 500, rawBody);
-        }
         await logWebhook(supabaseAdmin, eventId, `Stripe Approved: ${oid}`, 200, rawBody);
     }
 

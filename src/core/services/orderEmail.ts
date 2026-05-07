@@ -212,6 +212,7 @@ export async function sendOrderAccessEmail(
 
     if (lockError) {
       console.warn('[OrderEmailService] Could not acquire email send lock:', lockError.message);
+      return { skipped: true, reason: 'email_lock_error' };
     } else if (!lockRows || lockRows.length === 0) {
       return { skipped: true, reason: 'send_in_progress_or_already_sent' };
     } else {
