@@ -32,6 +32,22 @@ const getGrantName = (grant: AccessGrant) => {
     return grant.content?.title || 'Conteudo Avulso';
 };
 
+const getUsableName = (...names: Array<string | null | undefined>) => {
+    const genericNames = new Set(['usuario', 'usuário', 'user', 'cliente', 'client']);
+
+    for (const name of names) {
+        const normalized = String(name || '').trim();
+        if (!normalized) continue;
+
+        const firstName = normalized.split(/\s+/)[0];
+        if (!firstName || genericNames.has(firstName.toLowerCase())) continue;
+
+        return firstName;
+    }
+
+    return '';
+};
+
 export const MemberProfile = () => {
     const { user, profile, signOut } = useAuth();
     const { t } = useTranslation('member');
@@ -45,8 +61,12 @@ export const MemberProfile = () => {
     const [confirmPassword, setConfirmPassword] = useState('');
     const [orderCustomerName, setOrderCustomerName] = useState('');
 
-    const fullDisplayName = profile?.full_name || user?.user_metadata?.full_name || user?.user_metadata?.name || orderCustomerName || t('profile.user', 'Usuario');
-    const displayName = String(fullDisplayName).trim().split(/\s+/)[0] || t('profile.user', 'Usuario');
+    const displayName = getUsableName(
+        profile?.full_name,
+        user?.user_metadata?.full_name,
+        user?.user_metadata?.name,
+        orderCustomerName,
+    ) || t('profile.user', 'Usuario');
     const initials = String(displayName || user?.email || 'US').slice(0, 2).toUpperCase();
 
     const displayGrants = useMemo<DisplayGrant[]>(() => {
@@ -83,7 +103,7 @@ export const MemberProfile = () => {
 
     useEffect(() => {
         loadData();
-    }, []);
+    }, [user?.id]);
 
     const loadData = async () => {
         try {
