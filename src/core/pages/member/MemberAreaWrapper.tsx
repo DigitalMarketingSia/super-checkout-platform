@@ -24,23 +24,21 @@ export const MemberAreaWrapper = ({ forcedSlug }: { forcedSlug?: string }) => {
                 console.log('[Wrapper] Found custom auth token, verifying...');
                 try {
                     const { supabase } = await import('../../services/supabase');
+                    // CRITICAL: Supabase admin.generateLink({ type: 'magiclink' }) produces
+                    // a hashed_token that MUST be verified with verifyOtp type 'email',
+                    // NOT 'magiclink'. Tokens are one-time-use — using the wrong type
+                    // consumes and invalidates them, making retries impossible.
                     const { data, error } = await supabase.auth.verifyOtp({
                         email: authEmail,
                         token_hash: authToken,
-                        type: 'magiclink'
+                        type: 'email',
                     });
 
                     if (error) {
-                        console.warn('[Wrapper] magiclink verification failed, retrying as email token:', error.message);
-                        const retry = await supabase.auth.verifyOtp({
-                            email: authEmail,
-                            token_hash: authToken,
-                            type: 'email' as any
-                        });
-                        if (retry.error) throw retry.error;
-                        if (!retry.data?.session) throw new Error('Magic link verified without session.');
-                    } else if (!data?.session) {
-                        throw new Error('Magic link verified without session.');
+                        throw error;
+                    }
+                    if (!data?.session) {
+                        throw new Error('Token verified but no session was returned.');
                     }
                     
                     params.delete('auth_token');

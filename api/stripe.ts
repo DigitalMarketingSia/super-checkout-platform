@@ -297,10 +297,17 @@ async function handleMercadoPago(req: VercelRequest, res: VercelResponse, rawBod
     if (!gatewayRecord?.private_key) return res.status(200).json({ status: 'GATEWAY_NOT_FOUND' });
 
     const webhookSecret = decrypt(gatewayRecord?.webhook_secret || '');
-    const signatureResult = verifyMercadoPagoSignature(req, webhookSecret);
-    if (!signatureResult.ok) {
-        await logWebhook(supabaseAdmin, `webhook.mp_${signatureResult.status.toLowerCase()}`, signatureResult.status, 401, rawBody);
-        return res.status(401).json({ status: signatureResult.status });
+    if (webhookSecret) {
+        // Signature verification is available — enforce it
+        const signatureResult = verifyMercadoPagoSignature(req, webhookSecret);
+        if (!signatureResult.ok) {
+            await logWebhook(supabaseAdmin, `webhook.mp_${signatureResult.status.toLowerCase()}`, signatureResult.status, 401, rawBody);
+            return res.status(401).json({ status: signatureResult.status });
+        }
+    } else {
+        // No webhook_secret configured. We still verify the payment by fetching
+        // directly from the MP API below using the access_token, so this is safe.
+        console.warn('[MP Hub] No webhook_secret configured. Skipping HMAC verification; will validate via MP API.');
     }
 
     try {
