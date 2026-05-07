@@ -18,6 +18,10 @@ const replaceTemplateVars = (template: string, variables: Record<string, string>
   return output;
 };
 
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function maskEmail(email?: string | null) {
   const [name, domain] = String(email || '').split('@');
   if (!name || !domain) return 'unknown';
@@ -38,6 +42,41 @@ function getAreaDomain(area: any): string {
   const domains = area?.domains;
   if (Array.isArray(domains)) return domains[0]?.domain || '';
   return domains?.domain || '';
+}
+
+function ensureTokenizedAccessLink(html: string, membersAreaUrl: string) {
+  if (!html) return html;
+  if (html.includes('login_token=') || html.includes('auth_token=')) return html;
+
+  let output = html;
+  let visualUrl = membersAreaUrl;
+  try {
+    const parsed = new URL(membersAreaUrl);
+    parsed.search = '';
+    parsed.hash = '';
+    visualUrl = parsed.toString().replace(/\/$/, '');
+  } catch {
+    visualUrl = membersAreaUrl.split('?')[0].replace(/\/$/, '');
+  }
+
+  const candidates = Array.from(new Set([
+    visualUrl,
+    visualUrl.replace(/^https?:\/\/[^/]+/, ''),
+  ].filter(Boolean)));
+
+  for (const candidate of candidates) {
+    const pattern = new RegExp(escapeRegExp(candidate), 'g');
+    if (pattern.test(output)) {
+      output = output.replace(pattern, membersAreaUrl);
+    }
+  }
+
+  if (output.includes('login_token=') || output.includes('auth_token=')) return output;
+
+  return `${output}
+    <div style="margin-top: 24px; text-align: center;">
+      <a href="${membersAreaUrl}" style="background-color: #0070f3; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">Acessar area de membros</a>
+    </div>`;
 }
 
 async function resolveMembersAreaUrl(
@@ -205,14 +244,14 @@ export async function sendOrderAccessEmail(
   };
 
   const subject = replaceTemplateVars(template?.subject || 'Pagamento aprovado - acesso liberado', variables);
-  const html = replaceTemplateVars(template?.html_body || `
+  const html = ensureTokenizedAccessLink(replaceTemplateVars(template?.html_body || `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
       <h1>Ola, {{customer_name}}!</h1>
       <p>Seu pagamento foi aprovado.</p>
       <p>Produto(s): <strong>{{product_names}}</strong></p>
       <p><a href="{{members_area_url}}">Acessar area de membros</a></p>
     </div>
-  `, variables);
+  `, variables), membersAreaUrl);
 
   const configuredFrom = settings?.sender_email || fromEmail;
   const senderName = settings?.sender_name || settings?.business_name;

@@ -314,16 +314,8 @@ class PaymentService {
 
           if (gatewayResponse.success) {
             console.log(`[PaymentService] Payment SUCCESS with gateway: ${gatewayId}`);
-            if (!gatewayResponse.pixData && !gatewayResponse.boletoData) {
-              if (gateway.name !== GatewayProvider.MERCADO_PAGO) {
-                try {
-                  await emailService.sendPaymentApproved({ ...currentOrder, status: OrderStatus.PAID });
-                } catch (emailError) {
-                  console.warn('[PaymentService] Immediate payment email failed:', emailError);
-                }
-              }
-              this.grantAccess(currentOrder).catch(console.error);
-            }
+            // Post-payment side effects must stay server-side. The Vercel payment
+            // handlers/webhooks fulfill the order and send the tokenized access email.
             return {
               success: true,
               orderId: currentOrder.id,
@@ -683,12 +675,7 @@ class PaymentService {
       await this.updatePaymentStatus(relatedPayment.id, newStatus, paymentId);
 
       if (newStatus === OrderStatus.PAID) {
-        const orders = await storage.getOrders();
-        const order = orders.find(o => o.id === relatedPayment.order_id);
-        if (order) {
-          emailService.sendPaymentApproved(order).catch(console.error);
-          this.grantAccess(order).catch(console.error);
-        }
+        console.log('[PaymentService] Paid webhook received in legacy client handler. Server-side fulfillment owns access/email side effects.');
       }
 
       // 8. Log webhook
