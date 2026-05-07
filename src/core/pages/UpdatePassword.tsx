@@ -11,6 +11,8 @@ export const UpdatePassword = () => {
     const searchParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
     const isCentralRecovery = searchParams.get('scope') === 'central';
     const isMemberRecovery = searchParams.get('scope') === 'member' || Boolean(slug);
+    const tokenHash = searchParams.get('token_hash') || searchParams.get('token');
+    const tokenType = searchParams.get('type') || 'recovery';
     const defaultMemberNext = slug ? `/app/${slug}/login` : '/login';
     const nextPath = searchParams.get('next') || (isCentralRecovery ? '/activate/setup' : isMemberRecovery ? defaultMemberNext : '/admin');
     const authClient = isCentralRecovery ? centralSupabase : supabase;
@@ -21,12 +23,37 @@ export const UpdatePassword = () => {
     const [success, setSuccess] = useState<string | null>(null);
 
     useEffect(() => {
-        authClient.auth.getSession().then(({ data: { session } }) => {
-            if (!session) {
+        let cancelled = false;
+
+        const ensureRecoverySession = async () => {
+            if (tokenHash) {
+                const { error } = await authClient.auth.verifyOtp({
+                    token_hash: tokenHash,
+                    type: tokenType as any,
+                });
+
+                if (cancelled) return;
+                if (error) {
+                    setError('Link invalido ou expirado. Solicite um novo link de recuperacao.');
+                    return;
+                }
+
+                const cleanUrl = `${window.location.pathname}?scope=${isCentralRecovery ? 'central' : isMemberRecovery ? 'member' : 'local'}${nextPath ? `&next=${encodeURIComponent(nextPath)}` : ''}`;
+                window.history.replaceState({}, document.title, cleanUrl);
+                return;
+            }
+
+            const { data: { session } } = await authClient.auth.getSession();
+            if (!cancelled && !session) {
                 navigate(isCentralRecovery ? '/activate' : isMemberRecovery ? defaultMemberNext : '/login');
             }
-        });
-    }, [authClient, defaultMemberNext, isCentralRecovery, isMemberRecovery, navigate]);
+        };
+
+        ensureRecoverySession();
+        return () => {
+            cancelled = true;
+        };
+    }, [authClient, defaultMemberNext, isCentralRecovery, isMemberRecovery, navigate, nextPath, tokenHash, tokenType]);
 
     const handleUpdate = async (e: React.FormEvent) => {
         e.preventDefault();

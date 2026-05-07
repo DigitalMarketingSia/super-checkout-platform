@@ -469,11 +469,12 @@ async function memberPasswordResetHandler(req: VercelRequest, res: VercelRespons
       options: { redirectTo },
     });
 
-    const resetUrl = linkData?.properties?.action_link;
-    if (linkError || !resetUrl) {
+    const tokenHash = linkData?.properties?.hashed_token;
+    if (linkError || !tokenHash) {
       console.error('[System] member reset link generation failed:', linkError?.message);
       return res.status(200).json({ message: 'Processado.' });
     }
+    const resetUrl = `${redirectTo}&token_hash=${encodeURIComponent(tokenHash)}&type=recovery`;
 
     const integration = await getActiveResendIntegration(supabaseAdmin, memberArea.owner_id);
     const apiKey = integration?.config?.apiKey || integration?.config?.api_key;
