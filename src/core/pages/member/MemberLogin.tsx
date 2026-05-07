@@ -5,6 +5,7 @@ import { MemberArea } from '../../types';
 import { Button } from '../../components/ui/Button';
 import { Lock, ArrowRight, Mail, User } from 'lucide-react';
 import { getApiUrl } from '../../utils/apiUtils';
+import { supabase } from '../../services/supabase';
 
 export const MemberLogin = ({ forcedSlug }: { forcedSlug?: string }) => {
     const { slug: paramSlug } = useParams<{ slug: string }>();
