@@ -497,7 +497,7 @@ BEGIN
         SELECT content_id FROM product_contents WHERE product_id = v_product_id
       LOOP
         INSERT INTO access_grants (user_id, content_id, product_id, granted_at, status)
-        VALUES (v_user_id, v_content_record.content_id, v_product_id, NOW(), 'active')
+        VALUES (v_user_id, v_content_record.content_id, NULL, NOW(), 'active')
         ON CONFLICT (user_id, content_id) 
         DO UPDATE SET status = 'active', granted_at = NOW();
       END LOOP;

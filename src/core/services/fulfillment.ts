@@ -275,18 +275,55 @@ export async function fulfillOrder(
   for (const item of items) {
     const productId = item.product_id || item.id;
     if (!productId) continue;
+    const grantedAt = new Date().toISOString();
 
     const { error } = await supabaseAdmin.from('access_grants').upsert({
       user_id: userId,
       product_id: productId,
       status: 'active',
-      granted_at: new Date().toISOString(),
+      granted_at: grantedAt,
     }, { onConflict: 'user_id,product_id' });
 
     if (error) {
       console.warn(`[FulfillmentService] Failed to grant product ${productId}:`, error.message);
     } else {
       accessGrantedCount += 1;
+    }
+
+    const { data: linkedContents, error: linkedContentsError } = await supabaseAdmin
+      .from('product_contents')
+      .select('content_id')
+      .eq('product_id', productId);
+
+    if (linkedContentsError) {
+      console.warn(`[FulfillmentService] Failed to load contents for product ${productId}:`, linkedContentsError.message);
+      continue;
+    }
+
+    const contentGrants = Array.from(new Set((linkedContents || [])
+      .map((row: any) => row.content_id)
+      .filter(Boolean)))
+      .map((contentId: string) => ({
+        user_id: userId,
+        content_id: contentId,
+        product_id: null,
+        status: 'active',
+        granted_at: grantedAt,
+      }));
+
+    if (contentGrants.length === 0) {
+      console.warn(`[FulfillmentService] Product ${productId} has no linked contents. Only product-level access granted.`);
+      continue;
+    }
+
+    const { error: contentGrantError } = await supabaseAdmin
+      .from('access_grants')
+      .upsert(contentGrants, { onConflict: 'user_id,content_id' });
+
+    if (contentGrantError) {
+      console.warn(`[FulfillmentService] Failed to grant contents for product ${productId}:`, contentGrantError.message);
+    } else {
+      accessGrantedCount += contentGrants.length;
     }
   }
 

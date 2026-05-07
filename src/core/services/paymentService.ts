@@ -782,7 +782,7 @@ class PaymentService {
             await storage.createAccessGrant({
               user_id: order.customer_user_id,
               content_id: content.id,
-              product_id: productId,
+              product_id: undefined,
               status: 'active'
             });
           } catch (err) {
