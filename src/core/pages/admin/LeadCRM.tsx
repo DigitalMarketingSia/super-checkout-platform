@@ -168,6 +168,7 @@ export const LeadCRM: React.FC = () => {
     const [blockTransition, setBlockTransition] = useState<BlockTransitionState | null>(null);
     const [selectedLead, setSelectedLead] = useState<FreeUserRow | null>(null);
     const blockTransitionTimerRef = useRef<number | null>(null);
+    const initialCrmMetaLoadedRef = useRef(false);
 
     // Dashboard Metrics
     const [metrics, setMetrics] = useState({
@@ -186,16 +187,17 @@ export const LeadCRM: React.FC = () => {
     const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
     useEffect(() => {
-        if (!session?.access_token) return;
+        if (!session?.access_token || initialCrmMetaLoadedRef.current) return;
+        initialCrmMetaLoadedRef.current = true;
         fetchPartners();
         fetchLaunchControls();
         fetchApprovalQueue();
-    }, [session?.access_token]);
+    }, [user?.id]);
 
     useEffect(() => {
         if (!session?.access_token) return;
         fetchUsers();
-    }, [page, statusFilter, partnerFilter, session?.access_token]);
+    }, [page, statusFilter, partnerFilter, user?.id]);
 
     useEffect(() => {
         return () => {
@@ -1048,16 +1050,26 @@ export const LeadCRM: React.FC = () => {
                                             </td>
                                             <td className="px-3 py-4">
                                                 <div className="flex gap-1.5 justify-center">
-                                                    <div className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-all ${
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setSelectedLead(u)}
+                                                        className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-all hover:border-primary/30 hover:text-white active:scale-95 ${
                                                         u.onboarding?.domain_configured ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-gray-800 border-white/5 text-gray-600'
-                                                    }`} title="Domain Configured">
+                                                    }`}
+                                                        title={u.onboarding?.domain_configured ? 'Dominio configurado. Clique para ver detalhes.' : 'Dominio pendente. Clique para ver detalhes.'}
+                                                    >
                                                         <Globe className="w-3.5 h-3.5" />
-                                                    </div>
-                                                    <div className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-all ${
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setSelectedLead(u)}
+                                                        className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-all hover:border-primary/30 hover:text-white active:scale-95 ${
                                                         u.onboarding?.gateway_configured ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-gray-800 border-white/5 text-gray-600'
-                                                    }`} title="Gateway Configured">
+                                                    }`}
+                                                        title={u.onboarding?.gateway_configured ? 'Gateway configurado. Clique para ver detalhes.' : 'Gateway pendente. Clique para ver detalhes.'}
+                                                    >
                                                         <Zap className="w-3.5 h-3.5" />
-                                                    </div>
+                                                    </button>
                                                 </div>
                                             </td>
                                             <td className="px-3 py-4">
