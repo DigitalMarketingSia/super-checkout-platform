@@ -13,6 +13,19 @@ import {
 import { toast } from 'sonner';
 import { useAuth } from '../../context/AuthContext';
 
+const PROTECTED_SYSTEM_EMAILS = ['contato.jeandamin@gmail.com'];
+const PROTECTED_SYSTEM_DOMAINS = ['app.supercheckout.app'];
+
+const isProtectedSystemLicense = (license: License) => {
+    const email = String(license.client_email || '').toLowerCase();
+    const domain = String(license.current_domain || license.allowed_domain || '').toLowerCase();
+    const plan = String(license.plan || '').toLowerCase();
+
+    return PROTECTED_SYSTEM_EMAILS.includes(email)
+        || PROTECTED_SYSTEM_DOMAINS.includes(domain)
+        || (plan === 'enterprise' && PROTECTED_SYSTEM_DOMAINS.includes(domain));
+};
+
 export const SystemLicenses = () => {
     const { user } = useAuth();
     const [licenses, setLicenses] = useState<License[]>([]);
@@ -91,6 +104,11 @@ export const SystemLicenses = () => {
     };
 
     const handleAction = (lic: License, action: 'activate' | 'suspend' | 'delete') => {
+        if (isProtectedSystemLicense(lic) && ['suspend', 'delete'].includes(action)) {
+            toast.error('Licenca estrutural protegida. Esta acao nao pode ser executada pelo painel.');
+            return;
+        }
+
         setActionModal({
             isOpen: true,
             type: action,
@@ -332,7 +350,10 @@ export const SystemLicenses = () => {
                                         </td>
                                     </tr>
                                 ) : (
-                                    licenses.map((lic) => (
+                                    licenses.map((lic) => {
+                                        const isProtected = isProtectedSystemLicense(lic);
+
+                                        return (
                                         <tr key={lic.key} className="group hover:bg-primary/[0.02] transition-all duration-300">
                                             <td className="pl-8 pr-4 py-6">
                                                 <div className="flex items-center gap-4">
@@ -346,6 +367,12 @@ export const SystemLicenses = () => {
                                                         <div className="text-xs text-gray-500 flex items-center gap-1 mt-1 font-medium">
                                                             {lic.client_email}
                                                         </div>
+                                                        {isProtected && (
+                                                            <div className="mt-2 w-fit inline-flex items-center gap-1.5 rounded-full border border-yellow-400/25 bg-yellow-400/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-widest text-yellow-300">
+                                                                <Shield className="w-3 h-3" />
+                                                                System Owner
+                                                            </div>
+                                                        )}
                                                         <div className="flex items-center gap-2 mt-2 opacity-50 group-hover:opacity-100 transition-opacity">
                                                             <code className="text-[9px] font-mono bg-black/40 px-2 py-0.5 rounded-full border border-white/5 text-gray-400">
                                                                 {lic.key.substring(0, 12)}...
@@ -390,7 +417,12 @@ export const SystemLicenses = () => {
                                                 )}
                                             </td>
                                             <td className="px-4 py-6 text-center">
-                                                {lic.status === 'active' ? (
+                                                {isProtected ? (
+                                                    <div className="inline-flex items-center gap-2 bg-yellow-400/10 text-yellow-300 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-tighter border border-yellow-400/20">
+                                                        <Shield className="w-3 h-3" />
+                                                        Protected
+                                                    </div>
+                                                ) : lic.status === 'active' ? (
                                                     <div className="inline-flex items-center gap-2 bg-emerald-500/10 text-emerald-500 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-tighter border border-emerald-500/20">
                                                         <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
                                                         Operational
@@ -424,7 +456,17 @@ export const SystemLicenses = () => {
                                                     </Button>
                                                     <div className="h-6 w-px bg-white/10 mx-1" />
                                                     
-                                                    {lic.status === 'active' ? (
+                                                    {isProtected ? (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="h-9 px-4 border-yellow-400/20 bg-yellow-400/5 text-yellow-300/80 text-[10px] font-black uppercase tracking-wider rounded-xl cursor-not-allowed"
+                                                            disabled
+                                                            title="Licenca estrutural do Super Checkout protegida contra suspensao e exclusao"
+                                                        >
+                                                            Protected
+                                                        </Button>
+                                                    ) : lic.status === 'active' ? (
                                                         <Button 
                                                             size="sm" 
                                                             variant="outline" 
@@ -446,7 +488,9 @@ export const SystemLicenses = () => {
                                                     <Button 
                                                         size="icon" 
                                                         variant="ghost" 
-                                                        className="h-9 w-9 text-gray-600 hover:text-red-500 hover:bg-red-500/5 transition-all"
+                                                        disabled={isProtected}
+                                                        title={isProtected ? 'Licenca estrutural protegida contra exclusao' : 'Excluir licenca'}
+                                                        className="h-9 w-9 text-gray-600 hover:text-red-500 hover:bg-red-500/5 transition-all disabled:opacity-30 disabled:hover:text-gray-600 disabled:hover:bg-transparent disabled:cursor-not-allowed"
                                                         onClick={() => handleAction(lic, 'delete')}
                                                     >
                                                         <Trash2 className="w-4 h-4" />
@@ -454,7 +498,8 @@ export const SystemLicenses = () => {
                                                 </div>
                                             </td>
                                         </tr>
-                                    ))
+                                    );
+                                    })
                                 )}
                             </tbody>
                         </table>
