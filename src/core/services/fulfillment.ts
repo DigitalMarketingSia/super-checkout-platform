@@ -90,12 +90,19 @@ async function consumeUpgradeIntent(params: {
   payerName: string | null;
   payerPhone: string | null;
   payerCpf: string | null;
+  orderCreatedAt?: string | null;
+  orderPaidAt?: string | null;
 }) {
   const centralUrl = (process.env.CENTRAL_SUPABASE_URL || 'https://bcmnryxjweiovrwmztpn.supabase.co').replace(/\/+$/, '');
-  const serviceKey = process.env.CENTRAL_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+  const centralInvokeKey =
+    process.env.CENTRAL_SUPABASE_ANON_KEY ||
+    process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_ANON_KEY ||
+    process.env.VITE_CENTRAL_SUPABASE_ANON_KEY ||
+    process.env.CENTRAL_SERVICE_ROLE_KEY ||
+    '';
   const sharedSecret = process.env.CENTRAL_SHARED_SECRET || process.env.SHARED_SECRET || '';
 
-  if (!serviceKey || !sharedSecret) {
+  if (!centralInvokeKey || !sharedSecret) {
     throw new Error('Missing Central credentials for upgrade intent consumption.');
   }
 
@@ -103,7 +110,8 @@ async function consumeUpgradeIntent(params: {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${serviceKey}`,
+      apikey: centralInvokeKey,
+      Authorization: `Bearer ${centralInvokeKey}`,
       'x-admin-secret': sharedSecret,
     },
     body: JSON.stringify({
@@ -115,6 +123,8 @@ async function consumeUpgradeIntent(params: {
       payer_name: params.payerName,
       payer_phone: params.payerPhone,
       payer_cpf: params.payerCpf,
+      order_created_at: params.orderCreatedAt,
+      order_paid_at: params.orderPaidAt,
     }),
   });
 
@@ -199,6 +209,8 @@ export async function fulfillOrder(
       payerName,
       payerPhone: order.customer_phone || null,
       payerCpf: order.customer_cpf || null,
+      orderCreatedAt: order.created_at || null,
+      orderPaidAt: order.paid_at || order.updated_at || null,
     });
 
     userId = upgradeBeneficiary.target_user_id;
