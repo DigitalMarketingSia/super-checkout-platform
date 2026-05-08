@@ -76,6 +76,8 @@ const ALLOWED_ORIGINS = [
 const DEV_CENTRAL_API_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co/functions/v1';
 const DEV_CENTRAL_SUPABASE_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co';
 const DEV_LOCAL_SUPABASE_URL = 'https://vixlzrmhqsbzjhpgfwdn.supabase.co';
+const OFFICIAL_CENTRAL_API_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co/functions/v1';
+const OFFICIAL_CENTRAL_SUPABASE_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co';
 
 function getDevFallback(value: string) {
     return process.env.NODE_ENV !== 'production' ? value : '';
@@ -209,9 +211,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // --- 2. Validate required env vars ---
-    const centralApiUrl = process.env.VITE_CENTRAL_API_URL || getDevFallback(DEV_CENTRAL_API_URL);
-    const centralSecret = process.env.CENTRAL_SHARED_SECRET;
-    const centralAnonEnv = process.env.VITE_CENTRAL_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_ANON_KEY;
+    const centralApiUrl =
+        process.env.CENTRAL_API_URL
+        || process.env.VITE_CENTRAL_API_URL
+        || process.env.NEXT_PUBLIC_CENTRAL_API_URL
+        || OFFICIAL_CENTRAL_API_URL
+        || getDevFallback(DEV_CENTRAL_API_URL);
+    const centralSecret = process.env.CENTRAL_SHARED_SECRET || process.env.SHARED_SECRET;
+    const centralAnonEnv =
+        process.env.CENTRAL_SUPABASE_ANON_KEY
+        || process.env.VITE_CENTRAL_SUPABASE_ANON_KEY
+        || process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_ANON_KEY;
     const sharedSecretRequired = ![
         'system-update-runner',
         'request-activation-link',
@@ -262,7 +272,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const localSupabaseUrl = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || getDevFallback(DEV_LOCAL_SUPABASE_URL);
         const localAnonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
         const localServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-        const centralSupUrl = process.env.VITE_CENTRAL_SUPABASE_URL || process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_URL || centralApiUrl.replace('/functions/v1', '') || getDevFallback(DEV_CENTRAL_SUPABASE_URL);
+        const centralSupUrl =
+            process.env.CENTRAL_SUPABASE_URL
+            || process.env.VITE_CENTRAL_SUPABASE_URL
+            || process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_URL
+            || centralApiUrl.replace('/functions/v1', '')
+            || OFFICIAL_CENTRAL_SUPABASE_URL
+            || getDevFallback(DEV_CENTRAL_SUPABASE_URL);
         const centralAnon = centralAnonEnv;
         const centralServiceKey = process.env.CENTRAL_SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_CENTRAL_SUPABASE_SERVICE_ROLE_KEY;
 
