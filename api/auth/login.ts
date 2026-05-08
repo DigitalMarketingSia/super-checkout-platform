@@ -34,6 +34,7 @@ const ALLOWED_ORIGINS = [
 
 const DEV_CENTRAL_API_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co/functions/v1';
 const DEV_CENTRAL_SUPABASE_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co';
+const OFFICIAL_CENTRAL_SUPABASE_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co';
 
 function getDevFallback(value: string) {
     return process.env.NODE_ENV !== 'production' ? value : '';
@@ -516,13 +517,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (target === 'central') {
         // ActivationLogin uses Central Supabase
         supabaseUrl =
-            process.env.VITE_CENTRAL_SUPABASE_URL
+            process.env.CENTRAL_SUPABASE_URL
+            || process.env.VITE_CENTRAL_SUPABASE_URL
             || process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_URL
             || process.env.VITE_CENTRAL_API_URL?.replace('/functions/v1', '')
+            || process.env.NEXT_PUBLIC_CENTRAL_API_URL?.replace('/functions/v1', '')
+            || OFFICIAL_CENTRAL_SUPABASE_URL
             || getDevFallback(DEV_CENTRAL_API_URL.replace('/functions/v1', ''))
             || getDevFallback(DEV_CENTRAL_SUPABASE_URL);
         supabaseAnonKey =
-            process.env.VITE_CENTRAL_SUPABASE_ANON_KEY
+            process.env.CENTRAL_SUPABASE_ANON_KEY
+            || process.env.VITE_CENTRAL_SUPABASE_ANON_KEY
             || process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_ANON_KEY
             || '';
     } else {
