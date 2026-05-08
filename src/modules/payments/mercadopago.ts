@@ -291,10 +291,12 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
           .eq('product_id', mainProduct.id)
           .limit(1);
 
-      const content = Array.isArray(links?.[0]?.content) ? links?.[0]?.content?.[0] : links?.[0]?.content;
+      const rawContent = (links?.[0] as any)?.content;
+      const content = Array.isArray(rawContent) ? rawContent[0] : rawContent;
       const area = Array.isArray(content?.member_areas) ? content.member_areas[0] : content?.member_areas;
       if (area?.slug) membersAreaUrl = `${baseUrl}/app/${area.slug}`;
-      const domain = Array.isArray(area?.domains) ? area.domains[0]?.domain : area?.domains?.domain;
+      const rawDomains = area?.domains as any;
+      const domain = Array.isArray(rawDomains) ? rawDomains[0]?.domain : rawDomains?.domain;
       if (domain) membersAreaUrl = `https://${domain}`;
 
       // Generate magic link token for auto-login
