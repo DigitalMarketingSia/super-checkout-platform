@@ -185,14 +185,20 @@ async function resolveControlPlaneAdminAccess(
     req: VercelRequest,
     localSupabaseUrl: string,
     localServiceKey: string | undefined,
-    userId: string
+    userId: string,
+    userEmail?: string | null
 ) {
-    if (!isControlPlaneRequest(req) || !localSupabaseUrl || !localServiceKey || !userId) {
+    if (!isControlPlaneRequest(req) || !localSupabaseUrl || !localServiceKey || (!userId && !userEmail)) {
         return false;
     }
 
     try {
-        const response = await fetch(`${localSupabaseUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=role,status,is_blocked&limit=1`, {
+        const filters = [
+            userId ? `id.eq.${encodeURIComponent(userId)}` : '',
+            userEmail ? `email.eq.${encodeURIComponent(String(userEmail).toLowerCase())}` : '',
+        ].filter(Boolean);
+
+        const response = await fetch(`${localSupabaseUrl}/rest/v1/profiles?or=(${filters.join(',')})&select=role,status,is_blocked&limit=1`, {
             method: 'GET',
             headers: {
                 apikey: localServiceKey,
@@ -354,7 +360,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             req,
             localSupabaseUrl as string,
             localServiceKey,
-            user.id
+            user.id,
+            userEmail
         );
 
         if (!isMasterAdmin && !hasControlPlaneAdminAccess) {
