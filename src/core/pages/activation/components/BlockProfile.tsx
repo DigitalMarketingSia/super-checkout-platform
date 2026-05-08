@@ -10,6 +10,16 @@ interface BlockProfileProps {
 
 export const BlockProfile: React.FC<BlockProfileProps> = ({ user, license, onNavigate }) => {
     const { t } = useTranslation('portal');
+    const displayName =
+        user?.user_metadata?.full_name
+        || user?.user_metadata?.name
+        || license?.client_name
+        || user?.email?.split('@')[0]
+        || t('profile.client');
+    const createdAt = user?.created_at ? new Date(user.created_at) : null;
+    const memberSince = createdAt && !Number.isNaN(createdAt.getTime())
+        ? createdAt.toLocaleDateString(navigator.language, { day: '2-digit', month: 'long', year: 'numeric' })
+        : 'Data indisponivel';
     const planBadge =
         license?.plan === 'whitelabel'
             ? t('profile.plan_label', { plan: 'WHITELABEL' })
@@ -37,7 +47,7 @@ export const BlockProfile: React.FC<BlockProfileProps> = ({ user, license, onNav
 
                     <div className="flex-1 space-y-2">
                         <h3 className="text-4xl font-display font-black text-white italic uppercase tracking-tighter">
-                            {user?.user_metadata?.full_name || user?.user_metadata?.name || t('profile.client')}
+                            {displayName}
                         </h3>
                         <div className="flex flex-wrap items-center gap-4">
                             <div className="flex items-center gap-2 bg-white/5 border border-white/5 px-4 py-1.5 rounded-full">
@@ -61,7 +71,7 @@ export const BlockProfile: React.FC<BlockProfileProps> = ({ user, license, onNav
                     <div className="bg-white/5 border border-white/5 rounded-3xl p-8 hover:bg-white/[0.07] transition-all duration-300">
                         <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">{t('profile.member_since')}</p>
                         <p className="text-sm font-bold text-white uppercase italic tracking-tighter">
-                            {new Date(user?.created_at).toLocaleDateString(navigator.language, { day: '2-digit', month: 'long', year: 'numeric' })}
+                            {memberSince}
                         </p>
                     </div>
                 </div>

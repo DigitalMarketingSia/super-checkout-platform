@@ -43,6 +43,30 @@ const SidebarItem = ({ icon: Icon, label, active, onClick, collapsed }: any) => 
     </button>
 );
 
+const getPortalDisplayName = (user: any, license: License | null): string => {
+    const fullName =
+        user?.user_metadata?.full_name
+        || user?.user_metadata?.name
+        || license?.client_name
+        || user?.email?.split('@')[0]
+        || 'Cliente';
+
+    return String(fullName).trim() || 'Cliente';
+};
+
+const getPortalPlanLabel = (license: License | null, t: any): string => {
+    if (!license) return 'Conta gratuita';
+    if (license.plan === 'whitelabel') return 'WHITELABEL';
+    if (license.has_partner_panel && license.has_unlimited_domains) {
+        return `${t('profile.partner')} + ${t('profile.unlimited_domains')}`;
+    }
+    if (license.has_partner_panel || license.plan === 'saas') return t('profile.partner');
+    if (license.has_unlimited_domains || license.plan === 'upgrade_domains') return t('profile.unlimited_domains');
+    if (!license.plan) return 'Conta gratuita';
+
+    return String(license.plan).replace(/_/g, ' ').toUpperCase();
+};
+
 export const ActivationPortal: React.FC = () => {
     const [t] = useTranslation(['portal', 'common']);
     const navigate = useNavigate();
@@ -205,6 +229,9 @@ export const ActivationPortal: React.FC = () => {
     const showPartnerPanelTab = hasPartnerAccess;
     const showEarningsSimulatorTab = isPartnerExperienceVisible;
     const upgradeProduct = saasProducts.find((product) => product.saas_plan_slug === 'upgrade_domains') || null;
+    const portalDisplayName = getPortalDisplayName(centralUser, license);
+    const portalFirstName = portalDisplayName.split(/\s+/)[0] || portalDisplayName;
+    const portalPlanLabel = getPortalPlanLabel(license, t);
 
     useEffect(() => {
         if (activeTab === 'opportunity' && !showPartnerOpportunityTab) {
@@ -369,7 +396,11 @@ export const ActivationPortal: React.FC = () => {
                                 upgradeProduct={upgradeProduct}
                             />
                         )}
-                        <BlockPlanInfo license={license} userName={centralUser?.user_metadata?.name || centralUser?.email} />
+                        <BlockPlanInfo
+                            license={license}
+                            userName={portalDisplayName}
+                            userCreatedAt={centralUser?.created_at}
+                        />
                         <UpsellBanners
                             license={license}
                             products={saasProducts}
@@ -583,8 +614,8 @@ export const ActivationPortal: React.FC = () => {
                                 <User className="w-5 h-5" />
                             </div>
                             <div className="hidden sm:block text-left">
-                                <p className="text-xs font-black uppercase tracking-tighter italic text-white leading-none mb-0.5">{centralUser?.user_metadata?.name?.split(' ')[0] || 'Cliente'}</p>
-                                <p className="text-[9px] text-primary/60 font-black uppercase tracking-widest leading-none">{license?.plan}</p>
+                                <p className="text-xs font-black uppercase tracking-tighter italic text-white leading-none mb-0.5">{portalFirstName}</p>
+                                <p className="text-[9px] text-primary/60 font-black uppercase tracking-widest leading-none">{portalPlanLabel}</p>
                             </div>
                         </button>
 

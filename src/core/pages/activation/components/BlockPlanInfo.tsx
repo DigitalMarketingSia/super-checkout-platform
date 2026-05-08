@@ -4,11 +4,24 @@ import { License } from '../../../services/licenseService';
 import { useTranslation } from 'react-i18next';
 
 interface BlockPlanInfoProps {
-    license: License;
+    license: License | null;
     userName?: string;
+    userCreatedAt?: string | null;
 }
 
-export const BlockPlanInfo: React.FC<BlockPlanInfoProps> = ({ license, userName }) => {
+const formatMemberSince = (value: string | null | undefined, language: string) => {
+    if (!value) return 'Data indisponivel';
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'Data indisponivel';
+
+    return date.toLocaleDateString(
+        language === 'en' ? 'en-US' : language === 'es' ? 'es-ES' : 'pt-BR',
+        { month: 'long', year: 'numeric' }
+    );
+};
+
+export const BlockPlanInfo: React.FC<BlockPlanInfoProps> = ({ license, userName, userCreatedAt }) => {
     const { t, i18n } = useTranslation('portal');
     const planLabel =
         license?.plan === 'whitelabel'
@@ -20,6 +33,7 @@ export const BlockPlanInfo: React.FC<BlockPlanInfoProps> = ({ license, userName 
                     : license?.has_unlimited_domains || license?.plan === 'upgrade_domains'
                         ? t('plan_info.unlimited')
                         : license?.plan;
+    const memberSince = formatMemberSince(license?.created_at || userCreatedAt, i18n.language);
     
     if (!license) {
         return (
@@ -105,7 +119,7 @@ export const BlockPlanInfo: React.FC<BlockPlanInfoProps> = ({ license, userName 
                     <div>
                         <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">{t('plan_info.member_since')}</p>
                         <p className="text-xl font-black text-white font-display italic tracking-tighter">
-                            {new Date(license.created_at).toLocaleDateString(i18n.language === 'en' ? 'en-US' : i18n.language === 'es' ? 'es-ES' : 'pt-BR', { month: 'long', year: 'numeric' })}
+                            {memberSince}
                         </p>
                     </div>
                 </div>
