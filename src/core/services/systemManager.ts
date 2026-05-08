@@ -362,6 +362,10 @@ export const SystemManager = {
       return hasWebhooks && hasWebhookLogs;
     }
 
+    if (version === '1.0.6') {
+      return hasColumn('public_gateways', 'public_key');
+    }
+
     return false;
   },
 

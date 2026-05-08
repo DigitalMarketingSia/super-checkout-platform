@@ -256,7 +256,6 @@ BEGIN
 END $$;
 
 CREATE OR REPLACE VIEW public.public_gateways
-WITH (security_invoker = true)
 AS
 SELECT
     id,
