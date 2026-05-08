@@ -123,6 +123,21 @@ const getHeaders = async () => {
     return headers;
 };
 
+const getControlPlaneAdminHeaders = async () => {
+    const { supabase: localSupabase } = await import('./supabase');
+    const { data: localSession } = await localSupabase.auth.getSession();
+
+    const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+    };
+
+    if (localSession?.session?.access_token) {
+        headers['Authorization'] = `Bearer ${localSession.session.access_token}`;
+    }
+
+    return headers;
+};
+
 /**
  * Routes admin-protected endpoints through the secure BFF proxy.
  * The proxy (api/central-proxy.ts) validates JWT+admin role and adds x-admin-secret server-side.
@@ -149,7 +164,7 @@ export const licenseService = {
 
         const response = await fetch(`${getProxyUrl('manage-licenses')}?${params.toString()}`, {
             method: 'GET',
-            headers: await getHeaders()
+            headers: await getControlPlaneAdminHeaders()
         });
 
         if (!response.ok) throw new Error(await readApiError(response, 'Failed to fetch licenses'));
@@ -164,7 +179,7 @@ export const licenseService = {
 
         const response = await fetch(`${getProxyUrl('manage-licenses')}?${params.toString()}`, {
             method: 'GET',
-            headers: await getHeaders()
+            headers: await getControlPlaneAdminHeaders()
         });
 
         if (!response.ok) return null;
@@ -185,7 +200,7 @@ export const licenseService = {
 
         const response = await fetch(`${getProxyUrl('manage-licenses')}?${params.toString()}`, {
             method: 'GET',
-            headers: await getHeaders()
+            headers: await getControlPlaneAdminHeaders()
         });
 
         if (!response.ok) throw new Error(await readApiError(response, 'Failed to fetch installations'));
@@ -196,7 +211,7 @@ export const licenseService = {
     async toggleStatus(key: string, action: 'activate' | 'suspend' | 'delete'): Promise<void> {
         const response = await fetch(getProxyUrl('manage-licenses'), {
             method: 'POST',
-            headers: await getHeaders(),
+            headers: await getControlPlaneAdminHeaders(),
             body: JSON.stringify({ key, action })
         });
 
@@ -206,7 +221,7 @@ export const licenseService = {
     async create(data: { client_name: string; client_email: string; plan_id: string }): Promise<void> {
         const response = await fetch(getProxyUrl('manage-licenses'), {
             method: 'POST',
-            headers: await getHeaders(),
+            headers: await getControlPlaneAdminHeaders(),
             body: JSON.stringify({
                 action: 'create',
                 ...data
@@ -236,7 +251,7 @@ export const licenseService = {
     async update(key: string, data: Partial<License>): Promise<void> {
         const response = await fetch(getProxyUrl('manage-licenses'), {
             method: 'POST',
-            headers: await getHeaders(),
+            headers: await getControlPlaneAdminHeaders(),
             body: JSON.stringify({ key, action: 'update', data })
         });
 
@@ -365,7 +380,7 @@ export const licenseService = {
     async getLicenseFeatures(licenseKey: string): Promise<LicenseFeature[]> {
         const response = await fetch(getProxyUrl('manage-licenses'), {
             method: 'POST',
-            headers: await getHeaders(),
+            headers: await getControlPlaneAdminHeaders(),
             body: JSON.stringify({ action: 'get_license_features', license_key: licenseKey })
         });
 
@@ -377,7 +392,7 @@ export const licenseService = {
     async toggleLicenseFeature(licenseKey: string, featureKey: string, isEnabled: boolean, settings: any = {}): Promise<void> {
         const response = await fetch(getProxyUrl('manage-licenses'), {
             method: 'POST',
-            headers: await getHeaders(),
+            headers: await getControlPlaneAdminHeaders(),
             body: JSON.stringify({
                 action: 'toggle_license_feature',
                 license_key: licenseKey,
@@ -561,7 +576,7 @@ export const licenseService = {
     } = {}): Promise<UpgradeIntentRow[]> {
         const response = await fetch(getProxyUrl('upgrade-intents'), {
             method: 'POST',
-            headers: await getHeaders(),
+            headers: await getControlPlaneAdminHeaders(),
             body: JSON.stringify({
                 action: 'list_recent_upgrade_intents',
                 status: params.status || 'all',
