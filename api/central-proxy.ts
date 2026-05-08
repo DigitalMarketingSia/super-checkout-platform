@@ -181,6 +181,44 @@ async function validateJwtWithSupabase(url: string, key: string, jwt: string, la
     }
 }
 
+async function resolveControlPlaneAdminAccess(
+    req: VercelRequest,
+    localSupabaseUrl: string,
+    localServiceKey: string | undefined,
+    userId: string
+) {
+    if (!isControlPlaneRequest(req) || !localSupabaseUrl || !localServiceKey || !userId) {
+        return false;
+    }
+
+    try {
+        const response = await fetch(`${localSupabaseUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=role,status,is_blocked&limit=1`, {
+            method: 'GET',
+            headers: {
+                apikey: localServiceKey,
+                Authorization: `Bearer ${localServiceKey}`,
+            },
+        });
+
+        if (!response.ok) {
+            console.warn(`[Central Proxy] Local admin role lookup failed: ${response.status}`);
+            return false;
+        }
+
+        const rows = await response.json();
+        const profile = Array.isArray(rows) ? rows[0] : null;
+        const role = String(profile?.role || '').toLowerCase();
+        const status = String(profile?.status || 'active').toLowerCase();
+
+        return ['owner', 'master_admin', 'admin'].includes(role)
+            && status !== 'suspended'
+            && profile?.is_blocked !== true;
+    } catch (error: any) {
+        console.warn(`[Central Proxy] Local admin role lookup exception: ${error?.message || error}`);
+        return false;
+    }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     // CORS Whitelist (Fase 15.1 — substitui wildcard '*')
     const origin = req.headers.origin;
@@ -312,8 +350,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const userEmail = user.email ? user.email.toLowerCase() : '';
         const maskedUserEmail = maskEmail(user.email);
         const isMasterAdmin = getMasterAdminEmails().includes(userEmail);
+        const hasControlPlaneAdminAccess = await resolveControlPlaneAdminAccess(
+            req,
+            localSupabaseUrl as string,
+            localServiceKey,
+            user.id
+        );
 
-        if (!isMasterAdmin) {
+        if (!isMasterAdmin && !hasControlPlaneAdminAccess) {
             let isAllowed = false;
 
             if (endpoint === 'get-license-status') {

@@ -21,6 +21,7 @@ export const SystemLicenses = () => {
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [totalItems, setTotalItems] = useState(0);
+    const [fetchError, setFetchError] = useState<string | null>(null);
 
     const { plans, loading: loadingPlans } = usePlans();
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -72,14 +73,18 @@ export const SystemLicenses = () => {
 
     const fetchLicenses = async (p: number, s: string) => {
         setLoading(true);
+        setFetchError(null);
         try {
             const res = await licenseService.list(p, s);
             setLicenses(res.data);
             setTotalPages(res.meta.totalPages || 1);
             setTotalItems(res.meta.total || res.data.length);
-        } catch (error) {
+        } catch (error: any) {
             console.error('[SystemLicenses] Fetch failed:', error);
             setLicenses([]);
+            setTotalPages(1);
+            setTotalItems(0);
+            setFetchError(error?.message || 'Nao foi possivel carregar a gestao global.');
         } finally {
             setLoading(false);
         }
@@ -297,12 +302,32 @@ export const SystemLicenses = () => {
                                             </div>
                                         </td>
                                     </tr>
+                                ) : fetchError ? (
+                                    <tr>
+                                        <td colSpan={5} className="p-20 text-center">
+                                            <div className="flex flex-col items-center gap-4 max-w-xl mx-auto">
+                                                <AlertTriangle className="w-16 h-16 text-orange-400/70" />
+                                                <span className="text-xl font-bold tracking-tighter italic text-white uppercase">Gestao global indisponivel</span>
+                                                <p className="text-sm text-gray-500 leading-relaxed">
+                                                    {fetchError}
+                                                </p>
+                                                <Button
+                                                    onClick={() => fetchLicenses(page, search)}
+                                                    variant="ghost"
+                                                    className="bg-white/5 hover:bg-white/10 text-white rounded-xl px-6 h-11 font-bold text-xs uppercase tracking-widest"
+                                                >
+                                                    <RefreshCw className="w-4 h-4 mr-2" />
+                                                    Tentar novamente
+                                                </Button>
+                                            </div>
+                                        </td>
+                                    </tr>
                                 ) : licenses.length === 0 ? (
                                     <tr>
                                         <td colSpan={5} className="p-20 text-center">
                                             <div className="flex flex-col items-center gap-4 opacity-20">
                                                 <Shield className="w-16 h-16" />
-                                                <span className="text-xl font-bold tracking-tighter italic">NO ASSETS DETECTED</span>
+                                                <span className="text-xl font-bold tracking-tighter italic">NO LICENSES DETECTED</span>
                                             </div>
                                         </td>
                                     </tr>

@@ -130,6 +130,15 @@ const getHeaders = async () => {
  */
 const getProxyUrl = (endpoint: string) => `/api/central/${endpoint}`;
 
+const readApiError = async (response: Response, fallback: string) => {
+    try {
+        const payload = await response.json();
+        return payload?.error || payload?.message || fallback;
+    } catch {
+        return fallback;
+    }
+};
+
 export const licenseService = {
     async list(page = 1, search = '', limit = 10): Promise<LicensesResponse> {
         const params = new URLSearchParams({
@@ -143,7 +152,7 @@ export const licenseService = {
             headers: await getHeaders()
         });
 
-        if (!response.ok) throw new Error('Failed to fetch licenses');
+        if (!response.ok) throw new Error(await readApiError(response, 'Failed to fetch licenses'));
         return response.json();
     },
 
@@ -179,7 +188,7 @@ export const licenseService = {
             headers: await getHeaders()
         });
 
-        if (!response.ok) throw new Error('Failed to fetch installations');
+        if (!response.ok) throw new Error(await readApiError(response, 'Failed to fetch installations'));
         const json = await response.json();
         return json.data || [];
     },
