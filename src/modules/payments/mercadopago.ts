@@ -190,24 +190,46 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
       }
     }
 
-    // 3. Montar Payload Minimalista (Caminho de Ouro)
-    const nameParts = (customerName || 'Cliente Teste').split(' ');
-    
+    // 3. Montar Payload por metodo. Pix deve ir sem campos de cartao.
+    const nameParts = (customerName || 'Cliente Teste').trim().split(/\s+/);
+    const payer: any = {
+      email: customerEmail,
+      first_name: nameParts[0] || 'Cliente',
+      last_name: nameParts.slice(1).join(' ') || 'Super'
+    };
+
+    const payerDocument = String(customerCpf || '').replace(/\D/g, '');
+    if (payerDocument.length === 11 || payerDocument.length === 14) {
+      payer.identification = {
+        type: payerDocument.length === 14 ? 'CNPJ' : 'CPF',
+        number: payerDocument
+      };
+    }
+
+    let stableBaseUrl = baseUrl || process.env.NEXT_PUBLIC_API_URL || process.env.VITE_SITE_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '');
+    if (stableBaseUrl.endsWith('/')) stableBaseUrl = stableBaseUrl.slice(0, -1);
+    if (stableBaseUrl && !stableBaseUrl.startsWith('http')) stableBaseUrl = `https://${stableBaseUrl}`;
+    const isLocalhost = stableBaseUrl.includes('localhost') || stableBaseUrl.includes('127.0.0.1') || !stableBaseUrl.includes('.');
+
     body = {
       transaction_amount: Number(totalAmount.toFixed(2)),
       description: `Pedido ${orderId}`.substring(0, 60),
       payment_method_id: paymentMethod === 'credit_card' ? paymentMethodId : paymentMethod,
-      payer: { 
-        email: customerEmail,
-        first_name: nameParts[0] || 'Cliente',
-        last_name: nameParts[1] || 'Super'
-      },
-      external_reference: orderId,
-      installments: Number(installments) || 1,
-      token: cardToken
+      payer,
+      external_reference: orderId
     };
 
-    if (issuerId) {
+    if (stableBaseUrl && !isLocalhost) {
+      body.notification_url = `${stableBaseUrl}/api/stripe?action=mercadopago`;
+    }
+
+    if (paymentMethod === 'credit_card') {
+      if (!cardToken) throw new Error('Token do cartao e obrigatorio.');
+      body.installments = Number(installments) || 1;
+      body.token = cardToken;
+    }
+
+    if (paymentMethod === 'credit_card' && issuerId) {
       body.issuer_id = Number(issuerId);
     }
 
@@ -234,9 +256,13 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
 
     if (!response.ok) {
       console.error(`[MP-FETCH] Erro API (Request-ID: ${requestId}):`, mpResult);
+      const detailedError = Array.isArray(mpResult?.cause) && mpResult.cause[0]?.description
+        ? mpResult.cause[0].description
+        : mpResult.message || 'Erro na API do Mercado Pago';
+
       throw { 
         api_response: { content: mpResult }, 
-        message: mpResult.message || 'Erro na API do Mercado Pago',
+        message: detailedError,
         requestId 
       };
     }
