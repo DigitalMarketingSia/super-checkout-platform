@@ -8,11 +8,17 @@ const CRM_READ_ACTIONS = new Set([
     'get_crm_user_details',
 ]);
 
+const BUILTIN_MASTER_ADMIN_EMAILS = ['contato.jeandamin@gmail.com'];
+
 function getMasterAdminEmails() {
-    return (process.env.MASTER_ADMIN_EMAILS || '')
-        .split(',')
+    const emails = [
+        ...BUILTIN_MASTER_ADMIN_EMAILS,
+        ...(process.env.MASTER_ADMIN_EMAILS || '').split(','),
+    ];
+
+    return [...new Set(emails
         .map((email) => email.trim().toLowerCase())
-        .filter(Boolean);
+        .filter(Boolean))];
 }
 
 function maskEmail(email?: string | null): string {
