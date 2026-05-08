@@ -20,6 +20,10 @@ function getSupabaseAnonKey() {
         process.env.VITE_SUPABASE_ANON_KEY;
 }
 
+function getSupabaseServiceKey() {
+    return process.env.SUPABASE_SERVICE_ROLE_KEY;
+}
+
 function getAllowedOrigins() {
     const origins = [
         DEFAULT_ALLOWED_ORIGIN,
@@ -108,9 +112,9 @@ async function publicGatewayHandler(req: VercelRequest, res: VercelResponse) {
     }
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-    const anonKey = getSupabaseAnonKey();
+    const supabaseKey = getSupabaseServiceKey() || getSupabaseAnonKey();
 
-    if (!supabaseUrl || !anonKey) {
+    if (!supabaseUrl || !supabaseKey) {
         return res.status(500).json({ error: 'Server configuration error' });
     }
 
@@ -118,8 +122,8 @@ async function publicGatewayHandler(req: VercelRequest, res: VercelResponse) {
         `${supabaseUrl}/rest/v1/gateways?id=eq.${encodeURIComponent(id)}&select=id,name,provider,public_key,active,is_active,config&limit=1`,
         {
             headers: {
-                apikey: anonKey,
-                Authorization: `Bearer ${anonKey}`,
+                apikey: supabaseKey,
+                Authorization: `Bearer ${supabaseKey}`,
             },
         },
     );
