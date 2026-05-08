@@ -272,6 +272,34 @@ WHERE COALESCE(active, true) = true
 
 GRANT SELECT ON public.public_gateways TO anon, authenticated;
 
+-- 2.4.1 Webhooks
+CREATE TABLE IF NOT EXISTS public.webhooks (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  name TEXT NOT NULL,
+  url TEXT NOT NULL,
+  events TEXT[] DEFAULT ARRAY[]::TEXT[],
+  active BOOLEAN DEFAULT true,
+  method TEXT DEFAULT 'POST',
+  last_fired_at TIMESTAMP WITH TIME ZONE,
+  last_status INTEGER,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.webhook_logs (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  webhook_id UUID REFERENCES public.webhooks(id) ON DELETE SET NULL,
+  event TEXT NOT NULL,
+  payload JSONB DEFAULT '{}'::jsonb,
+  response_status INTEGER DEFAULT 0,
+  response_body TEXT,
+  duration_ms INTEGER DEFAULT 0,
+  direction TEXT DEFAULT 'inbound',
+  processed BOOLEAN DEFAULT false,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
 -- 2.5 Checkouts
 CREATE TABLE IF NOT EXISTS checkouts(
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -967,6 +995,8 @@ ALTER TABLE public.activity_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE email_templates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.webhooks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.webhook_logs ENABLE ROW LEVEL SECURITY;
 
 -- Drop all existing policies to avoid conflicts
 DO $$
@@ -1019,6 +1049,36 @@ CREATE POLICY "Users can manage their own payments" ON payments FOR ALL USING(au
 CREATE POLICY "Admins can view all payments" ON payments FOR SELECT USING(public.is_admin());
 CREATE POLICY "Public can create payments" ON payments FOR INSERT WITH CHECK(true);
 -- NOTA: Webhooks usam service_role (bypass RLS). Frontend admin usa is_admin().
+
+-- Webhooks
+CREATE POLICY "Users can manage their own webhooks"
+ON public.webhooks
+FOR ALL TO authenticated
+USING (auth.uid() = user_id)
+WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Admins can manage all webhooks"
+ON public.webhooks
+FOR ALL TO authenticated
+USING (public.is_admin())
+WITH CHECK (public.is_admin());
+
+CREATE POLICY "Users can view own webhook logs"
+ON public.webhook_logs
+FOR SELECT TO authenticated
+USING (
+    webhook_id IS NULL
+    OR EXISTS (
+        SELECT 1 FROM public.webhooks w
+        WHERE w.id = webhook_logs.webhook_id
+          AND w.user_id = auth.uid()
+    )
+);
+
+CREATE POLICY "Admins can view all webhook logs"
+ON public.webhook_logs
+FOR SELECT TO authenticated
+USING (public.is_admin());
 
 -- Email Templates
 CREATE POLICY "Admins can read email templates" ON public.email_templates

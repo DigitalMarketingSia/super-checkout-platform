@@ -354,6 +354,14 @@ export const SystemManager = {
       return hasColumn('profiles', 'full_name');
     }
 
+    if (version === '1.0.5') {
+      const [hasWebhooks, hasWebhookLogs] = await Promise.all([
+        hasColumn('webhooks', 'url'),
+        hasColumn('webhook_logs', 'response_status')
+      ]);
+      return hasWebhooks && hasWebhookLogs;
+    }
+
     return false;
   },
 

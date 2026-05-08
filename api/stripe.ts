@@ -23,10 +23,25 @@ const getRawBody = async (req: VercelRequest): Promise<string> => {
 };
 
 // --- SHARED LOGGING ---
+const parseWebhookPayload = (rawPayload?: string) => {
+    if (!rawPayload) return {};
+
+    try {
+        return JSON.parse(rawPayload);
+    } catch {
+        return { raw: rawPayload };
+    }
+};
+
 const logWebhook = async (supabaseAdmin: any, event: string, msg: string, status: number, rawPayload?: string) => {
     try {
         await supabaseAdmin.from('webhook_logs').insert({
-            event, payload: rawPayload || '', response_status: status, response_body: msg, direction: 'inbound', processed: status === 200
+            event,
+            payload: parseWebhookPayload(rawPayload),
+            response_status: status,
+            response_body: msg,
+            direction: 'inbound',
+            processed: status === 200
         });
     } catch (e) {
         console.error('[Webhook Log Error]:', e);

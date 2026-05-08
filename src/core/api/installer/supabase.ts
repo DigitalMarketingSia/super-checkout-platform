@@ -211,6 +211,34 @@ WHERE COALESCE(active, true) = true
 
 GRANT SELECT ON public.public_gateways TO anon, authenticated;
 
+-- 2.8.1 Webhooks
+CREATE TABLE IF NOT EXISTS public.webhooks (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  name TEXT NOT NULL,
+  url TEXT NOT NULL,
+  events TEXT[] DEFAULT ARRAY[]::TEXT[],
+  active BOOLEAN DEFAULT true,
+  method TEXT DEFAULT 'POST',
+  last_fired_at TIMESTAMP WITH TIME ZONE,
+  last_status INTEGER,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.webhook_logs (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  webhook_id UUID REFERENCES public.webhooks(id) ON DELETE SET NULL,
+  event TEXT NOT NULL,
+  payload JSONB DEFAULT '{}'::jsonb,
+  response_status INTEGER DEFAULT 0,
+  response_body TEXT,
+  duration_ms INTEGER DEFAULT 0,
+  direction TEXT DEFAULT 'inbound',
+  processed BOOLEAN DEFAULT false,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
 -- 2.9 Checkouts
 CREATE TABLE IF NOT EXISTS checkouts (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -591,6 +619,8 @@ ALTER TABLE public.member_notes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.member_tags ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.activity_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_config ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.webhooks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.webhook_logs ENABLE ROW LEVEL SECURITY;
 
 -- Drop all existing policies to avoid conflicts (safest approach for installer)
 DO $$
@@ -625,6 +655,36 @@ CREATE POLICY "Public can view active gateways" ON gateways FOR SELECT USING (ac
 -- Checkouts
 CREATE POLICY "Users can manage their own checkouts" ON checkouts FOR ALL USING (auth.uid() = user_id);
 CREATE POLICY "Public can view active checkouts" ON checkouts FOR SELECT USING (active = true);
+
+-- Webhooks
+CREATE POLICY "Users can manage their own webhooks"
+ON public.webhooks
+FOR ALL TO authenticated
+USING (auth.uid() = user_id)
+WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Admins can manage all webhooks"
+ON public.webhooks
+FOR ALL TO authenticated
+USING (public.is_admin())
+WITH CHECK (public.is_admin());
+
+CREATE POLICY "Users can view own webhook logs"
+ON public.webhook_logs
+FOR SELECT TO authenticated
+USING (
+  webhook_id IS NULL
+  OR EXISTS (
+    SELECT 1 FROM public.webhooks w
+    WHERE w.id = webhook_logs.webhook_id
+      AND w.user_id = auth.uid()
+  )
+);
+
+CREATE POLICY "Admins can view all webhook logs"
+ON public.webhook_logs
+FOR SELECT TO authenticated
+USING (public.is_admin());
 
 -- Orders
 CREATE POLICY "Users can manage their own orders" ON orders FOR ALL USING (auth.uid() = user_id);

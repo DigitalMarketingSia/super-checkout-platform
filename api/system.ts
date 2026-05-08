@@ -112,14 +112,14 @@ async function publicGatewayHandler(req: VercelRequest, res: VercelResponse) {
     }
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-    const supabaseKey = getSupabaseServiceKey() || getSupabaseAnonKey();
+    const supabaseKey = getSupabaseAnonKey();
 
     if (!supabaseUrl || !supabaseKey) {
         return res.status(500).json({ error: 'Server configuration error' });
     }
 
     const gatewayRes = await fetch(
-        `${supabaseUrl}/rest/v1/gateways?id=eq.${encodeURIComponent(id)}&select=id,name,provider,public_key,active,is_active,config&limit=1`,
+        `${supabaseUrl}/rest/v1/public_gateways?id=eq.${encodeURIComponent(id)}&select=id,name,provider,public_key,active,is_active,config&limit=1`,
         {
             headers: {
                 apikey: supabaseKey,
