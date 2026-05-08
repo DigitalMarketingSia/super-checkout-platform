@@ -106,7 +106,15 @@ WHERE COALESCE(active, true) = true
 GRANT SELECT ON public.public_gateways TO anon, authenticated;
 
 DO $$
+DECLARE
+  target_id UUID;
 BEGIN
+  SELECT id INTO target_id FROM public.system_info LIMIT 1;
+
+  IF target_id IS NULL THEN
+    RETURN;
+  END IF;
+
   IF EXISTS (
     SELECT 1 FROM information_schema.columns
     WHERE table_schema = 'public'
@@ -115,10 +123,10 @@ BEGIN
   ) THEN
     UPDATE public.system_info
     SET db_version = '1.0.5', updated_at = timezone('utc'::text, now())
-    WHERE id = (SELECT id FROM public.system_info ORDER BY created_at ASC LIMIT 1);
+    WHERE id = target_id;
   ELSE
     UPDATE public.system_info
     SET db_version = '1.0.5'
-    WHERE id = (SELECT id FROM public.system_info ORDER BY created_at ASC LIMIT 1);
+    WHERE id = target_id;
   END IF;
 END $$;
