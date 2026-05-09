@@ -31,7 +31,8 @@ import {
   Download,
   Terminal,
   Cpu,
-  Link2
+  Link2,
+  Plus
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
@@ -373,11 +374,11 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
                       ? 'text-primary bg-primary/10 border border-primary/20'
                       : 'text-gray-600 hover:text-white hover:bg-white/5'
                       }`}
-                    title="AtualizaÃ§Ãµes do Sistema"
+                    title="Atualizações do Sistema"
                   >
                     <RefreshCw className={`w-5 h-5 flex-shrink-0 ${location.pathname === '/admin/updates' ? 'animate-spin-slow text-primary' : ''}`} />
                     <div className={`ml-3 truncate transition-all duration-300 ${(!sidebarOpen && !mobileMenuOpen) ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
-                      {t('nav.updates', 'AtualizaÃ§Ãµes')}
+                      {t('nav.updates', 'Atualizações')}
                     </div>
                   </Link>
                 )}
@@ -408,45 +409,72 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
           </nav>
 
           {/* Bottom CTAs: Member Area & Flow Builder */}
-          <div className="p-4 shrink-0 border-t border-white/5 bg-black/40 space-y-2">
-            <Link to="/admin/members" className={`block rounded-[1.5rem] p-3 bg-gradient-to-br from-purple-600 to-indigo-800 text-white shadow-lg shadow-purple-500/20 group relative overflow-hidden transition-all hover:shadow-purple-500/40 hover:-translate-y-0.5 ${!sidebarOpen && !mobileMenuOpen ? 'p-1.5 flex justify-center' : ''}`}>
+          <div className="shrink-0 border-t border-white/5 bg-black/40 overflow-hidden">
+            <div className="p-4 pb-2">
+              <Link to="/admin/members" className={`block rounded-[1.5rem] p-3 bg-gradient-to-br from-purple-600 to-indigo-800 text-white shadow-lg shadow-purple-500/20 group relative overflow-hidden transition-all hover:shadow-purple-500/40 hover:-translate-y-0.5 ${!sidebarOpen && !mobileMenuOpen ? 'p-1.5 flex justify-center' : ''}`}>
 
-              {/* Background Pattern */}
-              <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -mr-10 -mt-10 blur-xl"></div>
-              <div className="absolute bottom-0 left-0 w-16 h-16 bg-black/10 rounded-full -ml-8 -mb-8 blur-xl"></div>
+                {/* Background Pattern */}
+                <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -mr-10 -mt-10 blur-xl"></div>
+                <div className="absolute bottom-0 left-0 w-16 h-16 bg-black/10 rounded-full -ml-8 -mb-8 blur-xl"></div>
 
-              <div className={`flex items-center gap-3 ${!sidebarOpen && !mobileMenuOpen ? 'justify-center' : ''}`}>
-                <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center shrink-0 backdrop-blur-sm border border-white/10 group-hover:bg-white/20 transition-all">
-                  <Users className="w-5 h-5 text-white" />
-                </div>
-
-                {(sidebarOpen || mobileMenuOpen) && (
-                  <div className="flex-1 min-w-0">
-                    <p className="font-black text-[11px] truncate uppercase tracking-tighter italic">{t('nav.member_area', 'Área de Membros')}</p>
-                    <p className="text-[9px] text-white/50 truncate uppercase font-black tracking-widest mt-0.5">{t('nav.manage_members', 'Gerenciar alunos')}</p>
+                <div className={`flex items-center gap-3 ${!sidebarOpen && !mobileMenuOpen ? 'justify-center' : ''}`}>
+                  <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center shrink-0 backdrop-blur-sm border border-white/10 group-hover:bg-white/20 transition-all">
+                    <Users className="w-5 h-5 text-white" />
                   </div>
-                )}
-              </div>
-            </Link>
 
-            {/* FLOW BUILDER CTA */}
-            <Link to="/admin/flow" className={`block rounded-[1.5rem] p-3 bg-[#0a0a0b] border border-cyan-500/30 text-white shadow-[0_0_15px_rgba(6,182,212,0.15)] group relative overflow-hidden transition-all hover:shadow-[0_0_25px_rgba(6,182,212,0.3)] hover:border-cyan-400 hover:-translate-y-0.5 ${!sidebarOpen && !mobileMenuOpen ? 'p-1.5 flex justify-center' : ''}`}>
-              {/* Background Pattern */}
-              <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 to-purple-500/10 blur-md pointer-events-none"></div>
-
-              <div className={`flex items-center gap-3 relative z-10 ${!sidebarOpen && !mobileMenuOpen ? 'justify-center' : ''}`}>
-                <div className="w-9 h-9 rounded-xl bg-cyan-500/10 flex items-center justify-center shrink-0 backdrop-blur-sm border border-cyan-500/20 group-hover:bg-cyan-500/20 transition-all">
-                  <Cpu className="w-5 h-5 text-cyan-400 group-hover:text-cyan-300" />
+                  {(sidebarOpen || mobileMenuOpen) && (
+                    <div className="flex-1 min-w-0">
+                      <p className="font-black text-[11px] truncate uppercase tracking-tighter italic">{t('nav.member_area', 'Área de Membros')}</p>
+                      <p className="text-[9px] text-white/50 truncate uppercase font-black tracking-widest mt-0.5">{t('nav.manage_members', 'Gerenciar alunos')}</p>
+                    </div>
+                  )}
                 </div>
+              </Link>
+            </div>
 
-                {(sidebarOpen || mobileMenuOpen) && (
-                  <div className="flex-1 min-w-0">
-                    <p className="font-black text-[11px] truncate uppercase tracking-tighter italic text-cyan-50">Flow Builder</p>
-                    <p className="text-[9px] text-cyan-400/60 truncate uppercase font-black tracking-widest mt-0.5">Criar Funis Visuais</p>
+            {/* FLOW BUILDER CTA — Neon Glow Border Style (Inspired by Image) */}
+            <div className="p-4 pt-2">
+              <Link 
+                to="/admin/flow" 
+                className="block group relative"
+              >
+                {/* Outer Glow Effects - Using #27CBEF Gradient - Active by Default */}
+                <div className="absolute -inset-[1px] bg-gradient-to-br from-[#27CBEF] via-transparent to-[#27CBEF]/40 rounded-2xl blur-[2px] opacity-60 transition-opacity duration-500" />
+                <div className="absolute -inset-[1px] bg-gradient-to-br from-[#27CBEF] via-transparent to-[#27CBEF]/40 rounded-2xl opacity-30 transition-opacity duration-500" />
+
+                <div className={`
+                  relative flex items-center justify-between gap-4 p-3 rounded-2xl
+                  bg-[#0A0A0B] border border-white/5 overflow-hidden
+                  ${!sidebarOpen && !mobileMenuOpen ? 'px-2' : 'px-5'}
+                `}>
+                  {/* Content */}
+                  <div className={`flex items-center gap-4 ${!sidebarOpen && !mobileMenuOpen ? 'w-full justify-center' : ''}`}>
+                    <Cpu className="w-5 h-5 text-[#27CBEF] transition-colors" />
+                    
+                    {(sidebarOpen || mobileMenuOpen) && (
+                      <span className="font-black text-[11px] uppercase tracking-tighter italic text-white transition-all">
+                        {t('nav.create_funnels', 'CRIAR FLOW')}
+                      </span>
+                    )}
                   </div>
-                )}
-              </div>
-            </Link>
+
+                  {(sidebarOpen || mobileMenuOpen) && (
+                    <div className="w-8 h-8 rounded-xl glass border border-white/10 flex items-center justify-center opacity-80 transition-all">
+                      <Plus className="w-4 h-4 text-[#27CBEF]" />
+                    </div>
+                  )}
+
+                  {/* Shimmer Effect - Continuous */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#27CBEF]/20 to-transparent -translate-x-full animate-shimmer duration-2000" />
+                  
+                  {/* Internal Attention Strip - Continuous */}
+                  <div className="absolute inset-0 opacity-100">
+                    <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-[#27CBEF] to-transparent animate-shimmer" />
+                    <div className="absolute bottom-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-[#27CBEF] to-transparent animate-shimmer" />
+                  </div>
+                </div>
+              </Link>
+            </div>
           </div>
         </aside>
 
@@ -520,6 +548,6 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
           </div>
         </main>
       </div>
-    </div >
+    </div>
   );
 };

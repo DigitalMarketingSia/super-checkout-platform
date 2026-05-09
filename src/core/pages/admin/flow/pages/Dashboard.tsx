@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, GitBranch, Clock, ArrowRight, Trash2, Edit2 } from 'lucide-react';
+import { Plus, GitBranch, Clock, ArrowRight, Trash2, Edit2, Loader2 } from 'lucide-react';
 import { supabase } from '../../../../services/supabase';
 import { toast } from 'sonner';
 
@@ -82,89 +82,109 @@ export const Dashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#05050A] text-white p-8">
-      <div className="max-w-7xl mx-auto space-y-8">
+    <div className="min-h-screen bg-[#05050A] text-white p-4 lg:p-12">
+      <div className="max-w-[1400px] mx-auto space-y-12">
         
-        {/* Header Section */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-black uppercase tracking-tighter italic text-cyan-400">Meus Funis</h1>
-            <p className="text-gray-400 mt-2">Gerencie seus projetos e automações visuais.</p>
+        {/* Header Section — Portal Style */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 animate-in fade-in slide-in-from-top-8 duration-700">
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-black uppercase tracking-[0.4em] text-cyan-500 leading-none italic">Flow Builder</span>
+              <div className="h-px w-8 bg-cyan-500/20" />
+            </div>
+            <h1 className="font-portal-display italic font-black text-4xl md:text-6xl text-white uppercase tracking-tighter leading-none">
+              Meus <span className="bg-gradient-to-r from-[#27CBEF] to-[#27CBEF]/60 bg-clip-text text-transparent">Funis</span>
+            </h1>
+            <p className="text-gray-400 text-lg font-medium leading-relaxed max-w-xl">
+              Gerencie seus projetos e automações visuais com tecnologia de ponta.
+            </p>
           </div>
+
           <button 
             onClick={handleCreateNew}
-            className="flex items-center gap-2 bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 px-6 py-3 rounded-xl font-bold shadow-lg shadow-cyan-500/20 transition-all hover:-translate-y-0.5"
+            className="group relative flex items-center gap-3 bg-white text-black px-8 py-5 rounded-2xl font-black uppercase italic tracking-tighter hover:bg-cyan-400 transition-all duration-500 hover:-translate-y-1 active:scale-95 shadow-2xl shadow-cyan-500/10"
           >
-            <Plus className="w-5 h-5" />
+            <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform duration-500" />
             Novo Projeto
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-shimmer" />
           </button>
         </div>
 
         {/* Funnels Grid */}
         {loading ? (
-          <div className="flex items-center justify-center py-20 text-cyan-500 animate-pulse">
-            <GitBranch className="w-8 h-8 animate-spin" />
+          <div className="flex items-center justify-center py-32 text-cyan-500">
+            <Loader2 className="w-12 h-12 animate-spin text-cyan-500" />
           </div>
         ) : funnels.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-32 bg-white/5 border border-white/10 rounded-3xl">
-            <div className="w-20 h-20 bg-cyan-500/10 rounded-full flex items-center justify-center mb-6">
+          <div className="flex flex-col items-center justify-center py-32 bg-[#0F0F13] border border-white/5 rounded-[2.5rem] animate-in fade-in duration-1000">
+            <div className="w-24 h-24 bg-cyan-500/5 rounded-3xl flex items-center justify-center mb-8 border border-cyan-500/10">
               <GitBranch className="w-10 h-10 text-cyan-400" />
             </div>
-            <h2 className="text-xl font-bold mb-2">Nenhum funil encontrado</h2>
-            <p className="text-gray-400 text-center max-w-md mb-8">
-              Você ainda não tem nenhum projeto criado. Comece desenhando seu primeiro funil visual!
+            <h2 className="text-3xl font-portal-display text-white mb-4 italic tracking-tighter">Nada por aqui ainda</h2>
+            <p className="text-gray-500 text-center max-w-md mb-10 font-medium">
+              Comece agora a desenhar seu primeiro funil visual e escale suas automações.
             </p>
             <button 
               onClick={handleCreateNew}
-              className="px-6 py-3 bg-white/10 hover:bg-white/20 rounded-xl font-bold transition-all"
+              className="px-10 py-5 bg-white/5 border border-white/10 hover:bg-white/10 rounded-2xl font-black uppercase italic tracking-tighter transition-all"
             >
-              Criar meu primeiro funil
+              Criar primeiro funil
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {funnels.map(funnel => (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {funnels.map((funnel, index) => (
               <div 
                 key={funnel.id}
                 onClick={() => navigate(`/admin/flow/editor/${funnel.id}`)}
-                className="group relative bg-[#0a0a0b] border border-white/10 hover:border-cyan-500/30 rounded-2xl p-6 cursor-pointer overflow-hidden transition-all hover:shadow-[0_0_30px_rgba(6,182,212,0.1)] hover:-translate-y-1"
+                className="group relative bg-[#0F0F13] border border-white/5 hover:border-cyan-500/30 rounded-[2rem] p-8 cursor-pointer overflow-hidden transition-all duration-500 hover:shadow-[0_0_50px_rgba(6,182,212,0.1)] hover:-translate-y-2 animate-in fade-in slide-in-from-bottom-8 duration-700"
+                style={{ animationDelay: `${index * 100}ms` }}
               >
-                {/* Bg glow */}
-                <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                {/* Background Glow */}
+                <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/5 rounded-full blur-[60px] opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
                 
                 <div className="relative z-10">
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="w-12 h-12 rounded-xl bg-cyan-500/10 flex items-center justify-center border border-cyan-500/20">
-                      <GitBranch className="w-6 h-6 text-cyan-400" />
+                  <div className="flex justify-between items-start mb-8">
+                    <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center border border-white/10 group-hover:bg-cyan-500/10 group-hover:border-cyan-500/20 transition-all duration-500">
+                      <GitBranch className="w-7 h-7 text-gray-400 group-hover:text-cyan-400 transition-colors" />
                     </div>
-                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors">
+                    
+                    <div className="flex items-center gap-2 translate-x-4 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-500">
+                      <button className="p-3 bg-white/5 hover:bg-white/10 rounded-xl text-gray-500 hover:text-white transition-colors">
                         <Edit2 className="w-4 h-4" />
                       </button>
                       <button 
                         onClick={(e) => handleDelete(e, funnel.id)}
-                        className="p-2 bg-red-500/10 hover:bg-red-500/20 rounded-lg text-red-400 transition-colors"
+                        className="p-3 bg-red-500/5 hover:bg-red-500/10 rounded-xl text-red-500/60 hover:text-red-400 transition-colors"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
 
-                  <h3 className="text-lg font-bold text-white mb-2 line-clamp-1">{funnel.name}</h3>
-                  <p className="text-gray-500 text-sm mb-6 line-clamp-2">
-                    {funnel.description || 'Nenhuma descrição adicionada.'}
+                  <h3 className="text-xl font-black text-white mb-3 uppercase tracking-tight italic group-hover:text-cyan-400 transition-colors">
+                    {funnel.name}
+                  </h3>
+                  
+                  <p className="text-gray-500 text-sm mb-8 line-clamp-2 font-medium">
+                    {funnel.description || 'Automatize seus processos visuais agora.'}
                   </p>
 
-                  <div className="flex items-center justify-between text-xs text-gray-500 font-medium">
-                    <div className="flex items-center gap-1.5">
+                  <div className="pt-6 border-t border-white/5 flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-gray-600">
                       <Clock className="w-3.5 h-3.5" />
-                      {new Date(funnel.updated_at).toLocaleDateString()}
+                      {new Date(funnel.updated_at).toLocaleDateString('pt-BR')}
                     </div>
-                    <div className="flex items-center gap-1 text-cyan-400 group-hover:translate-x-1 transition-transform">
-                      Abrir Editor <ArrowRight className="w-4 h-4" />
+                    
+                    <div className="flex items-center gap-2 text-xs font-black uppercase italic tracking-tighter text-cyan-400 group-hover:gap-3 transition-all duration-500">
+                      Abrir Editor
+                      <ArrowRight className="w-4 h-4" />
                     </div>
                   </div>
                 </div>
+
+                {/* Shimmer Effect */}
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.02] to-transparent -translate-x-full group-hover:animate-shimmer pointer-events-none" />
               </div>
             ))}
           </div>

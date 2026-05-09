@@ -30,7 +30,8 @@ import {
   Clock,
   Package,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Rocket
 } from 'lucide-react';
 import { useFunnelStore } from '../store/useFunnelStore';
 import { useState, useEffect } from 'react';
@@ -43,7 +44,7 @@ const NODE_TYPES = [
     category: 'Rede Social', 
     id: 'social',
     icon: Smartphone,
-    color: 'text-pink-500',
+    color: 'text-[#27CBEF]',
     items: [
       { type: 'instagram', label: 'Instagram', icon: 'https://cdn.simpleicons.org/instagram/E4405F', isLogo: true, color: 'bg-pink-500/10 text-pink-500' },
       { type: 'tiktok', label: 'TikTok', icon: 'https://cdn.simpleicons.org/tiktok/FFFFFF', isLogo: true, color: 'bg-slate-500/10 text-white' },
@@ -54,8 +55,8 @@ const NODE_TYPES = [
       { type: 'linkedin', label: 'LinkedIn', icon: 'https://cdn.simpleicons.org/linkedin/0A66C2', isLogo: true, color: 'bg-blue-700/10 text-blue-600' },
       { type: 'x', label: 'X (Twitter)', icon: 'https://cdn.simpleicons.org/x/FFFFFF', isLogo: true, color: 'bg-slate-800/10 text-white' },
       { type: 'pinterest', label: 'Pinterest', icon: 'https://cdn.simpleicons.org/pinterest/BD081C', isLogo: true, color: 'bg-red-500/10 text-red-600' },
-      { type: 'twitch', label: 'Twitch', icon: 'https://cdn.simpleicons.org/twitch/9146FF', isLogo: true, color: 'bg-purple-600/10 text-purple-500' },
-      { type: 'discord', label: 'Discord', icon: 'https://cdn.simpleicons.org/discord/5865F2', isLogo: true, color: 'bg-indigo-600/10 text-indigo-500' },
+      { type: 'twitch', label: 'Twitch', icon: 'https://cdn.simpleicons.org/twitch/9146FF', isLogo: true, color: 'bg-[#27CBEF]/10 text-[#27CBEF]' },
+      { type: 'discord', label: 'Discord', icon: 'https://cdn.simpleicons.org/discord/5865F2', isLogo: true, color: 'bg-[#27CBEF]/10 text-[#27CBEF]' },
       { type: 'threads', label: 'Threads', icon: 'https://cdn.simpleicons.org/threads/FFFFFF', isLogo: true, color: 'bg-slate-900/10 text-white' },
     ]
   },
@@ -66,8 +67,8 @@ const NODE_TYPES = [
     color: 'text-blue-500',
     items: [
       { type: 'landing', label: 'Landing Page', icon: FileText, color: 'bg-blue-500/10 text-blue-500' },
-      { type: 'vsl', label: 'Página VSL', icon: Play, color: 'bg-indigo-500/10 text-indigo-500' },
-      { type: 'webinar', label: 'Webinar', icon: Radio, color: 'bg-purple-500/10 text-purple-500' },
+      { type: 'vsl', label: 'Página VSL', icon: Play, color: 'bg-[#27CBEF]/10 text-[#27CBEF]' },
+      { type: 'webinar', label: 'Webinar', icon: Radio, color: 'bg-[#27CBEF]/10 text-[#27CBEF]' },
       { type: 'bio', label: 'Link Bio', icon: Link2, color: 'bg-green-500/10 text-green-500' },
     ]
   },
@@ -95,10 +96,10 @@ const NODE_TYPES = [
       { type: 'downsell', label: 'Downsell', icon: ArrowDownCircle, color: 'bg-orange-500/10 text-orange-500' },
       { type: 'discount', label: 'Desconto', icon: Percent, color: 'bg-rose-500/10 text-rose-500' },
       { type: 'abandonment', label: 'Recuperação', icon: ShoppingCart, color: 'bg-slate-500/10 text-slate-400' },
-      { type: 'subscription', label: 'Assinatura', icon: Repeat, color: 'bg-indigo-500/10 text-indigo-400' },
-      { type: 'membership', label: 'Membros', icon: Lock, color: 'bg-purple-500/10 text-purple-400' },
+      { type: 'subscription', label: 'Assinatura', icon: Repeat, color: 'bg-[#27CBEF]/10 text-[#27CBEF]' },
+      { type: 'membership', label: 'Membros', icon: Lock, color: 'bg-[#27CBEF]/10 text-[#27CBEF]' },
       { type: 'trial', label: 'Teste Grátis', icon: Clock, color: 'bg-sky-500/10 text-sky-400' },
-      { type: 'bundle', label: 'Combo/Bundle', icon: Package, color: 'bg-pink-500/10 text-pink-400' },
+      { type: 'bundle', label: 'Combo/Bundle', icon: Package, color: 'bg-[#27CBEF]/10 text-[#27CBEF]' },
       { type: 'sales_call', label: 'Call Vendas', icon: PhoneCall, color: 'bg-blue-500/10 text-blue-400' },
       { type: 'thankyou', label: 'Obrigado', icon: CheckCircle, color: 'bg-emerald-500/10 text-emerald-400' },
     ]
@@ -106,7 +107,7 @@ const NODE_TYPES = [
 ];
 
 const QUICK_ADD_ITEMS = [
-  { type: 'product', label: 'Produto', icon: Package, color: 'bg-purple-500/10 text-purple-500' },
+  { type: 'product', label: 'Produto', icon: Package, color: 'bg-[#27CBEF]/10 text-[#27CBEF]' },
   { type: 'note', label: 'Nota', icon: StickyNote, color: 'bg-amber-500/10 text-amber-500' },
 ];
 
@@ -227,7 +228,7 @@ export const Toolbar = ({ onAutoLayout, onExportImage, onExportJson, onSave }: {
                       animate={{ opacity: 1, scale: 1, x: 0 }}
                       exit={{ opacity: 0, scale: 0.5, x: 10 }}
                       onClick={() => scroll('left')}
-                      className="w-11 h-11 bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/30 rounded-full flex items-center justify-center text-purple-400 shadow-[0_0_20px_rgba(168,85,247,0.2)] hover:shadow-[0_0_30px_rgba(168,85,247,0.4)] transition-all active:scale-90"
+                      className="w-11 h-11 bg-[#27CBEF]/20 hover:bg-[#27CBEF]/40 border border-[#27CBEF]/30 rounded-full flex items-center justify-center text-[#27CBEF] shadow-[0_0_20px_rgba(39,203,239,0.2)] hover:shadow-[0_0_30px_rgba(39,203,239,0.4)] transition-all active:scale-90"
                     >
                       <ChevronLeft size={22} />
                     </motion.button>
@@ -252,12 +253,12 @@ export const Toolbar = ({ onAutoLayout, onExportImage, onExportJson, onSave }: {
                   >
                     {/* Preview Card */}
                     <div className={cn(
-                      "w-36 h-28 glass rounded-[28px] border border-white/10 flex items-center justify-center transition-all duration-500 group-hover:border-purple-500/50 group-hover:scale-105 group-active:scale-95 shadow-2xl relative overflow-hidden group/card",
-                      "after:absolute after:inset-0 after:bg-gradient-to-br after:from-purple-500/10 after:to-transparent after:opacity-0 group-hover:after:opacity-100 transition-opacity",
-                      "ring-1 ring-white/5 group-hover:ring-purple-500/30"
+                      "w-36 h-28 glass rounded-[28px] border border-white/10 flex items-center justify-center transition-all duration-500 group-hover:border-[#27CBEF]/50 group-hover:scale-105 group-active:scale-95 shadow-2xl relative overflow-hidden group/card",
+                      "after:absolute after:inset-0 after:bg-gradient-to-br after:from-[#27CBEF]/10 after:to-transparent after:opacity-0 group-hover:after:opacity-100 transition-opacity",
+                      "ring-1 ring-white/5 group-hover:ring-[#27CBEF]/30"
                     )}>
                       <div className={cn(
-                        "w-16 h-16 rounded-[20px] flex items-center justify-center glass shadow-[inset_0_0_20px_rgba(255,255,255,0.05)] border border-white/5 transition-all duration-500 group-hover:scale-110 group-hover:shadow-purple-500/20", 
+                        "w-16 h-16 rounded-[20px] flex items-center justify-center glass shadow-[inset_0_0_20px_rgba(255,255,255,0.05)] border border-white/5 transition-all duration-500 group-hover:scale-110 group-hover:shadow-[#27CBEF]/20", 
                         item.color
                       )}>
                         {item.isLogo ? (
@@ -267,7 +268,7 @@ export const Toolbar = ({ onAutoLayout, onExportImage, onExportJson, onSave }: {
                         )}
                       </div>
                     </div>
-                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-[0.3em] group-hover:text-purple-300 transition-all duration-300">
+                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-[0.3em] group-hover:text-[#27CBEF] transition-all duration-300">
                       {item.label}
                     </span>
                   </button>
@@ -282,7 +283,7 @@ export const Toolbar = ({ onAutoLayout, onExportImage, onExportJson, onSave }: {
                       animate={{ opacity: 1, scale: 1, x: 0 }}
                       exit={{ opacity: 0, scale: 0.5, x: -10 }}
                       onClick={() => scroll('right')}
-                      className="w-11 h-11 bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/30 rounded-full flex items-center justify-center text-purple-400 shadow-[0_0_20px_rgba(168,85,247,0.2)] hover:shadow-[0_0_30px_rgba(168,85,247,0.4)] transition-all active:scale-90"
+                      className="w-11 h-11 bg-[#27CBEF]/20 hover:bg-[#27CBEF]/40 border border-[#27CBEF]/30 rounded-full flex items-center justify-center text-[#27CBEF] shadow-[0_0_20px_rgba(39,203,239,0.2)] hover:shadow-[0_0_30px_rgba(39,203,239,0.4)] transition-all active:scale-90"
                     >
                       <ChevronRight size={22} />
                     </motion.button>
@@ -294,7 +295,7 @@ export const Toolbar = ({ onAutoLayout, onExportImage, onExportJson, onSave }: {
             {/* Custom Scrollbar Indicator */}
             <div className="w-full h-1 bg-white/5 rounded-full mt-2 overflow-hidden">
               <motion.div 
-                className="h-full bg-purple-500 w-1/3 rounded-full"
+                className="h-full bg-[#27CBEF] w-1/3 rounded-full"
                 animate={{ x: `${scrollProgress * 2}%` }} // Adjusted for 1/3 width
               />
             </div>
@@ -341,14 +342,14 @@ export const Toolbar = ({ onAutoLayout, onExportImage, onExportJson, onSave }: {
           <button
             onClick={() => navigate('/admin/flow')}
             title="Meus Funis (Lobby)"
-            className="w-10 h-10 flex items-center justify-center glass rounded-xl hover:bg-white/10 text-cyan-400 transition-all shadow-lg shadow-cyan-500/10"
+            className="w-10 h-10 flex items-center justify-center glass rounded-xl hover:bg-white/10 text-[#27CBEF] transition-all shadow-lg shadow-[#27CBEF]/10"
           >
             <LayoutTemplate size={18} />
           </button>
           <button
             onClick={onSave}
             title="Salvar"
-            className="w-10 h-10 flex items-center justify-center bg-cyan-600 text-white rounded-xl hover:bg-cyan-500 transition-all shadow-lg shadow-cyan-500/20"
+            className="w-10 h-10 flex items-center justify-center bg-[#27CBEF] text-black rounded-xl hover:bg-[#27CBEF]/80 transition-all shadow-lg shadow-[#27CBEF]/20"
           >
             <Save size={18} />
           </button>
@@ -360,9 +361,9 @@ export const Toolbar = ({ onAutoLayout, onExportImage, onExportJson, onSave }: {
           <button
             onClick={onExportImage}
             title="Exportar PNG"
-            className="w-10 h-10 flex items-center justify-center glass rounded-xl hover:bg-white/10 text-slate-400 transition-all"
+            className="w-10 h-10 flex items-center justify-center glass rounded-xl hover:bg-white/10 text-[#27CBEF] transition-all shadow-lg shadow-[#27CBEF]/10 group"
           >
-            <ImageIcon size={18} />
+            <Rocket size={18} className="group-hover:-translate-y-0.5 group-hover:translate-x-0.5 transition-transform" />
           </button>
           <button
             onClick={onExportJson}

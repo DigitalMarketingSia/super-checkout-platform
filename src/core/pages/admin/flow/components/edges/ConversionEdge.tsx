@@ -75,11 +75,11 @@ export const ConversionEdge = ({
           }}
           className="nodrag nopan flex items-center gap-1"
         >
-          <div className="flex items-center glass border-white/10 rounded-lg px-1 py-0 shadow-2xl group hover:border-purple-500/50 transition-all scale-110">
+          <div className="flex items-center glass border-white/10 rounded-lg px-1 py-0 shadow-2xl group hover:border-[#27CBEF]/50 transition-all scale-110">
             {/* Mode Toggle Button */}
             <button
               onClick={() => setMode(mode === 'percent' ? 'volume' : 'percent')}
-              className="mr-1.5 p-0.5 rounded-md bg-white/5 text-slate-500 hover:text-purple-400 transition-colors"
+              className="mr-1.5 p-0.5 rounded-md bg-white/5 text-slate-500 hover:text-[#27CBEF] transition-colors"
               title={mode === 'percent' ? "Alternar para Volume Fixo" : "Alternar para Porcentagem"}
             >
               <RefreshCw size={8} className={cn("transition-transform", mode === 'volume' ? "rotate-180" : "")} />
@@ -94,7 +94,7 @@ export const ConversionEdge = ({
                   onDoubleClick={(e) => e.stopPropagation()}
                   className="w-8 text-[10px] font-black text-center bg-transparent border-none focus:ring-0 p-0 text-white hide-spin-buttons"
                 />
-                <span className="text-[9px] font-black text-purple-400">%</span>
+                <span className="text-[9px] font-black text-[#27CBEF]">%</span>
               </div>
             ) : (
               <div className="flex items-center">

@@ -375,7 +375,9 @@
     "manage_members": "Gerenciar alunos",
     "updates": "Atualizações",
     "upgrade_intents": "Upgrade Intents",
-    "security_auditory": "Auditoria Segurança"
+    "security_auditory": "Auditoria Segurança",
+    "create_funnels": "CRIAR FLOW",
+    "visual_flow": "Editor de Fluxos"
   },
   "compliance_banner": {
     "title": "Configuração Obrigatória",

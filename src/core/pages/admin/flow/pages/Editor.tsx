@@ -165,8 +165,8 @@ const EditorContent = () => {
   return (
     <div className="w-full h-screen bg-[#0a0a0b] overflow-hidden relative">
       {isSaving && (
-        <div className="absolute top-8 right-8 z-50 flex items-center gap-3 px-5 py-2.5 glass rounded-2xl text-xs font-black uppercase tracking-widest text-purple-400 shadow-2xl border-purple-500/20">
-          <div className="w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
+        <div className="absolute top-8 right-8 z-50 flex items-center gap-3 px-5 py-2.5 glass rounded-2xl text-xs font-black uppercase tracking-widest text-[#27CBEF] shadow-2xl border-[#27CBEF]/20">
+          <div className="w-2 h-2 rounded-full bg-[#27CBEF] animate-pulse" />
           Auto-Save
         </div>
       )}
@@ -212,7 +212,7 @@ const EditorContent = () => {
               <button 
                 onClick={onConfirmSave}
                 disabled={!tempName.trim()}
-                className="px-5 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl font-bold shadow-lg shadow-cyan-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-5 py-2.5 bg-[#27CBEF] hover:bg-[#27CBEF]/80 text-black rounded-xl font-bold shadow-lg shadow-[#27CBEF]/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Confirmar
               </button>
@@ -220,11 +220,6 @@ const EditorContent = () => {
           </div>
         </div>
       )}
-
-      <SidePanel />
-      <ConfigModal />
-      <ContextMenu />
-      <SimulationPanel />
 
       <div className={cn(
         "w-full h-full transition-all duration-500 ease-in-out",
@@ -249,7 +244,7 @@ const EditorContent = () => {
           snapToGrid
           snapGrid={[12, 12]}
           connectionLineType={ConnectionLineType.Bezier}
-          connectionLineStyle={{ stroke: '#a855f7', strokeWidth: 3, opacity: 0.6 }}
+          connectionLineStyle={{ stroke: '#27CBEF', strokeWidth: 3, opacity: 0.6 }}
           defaultEdgeOptions={{
             type: 'conversion',
             animated: true,
@@ -260,7 +255,7 @@ const EditorContent = () => {
             <defs>
               <linearGradient id="energy-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
                 <stop offset="0%" stopColor="transparent" />
-                <stop offset="50%" stopColor="#a855f7" />
+                <stop offset="50%" stopColor="#27CBEF" />
                 <stop offset="100%" stopColor="transparent" />
               </linearGradient>
             </defs>
@@ -277,6 +272,11 @@ const EditorContent = () => {
           />
         </ReactFlow>
       </div>
+
+      <SidePanel />
+      <ConfigModal />
+      <ContextMenu />
+      <SimulationPanel />
     </div>
   );
 };

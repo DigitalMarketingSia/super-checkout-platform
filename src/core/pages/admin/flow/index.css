@@ -27,7 +27,7 @@
 }
 
 .react-flow__handle {
-  @apply !w-2.5 !h-2.5 !bg-purple-500 !border-2 !border-[#0a0a0b] hover:!bg-purple-400 hover:!scale-150 transition-all;
+  @apply !w-2.5 !h-2.5 !bg-[#27CBEF] !border-2 !border-[#0a0a0b] hover:!bg-[#27CBEF] hover:!scale-150 transition-all;
 }
 
 .react-flow__edge-path {
@@ -68,4 +68,22 @@
 
 .hide-spin-buttons {
   -moz-appearance: textfield;
+}
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(39, 203, 239, 0.4);
+  border-radius: 10px;
+  transition: all 0.3s ease;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(39, 203, 239, 0.8);
 }

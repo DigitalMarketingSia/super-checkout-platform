@@ -29,7 +29,7 @@ export const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }
             className="relative w-full max-w-md glass rounded-[32px] border border-white/10 p-8 shadow-2xl overflow-hidden"
           >
             {/* Decorative background */}
-            <div className="absolute -top-24 -right-24 w-48 h-48 bg-purple-500/10 blur-[80px] rounded-full" />
+            <div className="absolute -top-24 -right-24 w-48 h-48 bg-[#27CBEF]/10 blur-[80px] rounded-full" />
             <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-amber-500/10 blur-[80px] rounded-full" />
 
             <div className="relative z-10">
@@ -64,7 +64,7 @@ export const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }
                     onConfirm();
                     onClose();
                   }}
-                  className="flex-1 px-6 py-3 rounded-2xl bg-purple-600 text-white text-xs font-black uppercase tracking-widest hover:bg-purple-500 transition-all shadow-lg shadow-purple-500/20"
+                  className="flex-1 px-6 py-3 rounded-2xl bg-[#27CBEF] text-black text-xs font-black uppercase tracking-widest hover:bg-[#27CBEF]/80 transition-all shadow-lg shadow-[#27CBEF]/20"
                 >
                   Confirmar
                 </button>

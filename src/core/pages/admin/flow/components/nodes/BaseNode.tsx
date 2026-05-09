@@ -1,69 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Handle, Position } from '@xyflow/react';
-import { 
-  Link2, 
-  FileText, 
-  Play, 
-  Radio, 
-  Mail, 
-  Users, 
-  CreditCard, 
-  ArrowUpCircle, 
-  ArrowDownCircle,
-  CheckCircle, 
-  StickyNote,
-  Smartphone,
-  Globe,
-  Zap,
-  Percent,
-  ShoppingCart,
-  Repeat,
-  Lock,
-  PhoneCall,
-  Clock,
-  Package,
-  DollarSign,
-  Send
-} from 'lucide-react';
+import { Globe, StickyNote, CreditCard, Users } from 'lucide-react';
+import { ICON_MAP } from '../../lib/icons';
 import { useFunnelStore } from '../../store/useFunnelStore';
 import { type FunnelNodeData, type NodeStatus } from '../../types';
 import { cn } from '../../lib/utils';
 
-const ICON_MAP: Record<string, any> = {
-  bio: Link2,
-  landing: FileText,
-  vsl: Play,
-  webinar: Radio,
-  email: Mail,
-  grupo: Users,
-  checkout: CreditCard,
-  orderbump: Zap,
-  upsell: ArrowUpCircle,
-  downsell: ArrowDownCircle,
-  discount: Percent,
-  abandonment: ShoppingCart,
-  subscription: Repeat,
-  membership: Lock,
-  trial: Clock,
-  bundle: Package,
-  sales_call: PhoneCall,
-  thankyou: CheckCircle,
-  note: StickyNote,
-  product_main: Package,
-  product_bump: Zap,
-  product_upsell: ArrowUpCircle,
-  product_downsell: ArrowDownCircle,
-  facebook: Smartphone,
-  instagram: Smartphone,
-  tiktok: Smartphone,
-  youtube: Play,
-  linkedin: Users,
-  whatsapp: PhoneCall,
-  telegram: Send,
-};
 
 const PRODUCT_CONFIG = {
-  principal: { color: 'bg-purple-500', label: 'Principal', border: 'border-purple-500/50' },
+  principal: { color: 'bg-[#27CBEF]', label: 'Principal', border: 'border-[#27CBEF]/50' },
   gratis: { color: 'bg-emerald-500', label: 'Grátis', border: 'border-emerald-500/50' },
   upsell: { color: 'bg-orange-500', label: 'Upsell', border: 'border-orange-500/50' },
   orderbump: { color: 'bg-yellow-500', label: 'Order Bump', border: 'border-yellow-500/50' },
@@ -217,7 +162,7 @@ export const BaseNode = ({ id, data, selected }: { id: string; data: FunnelNodeD
             /* Browser Window Skin */
             <div className={cn(
               "w-32 h-24 glass rounded-xl border-2 overflow-hidden flex flex-col shadow-2xl transition-all",
-              selected ? "border-purple-500 ring-4 ring-purple-500/20" : "border-white/10 group-hover:border-white/30"
+              selected ? "border-[#27CBEF] ring-4 ring-[#27CBEF]/20" : "border-white/10 group-hover:border-white/30"
             )}>
               <div className="h-4 bg-white/10 flex items-center gap-1 px-2 border-b border-white/5">
                 <div className="w-1.5 h-1.5 rounded-full bg-red-500/50" />
@@ -236,7 +181,7 @@ export const BaseNode = ({ id, data, selected }: { id: string; data: FunnelNodeD
             /* Mobile Phone Skin */
             <div className={cn(
               "w-20 h-32 glass rounded-[24px] border-2 overflow-hidden flex flex-col shadow-2xl transition-all",
-              selected ? "border-purple-500 ring-4 ring-purple-500/20" : "border-white/10 group-hover:border-white/30"
+              selected ? "border-[#27CBEF] ring-4 ring-[#27CBEF]/20" : "border-white/10 group-hover:border-white/30"
             )}>
               <div className="h-3 flex justify-center pt-1">
                 <div className="w-8 h-1 rounded-full bg-white/10" />
@@ -254,7 +199,7 @@ export const BaseNode = ({ id, data, selected }: { id: string; data: FunnelNodeD
             /* Product Card Skin */
             <div className={cn(
               "w-28 h-20 glass rounded-2xl border-2 overflow-hidden flex flex-col shadow-2xl transition-all",
-              selected ? "border-purple-500 ring-4 ring-purple-500/20" : cn("border-white/10 group-hover:border-white/30", productConfig?.border)
+              selected ? "border-[#27CBEF] ring-4 ring-[#27CBEF]/20" : cn("border-white/10 group-hover:border-white/30", productConfig?.border)
             )}>
               <div className={cn("h-3 flex items-center px-2 border-b border-white/5", productConfig?.color, "bg-opacity-20")}>
                 <div className={cn("w-1 h-1 rounded-full", productConfig?.color)} />
@@ -284,7 +229,7 @@ export const BaseNode = ({ id, data, selected }: { id: string; data: FunnelNodeD
             /* Stylized Icon Skin (Email, Notes, etc) */
             <div className={cn(
               "w-24 h-24 glass rounded-3xl border-2 flex items-center justify-center shadow-2xl transition-all",
-              selected ? "border-purple-500 ring-4 ring-purple-500/20" : "border-white/10 group-hover:border-white/30"
+              selected ? "border-[#27CBEF] ring-4 ring-[#27CBEF]/20" : "border-white/10 group-hover:border-white/30"
             )}>
               <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center glass shadow-xl", data.color)}>
                 {renderIcon(32)}
@@ -303,15 +248,15 @@ export const BaseNode = ({ id, data, selected }: { id: string; data: FunnelNodeD
         <div className="text-center max-w-[140px] space-y-1">
           <p className={cn(
             "text-[10px] font-black uppercase tracking-widest transition-colors",
-            selected ? "text-purple-400" : "text-slate-400 group-hover:text-white"
+            selected ? "text-[#27CBEF]" : "text-slate-400 group-hover:text-white"
           )}>
             {data.label}
           </p>
           
           {isProduct ? (
-            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/20">
-              <CreditCard size={8} className="text-purple-500" />
-              <span className="text-[9px] font-black text-purple-400">
+            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[#27CBEF]/10 border border-[#27CBEF]/20">
+              <CreditCard size={8} className="text-[#27CBEF]" />
+              <span className="text-[9px] font-black text-[#27CBEF]">
                 R$ {(data.price || 0).toLocaleString()}
               </span>
             </div>
@@ -325,9 +270,9 @@ export const BaseNode = ({ id, data, selected }: { id: string; data: FunnelNodeD
               </div>
               
               {data.price !== undefined && data.price > 0 && (
-                <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/20">
-                  <CreditCard size={8} className="text-purple-500" />
-                  <span className="text-[9px] font-black text-purple-400">
+                <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[#27CBEF]/10 border border-[#27CBEF]/20">
+                  <CreditCard size={8} className="text-[#27CBEF]" />
+                  <span className="text-[9px] font-black text-[#27CBEF]">
                     R$ {(data.volume * data.price).toLocaleString()}
                   </span>
                 </div>
@@ -343,10 +288,10 @@ export const BaseNode = ({ id, data, selected }: { id: string; data: FunnelNodeD
         position={Position.Left}
         className={cn(
           "!w-8 !h-16 !border-none !bg-transparent -left-4 !top-1/2 !-translate-y-1/2 flex items-center justify-center group/handle",
-          "hover:!bg-purple-500/5 transition-colors rounded-full"
+          "hover:!bg-[#27CBEF]/5 transition-colors rounded-full"
         )}
       >
-        <div className="w-1.5 h-1.5 rounded-full bg-purple-500/0 group-hover/handle:bg-purple-500 transition-all scale-0 group-hover/handle:scale-100 shadow-[0_0_10px_rgba(168,85,247,0.8)]" />
+        <div className="w-1.5 h-1.5 rounded-full bg-[#27CBEF]/0 group-hover/handle:bg-[#27CBEF] transition-all scale-0 group-hover/handle:scale-100 shadow-[0_0_10px_rgba(39,203,239,0.8)]" />
       </Handle>
       
       <Handle
@@ -354,10 +299,10 @@ export const BaseNode = ({ id, data, selected }: { id: string; data: FunnelNodeD
         position={Position.Right}
         className={cn(
           "!w-8 !h-16 !border-none !bg-transparent -right-4 !top-1/2 !-translate-y-1/2 flex items-center justify-center group/handle",
-          "hover:!bg-purple-500/5 transition-colors rounded-full"
+          "hover:!bg-[#27CBEF]/5 transition-colors rounded-full"
         )}
       >
-        <div className="w-1.5 h-1.5 rounded-full bg-purple-500/0 group-hover/handle:bg-purple-500 transition-all scale-0 group-hover/handle:scale-100 shadow-[0_0_10px_rgba(168,85,247,0.8)]" />
+        <div className="w-1.5 h-1.5 rounded-full bg-[#27CBEF]/0 group-hover/handle:bg-[#27CBEF] transition-all scale-0 group-hover/handle:scale-100 shadow-[0_0_10px_rgba(39,203,239,0.8)]" />
       </Handle>
     </div>
   );

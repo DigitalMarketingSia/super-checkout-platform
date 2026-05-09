@@ -1,30 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  X, 
-  Save, 
-  Globe, 
-  Link as LinkIcon, 
-  BarChart3, 
-  Settings2, 
-  Zap, 
-  CreditCard,
-  Layout,
-  Target,
-  FileText,
-  ChevronRight,
-  Package,
-  StickyNote,
-  ArrowUpCircle,
-  ArrowDownCircle,
-  CheckCircle,
-  Plus,
-  Trash2,
-  TrendingUp,
-  DollarSign,
-  RefreshCw,
-  MousePointer2
-} from 'lucide-react';
+import { X, Save, Layout, Target, FileText, Trash2, TrendingUp, StickyNote, Link2 } from 'lucide-react';
+import { ICON_MAP } from '../lib/icons';
 import { useFunnelStore } from '../store/useFunnelStore';
 import { cn } from '../lib/utils';
 import { NodeStatus } from '../types';
@@ -97,11 +74,12 @@ export const ConfigModal = () => {
           <div className="px-6 py-3 border-b border-white/5 flex items-center justify-between bg-white/[0.01]">
             <div className="flex items-center gap-4">
               <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center glass border border-white/10', node.data.color)}>
-                {node.data.icon.startsWith('http') ? (
+                {node.data.icon?.startsWith('http') ? (
                   <img src={node.data.icon} alt={node.data.label} className="w-5 h-5 object-contain" referrerPolicy="no-referrer" />
-                ) : (
-                  <span className="text-sm">{node.data.icon}</span>
-                )}
+                ) : (() => {
+                  const IconComp = ICON_MAP[node.data.type] || StickyNote;
+                  return <IconComp size={20} className="opacity-80" />;
+                })()}
               </div>
               <div className="flex items-center gap-3">
                 <h2 className="text-sm font-black text-white uppercase tracking-wider">{node.data.label}</h2>
@@ -113,9 +91,9 @@ export const ConfigModal = () => {
             
             <button 
               onClick={handleClose}
-              className="w-8 h-8 flex items-center justify-center hover:bg-white/10 rounded-lg text-slate-500 hover:text-white transition-all"
+              className="w-8 h-8 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-500 hover:bg-red-500 hover:text-white transition-all group shadow-lg shadow-red-500/20"
             >
-              <X size={18} />
+              <X size={16} />
             </button>
           </div>
 
@@ -138,7 +116,7 @@ export const ConfigModal = () => {
                     {tab.label}
                   </span>
                   {activeTab === tab.id && (
-                    <motion.div layoutId="tabIndicator" className="absolute left-0 w-1 h-4 bg-purple-500 rounded-r-full" />
+                    <motion.div layoutId="tabIndicator" className="absolute left-0 w-1 h-4 bg-[#27CBEF] rounded-r-full" />
                   )}
                 </button>
               ))}
@@ -185,7 +163,7 @@ export const ConfigModal = () => {
                                 onClick={() => unlinkNote(node.id)}
                                 className="w-full flex items-center justify-center gap-2 p-4 rounded-2xl border border-amber-500/20 bg-amber-500/5 text-amber-500 hover:bg-amber-500/10 transition-all font-black text-[10px] uppercase tracking-widest"
                               >
-                                <LinkIcon size={14} className="rotate-45" />
+                                <Link2 size={14} className="rotate-45" />
                                 Desvincular Nota do Fluxo
                               </button>
                             )}
@@ -227,13 +205,13 @@ export const ConfigModal = () => {
                             <div className="space-y-2">
                               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Valor do Produto (R$)</label>
                               <div className="relative group">
-                                <CreditCard size={18} className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-purple-500 transition-colors" />
+                                <CreditCard size={18} className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-[#27CBEF] transition-colors" />
                                 <input
                                   type="number"
                                   value={node.data.price || 0}
                                   onChange={(e) => updateNodeData(node.id, { price: Number(e.target.value) })}
                                   placeholder="0.00"
-                                  className="w-full bg-white/[0.03] border border-white/10 rounded-2xl pl-16 pr-6 py-4 text-lg text-white focus:border-purple-500/50 focus:ring-4 focus:ring-purple-500/5 transition-all outline-none"
+                                  className="w-full bg-white/[0.03] border border-white/10 rounded-2xl pl-16 pr-6 py-4 text-lg text-white focus:border-[#27CBEF]/50 focus:ring-4 focus:ring-[#27CBEF]/5 transition-all outline-none"
                                 />
                               </div>
                             </div>
@@ -286,13 +264,13 @@ export const ConfigModal = () => {
                               <div className="space-y-2">
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">CTR (%)</label>
                                 <div className="relative group">
-                                  <MousePointer2 size={18} className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-purple-500 transition-colors" />
+                                  <MousePointer2 size={18} className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-[#27CBEF] transition-colors" />
                                   <input
                                     type="number"
                                     value={node.data.ctr || 0}
                                     onChange={(e) => updateNodeData(node.id, { ctr: Number(e.target.value) })}
                                     placeholder="0"
-                                    className="w-full bg-white/[0.03] border border-white/10 rounded-2xl pl-16 pr-6 py-4 text-lg text-white focus:border-purple-500/50 focus:ring-4 focus:ring-purple-500/5 transition-all outline-none"
+                                    className="w-full bg-white/[0.03] border border-white/10 rounded-2xl pl-16 pr-6 py-4 text-lg text-white focus:border-[#27CBEF]/50 focus:ring-4 focus:ring-[#27CBEF]/5 transition-all outline-none"
                                   />
                                 </div>
                               </div>
@@ -302,7 +280,7 @@ export const ConfigModal = () => {
                           <div className="space-y-2">
                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">URL de Destino</label>
                             <div className="relative group">
-                              <LinkIcon size={18} className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-blue-500 transition-colors" />
+                              <Link2 size={18} className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-blue-500 transition-colors" />
                               <input
                                 type="url"
                                 value={node.data.url || ''}
@@ -402,13 +380,13 @@ export const ConfigModal = () => {
                       </div>
 
                       <div className="flex flex-col justify-center">
-                        <div className="p-12 glass rounded-[40px] border-emerald-500/20 bg-emerald-500/5 text-center space-y-4">
+                        <div className="p-12 glass rounded-[40px] border-[#27CBEF]/20 bg-[#27CBEF]/5 text-center space-y-4">
                           <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em]">Receita Estimada (Total)</p>
                           <p className="text-7xl font-black text-white tracking-tighter">
-                            <span className="text-emerald-500 mr-4 text-3xl">R$</span>
+                            <span className="text-[#27CBEF] mr-4 text-3xl">R$</span>
                             {((node.data.revenue as number) || 0).toLocaleString()}
                           </p>
-                          <div className="w-20 h-1 bg-emerald-500/20 mx-auto rounded-full" />
+                          <div className="absolute -top-24 -right-24 w-48 h-48 bg-[#27CBEF]/10 blur-[80px] rounded-full" />
                           <p className="text-[10px] text-slate-500 font-medium">
                             Incluindo projeção de recompra de {node.data.recompra || 0}%
                           </p>
@@ -430,7 +408,7 @@ export const ConfigModal = () => {
                       value={node.data.notes || ''}
                       onChange={(e) => updateNodeData(node.id, { notes: e.target.value })}
                       placeholder="Digite aqui sua estratégia detalhada..."
-                      className="w-full flex-1 bg-white/[0.02] border border-white/10 rounded-[32px] p-10 text-xl text-white focus:border-amber-500/50 transition-all outline-none resize-none no-scrollbar leading-relaxed shadow-inner"
+                      className="w-full flex-1 bg-white/[0.02] border border-white/10 rounded-[32px] p-10 text-xl text-white focus:border-[#27CBEF]/50 transition-all outline-none resize-none no-scrollbar leading-relaxed shadow-inner"
                     />
                   </motion.div>
                 )}
@@ -457,7 +435,7 @@ export const ConfigModal = () => {
               </button>
               <button 
                 onClick={handleClose}
-                className="px-8 py-3 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg active:scale-95 flex items-center gap-2"
+                className="px-8 py-3 bg-[#27CBEF] hover:bg-[#27CBEF]/80 text-black rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg active:scale-95 flex items-center gap-2"
               >
                 <Save size={14} />
                 Salvar Alterações
