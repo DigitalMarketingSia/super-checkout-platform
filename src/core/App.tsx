@@ -73,6 +73,8 @@ import { getEnv } from './utils/env';
 import { storage } from './services/storageService';
 import { DomainUsage } from './types';
 
+const FlowApp = React.lazy(() => import('./pages/admin/flow/App'));
+
 const getHostnameFromUrl = (url?: string) => {
   if (!url) return null;
 
@@ -429,6 +431,7 @@ const DomainDispatcher = () => {
       <Route path="/admin/upgrade-intents" element={<ControlPlaneAdminRoute><UpgradeIntents /></ControlPlaneAdminRoute>} />
       <Route path="/admin/security-events" element={<AdminRoute><SecurityEvents /></AdminRoute>} />
       <Route path="/admin/updates" element={<AdminRoute><SystemUpdates /></AdminRoute>} />
+      <Route path="/admin/flow/*" element={<AdminRoute><React.Suspense fallback={<Loading />}><FlowApp /></React.Suspense></AdminRoute>} />
 
       {/* Free Users Management (Leads) */}
       <Route path="/admin/free-users" element={<AdminRoute><LeadCRM /></AdminRoute>} />

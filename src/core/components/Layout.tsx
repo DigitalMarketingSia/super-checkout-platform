@@ -407,8 +407,8 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
             </div>
           </nav>
 
-          {/* Member Area CTA (Moved to bottom) */}
-          <div className="p-4 shrink-0 border-t border-white/5 bg-black/40">
+          {/* Bottom CTAs: Member Area & Flow Builder */}
+          <div className="p-4 shrink-0 border-t border-white/5 bg-black/40 space-y-2">
             <Link to="/admin/members" className={`block rounded-[1.5rem] p-3 bg-gradient-to-br from-purple-600 to-indigo-800 text-white shadow-lg shadow-purple-500/20 group relative overflow-hidden transition-all hover:shadow-purple-500/40 hover:-translate-y-0.5 ${!sidebarOpen && !mobileMenuOpen ? 'p-1.5 flex justify-center' : ''}`}>
 
               {/* Background Pattern */}
@@ -428,14 +428,26 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
                 )}
               </div>
             </Link>
-          </div>
 
-          {/* Version Display */}
-          {(sidebarOpen || mobileMenuOpen) && (
-            <div className="px-6 py-4 text-[9px] text-gray-800 font-black uppercase tracking-[0.3em] border-t border-white/5 bg-black/40">
-              <span className="text-[7px] lowercase opacity-40 mr-1">versão</span> v{APP_VERSION}
-            </div>
-          )}
+            {/* FLOW BUILDER CTA */}
+            <Link to="/admin/flow" className={`block rounded-[1.5rem] p-3 bg-[#0a0a0b] border border-cyan-500/30 text-white shadow-[0_0_15px_rgba(6,182,212,0.15)] group relative overflow-hidden transition-all hover:shadow-[0_0_25px_rgba(6,182,212,0.3)] hover:border-cyan-400 hover:-translate-y-0.5 ${!sidebarOpen && !mobileMenuOpen ? 'p-1.5 flex justify-center' : ''}`}>
+              {/* Background Pattern */}
+              <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 to-purple-500/10 blur-md pointer-events-none"></div>
+
+              <div className={`flex items-center gap-3 relative z-10 ${!sidebarOpen && !mobileMenuOpen ? 'justify-center' : ''}`}>
+                <div className="w-9 h-9 rounded-xl bg-cyan-500/10 flex items-center justify-center shrink-0 backdrop-blur-sm border border-cyan-500/20 group-hover:bg-cyan-500/20 transition-all">
+                  <Cpu className="w-5 h-5 text-cyan-400 group-hover:text-cyan-300" />
+                </div>
+
+                {(sidebarOpen || mobileMenuOpen) && (
+                  <div className="flex-1 min-w-0">
+                    <p className="font-black text-[11px] truncate uppercase tracking-tighter italic text-cyan-50">Flow Builder</p>
+                    <p className="text-[9px] text-cyan-400/60 truncate uppercase font-black tracking-widest mt-0.5">Criar Funis Visuais</p>
+                  </div>
+                )}
+              </div>
+            </Link>
+          </div>
         </aside>
 
         {/* Main Content */}
@@ -453,8 +465,11 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
               
               <div className="hidden lg:flex flex-col">
                 <h2 className="text-white font-black uppercase tracking-[0.2em] text-xs opacity-50">
-                  {navItems.find(i => location.pathname === i.path)?.label || 'System'}
+                  {navItems.find(i => location.pathname === i.path)?.label || (location.pathname === '/admin/flow' ? 'Flow Builder' : 'System')}
                 </h2>
+                <div className="text-[9px] text-primary/60 font-black uppercase tracking-[0.3em] mt-0.5 animate-in fade-in">
+                  <span className="text-[7px] lowercase opacity-40 mr-1">versão</span> v{APP_VERSION}
+                </div>
               </div>
             </div>
 
