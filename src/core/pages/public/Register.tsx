@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Mail, Lock, User, Loader2, ArrowRight, AlertCircle, CheckCircle, Sparkles, RefreshCw, PencilLine, Zap, Globe, Fingerprint, Shield } from 'lucide-react';
-import Aurora from '../../components/ui/Aurora';
+
 import { useTranslation } from 'react-i18next';
 import { sanitizeTranslationHtml } from '../../utils/sanitize';
 import { openInboxForEmail } from '../../utils/emailInbox';
@@ -502,131 +502,172 @@ export const Register = () => {
 
     const benefitsArr = [
         { icon: Zap, text: t('register.benefits.checkout') },
-        { icon: Globe, text: t('register.benefits.domain') },
+        { icon: Globe, text: 'Domínio Personalizado' },
         { icon: Fingerprint, text: t('register.benefits.members') },
         { icon: Shield, text: t('register.benefits.admin') }
     ];
 
     if (!registrationOpen && !inviteState.valid) {
-        return (
-            <div className="min-h-screen bg-[#05050A] flex items-center justify-center p-6 relative overflow-hidden font-sans">
-                <div className="absolute inset-0 opacity-40">
-                    <Aurora
-                        colorStops={['#8A2BE2', '#4B0082', '#0000FF']}
-                        amplitude={1.5}
-                        blend={0.5}
-                        speed={0.2}
-                    />
-                </div>
+        if (waitlistSuccess) {
+            return (
+                <div className="min-h-screen bg-[#020205] flex items-center justify-center p-6 relative overflow-hidden font-sans">
+                    {/* Background Green Glows */}
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-emerald-500/10 rounded-full blur-[120px] pointer-events-none" />
 
-                <div className="relative z-10 w-full max-w-2xl bg-white/5 border border-white/10 rounded-[3.5rem] p-8 md:p-14 shadow-2xl backdrop-blur-3xl">
-                    <div className="inline-flex items-center gap-3 bg-amber-500/10 border border-amber-500/20 px-4 py-2 rounded-full mb-8">
-                        <Sparkles className="w-4 h-4 text-amber-300" />
-                        <span className="text-[10px] font-black text-amber-200 uppercase tracking-[0.2em] italic">
-                            Lancamento controlado
-                        </span>
-                    </div>
-
-                    <h1 className="text-4xl md:text-6xl font-display font-black text-white italic uppercase tracking-tighter leading-[0.9] mb-6">
-                        Em breve <br />
-                        <span className="text-amber-300">entre na lista de espera</span>
-                    </h1>
-
-                    <p className="text-gray-400 text-lg font-medium leading-relaxed max-w-xl mb-10">
-                        Estamos liberando novas contas em ondas. Deixe seu e-mail para ser avisado assim que o cadastro abrir novamente.
-                    </p>
-
-                    {error && (
-                        <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-5 rounded-2xl mb-6 flex items-start gap-4">
-                            <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
-                            <span className="text-sm font-bold tracking-tight">{error}</span>
+                    <div className="relative z-10 w-full max-w-md bg-black/60 border border-white/10 rounded-[2.5rem] p-10 md:p-12 shadow-2xl backdrop-blur-2xl animate-in fade-in zoom-in duration-700 text-center overflow-hidden">
+                        {/* Green Edge Light */}
+                        <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-emerald-500/50 to-transparent" />
+                        
+                        <div className="w-20 h-20 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-8 text-emerald-400 shadow-[0_0_30px_rgba(16,185,129,0.1)]">
+                            <CheckCircle className="w-10 h-10" />
                         </div>
-                    )}
 
-                    {waitlistSuccess && (
-                        <div className="bg-green-500/10 border border-green-500/20 text-green-300 p-5 rounded-2xl mb-6 flex items-start gap-4">
-                            <CheckCircle className="w-5 h-5 shrink-0 mt-0.5" />
-                            <span className="text-sm font-bold tracking-tight">{waitlistSuccess}</span>
-                        </div>
-                    )}
+                        <h1 className="text-3xl font-display font-black text-white italic uppercase tracking-tighter leading-tight mb-4">
+                            Pronto, <span className="text-emerald-400">{name.split(' ')[0] || 'você'}</span>!
+                        </h1>
+                        <p className="text-gray-400 font-medium mb-10 leading-relaxed">
+                            Você está na lista. Enquanto isso, entre no grupo VIP para receber o convite antes de todo mundo.
+                        </p>
 
-                    <form onSubmit={handleJoinWaitlist} className="space-y-5">
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] ml-2">
-                                Seu melhor e-mail
-                            </label>
-                            <div className="relative group">
-                                <Mail className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-primary transition-all duration-300" />
-                                <input
-                                    type="email"
-                                    required
-                                    className="w-full bg-white/5 border border-white/5 rounded-2xl pl-16 pr-6 py-5 text-white font-bold outline-none transition-all placeholder:text-gray-700 placeholder:font-medium focus:ring-primary/40"
-                                    placeholder="ex: seu@email.com"
-                                    value={email}
-                                    onChange={e => setEmail(e.target.value)}
-                                />
+                        <div className="space-y-6">
+                            <a
+                                href="https://chat.whatsapp.com/EXAMPLE"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center justify-center gap-3 w-full bg-gradient-to-r from-[#25D366] to-[#128C7E] text-white font-black uppercase text-sm py-5 rounded-2xl transition-all hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(37,211,102,0.2)] active:scale-95 italic tracking-widest"
+                            >
+                                <Zap className="w-4 h-4 fill-current" />
+                                <span>Entrar no Grupo VIP</span>
+                            </a>
+
+                            <div className="pt-4">
+                                <a
+                                    href="/activate"
+                                    className="text-gray-600 hover:text-white font-black uppercase tracking-widest text-[10px] transition-all italic border-b border-white/5 hover:border-white pb-1"
+                                >
+                                    Fazer Login na Central
+                                </a>
                             </div>
                         </div>
-
-                        <button
-                            type="submit"
-                            disabled={waitlistLoading}
-                            className="w-full bg-primary text-white font-black uppercase text-lg py-6 rounded-[2rem] transition-all hover:scale-[1.03] active:scale-95 shadow-2xl shadow-primary/20 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed group italic tracking-tighter"
-                        >
-                            {waitlistLoading ? (
-                                <Loader2 className="w-6 h-6 animate-spin" />
-                            ) : (
-                                <>
-                                    <span>Quero ser avisado</span>
-                                    <ArrowRight className="w-5 h-5 group-hover:translate-x-2 transition-transform" />
-                                </>
-                            )}
-                        </button>
-                    </form>
-
-                    {manualApprovalEnabled && (
-                        <div className="mt-6 bg-white/5 border border-white/10 rounded-3xl p-5">
-                            <p className="text-xs text-gray-300 font-bold uppercase tracking-[0.18em]">
-                                Modo de aprovacao manual preparado
-                            </p>
-                            <p className="mt-2 text-sm text-gray-400 leading-relaxed">
-                                Quando o cadastro voltar, novas contas podem entrar em fila de aprovacao antes da liberacao final.
-                            </p>
-                        </div>
-                    )}
-
-                    <div className="mt-8 text-center">
-                        <p className="text-gray-500 font-medium text-sm italic mb-2">{t('register.already_have_account')}</p>
-                        <a
-                            href="/activate"
-                            className="text-white hover:text-primary font-black uppercase tracking-widest text-[10px] transition-all italic border-b border-white/10 hover:border-primary pb-1"
-                        >
-                            {t('register.login_link')}
-                        </a>
                     </div>
                 </div>
+            );
+        }
+
+        return (
+            <div className="min-h-screen bg-[#020205] flex items-center justify-center p-6 relative overflow-hidden font-sans">
+                {/* Background Ambient Green Light */}
+                <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-600/10 rounded-full blur-[120px] pointer-events-none" />
+                <div className="absolute bottom-[-10%] right-[-10%] w-[30%] h-[30%] bg-emerald-500/10 rounded-full blur-[100px] pointer-events-none" />
+
+                <div className="relative z-10 w-full max-w-md bg-black/50 rounded-[3rem] p-8 md:p-12 shadow-2xl backdrop-blur-3xl animate-in fade-in slide-in-from-bottom-8 duration-1000 overflow-hidden group/card border border-white/5">
+                    {/* Glowing Rim Light Effect (Corner Contour) */}
+                    <div className="absolute -inset-px rounded-[3rem] border border-transparent bg-gradient-to-br from-emerald-500/40 via-transparent to-transparent pointer-events-none z-10" 
+                         style={{ maskImage: 'linear-gradient(135deg, black, transparent 50%)', WebkitMaskImage: 'linear-gradient(135deg, black, transparent 50%)' }} />
+
+                    <div className="relative z-20">
+                        <div className="text-center mb-10">
+                            <div className="inline-flex items-center gap-3 bg-white/5 border border-white/10 px-3 py-1.5 rounded-full mb-6">
+                                <img src="/logo.png" alt="Logo" className="w-3.5 h-3.5 object-contain grayscale brightness-200" />
+                                <span className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] italic">
+                                    Convite Exclusivo
+                                </span>
+                            </div>
+                            <h1 className="text-4xl md:text-5xl font-display font-black text-white italic uppercase tracking-tighter leading-[0.85] mb-3">
+                                Acesso <br />
+                                <span className="bg-gradient-to-r from-emerald-400 to-emerald-600 bg-clip-text text-transparent">Antecipado</span>
+                            </h1>
+                        </div>
+
+                        <form onSubmit={handleJoinWaitlist} className="space-y-6">
+                            <div className="space-y-4">
+                                <div className="space-y-1.5">
+                                    <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">Nome</label>
+                                    <input
+                                        type="text"
+                                        required
+                                        className="w-full bg-white/[0.04] border border-white/10 rounded-2xl px-6 py-4 text-white font-bold outline-none transition-all placeholder:text-gray-700 focus:bg-white focus:text-[#020205] focus:border-white shadow-inner"
+                                        placeholder="Seu nome"
+                                        value={name}
+                                        onChange={e => setName(e.target.value)}
+                                    />
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">E-mail</label>
+                                    <input
+                                        type="email"
+                                        required
+                                        className="w-full bg-white/[0.04] border border-white/10 rounded-2xl px-6 py-4 text-white font-bold outline-none transition-all placeholder:text-gray-700 focus:bg-white focus:text-[#020205] focus:border-white shadow-inner"
+                                        placeholder="seu@email.com"
+                                        value={email}
+                                        onChange={e => setEmail(e.target.value)}
+                                    />
+                                </div>
+                            </div>
+
+                            {error && (
+                                <p className="text-red-500/80 text-[10px] font-bold text-center italic">{error}</p>
+                            )}
+
+                            <button
+                                type="submit"
+                                disabled={waitlistLoading}
+                                className="relative w-full mt-2 bg-gradient-to-r from-emerald-400 to-emerald-600 text-[#020205] font-black uppercase text-sm py-5 rounded-2xl transition-all hover:scale-[1.02] active:scale-95 shadow-[0_0_30px_rgba(16,185,129,0.3)] flex items-center justify-center gap-2 italic tracking-widest disabled:opacity-50 overflow-hidden group/btn"
+                            >
+                                {/* Shine Effect */}
+                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full group-hover/btn:animate-[shimmer_1.5s_infinite] pointer-events-none" />
+                                
+                                {waitlistLoading ? (
+                                    <Loader2 className="w-5 h-5 animate-spin" />
+                                ) : (
+                                    <>
+                                        <span>Quero meu acesso antecipado</span>
+                                        <ArrowRight className="w-4 h-4" />
+                                    </>
+                                )}
+                            </button>
+                        </form>
+
+                        <div className="mt-10 pt-8 border-t border-white/5 flex flex-col items-center gap-4">
+                            <p className="text-gray-600 text-[10px] font-bold italic">
+                                <span className="text-emerald-500/50">47 pessoas</span> já estão na lista
+                            </p>
+                            
+                            <a
+                                href="/activate"
+                                className="text-gray-700 hover:text-white font-black uppercase tracking-widest text-[9px] transition-all italic"
+                            >
+                                Já possui conta? Fazer Login
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <style dangerouslySetInnerHTML={{ __html: `
+                    @keyframes shimmer {
+                        100% {
+                            transform: translateX(100%);
+                        }
+                    }
+                `}} />
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-[#05050A] flex items-center justify-center p-6 relative overflow-hidden font-sans">
-            <div className="absolute inset-0 opacity-40">
-                <Aurora
-                    colorStops={['#8A2BE2', '#4B0082', '#0000FF']}
-                    amplitude={1.5}
-                    blend={0.5}
-                    speed={0.2}
-                />
-            </div>
+        <div className="min-h-screen bg-[#020205] flex items-center justify-center p-6 relative overflow-hidden font-sans">
+            {/* Background Ambient Green Light */}
+            <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-600/10 rounded-full blur-[120px] pointer-events-none" />
+            <div className="absolute bottom-[-10%] right-[-10%] w-[30%] h-[30%] bg-emerald-500/10 rounded-full blur-[100px] pointer-events-none" />
 
-            <div className="absolute top-[10%] left-[5%] w-[500px] h-[500px] bg-primary/20 rounded-full blur-[120px] pointer-events-none animate-pulse" />
-            <div className="absolute bottom-[10%] right-[5%] w-[400px] h-[400px] bg-purple-600/10 rounded-full blur-[100px] pointer-events-none animate-pulse duration-5000" />
+            <div className="absolute top-[10%] left-[5%] w-[500px] h-[500px] bg-emerald-500/10 rounded-full blur-[120px] pointer-events-none animate-pulse" />
+            <div className="absolute bottom-[10%] right-[5%] w-[400px] h-[400px] bg-emerald-400/5 rounded-full blur-[100px] pointer-events-none animate-pulse duration-[5000ms]" />
 
             <div className="relative z-10 w-full max-w-6xl grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
                 <div className="hidden lg:block animate-in fade-in slide-in-from-left-8 duration-1000">
                     <div className="inline-flex items-center gap-3 bg-white/5 border border-white/10 px-4 py-2 rounded-full mb-8 backdrop-blur-xl">
-                        <Sparkles className="w-4 h-4 text-primary animate-pulse" />
+                        <img src="/logo.png" alt="Logo" className="w-4 h-4 object-contain grayscale brightness-200" />
                         <span className="text-[10px] font-black text-gray-300 uppercase tracking-[0.2em] italic">
                             {t('register.hero_subtitle')}
                         </span>
@@ -637,8 +678,8 @@ export const Register = () => {
 
                     <div className="grid grid-cols-1 gap-6 max-w-md">
                         {benefitsArr.map((benefit, i) => (
-                            <div key={i} className="flex items-center gap-4 bg-white/5 border border-white/5 p-4 rounded-2xl backdrop-blur-md group hover:bg-white/10 transition-all border-l-2 border-l-primary/30">
-                                <div className="p-3 rounded-xl bg-primary/10 text-primary group-hover:scale-110 transition-transform">
+                            <div key={i} className="flex items-center gap-4 bg-white/5 border border-white/5 p-4 rounded-2xl backdrop-blur-md group hover:bg-white/10 transition-all border-l-2 border-l-emerald-500/30">
+                                <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-400 group-hover:scale-110 transition-transform">
                                     <benefit.icon className="w-6 h-6" />
                                 </div>
                                 <span className="text-white font-bold text-lg tracking-tight">{benefit.text}</span>
@@ -646,189 +687,209 @@ export const Register = () => {
                         ))}
                     </div>
 
-                    <div className="mt-12 flex items-center gap-4 animate-bounce">
+                    <div className="mt-12 flex items-center gap-4">
                         <div className="flex -space-x-4">
                             {[1, 2, 3, 4].map(n => (
-                                <div key={n} className="w-10 h-10 rounded-full border-2 border-[#05050A] bg-gray-800 overflow-hidden">
+                                <div key={n} className="w-10 h-10 rounded-full border-2 border-[#020205] bg-gray-800 overflow-hidden">
                                     <img src={`https://i.pravatar.cc/100?img=${n + 20}`} alt="User" />
                                 </div>
                             ))}
                         </div>
-                        <p className="text-gray-400 font-medium">
+                        <p className="text-gray-400 font-medium italic">
                             <span className="text-white font-bold">+1.240</span> {t('register.entrepreneurs_count').replace('{{count}}', '')}
                         </p>
                     </div>
                 </div>
 
-                <div className="bg-white/5 border border-white/10 rounded-[3.5rem] p-8 md:p-14 shadow-2xl backdrop-blur-3xl relative overflow-hidden animate-in fade-in slide-in-from-right-8 duration-1000">
-                    <div className="lg:hidden text-center mb-8">
-                        <h1 className="text-4xl font-display font-black text-white italic uppercase tracking-tighter mb-2">
-                             <span dangerouslySetInnerHTML={{ __html: sanitizeTranslationHtml(t('register.form_title')) }} />
-                        </h1>
-                        <p className="text-gray-400 font-medium">{t('register.form_subtitle')}</p>
-                    </div>
+                <div className="relative bg-black/50 border border-white/5 rounded-[3.5rem] p-8 md:p-14 shadow-2xl backdrop-blur-3xl overflow-hidden animate-in fade-in slide-in-from-right-8 duration-1000 group/card">
+                    {/* Glowing Rim Light Effect (Corner Contour) */}
+                    <div className="absolute -inset-px rounded-[3.5rem] border border-transparent bg-gradient-to-br from-emerald-500/40 via-transparent to-transparent pointer-events-none z-10" 
+                         style={{ maskImage: 'linear-gradient(135deg, black, transparent 50%)', WebkitMaskImage: 'linear-gradient(135deg, black, transparent 50%)' }} />
 
-                    {inviteState.valid && (
-                        <div className="mb-8 inline-flex items-center gap-3 bg-emerald-500/10 border border-emerald-500/20 px-4 py-2 rounded-full">
-                            <CheckCircle className="w-4 h-4 text-emerald-300" />
-                            <span className="text-[10px] font-black text-emerald-200 uppercase tracking-[0.2em] italic">
-                                Convite validado
-                            </span>
+                    <div className="relative z-20">
+                        <div className="lg:hidden text-center mb-10">
+                            <h1 className="text-4xl font-display font-black text-white italic uppercase tracking-tighter leading-none mb-2">
+                                Sua jornada <br />
+                                <span className="bg-gradient-to-r from-emerald-400 to-emerald-600 bg-clip-text text-transparent">está começando!</span>
+                            </h1>
+                            <p className="text-gray-400 font-medium italic text-sm">{t('register.form_subtitle')}</p>
                         </div>
-                    )}
 
-                    {error && (
-                        <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-5 rounded-2xl mb-8 flex items-start gap-4 animate-in fade-in zoom-in duration-300">
-                            <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
-                            <span className="text-sm font-bold tracking-tight">{error}</span>
-                        </div>
-                    )}
-
-                    <form onSubmit={handleRegister} className="space-y-6">
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] ml-2">{t('register.name_label')}</label>
-                            <div className="relative group">
-                                <User className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-primary transition-all duration-300" />
-                                <input
-                                    type="text"
-                                    required
-                                    className="w-full bg-white/5 border border-white/5 rounded-2xl pl-16 pr-6 py-5 text-white font-bold outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40 focus:bg-white/[0.08] transition-all placeholder:text-gray-700 placeholder:font-medium"
-                                    placeholder={t('register.name_placeholder')}
-                                    value={name}
-                                    onChange={e => {
-                                        setName(e.target.value);
-                                        handleFieldActivity();
-                                    }}
-                                />
+                        {inviteState.valid && (
+                            <div className="mb-8 inline-flex items-center gap-3 bg-emerald-500/10 border border-emerald-500/20 px-4 py-2 rounded-full">
+                                <CheckCircle className="w-4 h-4 text-emerald-300" />
+                                <span className="text-[10px] font-black text-emerald-200 uppercase tracking-[0.2em] italic">
+                                    Convite validado
+                                </span>
                             </div>
-                        </div>
+                        )}
 
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] ml-2">{t('register.email_label')}</label>
-                            <div className="relative group">
-                                <Mail className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-primary transition-all duration-300" />
-                                <input
-                                    type="email"
-                                    required
-                                    className="w-full bg-white/5 border border-white/5 rounded-2xl pl-16 pr-6 py-5 text-white font-bold outline-none transition-all placeholder:text-gray-700 placeholder:font-medium focus:ring-primary/40"
-                                    placeholder="ex: seu@email.com"
-                                    value={email}
-                                    onChange={e => {
-                                        setEmail(e.target.value);
-                                        handleFieldActivity();
-                                    }}
-                                />
+                        {error && (
+                            <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-5 rounded-2xl mb-8 flex items-start gap-4 animate-in fade-in zoom-in duration-300">
+                                <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                                <span className="text-sm font-bold tracking-tight italic">{error}</span>
                             </div>
-                        </div>
+                        )}
 
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] ml-2">WhatsApp</label>
-                            <div className="relative group">
-                                <PhoneInput
-                                    required
-                                    variant="dark"
-                                    className="w-full bg-white/5 border border-white/5 rounded-2xl pl-[100px] pr-6 py-5 text-white font-bold outline-none transition-all placeholder:text-gray-700 placeholder:font-medium focus:ring-primary/40"
-                                    value={whatsapp}
-                                    onChange={e => {
-                                        setWhatsapp(e.target.value);
-                                        handleFieldActivity();
-                                    }}
-                                />
-                            </div>
-                        </div>
-
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] ml-2">{t('activation.password')}</label>
-                            <div className="relative group">
-                                <Lock className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-primary transition-all duration-300" />
-                                <input
-                                    type="password"
-                                    required
-                                    minLength={6}
-                                    className="w-full bg-white/5 border border-white/5 rounded-2xl pl-16 pr-6 py-5 text-white font-bold outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40 focus:bg-white/[0.08] transition-all placeholder:text-gray-700 placeholder:font-medium"
-                                    placeholder="••••••••"
-                                    value={password}
-                                    onChange={e => {
-                                        setPassword(e.target.value);
-                                        handleFieldActivity();
-                                    }}
-                                />
-                            </div>
-                        </div>
-
-                        <div className="absolute left-[-10000px] top-auto w-px h-px overflow-hidden" aria-hidden="true">
-                            <label htmlFor="website">Website</label>
-                            <input
-                                id="website"
-                                name="website"
-                                type="text"
-                                tabIndex={-1}
-                                autoComplete="off"
-                                value={honeypot}
-                                onChange={e => setHoneypot(e.target.value)}
-                            />
-                        </div>
-
-                        {partnerId && (
-                            <div className="bg-primary/5 border border-primary/10 rounded-3xl p-6 flex items-start gap-4 animate-in slide-in-from-bottom-4 duration-500 group hover:bg-primary/10 transition-colors">
-                                <div className="pt-1">
-                                    <input
-                                        type="checkbox"
-                                        id="partner-consent"
-                                        required
-                                        checked={consent}
-                                        onChange={e => setConsent(e.target.checked)}
-                                        className="w-6 h-6 rounded-lg border-white/20 bg-white/5 text-primary focus:ring-primary/50 cursor-pointer"
-                                    />
+                        <form onSubmit={handleRegister} className="space-y-6">
+                            <div className="space-y-4">
+                                <div className="space-y-1.5">
+                                    <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">{t('register.name_label')}</label>
+                                    <div className="relative group">
+                                        <User className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-700 group-focus-within:text-emerald-500 transition-all duration-300" />
+                                        <input
+                                            type="text"
+                                            required
+                                            className="w-full bg-white/[0.04] border border-white/10 rounded-2xl pl-16 pr-6 py-5 text-white font-bold outline-none transition-all placeholder:text-gray-700 focus:bg-white focus:text-[#020205] focus:border-white shadow-inner"
+                                            placeholder={t('register.name_placeholder')}
+                                            value={name}
+                                            onChange={e => {
+                                                setName(e.target.value);
+                                                handleFieldActivity();
+                                            }}
+                                        />
+                                    </div>
                                 </div>
-                                <label htmlFor="partner-consent" className="text-sm text-gray-400 leading-relaxed cursor-pointer select-none">
-                                    <span className="font-black text-white block mb-1 uppercase tracking-tighter italic">{t('register.consent_label')}</span>
-                                    {t('register.consent_desc')}
-                                </label>
-                            </div>
-                        )}
 
-                        {requiresCaptcha && captchaSiteKey && (
-                            <div className="bg-white/5 border border-white/10 rounded-3xl p-5 space-y-3">
-                                <p className="text-xs text-gray-300 font-bold uppercase tracking-[0.18em]">
-                                    {t('register.captcha_title', { defaultValue: 'Confirme que voce e humano' })}
-                                </p>
-                                <p className="text-sm text-gray-400 leading-relaxed">
-                                    {t('register.captcha_desc', {
-                                        defaultValue: 'Detectamos um volume acima do normal neste fluxo. Confirme o desafio para continuar.'
-                                    })}
-                                </p>
-                                <RiskCaptcha siteKey={captchaSiteKey} onTokenChange={setCaptchaToken} />
-                            </div>
-                        )}
+                                <div className="space-y-1.5">
+                                    <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">{t('register.email_label')}</label>
+                                    <div className="relative group">
+                                        <Mail className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-700 group-focus-within:text-emerald-500 transition-all duration-300" />
+                                        <input
+                                            type="email"
+                                            required
+                                            className="w-full bg-white/[0.04] border border-white/10 rounded-2xl pl-16 pr-6 py-5 text-white font-bold outline-none transition-all placeholder:text-gray-700 focus:bg-white focus:text-[#020205] focus:border-white shadow-inner"
+                                            placeholder="ex: seu@email.com"
+                                            value={email}
+                                            onChange={e => {
+                                                setEmail(e.target.value);
+                                                handleFieldActivity();
+                                            }}
+                                        />
+                                    </div>
+                                </div>
 
-                        <button
-                            type="submit"
-                            disabled={loading || (requiresCaptcha && !captchaToken)}
-                            className="w-full bg-primary text-white font-black uppercase text-lg py-6 rounded-[2rem] transition-all hover:scale-[1.03] active:scale-95 shadow-2xl shadow-primary/20 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed group italic tracking-tighter mt-4"
-                        >
-                            {loading ? (
-                                <Loader2 className="w-6 h-6 animate-spin" />
-                            ) : (
-                                <>
-                                    <span>{t('register.activate_free_button')}</span>
-                                    <ArrowRight className="w-5 h-5 group-hover:translate-x-2 transition-transform" />
-                                </>
+                                <div className="space-y-1.5">
+                                    <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">WhatsApp</label>
+                                    <div className="relative group">
+                                        <PhoneInput
+                                            required
+                                            variant="dark"
+                                            className="w-full bg-white/[0.04] border border-white/10 rounded-2xl pl-[100px] pr-6 py-5 text-white font-bold outline-none transition-all placeholder:text-gray-700 focus:bg-white focus:text-[#020205] focus:border-white shadow-inner"
+                                            value={whatsapp}
+                                            onChange={e => {
+                                                setWhatsapp(e.target.value);
+                                                handleFieldActivity();
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">{t('activation.password')}</label>
+                                    <div className="relative group">
+                                        <Lock className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-700 group-focus-within:text-emerald-500 transition-all duration-300" />
+                                        <input
+                                            type="password"
+                                            required
+                                            minLength={6}
+                                            className="w-full bg-white/[0.04] border border-white/10 rounded-2xl pl-16 pr-6 py-5 text-white font-bold outline-none transition-all placeholder:text-gray-700 focus:bg-white focus:text-[#020205] focus:border-white shadow-inner"
+                                            placeholder="••••••••"
+                                            value={password}
+                                            onChange={e => {
+                                                setPassword(e.target.value);
+                                                handleFieldActivity();
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="absolute left-[-10000px] top-auto w-px h-px overflow-hidden" aria-hidden="true">
+                                <label htmlFor="website">Website</label>
+                                <input
+                                    id="website"
+                                    name="website"
+                                    type="text"
+                                    tabIndex={-1}
+                                    autoComplete="off"
+                                    value={honeypot}
+                                    onChange={e => setHoneypot(e.target.value)}
+                                />
+                            </div>
+
+                            {partnerId && (
+                                <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-3xl p-6 flex items-start gap-4 animate-in slide-in-from-bottom-4 duration-500 group hover:bg-emerald-500/10 transition-colors">
+                                    <div className="pt-1">
+                                        <input
+                                            type="checkbox"
+                                            id="partner-consent"
+                                            required
+                                            checked={consent}
+                                            onChange={e => setConsent(e.target.checked)}
+                                            className="w-6 h-6 rounded-lg border-white/20 bg-white/5 text-emerald-500 focus:ring-emerald-500/50 cursor-pointer"
+                                        />
+                                    </div>
+                                    <label htmlFor="partner-consent" className="text-sm text-gray-400 leading-relaxed cursor-pointer select-none">
+                                        <span className="font-black text-white block mb-1 uppercase tracking-tighter italic">{t('register.consent_label')}</span>
+                                        {t('register.consent_desc')}
+                                    </label>
+                                </div>
                             )}
-                        </button>
-                    </form>
 
-                    <div className="mt-8 text-center">
-                        <p className="text-gray-500 font-medium text-sm italic mb-2">{t('register.already_have_account')}</p>
-                        <a
-                            href="/activate"
-                            className="text-white hover:text-primary font-black uppercase tracking-widest text-[10px] transition-all italic border-b border-white/10 hover:border-primary pb-1"
-                        >
-                            {t('register.login_link')}
-                        </a>
+                            {requiresCaptcha && captchaSiteKey && (
+                                <div className="bg-white/5 border border-white/10 rounded-3xl p-5 space-y-3">
+                                    <p className="text-xs text-gray-300 font-bold uppercase tracking-[0.18em]">
+                                        {t('register.captcha_title', { defaultValue: 'Confirme que voce e humano' })}
+                                    </p>
+                                    <p className="text-sm text-gray-400 leading-relaxed">
+                                        {t('register.captcha_desc', {
+                                            defaultValue: 'Detectamos um volume acima do normal neste fluxo. Confirme o desafio para continuar.'
+                                        })}
+                                    </p>
+                                    <RiskCaptcha siteKey={captchaSiteKey} onTokenChange={setCaptchaToken} />
+                                </div>
+                            )}
+
+                            <button
+                                type="submit"
+                                disabled={loading || (requiresCaptcha && !captchaToken)}
+                                className="relative w-full bg-gradient-to-r from-emerald-400 to-emerald-600 text-[#020205] font-black uppercase text-sm py-6 rounded-[2rem] transition-all hover:scale-[1.03] active:scale-95 shadow-2xl shadow-emerald-500/20 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed group/btn italic tracking-widest mt-4 overflow-hidden"
+                            >
+                                {/* Shine Effect */}
+                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full group-hover/btn:animate-[shimmer_1.5s_infinite] pointer-events-none" />
+
+                                {loading ? (
+                                    <Loader2 className="w-6 h-6 animate-spin" />
+                                ) : (
+                                    <>
+                                        <span>{t('register.activate_free_button')}</span>
+                                        <ArrowRight className="w-5 h-5 group-hover/btn:translate-x-2 transition-transform" />
+                                    </>
+                                )}
+                            </button>
+                        </form>
+
+                        <div className="mt-10 text-center">
+                            <p className="text-gray-500 font-medium text-sm italic mb-2">{t('register.already_have_account')}</p>
+                            <a
+                                href="/activate"
+                                className="text-white hover:text-emerald-400 font-black uppercase tracking-widest text-[10px] transition-all italic border-b border-white/10 hover:border-emerald-400 pb-1"
+                            >
+                                {t('register.login_link')}
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>
+
+            <style dangerouslySetInnerHTML={{ __html: `
+                @keyframes shimmer {
+                    100% {
+                        transform: translateX(100%);
+                    }
+                }
+            `}} />
         </div>
     );
 };
