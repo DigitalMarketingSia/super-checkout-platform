@@ -3,7 +3,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { applyCors, emailFingerprint, getAuditClient, getIp, getPortalBaseUrl, getUserAgent, logSecurityEvent, maskEmail, normalizeEmail } from './_shared.js';
 import { isDisposableEmailDomain } from './_disposableEmailDomains.js';
 
-type PublicAction = 'signup' | 'resend' | 'track' | 'status' | 'waitlist' | 'validate_invite';
+type PublicAction = 'signup' | 'resend' | 'track' | 'status' | 'waitlist' | 'waitlist_group_link' | 'validate_invite';
 type PublicTrackEvent =
     | 'register_page_view'
     | 'register_form_started'
@@ -13,6 +13,16 @@ type PublicTrackEvent =
 interface LaunchSettings {
     registrationOpen: boolean;
     manualApprovalEnabled: boolean;
+    waitlistWhatsappGroupUrl: string | null;
+}
+
+interface WaitlistWhatsappGroup {
+    id: string;
+    name: string;
+    url: string;
+    active: boolean;
+    clickLimit: number;
+    clicks: number;
 }
 
 interface MemoryBucket {
@@ -27,7 +37,8 @@ const SOURCE = 'auth_register_api';
 const memoryBuckets = new Map<string, MemoryBucket>();
 const DEFAULT_LAUNCH_SETTINGS: LaunchSettings = {
     registrationOpen: true,
-    manualApprovalEnabled: false
+    manualApprovalEnabled: false,
+    waitlistWhatsappGroupUrl: null
 };
 const DEV_CENTRAL_API_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co/functions/v1';
 const DEV_CENTRAL_SUPABASE_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co';
@@ -394,6 +405,67 @@ function getCentralAdminClient(): SupabaseClient | null {
     });
 }
 
+function normalizeWaitlistGroups(value: unknown): WaitlistWhatsappGroup[] {
+    if (!Array.isArray(value)) return [];
+
+    return value
+        .map((group: any, index) => {
+            const url = String(group?.url || '').trim();
+            if (!url) return null;
+
+            const rawLimit = Number(group?.clickLimit ?? group?.click_limit ?? group?.maxClicks ?? 1000);
+            const rawClicks = Number(group?.clicks ?? 0);
+
+            return {
+                id: String(group?.id || `group_${index + 1}`),
+                name: String(group?.name || `Grupo ${index + 1}`).trim(),
+                url,
+                active: group?.active !== false,
+                clickLimit: Number.isFinite(rawLimit) ? Math.max(1, Math.floor(rawLimit)) : 1000,
+                clicks: Number.isFinite(rawClicks) ? Math.max(0, Math.floor(rawClicks)) : 0
+            };
+        })
+        .filter(Boolean) as WaitlistWhatsappGroup[];
+}
+
+async function getWaitlistWhatsappGroupLink(central: SupabaseClient) {
+    const { data, error } = await central
+        .from('system_settings')
+        .select('setting_key, value_json')
+        .in('setting_key', ['waitlist_whatsapp_groups', 'waitlist_whatsapp_group_url']);
+
+    if (error) throw error;
+
+    const settingsMap = new Map((data || []).map((row: any) => [row.setting_key, row.value_json]));
+    const groups = normalizeWaitlistGroups(settingsMap.get('waitlist_whatsapp_groups'));
+    const availableGroups = groups.filter(group => group.active && group.url && group.clicks < group.clickLimit);
+
+    if (availableGroups.length > 0) {
+        const picked = availableGroups[Math.floor(Math.random() * availableGroups.length)];
+        const nextGroups = groups.map(group => group.id === picked.id
+            ? { ...group, clicks: group.clicks + 1 }
+            : group
+        );
+
+        await central
+            .from('system_settings')
+            .upsert({
+                setting_key: 'waitlist_whatsapp_groups',
+                value_json: nextGroups,
+                description: 'Grupos de WhatsApp usados para distribuir leads capturados no registro privado.',
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'setting_key' });
+
+        return picked.url;
+    }
+
+    const legacyUrl = typeof settingsMap.get('waitlist_whatsapp_group_url') === 'string'
+        ? String(settingsMap.get('waitlist_whatsapp_group_url')).trim()
+        : '';
+
+    return legacyUrl || null;
+}
+
 function sleep(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -534,7 +606,7 @@ async function getLaunchSettings(central: SupabaseClient): Promise<LaunchSetting
         const { data, error } = await central
             .from('system_settings')
             .select('setting_key, value_json')
-            .in('setting_key', ['registration_open', 'manual_approval_enabled']);
+            .in('setting_key', ['registration_open', 'manual_approval_enabled', 'waitlist_whatsapp_group_url']);
 
         if (error) {
             console.warn(`[${SOURCE}] Failed to load launch settings:`, error.message);
@@ -551,7 +623,10 @@ async function getLaunchSettings(central: SupabaseClient): Promise<LaunchSetting
             manualApprovalEnabled: readBooleanSetting(
                 settingsMap.get('manual_approval_enabled'),
                 DEFAULT_LAUNCH_SETTINGS.manualApprovalEnabled
-            )
+            ),
+            waitlistWhatsappGroupUrl: typeof settingsMap.get('waitlist_whatsapp_group_url') === 'string'
+                ? String(settingsMap.get('waitlist_whatsapp_group_url')).trim() || null
+                : null
         };
     } catch (error: any) {
         console.warn(`[${SOURCE}] Unexpected launch settings error:`, error?.message || error);
@@ -788,7 +863,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const ip = getIp(req);
     const action = req.body?.action as PublicAction | undefined;
 
-    if (!action || !['signup', 'resend', 'track', 'status', 'waitlist', 'validate_invite'].includes(action)) {
+    if (!action || !['signup', 'resend', 'track', 'status', 'waitlist', 'waitlist_group_link', 'validate_invite'].includes(action)) {
         return res.status(400).json({ error: 'Acao invalida.' });
     }
 
@@ -797,7 +872,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (action === 'status') {
-        const central = getCentralClient();
+        const central = getCentralAdminClient() || getCentralClient();
         if (!central) {
             return res.status(500).json({ error: 'Configuracao do servidor indisponivel.' });
         }
@@ -806,12 +881,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).json({
             success: true,
             registrationOpen: settings.registrationOpen,
-            manualApprovalEnabled: settings.manualApprovalEnabled
+            manualApprovalEnabled: settings.manualApprovalEnabled,
+            waitlistWhatsappGroupUrl: settings.waitlistWhatsappGroupUrl
         });
     }
 
     if (action === 'validate_invite') {
-        const central = getCentralClient();
+        const central = getCentralAdminClient() || getCentralClient();
         if (!central) {
             return res.status(500).json({ error: 'Configuracao do servidor indisponivel.' });
         }
@@ -835,6 +911,59 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (!email || !isValidEmail(email)) {
         return res.status(400).json({ error: 'Informe um e-mail valido.' });
+    }
+
+    if (action === 'waitlist_group_link') {
+        const rate = await enforceRateLimit({ action: 'waitlist', ip, email });
+        if (rate.blocked) {
+            res.setHeader('Retry-After', String(rate.retryAfterSec || 60));
+            return res.status(429).json({
+                error: 'Muitas tentativas agora. Aguarde alguns minutos e tente novamente.',
+                error_code: 'rate_limited',
+                retryAfterSec: rate.retryAfterSec
+            });
+        }
+
+        await incrementRateLimitBucket(`waitlist:ip:${ip}`, HARD_LIMITS.waitlistIp);
+        await incrementRateLimitBucket(`waitlist:email:${emailFingerprint(email)}`, HARD_LIMITS.waitlistEmail);
+
+        const central = getCentralAdminClient();
+        if (!central) {
+            return res.status(500).json({ error: 'Configuracao do servidor indisponivel.' });
+        }
+
+        try {
+            const groupUrl = await getWaitlistWhatsappGroupLink(central);
+            if (!groupUrl) {
+                return res.status(404).json({
+                    error: 'Nenhum grupo ativo configurado.',
+                    error_code: 'waitlist_group_unavailable'
+                });
+            }
+
+            await logSecurityEvent({
+                eventType: 'register_waitlist_group_click',
+                severity: 'INFO',
+                ip,
+                userAgent,
+                source: SOURCE,
+                metadata: {
+                    email: maskEmail(email),
+                    email_fingerprint: emailFingerprint(email)
+                }
+            });
+
+            return res.status(200).json({
+                success: true,
+                waitlistGroupUrl: groupUrl
+            });
+        } catch (error: any) {
+            console.error(`[${SOURCE}] Waitlist group link error:`, error?.message || error);
+            return res.status(500).json({
+                error: 'Nao foi possivel abrir o grupo agora.',
+                error_code: 'waitlist_group_failed'
+            });
+        }
     }
 
     if (action === 'signup' && honeypot) {
@@ -918,6 +1047,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (action === 'waitlist') {
+        const name = String(req.body?.name || '').trim();
+
         await incrementRateLimitBucket(`waitlist:ip:${ip}`, HARD_LIMITS.waitlistIp);
         await incrementRateLimitBucket(`waitlist:email:${emailFingerprint(email)}`, HARD_LIMITS.waitlistEmail);
 
@@ -933,7 +1064,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
         });
 
-        const central = getCentralClient();
+        const central = getCentralAdminClient() || getCentralClient();
         if (!central) {
             return res.status(500).json({ error: 'Configuracao do servidor indisponivel.' });
         }
@@ -945,6 +1076,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     email,
                     source: 'register_launch_closed',
                     metadata: {
+                        name: name || null,
                         ip,
                         user_agent: userAgent
                     }

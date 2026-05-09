@@ -10,8 +10,10 @@ export interface RegisterApiResponse {
     captchaSiteKey?: string | null;
     registrationOpen?: boolean;
     manualApprovalEnabled?: boolean;
+    waitlistWhatsappGroupUrl?: string | null;
     approvalPending?: boolean;
     alreadyJoined?: boolean;
+    waitlistGroupUrl?: string | null;
     inviteValid?: boolean;
     inviteReason?: string | null;
     inviteExpiresAt?: string | null;
@@ -82,10 +84,20 @@ export function validateInviteToken(payload: {
 }
 
 export function joinRegistrationWaitlist(payload: {
+    name?: string;
     email: string;
 }) {
     return postRegister({
         action: 'waitlist',
+        ...payload
+    });
+}
+
+export function getWaitlistWhatsappGroupLink(payload: {
+    email: string;
+}) {
+    return postRegister({
+        action: 'waitlist_group_link',
         ...payload
     });
 }

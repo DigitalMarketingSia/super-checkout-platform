@@ -5,7 +5,7 @@ import { Mail, Lock, User, Loader2, ArrowRight, AlertCircle, CheckCircle, Sparkl
 import { useTranslation } from 'react-i18next';
 import { sanitizeTranslationHtml } from '../../utils/sanitize';
 import { openInboxForEmail } from '../../utils/emailInbox';
-import { getRegistrationStatus, joinRegistrationWaitlist, registerAccount, resendRegistrationEmail, trackRegistrationEvent, validateInviteToken as validateRegistrationInvite } from '../../services/registerFlow';
+import { getRegistrationStatus, getWaitlistWhatsappGroupLink, joinRegistrationWaitlist, registerAccount, resendRegistrationEmail, trackRegistrationEvent, validateInviteToken as validateRegistrationInvite } from '../../services/registerFlow';
 import { RiskCaptcha } from '../../components/auth/RiskCaptcha';
 import { PhoneInput } from '../../components/ui/PhoneInput';
 
@@ -25,8 +25,10 @@ export const Register = () => {
     const [hasStartedForm, setHasStartedForm] = useState(false);
     const [registrationOpen, setRegistrationOpen] = useState(true);
     const [manualApprovalEnabled, setManualApprovalEnabled] = useState(false);
+    const [waitlistWhatsappGroupUrl, setWaitlistWhatsappGroupUrl] = useState<string | null>(null);
     const [statusLoading, setStatusLoading] = useState(true);
     const [waitlistLoading, setWaitlistLoading] = useState(false);
+    const [waitlistGroupOpening, setWaitlistGroupOpening] = useState(false);
     const [waitlistSuccess, setWaitlistSuccess] = useState<string | null>(null);
     const [approvalPending, setApprovalPending] = useState(false);
     const [inviteState, setInviteState] = useState<{
@@ -118,6 +120,7 @@ export const Register = () => {
                 if (!active) return;
                 setRegistrationOpen(response.registrationOpen !== false);
                 setManualApprovalEnabled(Boolean(response.manualApprovalEnabled));
+                setWaitlistWhatsappGroupUrl(response.waitlistWhatsappGroupUrl || null);
             })
             .catch((err) => {
                 console.error('Registration status error:', err);
@@ -306,7 +309,7 @@ export const Register = () => {
         setWaitlistSuccess(null);
 
         try {
-            const response = await joinRegistrationWaitlist({ email });
+            const response = await joinRegistrationWaitlist({ name, email });
             setWaitlistSuccess(
                 response.alreadyJoined
                     ? 'Seu e-mail ja estava na lista. Vamos avisar quando abrirmos.'
@@ -317,6 +320,33 @@ export const Register = () => {
             setError(applyApiErrorState(err));
         } finally {
             setWaitlistLoading(false);
+        }
+    };
+
+    const handleOpenWaitlistGroup = async () => {
+        if (!email) {
+            setError('Informe seu e-mail para abrir o grupo.');
+            return;
+        }
+
+        setWaitlistGroupOpening(true);
+        setError(null);
+
+        try {
+            const response = await getWaitlistWhatsappGroupLink({ email });
+            const groupUrl = response.waitlistGroupUrl || waitlistWhatsappGroupUrl;
+
+            if (!groupUrl) {
+                setError('Nenhum grupo VIP ativo foi configurado ainda. Fique de olho no seu e-mail.');
+                return;
+            }
+
+            window.open(groupUrl, '_blank', 'noopener,noreferrer');
+        } catch (err: any) {
+            console.error('Waitlist group link error:', err);
+            setError(applyApiErrorState(err));
+        } finally {
+            setWaitlistGroupOpening(false);
         }
     };
 
@@ -530,15 +560,15 @@ export const Register = () => {
                         </p>
 
                         <div className="space-y-6">
-                            <a
-                                href="https://chat.whatsapp.com/EXAMPLE"
-                                target="_blank"
-                                rel="noopener noreferrer"
+                            <button
+                                type="button"
+                                disabled={waitlistGroupOpening}
+                                onClick={handleOpenWaitlistGroup}
                                 className="flex items-center justify-center gap-3 w-full bg-gradient-to-r from-[#25D366] to-[#128C7E] text-white font-black uppercase text-sm py-5 rounded-2xl transition-all hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(37,211,102,0.2)] active:scale-95 italic tracking-widest"
                             >
-                                <Zap className="w-4 h-4 fill-current" />
+                                {waitlistGroupOpening ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4 fill-current" />}
                                 <span>Entrar no Grupo VIP</span>
-                            </a>
+                            </button>
 
                             <div className="pt-4">
                                 <a

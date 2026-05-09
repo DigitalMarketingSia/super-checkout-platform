@@ -3,6 +3,8 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 const CRM_READ_ACTIONS = new Set([
     'get_partners',
     'get_launch_settings',
+    'get_registration_waitlist',
+    'update_registration_waitlist_lead',
     'get_registration_approval_queue',
     'get_crm_data',
     'get_crm_user_details',

@@ -1,6 +1,25 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Save, Layout, Target, FileText, Trash2, TrendingUp, StickyNote, Link2 } from 'lucide-react';
+import {
+  X,
+  Save,
+  Layout,
+  Target,
+  FileText,
+  Trash2,
+  TrendingUp,
+  StickyNote,
+  Link2,
+  Zap,
+  Package,
+  CheckCircle,
+  ArrowUpCircle,
+  ArrowDownCircle,
+  CreditCard,
+  RefreshCw,
+  DollarSign,
+  MousePointer2
+} from 'lucide-react';
 import { ICON_MAP } from '../lib/icons';
 import { useFunnelStore } from '../store/useFunnelStore';
 import { cn } from '../lib/utils';

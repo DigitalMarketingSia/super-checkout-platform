@@ -24,7 +24,7 @@ import {
     Zap,
     TrendingUp,
     Layout as LayoutIcon,
-    AlertCircle, Loader2, Globe, RefreshCw
+    AlertCircle, Loader2, Globe, RefreshCw, Plus, Trash2, MessageCircle, Lock
 } from 'lucide-react';
 
 import { toast } from 'sonner';
@@ -86,6 +86,33 @@ interface FreeUserRow {
 interface LaunchSettingsState {
     registration_open: boolean;
     manual_approval_enabled: boolean;
+    waitlist_whatsapp_group_url: string;
+    waitlist_whatsapp_groups: WaitlistWhatsappGroup[];
+}
+
+interface WaitlistWhatsappGroup {
+    id: string;
+    name: string;
+    url: string;
+    active: boolean;
+    clickLimit: number;
+    clicks: number;
+}
+
+interface RegistrationWaitlistLead {
+    id: string;
+    email: string;
+    source: string;
+    metadata?: {
+        name?: string | null;
+        ip?: string | null;
+        user_agent?: string | null;
+        invite_url?: string | null;
+        invite_status?: 'draft' | 'sent' | string | null;
+        invite_sent_at?: string | null;
+        archived_at?: string | null;
+    } | null;
+    created_at: string;
 }
 
 interface ApprovalQueueRow {
@@ -137,6 +164,7 @@ export const LeadCRM: React.FC = () => {
     const isAdmin = user?.email === 'contato.jeandamin@gmail.com';
     const { hasFeature, isOwner, loading: featuresLoading } = useFeatures();
     const hasCrmAccess = isOwner || isAdmin || hasFeature('FEATURE_CRM_LEADS');
+    const [crmSection, setCrmSection] = useState<'public' | 'private'>('public');
 
     // CRM States
     const [users, setUsers] = useState<FreeUserRow[]>([]);
@@ -149,13 +177,24 @@ export const LeadCRM: React.FC = () => {
     const [contactedUsers, setContactedUsers] = useState<Set<string>>(new Set());
     const [launchSettings, setLaunchSettings] = useState<LaunchSettingsState>({
         registration_open: true,
-        manual_approval_enabled: false
+        manual_approval_enabled: false,
+        waitlist_whatsapp_group_url: '',
+        waitlist_whatsapp_groups: []
     });
     const [launchLoading, setLaunchLoading] = useState(true);
     const [launchSaving, setLaunchSaving] = useState(false);
     const [approvalQueue, setApprovalQueue] = useState<ApprovalQueueRow[]>([]);
     const [approvalLoading, setApprovalLoading] = useState(true);
     const [approvalProcessingId, setApprovalProcessingId] = useState<string | null>(null);
+    const [waitlistLeads, setWaitlistLeads] = useState<RegistrationWaitlistLead[]>([]);
+    const [waitlistLoading, setWaitlistLoading] = useState(true);
+    const [waitlistPage, setWaitlistPage] = useState(1);
+    const [waitlistTotalCount, setWaitlistTotalCount] = useState(0);
+    const waitlistPageSize = 25;
+    const [selectedWaitlistLead, setSelectedWaitlistLead] = useState<RegistrationWaitlistLead | null>(null);
+    const [waitlistInviteUrl, setWaitlistInviteUrl] = useState('');
+    const [waitlistLeadUpdating, setWaitlistLeadUpdating] = useState(false);
+    const [waitlistInviteGenerating, setWaitlistInviteGenerating] = useState(false);
     const [inviteCreating, setInviteCreating] = useState(false);
     const [showInviteWidget, setShowInviteWidget] = useState(false);
     const [generatedInviteUrl, setGeneratedInviteUrl] = useState<string | null>(null);
@@ -192,12 +231,18 @@ export const LeadCRM: React.FC = () => {
         fetchPartners();
         fetchLaunchControls();
         fetchApprovalQueue();
+        fetchWaitlistLeads();
     }, [user?.id]);
 
     useEffect(() => {
         if (!session?.access_token) return;
         fetchUsers();
     }, [page, statusFilter, partnerFilter, user?.id]);
+
+    useEffect(() => {
+        if (!session?.access_token || !initialCrmMetaLoadedRef.current) return;
+        fetchWaitlistLeads();
+    }, [waitlistPage]);
 
     useEffect(() => {
         return () => {
@@ -249,7 +294,11 @@ export const LeadCRM: React.FC = () => {
             if (result.settings) {
                 setLaunchSettings({
                     registration_open: result.settings.registration_open !== false,
-                    manual_approval_enabled: Boolean(result.settings.manual_approval_enabled)
+                    manual_approval_enabled: Boolean(result.settings.manual_approval_enabled),
+                    waitlist_whatsapp_group_url: String(result.settings.waitlist_whatsapp_group_url || ''),
+                    waitlist_whatsapp_groups: Array.isArray(result.settings.waitlist_whatsapp_groups)
+                        ? result.settings.waitlist_whatsapp_groups
+                        : []
                 });
             }
 
@@ -286,11 +335,37 @@ export const LeadCRM: React.FC = () => {
         }
     };
 
+    const fetchWaitlistLeads = async () => {
+        try {
+            setWaitlistLoading(true);
+            const response = await fetch('/api/central/manage-licenses', {
+                method: 'POST',
+                headers: await getAuthHeaders(),
+                body: JSON.stringify({
+                    action: 'get_registration_waitlist',
+                    page: waitlistPage,
+                    limit: waitlistPageSize
+                })
+            });
+
+            const result = await response.json();
+            if (!result.success) throw new Error(result.error || 'Erro ao carregar lista de espera');
+
+            setWaitlistLeads(result.data || []);
+            setWaitlistTotalCount(result.count || 0);
+        } catch (error) {
+            console.error('Error fetching registration waitlist:', error);
+            toast.error('Nao foi possivel carregar a lista de espera.');
+        } finally {
+            setWaitlistLoading(false);
+        }
+    };
+
     const fetchUsers = async (options?: { silent?: boolean }) => {
         const silent = options?.silent === true;
 
         try {
-            if (silent) {
+            if (silent || users.length > 0) {
                 setIsRefreshingLeads(true);
             } else {
                 setLoading(true);
@@ -374,7 +449,7 @@ export const LeadCRM: React.FC = () => {
             console.error('Error fetching CRM users:', error);
             toast.error(`Erro ao carregar leads: ${error.message || 'Desconhecido'}`);
         } finally {
-            if (silent) {
+            if (silent || users.length > 0) {
                 setIsRefreshingLeads(false);
             } else {
                 setLoading(false);
@@ -383,7 +458,11 @@ export const LeadCRM: React.FC = () => {
     };
 
     const handleRefreshLeads = async () => {
-        await fetchUsers({ silent: true });
+        await Promise.all([
+            fetchUsers({ silent: true }),
+            fetchLaunchControls(),
+            fetchWaitlistLeads()
+        ]);
     };
 
     const handleWhatsAppContact = (user: FreeUserRow) => {
@@ -419,6 +498,173 @@ export const LeadCRM: React.FC = () => {
         } catch {
             toast.error(`Nao foi possivel copiar ${label.toLowerCase()}.`);
         }
+    };
+
+    const getWaitlistLeadName = (lead: RegistrationWaitlistLead) => {
+        return lead.metadata?.name || 'Lead privado';
+    };
+
+    const getWaitlistInviteStatus = (lead: RegistrationWaitlistLead) => {
+        if (lead.metadata?.invite_status === 'sent' || lead.metadata?.invite_sent_at) {
+            return {
+                label: 'Convite enviado',
+                className: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
+            };
+        }
+
+        if (lead.metadata?.invite_url) {
+            return {
+                label: 'Convite pronto',
+                className: 'border-blue-500/20 bg-blue-500/10 text-blue-300'
+            };
+        }
+
+        return {
+            label: 'Novo',
+            className: 'border-white/10 bg-white/[0.03] text-white/35'
+        };
+    };
+
+    const openWaitlistLeadModal = (lead: RegistrationWaitlistLead) => {
+        setSelectedWaitlistLead(lead);
+        setWaitlistInviteUrl(lead.metadata?.invite_url || '');
+    };
+
+    const updateWaitlistLeadMetadata = async (
+        lead: RegistrationWaitlistLead,
+        metadataPatch: Record<string, unknown>,
+        options?: { closeModal?: boolean; silent?: boolean }
+    ) => {
+        try {
+            setWaitlistLeadUpdating(true);
+            const response = await fetch('/api/central/manage-licenses', {
+                method: 'POST',
+                headers: await getAuthHeaders(),
+                body: JSON.stringify({
+                    action: 'update_registration_waitlist_lead',
+                    lead_id: lead.id,
+                    metadata_patch: metadataPatch
+                })
+            });
+
+            const result = await response.json();
+            if (!result.success) throw new Error(result.error || 'Nao foi possivel atualizar o lead.');
+
+            if (!options?.silent) {
+                toast.success('Lead privado atualizado.');
+            }
+
+            if (options?.closeModal) {
+                setSelectedWaitlistLead(null);
+            } else if (result.data) {
+                setSelectedWaitlistLead(result.data);
+                setWaitlistInviteUrl(result.data.metadata?.invite_url || '');
+            }
+
+            await fetchWaitlistLeads();
+            return result.data as RegistrationWaitlistLead;
+        } catch (error: any) {
+            console.error('Error updating waitlist lead:', error);
+            toast.error(error.message || 'Nao foi possivel atualizar o lead privado.');
+            return null;
+        } finally {
+            setWaitlistLeadUpdating(false);
+        }
+    };
+
+    const buildInviteEmailBody = (lead: RegistrationWaitlistLead, inviteUrl: string) => {
+        const firstName = getWaitlistLeadName(lead).split(' ')[0] || 'tudo bem';
+        return [
+            `Ola, ${firstName}!`,
+            '',
+            'Seu convite exclusivo para criar a conta no Super Checkout foi liberado.',
+            '',
+            `Acesse por aqui: ${inviteUrl}`,
+            '',
+            'Esse link e pessoal. Assim que concluir o cadastro, voce entra no fluxo oficial de ativacao.',
+            '',
+            'Te espero la,',
+            'Equipe Super Checkout'
+        ].join('\n');
+    };
+
+    const handleGenerateWaitlistInvite = async () => {
+        if (!selectedWaitlistLead) return;
+
+        try {
+            setWaitlistInviteGenerating(true);
+            const response = await fetch('/api/central/manage-licenses', {
+                method: 'POST',
+                headers: await getAuthHeaders(),
+                body: JSON.stringify({
+                    action: 'create_invite_token',
+                    expires_in_days: inviteExpirationDays
+                })
+            });
+
+            const result = await response.json();
+            if (!result.success || !result.data?.token) {
+                throw new Error(result.error || 'Nao foi possivel gerar o convite.');
+            }
+
+            const inviteUrl = getRegisterUrl({ invite: result.data.token });
+            setWaitlistInviteUrl(inviteUrl);
+            await updateWaitlistLeadMetadata(selectedWaitlistLead, {
+                invite_url: inviteUrl,
+                invite_status: 'draft',
+                invite_token_id: result.data.id || null,
+                invite_expires_at: result.data.expires_at || null
+            }, { silent: true });
+            toast.success('Convite exclusivo gerado.');
+        } catch (error: any) {
+            console.error('Error generating waitlist invite:', error);
+            toast.error(error.message || 'Nao foi possivel gerar o convite.');
+        } finally {
+            setWaitlistInviteGenerating(false);
+        }
+    };
+
+    const handleSendWaitlistInviteEmail = async () => {
+        if (!selectedWaitlistLead) return;
+        const inviteUrl = waitlistInviteUrl.trim();
+
+        if (!inviteUrl) {
+            toast.error('Informe ou gere um link de convite antes de enviar.');
+            return;
+        }
+
+        await updateWaitlistLeadMetadata(selectedWaitlistLead, {
+            invite_url: inviteUrl,
+            invite_status: 'sent',
+            invite_sent_at: new Date().toISOString()
+        }, { silent: true });
+
+        const subject = encodeURIComponent('Seu convite exclusivo para o Super Checkout');
+        const body = encodeURIComponent(buildInviteEmailBody(selectedWaitlistLead, inviteUrl));
+        window.location.href = `mailto:${selectedWaitlistLead.email}?subject=${subject}&body=${body}`;
+        toast.success('Convite marcado como enviado.');
+    };
+
+    const handleCopyWaitlistInviteMessage = async () => {
+        if (!selectedWaitlistLead) return;
+        const inviteUrl = waitlistInviteUrl.trim();
+
+        if (!inviteUrl) {
+            toast.error('Informe ou gere um link de convite antes de copiar.');
+            return;
+        }
+
+        await navigator.clipboard.writeText(buildInviteEmailBody(selectedWaitlistLead, inviteUrl));
+        toast.success('Mensagem de convite copiada.');
+    };
+
+    const handleArchiveWaitlistLead = async (lead: RegistrationWaitlistLead) => {
+        const confirmed = window.confirm('Arquivar este lead privado? Ele sai da lista principal, mas o registro historico fica preservado.');
+        if (!confirmed) return;
+
+        await updateWaitlistLeadMetadata(lead, {
+            archived_at: new Date().toISOString()
+        }, { closeModal: selectedWaitlistLead?.id === lead.id });
     };
 
     const formatLeadDateTime = (value?: string | null) => {
@@ -478,7 +724,11 @@ export const LeadCRM: React.FC = () => {
 
             setLaunchSettings({
                 registration_open: result.settings?.registration_open !== false,
-                manual_approval_enabled: Boolean(result.settings?.manual_approval_enabled)
+                manual_approval_enabled: Boolean(result.settings?.manual_approval_enabled),
+                waitlist_whatsapp_group_url: String(result.settings?.waitlist_whatsapp_group_url || ''),
+                waitlist_whatsapp_groups: Array.isArray(result.settings?.waitlist_whatsapp_groups)
+                    ? result.settings.waitlist_whatsapp_groups
+                    : []
             });
 
             toast.success('Controles operacionais atualizados.');
@@ -489,6 +739,46 @@ export const LeadCRM: React.FC = () => {
         } finally {
             setLaunchSaving(false);
         }
+    };
+
+    const handleAddWaitlistGroup = () => {
+        setLaunchSettings(prev => ({
+            ...prev,
+            waitlist_whatsapp_groups: [
+                ...prev.waitlist_whatsapp_groups,
+                {
+                    id: crypto.randomUUID(),
+                    name: `Grupo ${prev.waitlist_whatsapp_groups.length + 1}`,
+                    url: '',
+                    active: true,
+                    clickLimit: 1000,
+                    clicks: 0
+                }
+            ]
+        }));
+    };
+
+    const handleUpdateWaitlistGroup = (groupId: string, updates: Partial<WaitlistWhatsappGroup>) => {
+        setLaunchSettings(prev => ({
+            ...prev,
+            waitlist_whatsapp_groups: prev.waitlist_whatsapp_groups.map(group => group.id === groupId
+                ? { ...group, ...updates }
+                : group
+            )
+        }));
+    };
+
+    const handleRemoveWaitlistGroup = (groupId: string) => {
+        setLaunchSettings(prev => ({
+            ...prev,
+            waitlist_whatsapp_groups: prev.waitlist_whatsapp_groups.filter(group => group.id !== groupId)
+        }));
+    };
+
+    const handleSaveWaitlistGroups = () => {
+        handleUpdateLaunchSettings({
+            waitlist_whatsapp_groups: launchSettings.waitlist_whatsapp_groups
+        });
     };
 
     const handleApprovalDecision = async (userId: string, decision: 'approve' | 'reject') => {
@@ -717,6 +1007,40 @@ export const LeadCRM: React.FC = () => {
         return matchesSearch;
     });
 
+    const waitlistTotalPages = Math.max(1, Math.ceil(waitlistTotalCount / waitlistPageSize));
+
+    const CrmSectionButton = ({
+        id,
+        label,
+        description,
+        icon: Icon
+    }: {
+        id: 'public' | 'private';
+        label: string;
+        description: string;
+        icon: React.ElementType;
+    }) => (
+        <button
+            type="button"
+            onClick={() => setCrmSection(id)}
+            className={`flex min-w-[240px] flex-1 items-center gap-4 rounded-2xl border px-5 py-4 text-left transition-all ${
+                crmSection === id
+                    ? 'border-primary/40 bg-primary/15 text-white shadow-[0_0_24px_rgba(138,43,226,0.18)]'
+                    : 'border-white/5 bg-black/30 text-white/45 hover:border-white/15 hover:text-white'
+            }`}
+        >
+            <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border ${
+                crmSection === id ? 'border-primary/30 bg-primary/20 text-primary' : 'border-white/10 bg-white/[0.03] text-white/30'
+            }`}>
+                <Icon className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+                <p className="text-[11px] font-black uppercase italic tracking-[0.22em]">{label}</p>
+                <p className="mt-1 text-[10px] font-semibold leading-snug text-white/35">{description}</p>
+            </div>
+        </button>
+    );
+
     if (featuresLoading) {
         return <Loading label="Carregando CRM" />;
     }
@@ -742,7 +1066,7 @@ export const LeadCRM: React.FC = () => {
                 
             {/* Tactical Header Architecture */}
             <div 
-                className="flex flex-wrap items-start lg:items-center justify-between gap-8 mb-12 p-8 rounded-[2.5rem] border-2 border-dashed border-white/20 backdrop-blur-3xl relative transition-all shadow-[0_20px_50px_rgba(0,0,0,0.5)]"
+                className="sticky top-4 z-30 flex flex-wrap items-start lg:items-center justify-between gap-8 mb-12 p-8 rounded-[2.5rem] border-2 border-dashed border-white/20 backdrop-blur-3xl transition-all shadow-[0_20px_50px_rgba(0,0,0,0.5)]"
                 style={{ 
                     background: 'linear-gradient(135deg, rgba(0,0,0,0.4) 0%, rgba(138,43,226,0.1) 100%)',
                 }}
@@ -858,7 +1182,237 @@ export const LeadCRM: React.FC = () => {
     </div>
 </div>
 
+            <div className="grid gap-3 md:grid-cols-2">
+                <CrmSectionButton
+                    id="public"
+                    label="Cadastro Publico"
+                    description="Leads com conta, licenca, aprovacao e lifecycle operacional."
+                    icon={Globe}
+                />
+                <CrmSectionButton
+                    id="private"
+                    label="Registro Privado"
+                    description="Lista de espera, grupos de WhatsApp e distribuicao por limite."
+                    icon={Lock}
+                />
+            </div>
+
+            {crmSection === 'private' && (
+                <div className="space-y-6">
+                    <div className="rounded-[2rem] border border-white/10 bg-black/35 p-5 backdrop-blur-2xl">
+                        <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
+                            <div>
+                                <p className="text-[9px] font-black uppercase tracking-[0.32em] text-emerald-400/70">Registro Privado</p>
+                                <h2 className="mt-1 text-xl font-black uppercase italic tracking-tighter text-white">Grupos de WhatsApp</h2>
+                            </div>
+                            <div className={`rounded-full border px-3 py-1 text-[8px] font-black uppercase tracking-widest ${
+                                launchSettings.registration_open
+                                    ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
+                                    : 'border-red-500/20 bg-red-500/10 text-red-300'
+                            }`}>
+                                {launchSettings.registration_open ? 'Cadastro publico aberto' : 'Registro privado ativo'}
+                            </div>
+                        </div>
+
+                        <div className="grid gap-4 xl:grid-cols-2">
+                            {launchSettings.waitlist_whatsapp_groups.map((group, index) => {
+                                const percent = Math.min(100, Math.round((group.clicks / Math.max(1, group.clickLimit)) * 100));
+                                return (
+                                    <div key={group.id} className="rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-4">
+                                        <div className="mb-4 flex items-center justify-between gap-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-500/20 bg-emerald-500/10 text-emerald-300">
+                                                    <MessageCircle className="h-4 w-4" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-[10px] font-black uppercase tracking-[0.24em] text-white/25">Grupo {index + 1}</p>
+                                                    <p className="text-sm font-black uppercase italic text-white">{group.name || 'Sem nome'}</p>
+                                                </div>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleRemoveWaitlistGroup(group.id)}
+                                                className="h-9 w-9 rounded-xl border border-red-500/20 bg-red-500/10 text-red-300 transition-all hover:bg-red-500/15"
+                                                title="Remover grupo"
+                                            >
+                                                <Trash2 className="mx-auto h-4 w-4" />
+                                            </button>
+                                        </div>
+
+                                        <div className="grid gap-3 md:grid-cols-[0.7fr,1.3fr]">
+                                            <input
+                                                type="text"
+                                                value={group.name}
+                                                onChange={(event) => handleUpdateWaitlistGroup(group.id, { name: event.target.value })}
+                                                placeholder="Nome do grupo"
+                                                className="rounded-2xl border border-white/10 bg-black/50 px-4 py-3 text-sm text-white outline-none placeholder:text-white/10 focus:border-emerald-500/40"
+                                            />
+                                            <input
+                                                type="url"
+                                                value={group.url}
+                                                onChange={(event) => handleUpdateWaitlistGroup(group.id, { url: event.target.value })}
+                                                placeholder="https://chat.whatsapp.com/..."
+                                                className="rounded-2xl border border-white/10 bg-black/50 px-4 py-3 text-sm text-white outline-none placeholder:text-white/10 focus:border-emerald-500/40"
+                                            />
+                                            <input
+                                                type="number"
+                                                min={1}
+                                                value={group.clickLimit}
+                                                onChange={(event) => handleUpdateWaitlistGroup(group.id, { clickLimit: Number(event.target.value) || 1000 })}
+                                                className="rounded-2xl border border-white/10 bg-black/50 px-4 py-3 text-sm text-white outline-none focus:border-emerald-500/40"
+                                            />
+                                            <label className="flex items-center justify-between rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-[10px] font-black uppercase tracking-[0.24em] text-white/45">
+                                                <span>Ativo</span>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={group.active}
+                                                    onChange={(event) => handleUpdateWaitlistGroup(group.id, { active: event.target.checked })}
+                                                />
+                                            </label>
+                                        </div>
+
+                                        <div className="mt-4">
+                                            <div className="mb-2 flex items-center justify-between text-[9px] font-black uppercase tracking-[0.22em] text-white/25">
+                                                <span>{group.clicks}/{group.clickLimit} cliques</span>
+                                                <span>{percent}%</span>
+                                            </div>
+                                            <div className="h-2 overflow-hidden rounded-full bg-white/5">
+                                                <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${percent}%` }} />
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+
+                            {launchSettings.waitlist_whatsapp_groups.length === 0 && (
+                                <div className="rounded-[1.5rem] border border-dashed border-white/10 bg-black/20 p-8 text-center text-[10px] font-black uppercase tracking-[0.28em] text-white/15 xl:col-span-2">
+                                    Nenhum grupo configurado
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="mt-5 flex flex-wrap justify-end gap-3 border-t border-white/5 pt-5">
+                            <button
+                                type="button"
+                                onClick={handleAddWaitlistGroup}
+                                className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-[9px] font-black uppercase tracking-[0.24em] text-white/60 hover:text-white"
+                            >
+                                <Plus className="h-3.5 w-3.5" />
+                                Novo Grupo
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleSaveWaitlistGroups}
+                                disabled={launchSaving}
+                                className="inline-flex items-center gap-2 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-5 py-3 text-[9px] font-black uppercase tracking-[0.24em] text-emerald-300 hover:bg-emerald-500/15 disabled:opacity-50"
+                            >
+                                {launchSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle className="h-3.5 w-3.5" />}
+                                Salvar Grupos
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="rounded-[2rem] border border-white/10 bg-black/35 p-5 backdrop-blur-2xl">
+                        <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
+                            <div>
+                                <p className="text-[9px] font-black uppercase tracking-[0.32em] text-orange-400/70">Lista de Espera</p>
+                                <h2 className="mt-1 text-xl font-black uppercase italic tracking-tighter text-white">Leads do Registro Privado</h2>
+                                <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.22em] text-white/20">{waitlistTotalCount} leads capturados</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={fetchWaitlistLeads}
+                                disabled={waitlistLoading}
+                                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-[8px] font-black uppercase tracking-[0.22em] text-white/50 hover:text-white disabled:opacity-50"
+                            >
+                                <RefreshCw className={`h-3 w-3 ${waitlistLoading ? 'animate-spin text-orange-300' : ''}`} />
+                                Atualizar
+                            </button>
+                        </div>
+
+                        <div className="overflow-hidden rounded-[1.5rem] border border-white/5">
+                            {waitlistLoading && waitlistLeads.length === 0 ? (
+                                <div className="flex items-center justify-center py-16 text-white/25">
+                                    <Loader2 className="h-5 w-5 animate-spin" />
+                                </div>
+                            ) : waitlistLeads.length === 0 ? (
+                                <div className="py-16 text-center text-[10px] font-black uppercase tracking-[0.3em] text-white/10">
+                                    Nenhum lead na lista de espera
+                                </div>
+                            ) : (
+                                <div className="overflow-x-auto custom-scrollbar">
+                                    <table className="w-full text-left">
+                                        <thead className="border-b border-white/5 bg-white/[0.02]">
+                                            <tr>
+                                                <th className="px-5 py-4 text-[9px] font-black uppercase tracking-[0.28em] text-white/15">Lead</th>
+                                                <th className="px-5 py-4 text-[9px] font-black uppercase tracking-[0.28em] text-white/15">Status</th>
+                                                <th className="px-5 py-4 text-[9px] font-black uppercase tracking-[0.28em] text-white/15">Origem</th>
+                                                <th className="px-5 py-4 text-[9px] font-black uppercase tracking-[0.28em] text-white/15">Data</th>
+                                                <th className="px-5 py-4 text-center text-[9px] font-black uppercase tracking-[0.28em] text-white/15">Acoes</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-white/5">
+                                            {waitlistLeads.map((lead) => {
+                                                const leadName = getWaitlistLeadName(lead);
+                                                const inviteStatus = getWaitlistInviteStatus(lead);
+                                                return (
+                                                    <tr key={lead.id} className="bg-black/20 hover:bg-white/[0.02]">
+                                                        <td className="px-5 py-4">
+                                                            <p className="text-sm font-black uppercase italic text-white">{leadName}</p>
+                                                            <p className="text-[11px] font-mono text-white/35">{lead.email}</p>
+                                                        </td>
+                                                        <td className="px-5 py-4">
+                                                            <span className={`inline-flex rounded-full border px-3 py-1 text-[8px] font-black uppercase tracking-[0.22em] ${inviteStatus.className}`}>
+                                                                {inviteStatus.label}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-5 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-white/30">{lead.source}</td>
+                                                        <td className="px-5 py-4 text-[10px] font-mono text-white/30">{new Date(lead.created_at).toLocaleString('pt-BR')}</td>
+                                                        <td className="px-5 py-4">
+                                                            <div className="flex justify-center gap-2">
+                                                                <button type="button" onClick={() => handleCopyLeadField('E-mail', lead.email)} className="h-10 w-10 rounded-xl border border-white/10 bg-black/30 text-white/35 hover:text-white" title="Copiar e-mail">
+                                                                    <Copy className="mx-auto h-4 w-4" />
+                                                                </button>
+                                                                <button type="button" onClick={() => openWaitlistLeadModal(lead)} className="h-10 w-10 rounded-xl border border-primary/20 bg-primary/10 text-primary hover:bg-primary/15" title="Detalhes do lead">
+                                                                    <LayoutIcon className="mx-auto h-4 w-4" />
+                                                                </button>
+                                                                <button type="button" onClick={() => handleArchiveWaitlistLead(lead)} className="h-10 w-10 rounded-xl border border-red-500/20 bg-red-500/10 text-red-300 hover:bg-red-500/15" title="Arquivar lead">
+                                                                    <Trash2 className="mx-auto h-4 w-4" />
+                                                                </button>
+                                                                <button type="button" onClick={() => { openWaitlistLeadModal(lead); }} className="h-10 w-10 rounded-xl border border-blue-500/20 bg-blue-500/10 text-blue-300 hover:bg-blue-500/15" title="Enviar convite">
+                                                                    <Mail className="mx-auto h-4 w-4" />
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+
+                        {waitlistTotalPages > 1 && (
+                            <div className="mt-5 flex items-center justify-center gap-3">
+                                <button type="button" onClick={() => setWaitlistPage(prev => Math.max(1, prev - 1))} disabled={waitlistPage === 1} className="h-11 w-11 rounded-xl border border-white/10 bg-black/30 text-white/40 disabled:opacity-25">
+                                    <ArrowRight className="mx-auto h-4 w-4 rotate-180" />
+                                </button>
+                                <span className="text-[10px] font-black uppercase tracking-[0.25em] text-white/25">
+                                    Pagina {waitlistPage} de {waitlistTotalPages}
+                                </span>
+                                <button type="button" onClick={() => setWaitlistPage(prev => Math.min(waitlistTotalPages, prev + 1))} disabled={waitlistPage === waitlistTotalPages} className="h-11 w-11 rounded-xl border border-white/10 bg-black/30 text-white/40 disabled:opacity-25">
+                                    <ArrowRight className="mx-auto h-4 w-4" />
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
             {/* TACTICAL FILTER OVERLAY */}
+            {crmSection === 'public' && (
+            <>
             <div className="mb-0 flex flex-col lg:flex-row gap-3 items-center justify-between bg-black/20 p-3 rounded-t-[2.5rem] border-x border-t border-white/5 backdrop-blur-xl">
                 <div className="w-full lg:w-96 relative group">
                     <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-4 h-4 text-white/10 group-focus-within:text-primary transition-colors" />
@@ -1208,6 +1762,8 @@ export const LeadCRM: React.FC = () => {
                     </div>
                 )}
             </div>
+            </>
+            )}
             
             <Modal
                 isOpen={Boolean(selectedLead)}
@@ -1380,6 +1936,170 @@ export const LeadCRM: React.FC = () => {
                                         </p>
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </Modal>
+
+            <Modal
+                isOpen={Boolean(selectedWaitlistLead)}
+                onClose={() => setSelectedWaitlistLead(null)}
+                title={
+                    selectedWaitlistLead ? (
+                        <div className="flex items-center gap-3 uppercase italic tracking-tighter">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-emerald-500/20 bg-emerald-500/10 text-emerald-300">
+                                <Lock className="h-5 w-5" />
+                            </div>
+                            <div className="min-w-0">
+                                <p className="truncate text-lg font-black text-white">{getWaitlistLeadName(selectedWaitlistLead)}</p>
+                                <p className="truncate text-[10px] font-mono uppercase tracking-[0.25em] text-white/35">
+                                    Lead privado
+                                </p>
+                            </div>
+                        </div>
+                    ) : null
+                }
+                className="max-w-3xl border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.25)]"
+            >
+                {selectedWaitlistLead && (
+                    <div className="space-y-8">
+                        <div className="grid gap-4 md:grid-cols-[1.1fr,0.9fr]">
+                            <div className="rounded-[1.75rem] border border-white/10 bg-black/20 p-6 space-y-4">
+                                <div className="flex flex-wrap items-center justify-between gap-3">
+                                    <p className="text-[10px] font-black uppercase tracking-[0.35em] text-emerald-300/70">Identidade</p>
+                                    <span className={`rounded-full border px-3 py-1 text-[8px] font-black uppercase tracking-[0.22em] ${getWaitlistInviteStatus(selectedWaitlistLead).className}`}>
+                                        {getWaitlistInviteStatus(selectedWaitlistLead).label}
+                                    </span>
+                                </div>
+                                <div className="grid gap-4 sm:grid-cols-2">
+                                    <div>
+                                        <p className="mb-1 text-[9px] font-black uppercase tracking-[0.28em] text-white/20">Nome</p>
+                                        <p className="text-sm text-white">{getWaitlistLeadName(selectedWaitlistLead)}</p>
+                                    </div>
+                                    <div>
+                                        <p className="mb-1 text-[9px] font-black uppercase tracking-[0.28em] text-white/20">E-mail</p>
+                                        <p className="break-all text-sm text-white">{selectedWaitlistLead.email}</p>
+                                    </div>
+                                    <div>
+                                        <p className="mb-1 text-[9px] font-black uppercase tracking-[0.28em] text-white/20">Origem</p>
+                                        <p className="text-sm text-white">{selectedWaitlistLead.source}</p>
+                                    </div>
+                                    <div>
+                                        <p className="mb-1 text-[9px] font-black uppercase tracking-[0.28em] text-white/20">Entrada</p>
+                                        <p className="text-sm text-white">{formatLeadDateTime(selectedWaitlistLead.created_at)}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="rounded-[1.75rem] border border-white/10 bg-black/20 p-6 space-y-4">
+                                <p className="text-[10px] font-black uppercase tracking-[0.35em] text-primary/70">Acoes Rapidas</p>
+                                <button
+                                    type="button"
+                                    onClick={() => handleCopyLeadField('E-mail', selectedWaitlistLead.email)}
+                                    className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-left text-white/80 transition-all hover:bg-white/[0.05]"
+                                >
+                                    <span className="text-sm font-semibold">Copiar e-mail</span>
+                                    <Copy className="h-4 w-4 text-white/35" />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleCopyWaitlistInviteMessage}
+                                    disabled={!waitlistInviteUrl.trim()}
+                                    className="flex w-full items-center justify-between rounded-2xl border border-blue-500/20 bg-blue-500/10 px-4 py-3 text-left text-blue-200 transition-all hover:bg-blue-500/15 disabled:opacity-40"
+                                >
+                                    <span className="text-sm font-semibold">Copiar mensagem</span>
+                                    <Copy className="h-4 w-4" />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleArchiveWaitlistLead(selectedWaitlistLead)}
+                                    disabled={waitlistLeadUpdating}
+                                    className="flex w-full items-center justify-between rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-left text-red-200 transition-all hover:bg-red-500/15 disabled:opacity-40"
+                                >
+                                    <span className="text-sm font-semibold">Arquivar lead</span>
+                                    <Trash2 className="h-4 w-4" />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="rounded-[1.75rem] border border-white/10 bg-white/[0.03] p-6 space-y-5">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                                <div>
+                                    <p className="text-[10px] font-black uppercase tracking-[0.35em] text-primary/70">Convite Exclusivo</p>
+                                    <p className="mt-1 text-[11px] font-semibold text-white/35">Gere automaticamente ou cole um link manual para enviar ao lead.</p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <select
+                                        value={inviteExpirationDays}
+                                        onChange={(event) => setInviteExpirationDays(Number(event.target.value))}
+                                        className="rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-white/60 outline-none"
+                                    >
+                                        <option value={7}>7 dias</option>
+                                        <option value={15}>15 dias</option>
+                                        <option value={30}>30 dias</option>
+                                    </select>
+                                    <button
+                                        type="button"
+                                        onClick={handleGenerateWaitlistInvite}
+                                        disabled={waitlistInviteGenerating || waitlistLeadUpdating}
+                                        className="inline-flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/10 px-4 py-2 text-[9px] font-black uppercase tracking-[0.22em] text-primary transition-all hover:bg-primary/15 disabled:opacity-50"
+                                    >
+                                        {waitlistInviteGenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
+                                        Gerar
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="flex flex-col gap-3 sm:flex-row">
+                                <input
+                                    type="url"
+                                    value={waitlistInviteUrl}
+                                    onChange={(event) => setWaitlistInviteUrl(event.target.value)}
+                                    placeholder="https://portal.supercheckout.app/register?invite=..."
+                                    className="min-w-0 flex-1 rounded-2xl border border-white/10 bg-black/50 px-4 py-3 text-sm text-white outline-none placeholder:text-white/10 focus:border-primary/40"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => selectedWaitlistLead && updateWaitlistLeadMetadata(selectedWaitlistLead, {
+                                        invite_url: waitlistInviteUrl.trim(),
+                                        invite_status: waitlistInviteUrl.trim() ? 'draft' : null
+                                    })}
+                                    disabled={waitlistLeadUpdating}
+                                    className="rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-3 text-[9px] font-black uppercase tracking-[0.24em] text-white/60 hover:text-white disabled:opacity-50"
+                                >
+                                    Salvar Link
+                                </button>
+                            </div>
+
+                            <div className="rounded-2xl border border-white/5 bg-black/30 p-4">
+                                <p className="mb-2 text-[9px] font-black uppercase tracking-[0.28em] text-white/20">Previa do e-mail</p>
+                                <pre className="whitespace-pre-wrap break-words text-xs leading-relaxed text-white/55 font-sans">
+                                    {waitlistInviteUrl.trim()
+                                        ? buildInviteEmailBody(selectedWaitlistLead, waitlistInviteUrl.trim())
+                                        : 'Gere ou cole um link de convite para ver a mensagem pronta.'}
+                                </pre>
+                            </div>
+
+                            <div className="flex flex-wrap justify-end gap-3">
+                                <button
+                                    type="button"
+                                    onClick={handleCopyWaitlistInviteMessage}
+                                    disabled={!waitlistInviteUrl.trim()}
+                                    className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-3 text-[9px] font-black uppercase tracking-[0.24em] text-white/60 hover:text-white disabled:opacity-40"
+                                >
+                                    <Copy className="h-3.5 w-3.5" />
+                                    Copiar Mensagem
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleSendWaitlistInviteEmail}
+                                    disabled={!waitlistInviteUrl.trim() || waitlistLeadUpdating}
+                                    className="inline-flex items-center gap-2 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-5 py-3 text-[9px] font-black uppercase tracking-[0.24em] text-emerald-300 hover:bg-emerald-500/15 disabled:opacity-40"
+                                >
+                                    {waitlistLeadUpdating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
+                                    Enviar Convite
+                                </button>
                             </div>
                         </div>
                     </div>
