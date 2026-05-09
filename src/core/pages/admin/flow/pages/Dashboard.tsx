@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Plus, GitBranch, Clock, ArrowRight, Trash2, Edit2, Loader2 } from 'lucide-react';
 import { supabase } from '../../../../services/supabase';
 import { toast } from 'sonner';
+import { ConfirmModal, Modal } from '../../../../components/ui/Modal';
+import { Button } from '../../../../components/ui/Button';
 
 interface FunnelData {
   id: string;
@@ -16,6 +18,15 @@ export const Dashboard = () => {
   const navigate = useNavigate();
   const [funnels, setFunnels] = useState<FunnelData[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [funnelToDelete, setFunnelToDelete] = useState<string | null>(null);
+
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [funnelToEdit, setFunnelToEdit] = useState<FunnelData | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
 
   useEffect(() => {
     fetchFunnels();
@@ -66,18 +77,60 @@ export const Dashboard = () => {
     }
   };
 
-  const handleDelete = async (e: React.MouseEvent, id: string) => {
+  const openDeleteModal = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    if (!confirm('Tem certeza que deseja excluir este projeto?')) return;
+    setFunnelToDelete(id);
+    setDeleteModalOpen(true);
+  };
 
+  const handleDelete = async () => {
+    if (!funnelToDelete) return;
     try {
-      const { error } = await supabase.from('funnels').delete().eq('id', id);
+      const { error } = await supabase.from('funnels').delete().eq('id', funnelToDelete);
       if (error) throw error;
-      toast.success('Projeto excluído.');
-      setFunnels(funnels.filter(f => f.id !== id));
+      toast.success('Projeto excluído com sucesso.');
+      setFunnels(funnels.filter(f => f.id !== funnelToDelete));
     } catch (error) {
       console.error('Erro ao excluir:', error);
       toast.error('Erro ao excluir o projeto.');
+    } finally {
+      setDeleteModalOpen(false);
+      setFunnelToDelete(null);
+    }
+  };
+
+  const openEditModal = (e: React.MouseEvent, funnel: FunnelData) => {
+    e.stopPropagation();
+    setFunnelToEdit(funnel);
+    setEditName(funnel.name);
+    setEditDescription(funnel.description || '');
+    setEditModalOpen(true);
+  };
+
+  const handleEditSubmit = async () => {
+    if (!funnelToEdit) return;
+    if (!editName.trim()) {
+      toast.error('O nome do projeto é obrigatório.');
+      return;
+    }
+
+    setSavingEdit(true);
+    try {
+      const { error } = await supabase
+        .from('funnels')
+        .update({ name: editName, description: editDescription, updated_at: new Date().toISOString() })
+        .eq('id', funnelToEdit.id);
+
+      if (error) throw error;
+      toast.success('Projeto atualizado com sucesso.');
+      setFunnels(funnels.map(f => f.id === funnelToEdit.id ? { ...f, name: editName, description: editDescription, updated_at: new Date().toISOString() } : f));
+      setEditModalOpen(false);
+      setFunnelToEdit(null);
+    } catch (error) {
+      console.error('Erro ao atualizar projeto:', error);
+      toast.error('Erro ao atualizar o projeto.');
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -150,11 +203,14 @@ export const Dashboard = () => {
                     </div>
                     
                     <div className="flex items-center gap-2 translate-x-4 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-500">
-                      <button className="p-3 bg-white/5 hover:bg-white/10 rounded-xl text-gray-500 hover:text-white transition-colors">
+                      <button 
+                        onClick={(e) => openEditModal(e, funnel)}
+                        className="p-3 bg-white/5 hover:bg-white/10 rounded-xl text-gray-500 hover:text-white transition-colors"
+                      >
                         <Edit2 className="w-4 h-4" />
                       </button>
                       <button 
-                        onClick={(e) => handleDelete(e, funnel.id)}
+                        onClick={(e) => openDeleteModal(e, funnel.id)}
                         className="p-3 bg-red-500/5 hover:bg-red-500/10 rounded-xl text-red-500/60 hover:text-red-400 transition-colors"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -190,6 +246,68 @@ export const Dashboard = () => {
           </div>
         )}
       </div>
+
+      <ConfirmModal
+        isOpen={deleteModalOpen}
+        onClose={() => setDeleteModalOpen(false)}
+        onConfirm={handleDelete}
+        title="Excluir Projeto"
+        message="Tem certeza que deseja excluir este projeto permanentemente? Esta ação não pode ser desfeita e todos os dados associados serão perdidos."
+        confirmText="Excluir"
+        cancelText="Cancelar"
+        variant="danger"
+      />
+
+      <Modal
+        isOpen={editModalOpen}
+        onClose={() => setEditModalOpen(false)}
+        title="Editar Projeto"
+      >
+        <div className="space-y-6">
+          <div className="space-y-2">
+            <label className="text-sm font-bold text-white uppercase tracking-wider">
+              Nome do Projeto
+            </label>
+            <input
+              type="text"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              className="w-full bg-[#05050A] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50 transition-colors"
+              placeholder="Ex: Funil de Lançamento"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-bold text-white uppercase tracking-wider">
+              Descrição
+            </label>
+            <textarea
+              value={editDescription}
+              onChange={(e) => setEditDescription(e.target.value)}
+              rows={3}
+              className="w-full bg-[#05050A] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50 transition-colors resize-none"
+              placeholder="Descreva o objetivo deste projeto..."
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-white/10">
+            <Button
+              variant="ghost"
+              onClick={() => setEditModalOpen(false)}
+              disabled={savingEdit}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleEditSubmit}
+              isLoading={savingEdit}
+            >
+              Salvar Alterações
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };
