@@ -364,100 +364,120 @@ export const Register = () => {
 
     if (success) {
         return (
-            <div className="min-h-screen bg-[#05050A] flex items-center justify-center p-6 relative overflow-hidden">
-                <div className="absolute inset-0 opacity-40">
-                    <Aurora
-                        colorStops={['#3B82F6', '#8B5CF6', '#3B82F6']}
-                        amplitude={1.2}
-                        blend={0.6}
-                        speed={0.3}
+            <div className="min-h-screen bg-[#020205] flex items-center justify-center p-6 relative overflow-hidden font-sans">
+                <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-600/10 rounded-full blur-[120px] pointer-events-none" />
+                <div className="absolute bottom-[-10%] right-[-10%] w-[30%] h-[30%] bg-emerald-500/10 rounded-full blur-[100px] pointer-events-none" />
+                <div className="absolute top-[12%] left-[6%] w-[460px] h-[460px] bg-emerald-500/10 rounded-full blur-[120px] pointer-events-none animate-pulse" />
+                <div className="absolute bottom-[12%] right-[6%] w-[360px] h-[360px] bg-emerald-400/5 rounded-full blur-[100px] pointer-events-none animate-pulse duration-[5000ms]" />
+
+                <div className="relative z-10 w-full max-w-md bg-black/50 border border-white/5 rounded-[3.5rem] p-8 md:p-12 shadow-2xl backdrop-blur-3xl overflow-hidden animate-in fade-in zoom-in duration-700 text-center group/card">
+                    <div
+                        className="absolute -inset-px rounded-[3.5rem] border border-transparent bg-gradient-to-br from-emerald-500/40 via-transparent to-transparent pointer-events-none z-10"
+                        style={{ maskImage: 'linear-gradient(135deg, black, transparent 50%)', WebkitMaskImage: 'linear-gradient(135deg, black, transparent 50%)' }}
                     />
-                </div>
 
-                <div className="relative z-10 bg-white/5 border border-white/10 rounded-[3rem] p-12 max-w-md w-full text-center backdrop-blur-3xl animate-in fade-in zoom-in duration-700 shadow-2xl">
-                    <div className="w-24 h-24 bg-green-500/20 border border-green-500/20 rounded-[2rem] flex items-center justify-center mx-auto mb-8 text-green-400">
-                        <CheckCircle className="w-12 h-12" />
-                    </div>
-                    <h2
-                        className="text-4xl font-display font-black text-white mb-4 italic uppercase tracking-tighter"
-                        dangerouslySetInnerHTML={{
-                            __html: sanitizeTranslationHtml(
-                                approvalPending
-                                    ? 'Cadastro recebido'
-                                    : t('register.success_title')
-                            )
-                        }}
-                    />
-                    <p className="text-gray-400 mb-10 text-lg font-medium leading-relaxed">
-                        {approvalPending
-                            ? `Seu e-mail ${email} ja foi recebido. Assim que sua conta for aprovada, liberaremos o acesso no portal.`
-                            : t('register.success_desc', { email })}
-                    </p>
-                    <div className="space-y-4">
-                        <button
-                            type="button"
-                            onClick={() => openInboxForEmail(email)}
-                            className="flex items-center justify-center gap-3 w-full bg-white text-black font-black uppercase text-sm py-5 rounded-2xl transition-all hover:scale-105 active:scale-95 shadow-xl shadow-white/5 tracking-tighter italic"
-                        >
-                            <span>{approvalPending ? 'Abrir meu e-mail' : t('register.open_email_button', { defaultValue: 'Abrir meu e-mail' })}</span>
-                            <ArrowRight className="w-4 h-4" />
-                        </button>
-
-                        <button
-                            type="button"
-                            onClick={handleResend}
-                            disabled={resending || (requiresCaptcha && !captchaToken)}
-                            className="flex items-center justify-center gap-3 w-full bg-white/5 border border-white/10 text-white font-black uppercase text-sm py-5 rounded-2xl transition-all hover:bg-white/10 active:scale-95 tracking-tighter italic disabled:opacity-60"
-                        >
-                            {resending ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                                <RefreshCw className="w-4 h-4" />
-                            )}
-                            <span>{t('register.resend_email_button', { defaultValue: 'Reenviar e-mail' })}</span>
-                        </button>
-
-                        <button
-                            type="button"
-                            onClick={handleChangeEmail}
-                            className="flex items-center justify-center gap-3 w-full bg-transparent text-gray-300 font-black uppercase text-sm py-4 rounded-2xl transition-all hover:text-white tracking-tighter italic"
-                        >
-                            <PencilLine className="w-4 h-4" />
-                            <span>{t('register.change_email_button', { defaultValue: 'Trocar e-mail' })}</span>
-                        </button>
-                    </div>
-
-                    {requiresCaptcha && captchaSiteKey && (
-                        <div className="mt-6 bg-white/5 border border-white/10 rounded-3xl p-5 space-y-3 text-left">
-                            <p className="text-xs text-gray-300 font-bold uppercase tracking-[0.18em]">
-                                {t('register.captcha_title', { defaultValue: 'Confirme que voce e humano' })}
-                            </p>
-                            <p className="text-sm text-gray-400 leading-relaxed">
-                                {t('register.captcha_desc', {
-                                    defaultValue: 'Detectamos um volume acima do normal neste fluxo. Confirme o desafio para continuar.'
-                                })}
-                            </p>
-                            <RiskCaptcha siteKey={captchaSiteKey} onTokenChange={setCaptchaToken} />
+                    <div className="relative z-20">
+                        <div className="inline-flex items-center gap-3 bg-white/5 border border-white/10 px-3 py-1.5 rounded-full mb-8">
+                            <img src="/logo.png" alt="Logo" className="w-3.5 h-3.5 object-contain grayscale brightness-200" />
+                            <span className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] italic">
+                                Cadastro confirmado
+                            </span>
                         </div>
-                    )}
 
-                    {resendMessage && (
-                        <p className="mt-6 text-sm font-medium text-gray-400 leading-relaxed">
-                            {resendMessage}
+                        <div className="w-20 h-20 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-8 text-emerald-400 shadow-[0_0_30px_rgba(16,185,129,0.12)]">
+                            <CheckCircle className="w-10 h-10" />
+                        </div>
+
+                        <h2
+                            className="text-4xl md:text-5xl font-display font-black text-white mb-4 italic uppercase tracking-tighter leading-[0.9]"
+                            dangerouslySetInnerHTML={{
+                                __html: sanitizeTranslationHtml(
+                                    approvalPending
+                                        ? 'Cadastro recebido'
+                                        : t('register.success_title')
+                                )
+                            }}
+                        />
+                        <p className="text-gray-400 mb-10 text-base font-medium leading-relaxed">
+                            {approvalPending
+                                ? `Seu e-mail ${email} ja foi recebido. Assim que sua conta for aprovada, liberaremos o acesso no portal.`
+                                : t('register.success_desc', { email })}
                         </p>
-                    )}
+                        <div className="space-y-4">
+                            <button
+                                type="button"
+                                onClick={() => openInboxForEmail(email)}
+                                className="relative flex items-center justify-center gap-3 w-full bg-gradient-to-r from-emerald-400 to-emerald-600 text-[#020205] font-black uppercase text-sm py-5 rounded-2xl transition-all hover:scale-[1.02] active:scale-95 shadow-[0_0_30px_rgba(16,185,129,0.24)] tracking-widest italic overflow-hidden group/btn"
+                            >
+                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full group-hover/btn:animate-[shimmer_1.5s_infinite] pointer-events-none" />
+                                <span>{approvalPending ? 'Abrir meu e-mail' : t('register.open_email_button', { defaultValue: 'Abrir meu e-mail' })}</span>
+                                <ArrowRight className="w-4 h-4" />
+                            </button>
 
-                    {approvalPending && (
-                        <div className="mt-6 bg-amber-500/10 border border-amber-500/20 rounded-3xl p-5 text-left">
-                            <p className="text-xs text-amber-300 font-bold uppercase tracking-[0.18em]">
-                                Aprovacao manual ativa
-                            </p>
-                            <p className="mt-2 text-sm text-gray-300 leading-relaxed">
-                                Depois da confirmacao de e-mail, sua conta fica em analise ate liberacao do time interno.
-                            </p>
+                            <button
+                                type="button"
+                                onClick={handleResend}
+                                disabled={resending || (requiresCaptcha && !captchaToken)}
+                                className="flex items-center justify-center gap-3 w-full bg-white/5 border border-white/10 text-white font-black uppercase text-sm py-5 rounded-2xl transition-all hover:bg-white/10 active:scale-95 tracking-widest italic disabled:opacity-60"
+                            >
+                                {resending ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                    <RefreshCw className="w-4 h-4" />
+                                )}
+                                <span>{t('register.resend_email_button', { defaultValue: 'Reenviar e-mail' })}</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={handleChangeEmail}
+                                className="flex items-center justify-center gap-3 w-full bg-transparent text-gray-500 font-black uppercase text-sm py-4 rounded-2xl transition-all hover:text-white tracking-widest italic"
+                            >
+                                <PencilLine className="w-4 h-4" />
+                                <span>{t('register.change_email_button', { defaultValue: 'Trocar e-mail' })}</span>
+                            </button>
                         </div>
-                    )}
+
+                        {requiresCaptcha && captchaSiteKey && (
+                            <div className="mt-6 bg-white/5 border border-white/10 rounded-3xl p-5 space-y-3 text-left">
+                                <p className="text-xs text-gray-300 font-bold uppercase tracking-[0.18em]">
+                                    {t('register.captcha_title', { defaultValue: 'Confirme que voce e humano' })}
+                                </p>
+                                <p className="text-sm text-gray-400 leading-relaxed">
+                                    {t('register.captcha_desc', {
+                                        defaultValue: 'Detectamos um volume acima do normal neste fluxo. Confirme o desafio para continuar.'
+                                    })}
+                                </p>
+                                <RiskCaptcha siteKey={captchaSiteKey} onTokenChange={setCaptchaToken} />
+                            </div>
+                        )}
+
+                        {resendMessage && (
+                            <p className="mt-6 text-sm font-medium text-gray-400 leading-relaxed">
+                                {resendMessage}
+                            </p>
+                        )}
+
+                        {approvalPending && (
+                            <div className="mt-6 bg-amber-500/10 border border-amber-500/20 rounded-3xl p-5 text-left">
+                                <p className="text-xs text-amber-300 font-bold uppercase tracking-[0.18em]">
+                                    Aprovacao manual ativa
+                                </p>
+                                <p className="mt-2 text-sm text-gray-300 leading-relaxed">
+                                    Depois da confirmacao de e-mail, sua conta fica em analise ate liberacao do time interno.
+                                </p>
+                            </div>
+                        )}
+                    </div>
                 </div>
+
+                <style dangerouslySetInnerHTML={{ __html: `
+                    @keyframes shimmer {
+                        100% {
+                            transform: translateX(100%);
+                        }
+                    }
+                `}} />
             </div>
         );
     }
@@ -472,64 +492,74 @@ export const Register = () => {
 
     if (inviteToken && inviteState.checked && !inviteState.valid) {
         return (
-            <div className="min-h-screen bg-[#05050A] flex items-center justify-center p-6 relative overflow-hidden font-sans">
-                <div className="absolute inset-0 opacity-40">
-                    <Aurora
-                        colorStops={['#EF4444', '#7C3AED', '#111827']}
-                        amplitude={1.2}
-                        blend={0.55}
-                        speed={0.22}
+            <div className="min-h-screen bg-[#020205] flex items-center justify-center p-6 relative overflow-hidden font-sans">
+                <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-600/10 rounded-full blur-[120px] pointer-events-none" />
+                <div className="absolute bottom-[-10%] right-[-10%] w-[30%] h-[30%] bg-emerald-500/10 rounded-full blur-[100px] pointer-events-none" />
+                <div className="absolute top-[15%] right-[8%] w-[360px] h-[360px] bg-rose-500/10 rounded-full blur-[110px] pointer-events-none" />
+
+                <div className="relative z-10 w-full max-w-2xl bg-black/50 border border-white/5 rounded-[3.5rem] p-8 md:p-14 shadow-2xl backdrop-blur-3xl overflow-hidden animate-in fade-in slide-in-from-bottom-8 duration-700 group/card">
+                    <div
+                        className="absolute -inset-px rounded-[3.5rem] border border-transparent bg-gradient-to-br from-rose-500/35 via-transparent to-emerald-500/10 pointer-events-none z-10"
+                        style={{ maskImage: 'linear-gradient(135deg, black, transparent 55%)', WebkitMaskImage: 'linear-gradient(135deg, black, transparent 55%)' }}
                     />
-                </div>
 
-                <div className="relative z-10 w-full max-w-2xl bg-white/5 border border-white/10 rounded-[3.5rem] p-8 md:p-14 shadow-2xl backdrop-blur-3xl">
-                    <div className="inline-flex items-center gap-3 bg-rose-500/10 border border-rose-500/20 px-4 py-2 rounded-full mb-8">
-                        <AlertCircle className="w-4 h-4 text-rose-300" />
-                        <span className="text-[10px] font-black text-rose-200 uppercase tracking-[0.2em] italic">
-                            Convite invalido
-                        </span>
-                    </div>
-
-                    <h1 className="text-4xl md:text-6xl font-display font-black text-white italic uppercase tracking-tighter leading-[0.9] mb-6">
-                        Este link <br />
-                        <span className="text-rose-300">nao pode mais ser usado</span>
-                    </h1>
-
-                    <p className="text-gray-400 text-lg font-medium leading-relaxed max-w-xl mb-8">
-                        {getInviteReasonLabel(inviteState.reason)}
-                    </p>
-
-                    {inviteState.expiresAt && (
-                        <div className="bg-white/5 border border-white/10 rounded-3xl p-5 mb-8">
-                            <p className="text-xs text-gray-300 font-bold uppercase tracking-[0.18em]">
-                                Expiracao registrada
-                            </p>
-                            <p className="mt-2 text-sm text-gray-400 leading-relaxed">
-                                {new Date(inviteState.expiresAt).toLocaleString()}
-                            </p>
+                    <div className="relative z-20">
+                        <div className="inline-flex items-center gap-3 bg-white/5 border border-white/10 px-3 py-1.5 rounded-full mb-8">
+                            <AlertCircle className="w-4 h-4 text-rose-300" />
+                            <span className="text-[9px] font-black text-rose-200 uppercase tracking-[0.2em] italic">
+                                Convite invalido
+                            </span>
                         </div>
-                    )}
 
-                    <div className="flex flex-col sm:flex-row gap-4">
-                        <a
-                            href="/activate"
-                            className="flex-1 bg-white text-black font-black uppercase text-sm py-5 rounded-2xl text-center transition-all hover:scale-[1.02] active:scale-95 tracking-tighter italic"
-                        >
-                            Voltar ao portal
-                        </a>
-                        <button
-                            type="button"
-                            onClick={() => window.location.href = '/register'}
-                            className="flex-1 bg-white/5 border border-white/10 text-white font-black uppercase text-sm py-5 rounded-2xl transition-all hover:bg-white/10 active:scale-95 tracking-tighter italic"
-                        >
-                            Abrir cadastro publico
-                        </button>
+                        <h1 className="text-4xl md:text-6xl font-display font-black text-white italic uppercase tracking-tighter leading-[0.9] mb-6">
+                            Este link <br />
+                            <span className="bg-gradient-to-r from-rose-300 to-rose-500 bg-clip-text text-transparent">nao pode mais ser usado</span>
+                        </h1>
+
+                        <p className="text-gray-400 text-lg font-medium leading-relaxed max-w-xl mb-8">
+                            {getInviteReasonLabel(inviteState.reason)}
+                        </p>
+
+                        {inviteState.expiresAt && (
+                            <div className="bg-white/5 border border-white/10 rounded-3xl p-5 mb-8">
+                                <p className="text-xs text-gray-300 font-bold uppercase tracking-[0.18em]">
+                                    Expiracao registrada
+                                </p>
+                                <p className="mt-2 text-sm text-gray-400 leading-relaxed">
+                                    {new Date(inviteState.expiresAt).toLocaleString()}
+                                </p>
+                            </div>
+                        )}
+
+                        <div className="flex flex-col sm:flex-row gap-4">
+                            <a
+                                href="/activate"
+                                className="relative flex-1 bg-gradient-to-r from-emerald-400 to-emerald-600 text-[#020205] font-black uppercase text-sm py-5 rounded-2xl text-center transition-all hover:scale-[1.02] active:scale-95 tracking-widest italic overflow-hidden group/btn"
+                            >
+                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full group-hover/btn:animate-[shimmer_1.5s_infinite] pointer-events-none" />
+                                Voltar ao portal
+                            </a>
+                            <button
+                                type="button"
+                                onClick={() => window.location.href = '/register'}
+                                className="flex-1 bg-white/5 border border-white/10 text-white font-black uppercase text-sm py-5 rounded-2xl transition-all hover:bg-white/10 active:scale-95 tracking-widest italic"
+                            >
+                                Abrir cadastro publico
+                            </button>
+                        </div>
                     </div>
                 </div>
+
+                <style dangerouslySetInnerHTML={{ __html: `
+                    @keyframes shimmer {
+                        100% {
+                            transform: translateX(100%);
+                        }
+                    }
+                `}} />
             </div>
         );
     }
-
     const benefitsArr = [
         { icon: Zap, text: t('register.benefits.checkout') },
         { icon: Globe, text: 'Domínio Personalizado' },
