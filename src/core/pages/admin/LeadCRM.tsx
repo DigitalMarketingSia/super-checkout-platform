@@ -510,7 +510,13 @@ export const LeadCRM: React.FC = () => {
     };
 
     const getWaitlistInviteStatus = (lead: RegistrationWaitlistLead) => {
-        if (lead.metadata?.invite_status === 'sent' || lead.metadata?.invite_sent_at) {
+        const hasSystemDeliveryReceipt = Boolean(
+            lead.metadata?.invite_status === 'sent'
+            && lead.metadata?.invite_email_provider
+            && (lead.metadata?.invite_email_id || lead.metadata?.invite_sent_at)
+        );
+
+        if (hasSystemDeliveryReceipt) {
             return {
                 label: 'Convite enviado',
                 className: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
