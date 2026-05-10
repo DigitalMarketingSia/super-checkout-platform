@@ -5,6 +5,7 @@ const CRM_READ_ACTIONS = new Set([
     'get_launch_settings',
     'get_registration_waitlist',
     'update_registration_waitlist_lead',
+    'send_registration_waitlist_invite',
     'get_registration_approval_queue',
     'get_crm_data',
     'get_crm_user_details',

@@ -110,6 +110,10 @@ interface RegistrationWaitlistLead {
         invite_url?: string | null;
         invite_status?: 'draft' | 'sent' | string | null;
         invite_sent_at?: string | null;
+        invite_email_provider?: string | null;
+        invite_email_id?: string | null;
+        invite_last_attempt_at?: string | null;
+        last_invite_error?: string | null;
         archived_at?: string | null;
     } | null;
     created_at: string;
@@ -195,6 +199,7 @@ export const LeadCRM: React.FC = () => {
     const [waitlistInviteUrl, setWaitlistInviteUrl] = useState('');
     const [waitlistLeadUpdating, setWaitlistLeadUpdating] = useState(false);
     const [waitlistInviteGenerating, setWaitlistInviteGenerating] = useState(false);
+    const [waitlistInviteSending, setWaitlistInviteSending] = useState(false);
     const [inviteCreating, setInviteCreating] = useState(false);
     const [showInviteWidget, setShowInviteWidget] = useState(false);
     const [generatedInviteUrl, setGeneratedInviteUrl] = useState<string | null>(null);
@@ -633,16 +638,37 @@ export const LeadCRM: React.FC = () => {
             return;
         }
 
-        await updateWaitlistLeadMetadata(selectedWaitlistLead, {
-            invite_url: inviteUrl,
-            invite_status: 'sent',
-            invite_sent_at: new Date().toISOString()
-        }, { silent: true });
+        try {
+            setWaitlistInviteSending(true);
+            const response = await fetch('/api/central/manage-licenses', {
+                method: 'POST',
+                headers: await getAuthHeaders(),
+                body: JSON.stringify({
+                    action: 'send_registration_waitlist_invite',
+                    lead_id: selectedWaitlistLead.id,
+                    invite_url: inviteUrl
+                })
+            });
 
-        const subject = encodeURIComponent('Seu convite exclusivo para o Super Checkout');
-        const body = encodeURIComponent(buildInviteEmailBody(selectedWaitlistLead, inviteUrl));
-        window.location.href = `mailto:${selectedWaitlistLead.email}?subject=${subject}&body=${body}`;
-        toast.success('Convite marcado como enviado.');
+            const result = await response.json();
+            if (!result.success) {
+                throw new Error(result.error || 'Nao foi possivel enviar o convite.');
+            }
+
+            if (result.data) {
+                setSelectedWaitlistLead(result.data);
+                setWaitlistInviteUrl(result.data.metadata?.invite_url || inviteUrl);
+            }
+
+            await fetchWaitlistLeads();
+            toast.success('Convite enviado pelo sistema.');
+        } catch (error: any) {
+            console.error('Error sending waitlist invite:', error);
+            toast.error(error.message || 'Nao foi possivel enviar o convite.');
+            await fetchWaitlistLeads();
+        } finally {
+            setWaitlistInviteSending(false);
+        }
     };
 
     const handleCopyWaitlistInviteMessage = async () => {
@@ -1379,9 +1405,6 @@ export const LeadCRM: React.FC = () => {
                                                                 <button type="button" onClick={() => handleArchiveWaitlistLead(lead)} className="h-10 w-10 rounded-xl border border-red-500/20 bg-red-500/10 text-red-300 hover:bg-red-500/15" title="Arquivar lead">
                                                                     <Trash2 className="mx-auto h-4 w-4" />
                                                                 </button>
-                                                                <button type="button" onClick={() => { openWaitlistLeadModal(lead); }} className="h-10 w-10 rounded-xl border border-blue-500/20 bg-blue-500/10 text-blue-300 hover:bg-blue-500/15" title="Enviar convite">
-                                                                    <Mail className="mx-auto h-4 w-4" />
-                                                                </button>
                                                             </div>
                                                         </td>
                                                     </tr>
@@ -2077,8 +2100,18 @@ export const LeadCRM: React.FC = () => {
                                 <pre className="whitespace-pre-wrap break-words text-xs leading-relaxed text-white/55 font-sans">
                                     {waitlistInviteUrl.trim()
                                         ? buildInviteEmailBody(selectedWaitlistLead, waitlistInviteUrl.trim())
-                                        : 'Gere ou cole um link de convite para ver a mensagem pronta.'}
+                                    : 'Gere ou cole um link de convite para ver a mensagem pronta.'}
                                 </pre>
+                                {selectedWaitlistLead.metadata?.last_invite_error && (
+                                    <p className="mt-3 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-[10px] font-semibold text-red-200">
+                                        Ultima falha de envio: {selectedWaitlistLead.metadata.last_invite_error}
+                                    </p>
+                                )}
+                                {selectedWaitlistLead.metadata?.invite_email_id && (
+                                    <p className="mt-3 text-[10px] font-mono uppercase tracking-[0.2em] text-white/25">
+                                        Enviado via {selectedWaitlistLead.metadata.invite_email_provider || 'provedor'} - ID {selectedWaitlistLead.metadata.invite_email_id}
+                                    </p>
+                                )}
                             </div>
 
                             <div className="flex flex-wrap justify-end gap-3">
@@ -2094,10 +2127,10 @@ export const LeadCRM: React.FC = () => {
                                 <button
                                     type="button"
                                     onClick={handleSendWaitlistInviteEmail}
-                                    disabled={!waitlistInviteUrl.trim() || waitlistLeadUpdating}
+                                    disabled={!waitlistInviteUrl.trim() || waitlistLeadUpdating || waitlistInviteSending}
                                     className="inline-flex items-center gap-2 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-5 py-3 text-[9px] font-black uppercase tracking-[0.24em] text-emerald-300 hover:bg-emerald-500/15 disabled:opacity-40"
                                 >
-                                    {waitlistLeadUpdating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
+                                    {waitlistInviteSending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
                                     Enviar Convite
                                 </button>
                             </div>
