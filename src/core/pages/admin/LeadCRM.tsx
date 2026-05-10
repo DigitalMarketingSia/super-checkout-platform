@@ -213,6 +213,7 @@ export const LeadCRM: React.FC = () => {
     const [selectedLead, setSelectedLead] = useState<FreeUserRow | null>(null);
     const blockTransitionTimerRef = useRef<number | null>(null);
     const initialCrmMetaLoadedRef = useRef(false);
+    const hasSession = Boolean(session?.access_token);
 
     // Dashboard Metrics
     const [metrics, setMetrics] = useState({
@@ -231,23 +232,23 @@ export const LeadCRM: React.FC = () => {
     const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
     useEffect(() => {
-        if (!session?.access_token || initialCrmMetaLoadedRef.current) return;
+        if (!hasSession || initialCrmMetaLoadedRef.current) return;
         initialCrmMetaLoadedRef.current = true;
         fetchPartners();
         fetchLaunchControls();
         fetchApprovalQueue();
         fetchWaitlistLeads();
-    }, [user?.id]);
+    }, [hasSession]);
 
     useEffect(() => {
-        if (!session?.access_token) return;
+        if (!hasSession) return;
         fetchUsers();
-    }, [page, statusFilter, partnerFilter, user?.id]);
+    }, [hasSession, page, statusFilter, partnerFilter]);
 
     useEffect(() => {
-        if (!session?.access_token || !initialCrmMetaLoadedRef.current) return;
+        if (!hasSession || !initialCrmMetaLoadedRef.current) return;
         fetchWaitlistLeads();
-    }, [waitlistPage]);
+    }, [hasSession, waitlistPage]);
 
     useEffect(() => {
         return () => {
