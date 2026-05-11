@@ -18,6 +18,7 @@ export const PhoneInput: React.FC<PhoneInputProps> = ({
     isValid, 
     className, 
     variant = 'default',
+    onCountryChange,
     onBlur,
     ...props 
 }) => {

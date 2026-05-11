@@ -5,7 +5,8 @@ import { APP_VERSION, SCHEMA_VERSION } from '../config/version.js';
 /**
  * HEALTH / KEEP-ALIVE ENDPOINT
  * 
- * This endpoint is called by Vercel Cron to prevent Supabase project pausing.
+ * This endpoint is called daily by Vercel Cron to reduce the chance of Supabase
+ * Free projects being paused for inactivity.
  * It performs a simple query to ensure database activity.
  * Uses native fetch to match the project's existing API patterns.
  */
@@ -17,7 +18,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return;
     }
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://vixlzrmhqsbzjhpgfwdn.supabase.co';
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
     if (!supabaseUrl || !supabaseKey) {
@@ -28,7 +29,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
-        // Simple query via REST API to generate activity
+        // Simple query via REST API to generate activity on the customer's Supabase project.
         const response = await fetch(`${supabaseUrl}/rest/v1/modules?select=id&limit=1`, {
             headers: {
                 'apikey': supabaseKey,

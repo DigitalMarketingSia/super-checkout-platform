@@ -1,7 +1,6 @@
 import React from 'react';
-import { Crown, Zap, ArrowRight, ShieldCheck, Users, Globe, Loader2 } from 'lucide-react';
+import { Zap, Users, Globe, Loader2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import Aurora from '../../../components/ui/Aurora';
 import { License } from '../../../services/licenseService';
 import { Product } from '../../../types';
 import { openUpgradeCheckout } from '../../../services/upgradeCheckout';
@@ -15,7 +14,6 @@ interface UpsellBannersProps {
 
 const DynamicBanner: React.FC<{
     product: Product,
-    onNavigate: (tab: string) => void,
     variant: 'primary' | 'orange'
 }> = ({ product, variant }) => {
     const { t } = useTranslation('portal');
@@ -133,14 +131,12 @@ export const UpsellBanners: React.FC<UpsellBannersProps> = ({ license, products,
                 <DynamicBanner
                     product={upgradeProduct}
                     variant="primary"
-                    onNavigate={() => { }}
                 />
             )}
             {showSaaS && saasProduct && (
                 <DynamicBanner
                     product={saasProduct}
                     variant="orange"
-                    onNavigate={() => { }}
                 />
             )}
         </div>

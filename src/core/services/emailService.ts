@@ -95,7 +95,9 @@ class EmailService {
                 .in('product_id', productIds)
                 .limit(1);
 
-            const linkedAreaId = (links || []).find((link: any) => link.content?.member_area_id)?.content?.member_area_id;
+            const linkedAreaId = (links || [])
+                .map((link: any) => Array.isArray(link.content) ? link.content[0] : link.content)
+                .find((content: any) => content?.member_area_id)?.member_area_id;
             if (linkedAreaId) {
                 const linkedUrl = await this.resolveMemberAreaUrlById(linkedAreaId, origin);
                 if (linkedUrl) return linkedUrl;

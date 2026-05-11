@@ -1,5 +1,5 @@
 import React from 'react';
-import { Building2, AlertTriangle, ArrowRight, X } from 'lucide-react';
+import { Building2, AlertTriangle, ArrowRight } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Modal } from '../ui/Modal';
 import { useTranslation } from 'react-i18next';

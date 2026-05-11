@@ -1,12 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertCircle, ArrowRight, RefreshCw } from 'lucide-react';
+import { ArrowRight, RefreshCw } from 'lucide-react';
 import { SystemManager } from '../../services/systemManager';
-import { APP_VERSION, SCHEMA_VERSION } from '../../config/version';
-import { useTranslation } from 'react-i18next';
+import { SCHEMA_VERSION } from '../../config/version';
 
 export const UpdateBanner: React.FC = () => {
-  const { t } = useTranslation('admin');
   const navigate = useNavigate();
   const [updateRequired, setUpdateRequired] = useState(false);
   const [loading, setLoading] = useState(true);

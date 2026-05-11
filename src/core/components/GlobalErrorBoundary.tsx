@@ -1,4 +1,4 @@
-import React, { Component, ErrorInfo, ReactNode } from 'react';
+import React, { ErrorInfo, ReactNode } from 'react';
 
 interface Props {
     children: ReactNode;
@@ -9,7 +9,9 @@ interface State {
     error: Error | null;
 }
 
-export class GlobalErrorBoundary extends Component<Props, State> {
+export class GlobalErrorBoundary extends React.Component<Props, State> {
+    declare props: Readonly<Props>;
+
     public state: State = {
         hasError: false,
         error: null

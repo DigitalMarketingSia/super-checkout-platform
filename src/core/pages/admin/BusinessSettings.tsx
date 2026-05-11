@@ -71,7 +71,7 @@ export const BusinessSettings = () => {
         setSuccess(false);
 
         try {
-            let { data: account, error: accError } = await supabase
+            let { data: account } = await supabase
                 .from('accounts')
                 .select('id')
                 .eq('owner_user_id', user.id)

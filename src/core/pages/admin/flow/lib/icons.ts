@@ -11,7 +11,6 @@ import {
   CheckCircle, 
   StickyNote,
   Smartphone,
-  Globe,
   Zap,
   Percent,
   ShoppingCart,
@@ -20,7 +19,6 @@ import {
   PhoneCall,
   Clock,
   Package,
-  DollarSign,
   Send
 } from 'lucide-react';
 

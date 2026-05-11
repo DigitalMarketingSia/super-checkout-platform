@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { storage } from '../../services/storageService';
 import { Product, Content, MemberArea } from '../../types';
-import { Card } from '../../components/ui/Card';
-import { Button } from '../../components/ui/Button';
-import { Package, Plus, Check, X, AlertCircle, Link as LinkIcon, Activity, ExternalLink, Zap, Box, Database, Lock, RefreshCw, Layers, Trash2 } from 'lucide-react';
+import { Package, Check, Zap, Box, Database, RefreshCw, Trash2 } from 'lucide-react';
 import { AlertModal } from '../../components/ui/Modal';
 import { useTranslation } from 'react-i18next';
 

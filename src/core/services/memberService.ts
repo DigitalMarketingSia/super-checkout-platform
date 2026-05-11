@@ -76,14 +76,38 @@ export const memberService = {
         return csvContent;
     },
 
-    async getMemberDetails(userId: string) {
-        const { data: profile, error: profileError } = await supabase
+    async getMemberDetails(userId: string, fallbackMember?: { email?: string; name?: string; status?: string; joined_at?: string }) {
+        if (!userId) {
+            throw new Error('ID do membro nao informado.');
+        }
+
+        let { data: profiles, error: profileError } = await supabase
             .from('profiles')
             .select('*')
             .eq('id', userId)
-            .single();
+            .limit(1);
 
         if (profileError) throw profileError;
+
+        if ((!profiles || profiles.length === 0) && fallbackMember?.email) {
+            const { data: emailProfiles, error: emailProfileError } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('email', fallbackMember.email)
+                .limit(1);
+
+            if (emailProfileError) throw emailProfileError;
+            profiles = emailProfiles;
+        }
+
+        const profile = profiles?.[0] || {
+            id: userId,
+            email: fallbackMember?.email || '',
+            full_name: fallbackMember?.name || fallbackMember?.email || 'Membro',
+            status: (fallbackMember?.status || 'active') as Profile['status'],
+            role: 'member' as Profile['role'],
+            created_at: fallbackMember?.joined_at || new Date().toISOString()
+        };
 
         // Fetch related data in parallel
         // Fetch related data in parallel with error suppression

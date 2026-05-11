@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, Boxes, Check, Copy, ExternalLink, Globe, KeyRound, LayoutDashboard, Link2, Package, RefreshCcw, Rocket, Zap } from 'lucide-react';
+import { Boxes, Copy, ExternalLink, Globe, KeyRound, LayoutDashboard, Package, RefreshCcw, Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Installation, License } from '../../../services/licenseService';
 import { Product } from '../../../types';
@@ -32,7 +32,6 @@ export const BlockBasicDashboard: React.FC<BlockBasicDashboardProps> = ({
     upgradeProduct,
 }) => {
     const { t } = useTranslation('portal');
-    const [copiedKey, setCopiedKey] = useState(false);
     const [savedInstallUrl, setSavedInstallUrl] = useState<string | null>(null);
 
     useEffect(() => {
@@ -82,8 +81,6 @@ export const BlockBasicDashboard: React.FC<BlockBasicDashboardProps> = ({
         if (!license?.key) return;
 
         await navigator.clipboard.writeText(license.key);
-        setCopiedKey(true);
-        window.setTimeout(() => setCopiedKey(false), 1800);
     };
 
     const installationStatusLabel = activeInstall

@@ -3,7 +3,6 @@ import { Layout } from '../../components/Layout';
 import { storage } from '../../services/storageService';
 import { Domain, DomainStatus, DomainType, DomainUsage } from '../../types';
 import { Button } from '../../components/ui/Button';
-import { Card } from '../../components/ui/Card';
 import { Modal, ConfirmModal, AlertModal } from '../../components/ui/Modal';
 import {
   Plus,
@@ -20,8 +19,7 @@ import {
   Users,
   Layout as LayoutIcon,
   ChevronRight,
-  ShieldCheck,
-  Zap
+  ShieldCheck
 } from 'lucide-react';
 import { useFeatures } from '../../hooks/useFeatures';
 import { useAuth } from '../../context/AuthContext';
@@ -68,8 +66,8 @@ const getDnsHostLabel = (recordDomain: string, selectedDomain: string) => {
 };
 
 export const Domains = () => {
-  const { t, i18n } = useTranslation(['admin', 'common']);
-  const { profile, isWhiteLabel } = useAuth();
+  const { t } = useTranslation(['admin', 'common']);
+  const { isWhiteLabel } = useAuth();
   const [domains, setDomains] = useState<Domain[]>([]);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isDnsModalOpen, setIsDnsModalOpen] = useState(false);

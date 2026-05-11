@@ -64,10 +64,10 @@ export const MemberProducts: React.FC = () => {
                 try {
                     const productContents = await storage.getProductContents(product.id);
                     if (productContents.length > 0) {
-                        const firstContent = productContents[0];
+                        const firstContentId = productContents[0];
                         const path = slug
-                            ? `/app/${slug}/course/${firstContent.content_id}`
-                            : `/course/${firstContent.content_id}`;
+                            ? `/app/${slug}/course/${firstContentId}`
+                            : `/course/${firstContentId}`;
                         navigate(path);
                     }
                 } catch (error) {

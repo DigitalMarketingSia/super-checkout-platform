@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../../services/supabase';
-import { CENTRAL_CONFIG } from '../../config/central';
 import { subscriptionService } from '../../services/subscriptionService';
 import { useAuth } from '../../context/AuthContext';
 import { Layout } from '../../components/Layout';
@@ -17,7 +16,6 @@ import {
     Ban,
     Unlock,
     Trash2,
-    ExternalLink,
     Activity,
     Globe,
     CreditCard,

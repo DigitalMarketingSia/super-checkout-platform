@@ -26,6 +26,12 @@ export interface UnifiedFeatures {
     getLimit: (key: string) => number | 'unlimited' | null;
 }
 
+interface RemoteFeatureResolution {
+    features: FeatureSet;
+    limits: LimitSet;
+    plan_slug: string;
+}
+
 const DEFAULT_PLAN_LIMITS: Record<string, LimitSet> = {
     free: {
         products: 3,
@@ -108,7 +114,7 @@ export const useFeatures = (): UnifiedFeatures => {
             const { data: { session: localSession } } = await supabase.auth.getSession();
             const accessToken = centralSession?.access_token || localSession?.access_token || '';
             
-            let remoteData = { features: {}, limits: {}, plan_slug: localPlan };
+            let remoteData: RemoteFeatureResolution = { features: {}, limits: {}, plan_slug: localPlan };
 
             if (accessToken) {
                 const response = await fetch(getApiUrl('/api/central/check-entitlement'), {

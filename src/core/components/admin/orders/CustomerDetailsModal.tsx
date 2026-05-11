@@ -1,12 +1,10 @@
 import React, { useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
-import { X, User, ShoppingBag, MessageCircle, Calendar, FileText, Mail, Phone, MapPin, RefreshCw } from 'lucide-react';
+import { X, User, ShoppingBag, MessageCircle, FileText, Mail, Phone, RefreshCw } from 'lucide-react';
 import { Button } from '../../ui/Button';
 import { AlertModal } from '../../ui/Modal';
 import { resendOrderAccessEmail } from '../../../services/orderAccessEmailService';
 import { storage } from '../../../services/storageService';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 
 interface CustomerProfile {
     email: string;
@@ -106,7 +104,9 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({ cust
                     <div className="relative flex-none p-6 border-b border-white/10 bg-white/[0.02] flex justify-between items-start">
                         <div>
                             <div className="flex items-center gap-3 mb-1">
-                                <h2 className="text-xl font-bold text-white">Detalhes do Cliente</h2>
+                                <Dialog.Title asChild>
+                                    <h2 className="text-xl font-bold text-white">Detalhes do Cliente</h2>
+                                </Dialog.Title>
                             </div>
                             <p className="text-sm text-gray-500">
                                 Cliente desde {formatDate(customer.lastOrderDate)} (Baseado no último pedido)

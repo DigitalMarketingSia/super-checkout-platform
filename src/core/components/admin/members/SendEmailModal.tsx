@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Modal } from '../../ui/Modal';
 import { Button } from '../../ui/Button';
 import { Mail, Send, Loader2, Sparkles, HelpCircle } from 'lucide-react';
-import { emailService } from '../../../services/emailService';
 import { toast } from 'sonner';
 
 interface SendEmailModalProps {

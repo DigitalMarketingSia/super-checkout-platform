@@ -7,8 +7,7 @@ import { licenseService, UpgradeIntentContext } from '../../services/licenseServ
 import {
   Barcode, Check, Clock, ShieldCheck, Lock, AlertCircle, ShoppingBag, Smartphone, Link2
 } from 'lucide-react';
-import { loadStripe } from '@stripe/stripe-js';
-import type { PaymentRequest } from '@stripe/stripe-js';
+import { loadStripe, type PaymentRequest } from '@stripe/stripe-js';
 import { PaymentRequestButtonElement, Elements, useStripe, useElements, CardNumberElement, CardExpiryElement, CardCvcElement, LinkAuthenticationElement } from '@stripe/react-stripe-js';
 import { validateName, validateEmail, validatePhone, validateCPF, maskPhone, maskCPF } from '../../utils/validations';
 import { PhoneInput } from '../../components/ui/PhoneInput';

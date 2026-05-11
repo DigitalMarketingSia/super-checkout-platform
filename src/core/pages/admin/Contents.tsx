@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Layout } from '../../components/Layout';
 import { storage } from '../../services/storageService';
 import { Content } from '../../types';
 import { Button } from '../../components/ui/Button';

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { FAQ } from '../../types';
-import { Plus, Trash2, Edit2, HelpCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Trash2, HelpCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '../ui/Button';
 
 interface FAQManagerProps {

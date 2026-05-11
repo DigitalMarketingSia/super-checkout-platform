@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { LayoutTemplate, ChevronLeft, ChevronRight, Zap, Plus, Settings, HelpCircle, Layers, Sparkles, ArrowRight, FolderOpen } from 'lucide-react';
+import { LayoutTemplate, ChevronLeft, Zap, Plus, Settings, HelpCircle, Layers, Sparkles, ArrowRight, FolderOpen } from 'lucide-react';
 import { useFunnelStore } from '../store/useFunnelStore';
 import { FUNNEL_TEMPLATES } from '../constants/templates';
 import { cn } from '../lib/utils';

@@ -1,17 +1,13 @@
 import React, { useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
-  TrendingUp, 
   DollarSign, 
   Target, 
   BarChart3,
-  Zap,
   ArrowUpRight,
-  PieChart,
   Calendar,
   ArrowDownRight,
   Activity,
-  CheckCircle2,
   AlertCircle,
   Lightbulb,
   X
@@ -289,4 +285,3 @@ export const SimulationPanel = () => {
     </div>
   );
 };
-

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { X, User, ShoppingBag, MessageCircle, CreditCard, Calendar, Mail, FileText, CheckCircle, AlertCircle, Clock, RefreshCw } from 'lucide-react';
-import { Order, OrderStatus } from '../../../types';
+import { Order } from '../../../types';
 import { Button } from '../../ui/Button';
 import { AlertModal } from '../../ui/Modal';
 import { resendOrderAccessEmail } from '../../../services/orderAccessEmailService';
@@ -79,7 +79,9 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, isO
                     <div className="relative flex-none p-6 border-b border-white/10 bg-white/[0.02] flex justify-between items-start">
                         <div>
                             <div className="flex items-center gap-3 mb-1">
-                                <h2 className="text-xl font-bold text-white">Detalhes do Pedido</h2>
+                                <Dialog.Title asChild>
+                                    <h2 className="text-xl font-bold text-white">Detalhes do Pedido</h2>
+                                </Dialog.Title>
                                 <span className="px-2.5 py-0.5 rounded-full text-xs font-mono bg-purple-500/10 text-purple-400 border border-purple-500/20">
                                     #{order.id.slice(0, 8)}
                                 </span>

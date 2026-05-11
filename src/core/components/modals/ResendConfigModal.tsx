@@ -13,7 +13,6 @@ interface ResendConfigModalProps {
 export const ResendConfigModal: React.FC<ResendConfigModalProps> = ({ isOpen, onClose }) => {
     const [apiKey, setApiKey] = useState('');
     const [senderEmail, setSenderEmail] = useState('');
-    const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [testing, setTesting] = useState(false);
     const [active, setActive] = useState(false);
@@ -25,7 +24,6 @@ export const ResendConfigModal: React.FC<ResendConfigModalProps> = ({ isOpen, on
     }, [isOpen]);
 
     const loadConfig = async () => {
-        setLoading(true);
         try {
             const integration = await storage.getIntegration('resend');
             if (integration) {
@@ -35,8 +33,6 @@ export const ResendConfigModal: React.FC<ResendConfigModalProps> = ({ isOpen, on
             }
         } catch (error) {
             console.error('Error loading Resend config:', error);
-        } finally {
-            setLoading(false);
         }
     };
 

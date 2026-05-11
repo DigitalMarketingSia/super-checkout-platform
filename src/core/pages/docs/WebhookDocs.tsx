@@ -1,7 +1,7 @@
 import React from 'react';
 import { Layout } from '../../components/Layout';
 import { Card } from '../../components/ui/Card';
-import { Code, Globe, Lock, ArrowRight, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Globe, Lock, ArrowRight } from 'lucide-react';
 
 export const WebhookDocs = () => {
     return (

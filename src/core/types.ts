@@ -90,6 +90,7 @@ export enum DomainUsage {
 
 export interface Domain {
   id: string;
+  user_id?: string;
   domain: string; // ex: checkout.meusite.com
   checkout_id?: string; // Checkout padrão vinculado (opcional)
   slug?: string; // Slug padrão
@@ -340,6 +341,7 @@ export interface Lesson {
   associated_product?: Product;
   module?: Module; // Populated in some queries
   content_order?: string[]; // e.g. ['video', 'text', 'gallery', 'file']
+  is_published?: boolean;
 }
 
 export interface AccessGrant {

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { AuthDebug } from './pages/debug/AuthDebug';
-import { AuthProvider, useAuth } from './context/AuthContext';
+import { AuthProvider } from './context/AuthContext';
 import { InstallationProvider } from './context/InstallationContext';
 
 import { Dashboard } from './pages/admin/Dashboard';
@@ -21,14 +21,11 @@ import { Licenses } from './pages/admin/Licenses';
 import { SystemLicenses } from './pages/admin/SystemLicenses';
 import { SecurityEvents } from './pages/admin/SecurityEvents';
 import { UpgradeIntents } from './pages/admin/UpgradeIntents';
-// import { SetupWizard } from './pages/admin/SetupWizard';
 import { BusinessSettings } from './pages/admin/BusinessSettings';
-// import { MyLicense } from './pages/admin/saas/MyLicense';
 import { MyInstallations } from './pages/admin/Installations';
-import { LeadCRM } from './pages/admin/LeadCRM'; // New
-import { FreeUserDetails } from './pages/admin/FreeUserDetails'; // New
-import { PartnerDashboard } from './pages/admin/PartnerDashboard'; // New
-// import { SystemWebhooks } from './pages/admin/saas/SystemWebhooks';
+import { LeadCRM } from './pages/admin/LeadCRM';
+import { FreeUserDetails } from './pages/admin/FreeUserDetails';
+import { PartnerDashboard } from './pages/admin/PartnerDashboard';
 import { Marketing } from './pages/Marketing';
 import { IntegrationsHub } from './pages/IntegrationsHub';
 import { Notifications } from './pages/admin/Notifications';
@@ -64,7 +61,7 @@ import { PlatformTerms } from './pages/public/PlatformTerms';
 import { LicenseGuard } from './components/LicenseGuard';
 import { Loading } from './components/ui/Loading';
 import InstallerWizard from './pages/installer/InstallerWizard';
-import { WebhookDocs } from './pages/docs/WebhookDocs'; // Import Docs
+import { WebhookDocs } from './pages/docs/WebhookDocs';
 import { ThemeProvider } from './context/ThemeContext';
 import { ConfigLoader } from './components/ConfigLoader';
 import { Toaster } from 'sonner';
@@ -137,14 +134,6 @@ const isControlPlaneHostname = (hostname: string) => {
   return isLocalHostname(normalizedHostname) || CONTROL_PLANE_HOSTNAMES.has(normalizedHostname);
 };
 
-const getHostAwareLoginPath = (hostname = getCurrentHostname()) => {
-  if (PORTAL_HOSTNAMES.has(hostname)) {
-    return '/activate';
-  }
-
-  return '/login';
-};
-
 const getHostAwareRootPath = (hostname = getCurrentHostname()) => {
   if (PORTAL_HOSTNAMES.has(hostname)) {
     return '/activate';
@@ -192,23 +181,6 @@ const isSystemHostname = (hostname: string) => {
     normalizedHostname.includes('.webcontainer.io') ||
     SYSTEM_HOSTNAMES.has(normalizedHostname)
   );
-};
-
-// Protected Route Wrapper
-const ProtectedRoute: React.FC<{ children: React.ReactNode; redirectPath?: string }> = ({ children, redirectPath }) => {
-  const { user, loading } = useAuth();
-  const { t } = useTranslation('common');
-  const resolvedRedirectPath = redirectPath || getHostAwareLoginPath();
-
-  if (loading) {
-    return <div className="h-screen w-screen flex items-center justify-center bg-[#05050A] text-white italic font-bold uppercase tracking-widest text-xs animate-pulse">{t('loading')}</div>;
-  }
-
-  if (!user) {
-    return <Navigate to={resolvedRedirectPath} replace />;
-  }
-
-  return <>{children}</>;
 };
 
 const DomainDispatcher = () => {
@@ -367,7 +339,6 @@ const DomainDispatcher = () => {
   // RENDER: Member Area Mode (Custom Domain)
   if (customMemberAreaSlug) {
     // Logic for Member Area on Root Domain
-    // We pass the 'forcedSlug' prop to the wrapper (requires update in MemberAreaWrapper)
     return (
       <Routes>
         {/* Login and Signup at root level for custom domain */}
@@ -415,7 +386,6 @@ const DomainDispatcher = () => {
 
       {/* Admin Routes (Protected) */}
       <Route path="/admin" element={<AdminRoute><Dashboard /></AdminRoute>} />
-      {/* <Route path="/admin/setup" element={<AdminRoute><SetupWizard /></AdminRoute>} /> REMOVED */}
       <Route path="/admin/business-settings" element={<AdminRoute><BusinessSettings /></AdminRoute>} />
       <Route path="/admin/products" element={<AdminRoute><Products /></AdminRoute>} />
       <Route path="/admin/offers" element={<AdminRoute><Offers /></AdminRoute>} />
@@ -440,13 +410,11 @@ const DomainDispatcher = () => {
       {/* SaaS Module Routes (New) */}
       <Route path="/admin/installations" element={<AdminRoute><MyInstallations /></AdminRoute>} />
       <Route path="/admin/partner-dashboard" element={<AdminRoute><PartnerDashboard /></AdminRoute>} />
-      {/* <Route path="/admin/saas/webhooks" element={<AdminRoute><SystemWebhooks /></AdminRoute>} /> */}
 
       <Route path="/admin/marketing" element={<AdminRoute><Marketing /></AdminRoute>} />
       <Route path="/admin/integrations" element={<AdminRoute><IntegrationsHub /></AdminRoute>} />
       <Route path="/admin/notifications" element={<AdminRoute><Notifications /></AdminRoute>} />
       <Route path="/admin/members" element={<AdminRoute><MemberAreas /></AdminRoute>} />
-      <Route path="/admin/members/:id" element={<AdminRoute><MemberAreaDashboard /></AdminRoute>} />
       <Route path="/admin/members/:id" element={<AdminRoute><MemberAreaDashboard /></AdminRoute>} />
       <Route path="/admin/contents/:id" element={<AdminRoute><ContentEditor /></AdminRoute>} />
 

@@ -3,9 +3,9 @@ import { Layout } from '../../components/Layout';
 import { storage } from '../../services/storageService';
 import { Content, Module, Lesson, Product, MemberArea } from '../../types';
 import { Button } from '../../components/ui/Button';
-import { ConfirmModal, AlertModal } from '../../components/ui/Modal';
+import { AlertModal } from '../../components/ui/Modal';
 import {
-    ArrowLeft, Save, Upload, Plus, Trash2, Edit2, GripVertical, Video, FileText, Link as LinkIcon, File as FileIcon, MoreVertical, ChevronDown, ChevronRight, Layers, Lock, Terminal, Activity, Globe, Monitor, Smartphone, Layout as LayoutIcon
+    ArrowLeft, Save, Upload, Plus, Trash2, Edit2, Video, FileText, File as FileIcon, ChevronDown, ChevronRight, Layers, Lock, Terminal, Activity, Globe, Monitor, Smartphone, Layout as LayoutIcon
 } from 'lucide-react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { LessonEditorModal } from '../../components/admin/LessonEditorModal';
@@ -40,7 +40,6 @@ export const ContentEditor = () => {
     // Upload State
     const [uploading, setUploading] = useState(false);
     const horizontalInputRef = useRef<HTMLInputElement>(null);
-    const moduleVerticalInputRef = useRef<HTMLInputElement>(null);
     const moduleHorizontalInputRef = useRef<HTMLInputElement>(null);
 
     // Modal States

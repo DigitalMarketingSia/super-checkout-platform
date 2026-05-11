@@ -3,7 +3,6 @@ import { Layout } from '../../../components/Layout';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { ShieldAlert, Webhook, Eye, EyeOff, Save, Lock } from 'lucide-react';
-import { supabase } from '../../../services/supabase';
 
 export const SystemWebhooks = () => {
     // SECURITY: This page should ONLY be accessible by the Owner
@@ -16,7 +15,6 @@ export const SystemWebhooks = () => {
     const [webhookUrl, setWebhookUrl] = useState(''); // Empty by default
     const [isEditing, setIsEditing] = useState(false);
     const [showUrl, setShowUrl] = useState(false);
-    const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         // Fetch current config if stored in DB (system_settings table)

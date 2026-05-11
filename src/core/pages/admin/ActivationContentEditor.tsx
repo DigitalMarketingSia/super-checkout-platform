@@ -7,10 +7,8 @@ import {
     Save, 
     Video, 
     FileText, 
-    Link as LinkIcon, 
     Image as ImageIcon, 
     ArrowUp, 
-    ArrowDown, 
     Upload, 
     Loader2, 
     X, 
@@ -23,7 +21,6 @@ import {
     ChevronDown,
     ChevronUp,
     Zap,
-    ExternalLink,
     Download,
     ChevronLeft
 } from 'lucide-react';

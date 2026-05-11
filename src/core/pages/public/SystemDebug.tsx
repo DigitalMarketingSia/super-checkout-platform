@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { supabase } from '../../services/supabase';
 
 export const SystemDebug = () => {
@@ -15,7 +15,7 @@ export const SystemDebug = () => {
         try {
             // 1. Frontend Supabase Connection
             addLog('1. Testando conexão Frontend Supabase...');
-            const { data, error } = await supabase.from('public_gateways').select('count').limit(1);
+            const { error } = await supabase.from('public_gateways').select('count').limit(1);
             if (error) throw new Error(`Frontend Supabase Fail: ${error.message}`);
             addLog('✅ Frontend Supabase OK');
 

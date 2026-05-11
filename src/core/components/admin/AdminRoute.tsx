@@ -1,13 +1,12 @@
 
 import React from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Loading } from '../../components/ui/Loading';
 import { MigrationRunner } from './MigrationRunner';
 
 export const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const { user, profile, account, compliance, loading } = useAuth();
-    const location = useLocation();
+    const { user, profile, loading } = useAuth();
 
     if (loading) {
         return <Loading />;
@@ -63,18 +62,6 @@ export const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }
             </div>
         );
     }
-
-    // 2. Compliance Logic Check
-    // We NO LONGER redirect to /admin/setup.
-    // Instead, we allow access but might show a banner (handled in Layout).
-
-    // const isSetupPage = location.pathname === '/admin/setup';
-    // const isCompliant = compliance?.status === 'verified';
-
-    // if (!isCompliant && !isSetupPage) {
-    //     console.log('AdminRoute: Account not compliant, redirecting to Wizard.');
-    //     return <Navigate to="/admin/setup" replace />;
-    // }
 
     return (
         <>

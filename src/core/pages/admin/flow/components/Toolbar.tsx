@@ -1,9 +1,8 @@
-import React, { useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Save, 
   Share2, 
-  Image as ImageIcon, 
   LayoutGrid, 
   LayoutTemplate,
   Link2, 
@@ -34,7 +33,6 @@ import {
   Rocket
 } from 'lucide-react';
 import { useFunnelStore } from '../store/useFunnelStore';
-import { useState, useEffect } from 'react';
 import { type FunnelNode } from '../types';
 import { cn } from '../lib/utils';
 import { useNavigate } from 'react-router-dom';

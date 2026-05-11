@@ -154,6 +154,7 @@ export const UpsellPage = () => {
                 customerCpf: originalOrder.customer_cpf,
                 gatewayId: checkout.gateway_id, // Use same gateway
                 paymentMethod: method,
+                currency: checkout.currency || 'BRL',
                 items: [{
                     name: upsellProduct.name,
                     price: upsellProduct.price_real || 0,

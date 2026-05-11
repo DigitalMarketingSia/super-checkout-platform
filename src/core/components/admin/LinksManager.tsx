@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { CustomLink } from '../../types';
-import { Plus, Trash2, Edit2, Link as LinkIcon, Check, X, ExternalLink } from 'lucide-react';
+import { Plus, Trash2, Link as LinkIcon, ExternalLink } from 'lucide-react';
 import { Button } from '../ui/Button';
 
 interface LinksManagerProps {
@@ -11,7 +11,6 @@ interface LinksManagerProps {
 const ICONS = ['instagram', 'facebook', 'youtube', 'tiktok', 'whatsapp', 'globe', 'link'];
 
 export const LinksManager: React.FC<LinksManagerProps> = ({ links, onChange }) => {
-    const [editingId, setEditingId] = useState<string | null>(null);
     const [newLink, setNewLink] = useState<Partial<CustomLink>>({ title: '', url: '', icon: 'link', active: true });
 
     const handleAdd = () => {

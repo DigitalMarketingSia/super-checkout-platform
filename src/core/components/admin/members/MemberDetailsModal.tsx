@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import * as Tabs from '@radix-ui/react-tabs';
 import { ConfirmModal, AlertModal } from '../../ui/Modal';
-import { X, User, ShoppingBag, Clock, FileText, Activity, Shield, Mail, Calendar, Key, Ban, ExternalLink, Plus, Trash2, Tag, Save } from 'lucide-react';
+import { X, ShoppingBag, Clock, FileText, Activity, Shield, Mail, Calendar, Key, Ban } from 'lucide-react';
 import { memberService } from '../../../services/memberService';
-import { Profile, ActivityLog, MemberNote, MemberTag } from '../../../types';
+import { ActivityLog } from '../../../types';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -126,8 +126,14 @@ export const MemberDetailsModal: React.FC<MemberDetailsModalProps> = ({ member, 
         setLoading(true);
         setError(null);
         try {
-            console.log('Loading details for:', member.user_id);
-            const data = await memberService.getMemberDetails(member.user_id);
+            const memberUserId = member.user_id || member.id;
+            console.log('Loading details for:', memberUserId);
+            const data = await memberService.getMemberDetails(memberUserId, {
+                email: member.email,
+                name: member.name,
+                status: member.status,
+                joined_at: member.joined_at
+            });
             console.log('Loaded details:', data);
             setDetails(data);
             if (data?.profile?.status) {
@@ -214,12 +220,14 @@ export const MemberDetailsModal: React.FC<MemberDetailsModalProps> = ({ member, 
                                 {member.name.charAt(0).toUpperCase()}
                             </div>
                             <div>
-                                <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                                    {member.name}
-                                    {currentStatus === 'suspended' && (
-                                        <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-xs font-medium border border-red-200">Suspenso</span>
-                                    )}
-                                </h2>
+                                <Dialog.Title asChild>
+                                    <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                                        {member.name}
+                                        {currentStatus === 'suspended' && (
+                                            <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-xs font-medium border border-red-200">Suspenso</span>
+                                        )}
+                                    </h2>
+                                </Dialog.Title>
                                 <div className="flex items-center gap-4 text-sm text-gray-500 mt-1">
                                     <span className="flex items-center gap-1.5">
                                         <Mail className="w-4 h-4" />

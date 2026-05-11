@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { SidebarItem } from '../../types';
-import { Plus, Trash2, ChevronUp, ChevronDown, Link as LinkIcon, Folder, GripVertical, X, Check } from 'lucide-react';
+import { Plus, Trash2, ChevronUp, ChevronDown, Link as LinkIcon, Folder, GripVertical, Check } from 'lucide-react';
 import { Button } from '../ui/Button';
 
 interface SidebarBuilderProps {
@@ -84,7 +84,7 @@ export const SidebarBuilder: React.FC<SidebarBuilderProps> = ({ items, onChange 
         onChange(moveRecursive(items));
     };
 
-    const renderItem = (item: SidebarItem, depth = 0, parentId?: string) => {
+    const renderItem = (item: SidebarItem, depth = 0) => {
         const isEditing = editingId === item.id;
 
         return (
@@ -154,7 +154,7 @@ export const SidebarBuilder: React.FC<SidebarBuilderProps> = ({ items, onChange 
                 {item.type === 'section' && (
                     <div className="p-3 pt-0 border-t border-gray-200 dark:border-white/10 bg-gray-100/50 dark:bg-black/20">
                         <div className="mt-2 space-y-2">
-                            {item.children?.map(child => renderItem(child, depth + 1, item.id))}
+                            {item.children?.map(child => renderItem(child, depth + 1))}
                         </div>
                         <button
                             onClick={() => handleAddItem(item.id)}

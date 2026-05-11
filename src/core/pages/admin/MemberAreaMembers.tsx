@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { memberService } from '../../services/memberService';
-import { Member, MemberArea } from '../../types';
+import { MemberArea } from '../../types';
 import { Button } from '../../components/ui/Button';
-import { ConfirmModal } from '../../components/ui/Modal';
-import { Search, User, Mail, Calendar, Shield, MoreVertical, Filter, Download, Plus, PlayCircle, Eye, RefreshCw, Slash, Lock, Trash2, Loader2, Users, Activity, ExternalLink, ChevronRight, Zap, Terminal } from 'lucide-react';
+import { AlertModal, ConfirmModal } from '../../components/ui/Modal';
+import { Search, Mail, Filter, Download, Plus, Eye, RefreshCw, Slash, Lock, Trash2, Loader2, Users, Zap, Terminal } from 'lucide-react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { MemberDetailsModal } from '../../components/admin/members/MemberDetailsModal';
 import { AddMemberModal } from '../../components/admin/members/AddMemberModal';
-import { AlertModal } from '../../components/ui/Modal';
 import { emailService } from '../../services/emailService';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';

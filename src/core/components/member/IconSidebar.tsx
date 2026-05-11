@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, ShoppingBag, Package, User, Search, Menu, ChevronLeft, BookOpen } from 'lucide-react';
+import { Home, ShoppingBag, Package, User, ChevronLeft, BookOpen } from 'lucide-react';
 
 interface IconSidebarProps {
     onToggleMenu: () => void;

@@ -12,9 +12,8 @@ interface LessonEditorModalProps {
     moduleId: string;
 }
 
-export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({ isOpen, onClose, onSave, lesson, moduleId }) => {
+export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({ isOpen, onClose, onSave, lesson }) => {
     const [editedLesson, setEditedLesson] = useState<Lesson>(lesson);
-    const [uploading, setUploading] = useState(false);
     const imageInputRef = useRef<HTMLInputElement>(null);
 
     React.useEffect(() => {
@@ -27,14 +26,11 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({ isOpen, on
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
             try {
-                setUploading(true);
                 const publicUrl = await storage.uploadLessonImage(file, editedLesson.id);
                 setEditedLesson({ ...editedLesson, image_url: publicUrl });
             } catch (error) {
                 console.error('Error uploading image:', error);
                 alert('Erro ao fazer upload da imagem.');
-            } finally {
-                setUploading(false);
             }
         }
     };
@@ -43,7 +39,6 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({ isOpen, on
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
             try {
-                setUploading(true);
                 // Reusing lesson image upload for now, or create a specific one if needed
                 const publicUrl = await storage.uploadLessonImage(file, resourceId);
 
@@ -54,8 +49,6 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({ isOpen, on
             } catch (error) {
                 console.error('Error uploading gallery image:', error);
                 alert('Erro ao fazer upload da imagem.');
-            } finally {
-                setUploading(false);
             }
         }
     };

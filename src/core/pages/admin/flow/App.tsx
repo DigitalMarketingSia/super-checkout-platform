@@ -1,11 +1,10 @@
 import { useEffect } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, useParams } from 'react-router-dom';
 import './index.css';
 import { Editor } from './pages/Editor';
 import { Dashboard } from './pages/Dashboard';
 import { useFunnelStore } from './store/useFunnelStore';
 import { loadFunnel } from './lib/storage';
-import { useParams } from 'react-router-dom';
 
 function EditorWrapper() {
   const { id } = useParams();
