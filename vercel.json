@@ -1,66 +1,13 @@
 {
     "rewrites": [
-        { "source": "/api/check-status", "destination": "/api/system?action=check-status" },
-        { "source": "/api/health", "destination": "/api/system?action=health" },
-        { "source": "/api/proxy", "destination": "/api/system?action=proxy" },
-        { "source": "/api/send-email", "destination": "/api/system?action=send-email" },
-        { "source": "/api/config", "destination": "/api/installer?action=config" },
-        { "source": "/api/setup-admin", "destination": "/api/installer?action=setup-admin" },
-        { "source": "/api/admin/:action", "destination": "/api/admin?action=:action" },
-        { "source": "/api/domains/:action", "destination": "/api/domains?action=:action" },
-        { "source": "/api/installer/:action", "destination": "/api/installer?action=:action" },
-        { "source": "/api/licenses/validate", "destination": "/api/licenses?action=validate" },
-        { "source": "/api/stripe/create-payment-intent", "destination": "/api/payments?action=create-payment-intent" },
-        { "source": "/api/central/:endpoint", "destination": "/api/central-proxy?endpoint=:endpoint" },
-        { "source": "/api/webhooks/:action", "destination": "/api/stripe?action=:action" },
         {
             "source": "/mp-api/:path*",
             "destination": "https://api.mercadopago.com/:path*"
         },
         {
-            "source": "/((?!api/|mp-api/|@vite/|@react-refresh|@id/|src/|node_modules/|.*\\.).*)",
+            "source": "/((?!api/|mp-api/).*)",
             "destination": "/index.html"
         }
     ],
-    "headers": [
-        {
-            "source": "/(.*)",
-            "headers": [
-                {
-                    "key": "X-Frame-Options",
-                    "value": "DENY"
-                },
-                {
-                    "key": "X-Content-Type-Options",
-                    "value": "nosniff"
-                },
-                {
-                    "key": "Strict-Transport-Security",
-                    "value": "max-age=31536000; includeSubDomains"
-                },
-                {
-                    "key": "Referrer-Policy",
-                    "value": "strict-origin-when-cross-origin"
-                },
-                {
-                    "key": "Permissions-Policy",
-                    "value": "camera=(), microphone=(), geolocation=(), interest-cohort=()"
-                },
-                {
-                    "key": "X-DNS-Prefetch-Control",
-                    "value": "on"
-                },
-                {
-                    "key": "Content-Security-Policy",
-                    "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://sdk.mercadopago.com https://js.stripe.com https://www.googletagmanager.com https://connect.facebook.net https://analytics.tiktok.com https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https: http:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.mercadopago.com https://api.stripe.com https://api.resend.com https://api.vercel.com https://api.github.com https://www.google-analytics.com https://stats.g.doubleclick.net https://challenges.cloudflare.com; frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://www.googletagmanager.com https://www.youtube.com https://www.youtube-nocookie.com https://challenges.cloudflare.com; media-src 'self' blob: data: https:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests"
-                }
-            ]
-        }
-    ],
-    "crons": [
-        {
-            "path": "/api/health",
-            "schedule": "0 6 * * *"
-        }
-    ]
+    "headers": []
 }
