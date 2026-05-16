@@ -31,11 +31,39 @@ const INSTALLER_STORAGE_BUCKETS = ['products', 'contents', 'checkouts', 'member-
 const DISTRIBUTION_REPOSITORY_URL = 'https://github.com/DigitalMarketingSia/super-checkout-platform';
 const BACKEND_VERIFY_ATTEMPTS = 12;
 const BACKEND_VERIFY_INTERVAL_MS = 5000;
+const SETUP_PENDING_DOMAIN = 'setup-pending';
+const INSTALLER_HOSTNAMES = new Set(['install.supercheckout.app']);
 
 const isAlreadyExistsError = (error: any) =>
     /already exists|resource_already_exists/i.test(String(error?.message || error || ''));
 
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+const normalizeDomain = (value?: string | null) =>
+    String(value || '')
+        .replace(/^https?:\/\//i, '')
+        .split('/')[0]
+        .trim()
+        .toLowerCase();
+
+const getLicenseValidationDomain = (targetDomain?: string | null) => {
+    const savedTarget = normalizeDomain(
+        targetDomain
+        || localStorage.getItem('installer_vercel_domain')
+        || localStorage.getItem('installation_domain')
+    );
+
+    if (savedTarget && !INSTALLER_HOSTNAMES.has(savedTarget) && savedTarget !== SETUP_PENDING_DOMAIN) {
+        return savedTarget;
+    }
+
+    const currentHost = normalizeDomain(window.location.hostname);
+    if (!currentHost || INSTALLER_HOSTNAMES.has(currentHost)) {
+        return SETUP_PENDING_DOMAIN;
+    }
+
+    return currentHost;
+};
 
 const verifyDistributionBackend = async (domain: string, params: { licenseKey: string; installationId: string }) => {
     let lastResult = 'sem resposta';
@@ -320,7 +348,7 @@ export default function InstallerWizard() {
                 body: JSON.stringify({
                     license_key: checkValue,
                     installation_id: installationId,
-                    current_domain: window.location.hostname,
+                    current_domain: getLicenseValidationDomain(),
                     activate: true // Register this installation ID with the license
                 })
             });
@@ -411,9 +439,11 @@ export default function InstallerWizard() {
             return;
         }
 
-        let cleanDomain = vercelDomain.replace('https://', '').replace('http://', '').split('/')[0];
+        let cleanDomain = normalizeDomain(vercelDomain);
         // Remove trailing slashes
         if (cleanDomain.endsWith('/')) cleanDomain = cleanDomain.slice(0, -1);
+        localStorage.setItem('installer_vercel_domain', cleanDomain);
+        localStorage.setItem('installation_domain', cleanDomain);
 
         setLoading(true);
 
@@ -465,6 +495,8 @@ export default function InstallerWizard() {
     useEffect(() => {
         const savedKey = localStorage.getItem('installer_license_key');
         if (savedKey) setLicenseKey(savedKey);
+        const savedVercelDomain = localStorage.getItem('installer_vercel_domain');
+        if (savedVercelDomain) setVercelDomain(savedVercelDomain);
 
         // Restore keys if available
         setAnonKey(localStorage.getItem('installer_supabase_anon_key') || '');
@@ -815,7 +847,7 @@ export default function InstallerWizard() {
                                                 body: JSON.stringify({
                                                     license_key: licenseKey,
                                                     installation_id: currentInstallId,
-                                                    current_domain: vercelDomain || window.location.hostname,
+                                                    current_domain: getLicenseValidationDomain(vercelDomain),
                                                     register: true // Always register on explicit setup
                                                 })
                                             });
@@ -877,7 +909,7 @@ export default function InstallerWizard() {
                                         owner_id: validationData.license.owner_id || null,
                                         created_at: new Date().toISOString(),
                                         activated_at: new Date().toISOString(),
-                                        allowed_domain: vercelDomain || window.location.hostname, // Use client's domain
+                                        allowed_domain: getLicenseValidationDomain(vercelDomain),
                                         expires_at: validationData.license.expires_at || null
                                     };
 
@@ -923,7 +955,7 @@ export default function InstallerWizard() {
                                     // 4. SAVE INSTALLATION DOMAIN (CRITICAL FIX)
                                     // Save the installation domain to localStorage for license validation
                                     // This allows custom domains to bypass license checks
-                                    const installationDomain = vercelDomain || window.location.hostname;
+                                    const installationDomain = getLicenseValidationDomain(vercelDomain);
                                     localStorage.setItem('installation_domain', installationDomain);
                                     console.log(`✅ Installation domain saved: ${installationDomain}`);
 
