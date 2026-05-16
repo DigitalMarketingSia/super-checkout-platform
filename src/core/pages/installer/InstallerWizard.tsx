@@ -37,20 +37,26 @@ const isAlreadyExistsError = (error: any) =>
 
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-const verifyDistributionBackend = async (domain: string) => {
-    const baseUrl = `https://${domain}`;
+const verifyDistributionBackend = async (domain: string, params: { licenseKey: string; installationId: string }) => {
     let lastResult = 'sem resposta';
 
     for (let attempt = 1; attempt <= BACKEND_VERIFY_ATTEMPTS; attempt += 1) {
         try {
-            const response = await fetch(`${baseUrl}/api/config?probe=${Date.now()}`, {
-                method: 'GET',
-                headers: { Accept: 'application/json' },
+            const response = await fetch('/api/installer/verify_backend', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
                 cache: 'no-store',
+                body: JSON.stringify({
+                    action: 'verify_backend',
+                    licenseKey: params.licenseKey,
+                    installationId: params.installationId,
+                    targetDomain: domain,
+                }),
             });
+            const payload = await response.json().catch(() => ({}));
 
-            lastResult = `HTTP ${response.status}`;
-            if (response.ok) return;
+            lastResult = payload?.error ? `${payload.error} (${response.status})` : `HTTP ${response.status}`;
+            if (response.ok && payload?.success) return;
         } catch (error: any) {
             lastResult = safeInstallerErrorMessage(error);
         }
@@ -433,7 +439,7 @@ export default function InstallerWizard() {
             const data = await response.json();
             if (!data.valid) throw new Error(data.message || 'Licença inválida para este domínio.');
 
-            await verifyDistributionBackend(cleanDomain);
+            await verifyDistributionBackend(cleanDomain, { licenseKey, installationId });
             await consumeInstallToken(cleanDomain);
             localStorage.setItem('installer_vercel_domain', cleanDomain);
             runSuccessAnim('Domínio Ativado!', () => {

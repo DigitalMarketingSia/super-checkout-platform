@@ -56,6 +56,41 @@ function secureRandomSuffix(bytes = 2) {
   return randomBytes(bytes).toString('hex');
 }
 
+function normalizeVercelDeploymentDomain(value: unknown) {
+  const hostname = String(value || '')
+    .trim()
+    .replace(/^https?:\/\//i, '')
+    .split('/')[0]
+    .split(':')[0]
+    .toLowerCase();
+
+  if (!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.vercel\.app$/.test(hostname)) {
+    return '';
+  }
+
+  return hostname;
+}
+
+async function verifyVercelBackend(domain: string) {
+  const response = await fetch(`https://${domain}/api/config?probe=${Date.now()}`, {
+    method: 'GET',
+    headers: { Accept: 'application/json' },
+  });
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      status: response.status,
+    };
+  }
+
+  const payload = await response.json().catch(() => ({}));
+  return {
+    ok: Boolean(payload?.url && payload?.anon),
+    status: response.status,
+  };
+}
+
 // Schema SQL embedded directly to avoid bundling/import issues
 const schemaSql = `
 -- Super Checkout - Definitive Fail-Proof Schema
@@ -879,7 +914,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === 'OPTIONS') return res.status(200).end();
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-    const { action, code, licenseKey, projectRef, dbPass, organizationSlug, installationId } = req.body;
+    const { action, code, licenseKey, projectRef, dbPass, organizationSlug, installationId, targetDomain } = req.body;
 
     // 0. Initialize Supabase (Admin Context)
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
@@ -899,7 +934,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const rateLimit = enforceApiRateLimit(req, res, {
       scope: action === 'create_project' ? 'installer_create_project' : 'installer_action',
       identifiers: [licenseKey, installationId, action],
-      limit: action === 'create_project' ? 4 : 10,
+      limit: action === 'create_project' ? 4 : (action === 'verify_backend' ? 40 : 10),
       windowMs: 15 * 60 * 1000
     });
 
@@ -934,6 +969,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
+      if (action === 'verify_backend') {
+        const domain = normalizeVercelDeploymentDomain(targetDomain);
+        if (!domain) {
+          return res.status(400).json({ error: 'Invalid deployment domain' });
+        }
+
+        const result = await verifyVercelBackend(domain);
+        if (!result.ok) {
+          return res.status(409).json({
+            success: false,
+            status: result.status,
+            error: 'Deployment backend is not ready'
+          });
+        }
+
+        return res.status(200).json({ success: true, status: result.status });
+      }
+
       if (action === 'create_project') {
         if (!code) return res.status(400).json({ error: 'Missing OAuth code' });
 
