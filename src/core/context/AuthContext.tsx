@@ -120,7 +120,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
       const [{ data: profileData, error: profileError }, authz] = await Promise.all([profilePromise, authzPromise]);
       const effectiveProfile = applySessionAuthzToProfile(profileData, authz, authUser, userId);
 
@@ -152,7 +152,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .from('accounts')
         .select('id, plan_type, trust_score')
         .eq('owner_user_id', userId)
-        .single();
+        .maybeSingle();
 
       if (accountData) {
         setAccount(accountData);
@@ -161,7 +161,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .from('business_settings')
           .select('compliance_status, is_ready_to_sell, business_name')
           .eq('account_id', accountData.id)
-          .single();
+          .maybeSingle();
 
         if (settingsData) {
           setCompliance({

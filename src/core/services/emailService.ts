@@ -16,7 +16,7 @@ class EmailService {
             const { data: settings } = await supabase
                 .from('business_settings')
                 .select('sender_name, business_name')
-                .single();
+                .maybeSingle();
 
             if (settings) {
                 return settings.sender_name || settings.business_name;
@@ -141,7 +141,7 @@ class EmailService {
             .eq('event_type', 'ORDER_COMPLETED')
             .eq('language', lang)
             .eq('active', true)
-            .single();
+            .maybeSingle();
 
         const productName = order.items?.[0]?.name || 'seu produto';
         const membersAreaUrl = await this.resolveMembersAreaUrl(order);
@@ -216,7 +216,7 @@ class EmailService {
             .eq('event_type', 'ACCESS_GRANTED')
             .eq('language', lang)
             .eq('active', true)
-            .single();
+            .maybeSingle();
 
         const membersAreaUrl = data.membersAreaUrl || 'https://app.supercheckout.com/login';
 
