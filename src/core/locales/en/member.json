@@ -1,0 +1,167 @@
+{
+  "nav": {
+    "home": "Home",
+    "my_products": "My Products",
+    "products_for_sale": "Products for sale",
+    "links": "Links",
+    "faq": "FAQ",
+    "profile": "Profile",
+    "logout": "Logout",
+    "signup": "Sign Up",
+    "login": "Login"
+  },
+  "status": {
+    "suspended": "Access Suspended",
+    "suspended_desc": "Your account has been temporarily suspended by an administrator. Contact support for more information.",
+    "active": "Active",
+    "inactive": "Inactive"
+  },
+  "common": {
+    "loading": "Loading...",
+    "no_description": "No description."
+  },
+  "dashboard": {
+    "featured": "Featured",
+    "watch": "Watch",
+    "more_info": "More info",
+    "empty_tracks": "No tracks configured.",
+    "select_member_area": "Select a member area.",
+    "alerts": {
+      "product_without_content": "This product does not have available content yet.",
+      "product_content_error": "Error loading product content.",
+      "lesson_content_not_found": "Navigation error: lesson content not found.",
+      "exclusive_without_product": "This content is exclusive to subscribers and does not have a direct product associated for purchase."
+    }
+  },
+  "course": {
+    "select_lesson": "Select a lesson",
+    "supplementary_material": "Supplementary material",
+    "file_access_hint": "Click to access the file or external link",
+    "access_resource": "Access resource",
+    "resource_gallery": "Resource gallery",
+    "access": "Access",
+    "module_label": "Module",
+    "completed": "Completed",
+    "mark_completed": "Mark as completed",
+    "search_placeholder": "Search content",
+    "click_to_access": "Click to access",
+    "module_number": "Module {{number}}",
+    "empty_module": "No lessons in this module.",
+    "error_title": "Error",
+    "try_again": "Try again",
+    "errors": {
+      "member_area_not_found": "Member area not found for this domain.",
+      "content_not_found": "Content not found.",
+      "load_course": "Error loading course."
+    }
+  },
+  "track": {
+    "free": "Free",
+    "owned": "Yours",
+    "module_count": "{{count}} modules"
+  },
+  "sales_modal": {
+    "special_offer": "Special offer",
+    "default_description": "Take this exclusive opportunity to purchase this product and unlock its full potential.",
+    "from_price": "from",
+    "only_for": "only",
+    "buy_now": "Buy now",
+    "secure_payment": "Secure payment",
+    "immediate_access": "Immediate access",
+    "no_purchase_link": "There is no purchase link configured for this product. Contact the administrator."
+  },
+  "login": {
+    "background_alt": "Login background image",
+    "hero_subtitle": "Access your account to keep learning.",
+    "title": "Welcome back",
+    "subtitle": "Sign in with your credentials to access.",
+    "recover_password": "Create/recover password",
+    "recovery_success": "If this email has access, we will send a link to create or change the password.",
+    "errors": {
+      "unexpected_backend": "Login backend returned an unexpected response: {{message}}",
+      "backend_unavailable": "Login backend is unavailable right now.",
+      "rate_limited": "Too many attempts. Try again in {{count}} minutes.",
+      "invalid_credentials": "Email or password is incorrect.",
+      "email_required": "Enter your email to receive the recovery link.",
+      "recovery_send_failed": "We could not send the link right now."
+    }
+  },
+  "signup": {
+    "background_alt": "Signup background image",
+    "hero_title": "Create your free account",
+    "hero_subtitle": "Join us and start learning today.",
+    "title": "Create account",
+    "subtitle": "Fill in the details below to sign up.",
+    "full_name": "Full name",
+    "name_placeholder": "Your name",
+    "create_account": "Create account",
+    "already_have_account": "Already have an account?",
+    "login_link": "Sign in",
+    "errors": {
+      "create_account": "Error creating account."
+    }
+  },
+  "faq": {
+    "title": "Frequently asked questions",
+    "subtitle": "Find answers about the content and platform.",
+    "empty_title": "No questions found",
+    "empty_desc": "There are no frequently asked questions registered right now."
+  },
+  "my_products": {
+    "title": "My products",
+    "subtitle": "Products you have already purchased and can access.",
+    "empty_title": "No products purchased",
+    "empty_desc": "You do not have any products yet.",
+    "view_products": "View products for sale",
+    "owned_badge": "Purchased",
+    "access_content": "Access content"
+  },
+  "products": {
+    "title": "Products for sale",
+    "subtitle": "Explore other products available to you.",
+    "empty_title": "No products available",
+    "empty_desc": "You already have access to all products or there are no products for sale right now.",
+    "buy": "Buy"
+  },
+  "content_modules": {
+    "back": "Back",
+    "module_count": "{{count}} modules",
+    "modules_title": "Modules"
+  },
+  "layout": {
+    "member_fallback": "Member",
+    "area_suffix": "Area",
+    "menu": "Menu",
+    "created_by": "Created by",
+    "member_area_fallback": "Members area",
+    "powered_by": "Powered by",
+    "logo_alt": "Logo"
+  },
+  "profile": {
+    "title": "My Profile",
+    "user": "User",
+    "security": "Security",
+    "email": "Email",
+    "password": "Password",
+    "change_password": "Change Password",
+    "setup_password": "Create or reset password",
+    "save_password": "Save password",
+    "saving": "Saving...",
+    "sending": "Sending...",
+    "new_password": "New password",
+    "confirm_password": "Confirm password",
+    "password_setup_hint": "Create your first password or reset your current password.",
+    "password_email_sent": "We sent a link to create or reset your password.",
+    "password_email_error": "We could not send the password link right now.",
+    "password_saved": "Password saved successfully. You can now sign in with email and password.",
+    "password_save_error": "We could not save the password right now.",
+    "password_min_length": "Password must be at least 6 characters long.",
+    "password_mismatch": "Passwords do not match.",
+    "subscriptions": "My Subscriptions and Purchases",
+    "subscriptions_hint": "Each product appears once, even when it unlocks several internal contents.",
+    "no_grants": "No active subscriptions or purchases found.",
+    "product_subscription": "Product / Subscription",
+    "single_content": "Single Content",
+    "access_granted_at": "Access granted at"
+  }
+}

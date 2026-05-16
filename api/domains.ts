@@ -1,0 +1,24 @@
+import type { VercelRequest, VercelResponse } from '@vercel/node';
+import addHandler from '../src/core/api/domains/add.js';
+import removeHandler from '../src/core/api/domains/remove.js';
+import verifyHandler from '../src/core/api/domains/verify.js';
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+    const { action } = req.query;
+
+    try {
+        switch (action) {
+            case 'add':
+                return await addHandler(req, res);
+            case 'remove':
+                return await removeHandler(req, res);
+            case 'verify':
+                return await verifyHandler(req, res);
+            default:
+                return res.status(404).json({ error: `Action ${action} not found in Domains Controller` });
+        }
+    } catch (error: any) {
+        console.error('[Domains] Controller error:', error?.message || error);
+        return res.status(500).json({ error: 'Internal Server Error' });
+    }
+}

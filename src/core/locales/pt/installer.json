@@ -1,0 +1,88 @@
+{
+  "title": "Instalação Super Checkout",
+  "subtitle": "Configure seu sistema de pagamentos em poucos minutos.",
+  "access_denied": "Acesso Negado",
+  "access_denied_desc": "Este instalador só pode ser acessado através de um link seguro gerado pelo painel administrativo.",
+  "verifying_permission": "Verificando permissão de instalação...",
+  "steps": {
+    "license": "Licença",
+    "database": "Banco de Dados",
+    "config": "Configuração",
+    "conclusion": "Conclusão"
+  },
+  "license": {
+    "title": "Validar Licença",
+    "desc": "Digite sua chave de licença para validar o uso.",
+    "label": "Chave da Licença",
+    "placeholder": "XXXX-XXXX-XXXX-XXXX",
+    "validating": "Verificando...",
+    "success_msg": "Bem-vindo, Jean!",
+    "validated_msg": "Licença Validada!"
+  },
+  "database": {
+    "title": "Criar Banco de Dados",
+    "desc": "Crie seu projeto no Supabase e conecte-o aqui.",
+    "step1": "1. Criar Projeto Supabase",
+    "step1_desc": "Clique para abrir o Supabase e criar um novo projeto (Grátis).",
+    "step2": "2. Cole a Project URL:",
+    "step2_placeholder": "https://xxx.supabase.co",
+    "step2_desc": "Vá em: Project Settings > Data API > Copie o campo URL",
+    "connecting": "Conectando ao Supabase...",
+    "connecting_desc": "Estamos configurando seu projeto e banco de dados."
+  },
+  "migrations": {
+    "title": "Criar Tabelas",
+    "desc": "Execute o script SQL para estruturar seu banco.",
+    "view_sql": "Ver e Copiar SQL",
+    "sql_desc": "Cole no SQL Editor do Supabase e execute.",
+    "executed_btn": "Já executei o SQL"
+  },
+  "keys": {
+    "title": "Chaves de Acesso",
+    "desc": "Copie as chaves do Supabase em Project Settings > API.",
+    "anon_label": "Anon Public Key",
+    "service_label": "Service Role Key (Secret)",
+    "processing": "Processando...",
+    "success_msg": "Chaves de API salvas com sucesso!",
+    "configured_msg": "Chaves Configuradas!"
+  },
+  "deploy": {
+    "title": "Publicar na Vercel",
+    "desc": "Crie seu site automaticamente na Vercel.",
+    "step1": "1. Copie e cole estas chaves ao fazer o deploy:",
+    "copy_success": "Copiado!",
+    "copy_btn": "Copiar",
+    "domain_activated": "Domínio Ativado!",
+    "already_deployed": "Já fiz o Deploy, quero configurar"
+  },
+  "vercel_config": {
+    "title": "Configuração Pós-Deploy",
+    "desc": "Adicione estas variáveis no painel da Vercel para ativar o sistema.",
+    "info": "Adicione as variáveis em: Project Settings > Environment Variables",
+    "generate_token": "Gerar Token",
+    "view_settings": "Ver Configurações",
+    "final_step": "Cole a URL do seu site para finalizar (Ex: minhaloja.vercel.app)",
+    "finish_btn": "Concluir"
+  },
+  "success": {
+    "title": "Instalação Concluída!",
+    "desc": "Parabéns! Seu Super Checkout está configurado.",
+    "admin_panel": "Painel Administrativo:",
+    "access_btn": "Acessar meu Sistema"
+  },
+  "sql_modal": {
+    "title": "SQL de Migração (Supabase)",
+    "close": "Fechar",
+    "copy_full": "Copiar SQL Completo"
+  },
+  "errors": {
+    "url_required": "URL é obrigatória",
+    "keys_required": "Por favor, preencha ambas as chaves.",
+    "domain_required": "Por favor, cole o domínio (URL) do seu projeto na Vercel.",
+    "activation_failed": "Falha ao ativar licença no domínio final.",
+    "invalid_license": "Licença inválida para este domínio.",
+    "token_required": "Modo de atualização requer login administrativo.",
+    "bypass_auth_failed": "Acesso negado: Login necessário para atualização.",
+    "invalid_token": "Token inválido ou expirado"
+  }
+}

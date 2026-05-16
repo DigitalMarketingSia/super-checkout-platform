@@ -1,0 +1,167 @@
+{
+  "nav": {
+    "home": "Inicio",
+    "my_products": "Mis Productos",
+    "products_for_sale": "Productos a la venta",
+    "links": "Enlaces",
+    "faq": "Dudas frecuentes",
+    "profile": "Perfil",
+    "logout": "Cerrar sesión",
+    "signup": "Regístrese aquí",
+    "login": "Entrar"
+  },
+  "status": {
+    "suspended": "Acceso Suspendido",
+    "suspended_desc": "Su cuenta ha sido suspendida temporalmente por un administrador. Póngase en contacto con el soporte para más información.",
+    "active": "Activo",
+    "inactive": "Inactivo"
+  },
+  "profile": {
+    "title": "Mi Perfil",
+    "user": "Usuario",
+    "security": "Seguridad",
+    "change_password": "Cambiar contraseña",
+    "subscriptions": "Mis Suscripciones y Compras",
+    "no_grants": "No se encontraron suscripciones o compras activas.",
+    "product_subscription": "Producto / Suscripción",
+    "single_content": "Contenido individual",
+    "access_granted_at": "Acceso concedido el",
+    "email": "Email",
+    "password": "Contrase?a",
+    "setup_password": "Crear ou redefinir senha",
+    "save_password": "Guardar senha",
+    "saving": "Salvando...",
+    "sending": "Enviando...",
+    "new_password": "Nueva senha",
+    "confirm_password": "Confirmar senha",
+    "password_setup_hint": "Crie a primeira senha ou redefina tu senha atual.",
+    "password_email_sent": "Enviamos um link para criar ou redefinir tu senha.",
+    "password_email_error": "Não foi possível enviar o link de senha agora.",
+    "password_saved": "Contrase?a salva com sucesso. Agora você pode entrar com e-mail e senha.",
+    "password_save_error": "Não foi possível salvar a senha agora.",
+    "password_min_length": "A senha deve ter pelo menos 6 caracteres.",
+    "password_mismatch": "As senhas não coincidem.",
+    "subscriptions_hint": "Cada produto aparece uma única vez, mesmo quando libera vários conteúdos internos."
+  },
+  "common": {
+    "loading": "Cargando...",
+    "no_description": "Sem descrição."
+  },
+  "dashboard": {
+    "featured": "Destaque",
+    "watch": "Assistir",
+    "more_info": "Mais informações",
+    "empty_tracks": "Ning?na trilha configurada.",
+    "select_member_area": "Selecione uma área de membros.",
+    "alerts": {
+      "product_without_content": "Este produto ainda não tem conteúdo disponível.",
+      "product_content_error": "Error al carregar conteúdo do produto.",
+      "lesson_content_not_found": "Error al navegar: conteúdo da aula não encontrado.",
+      "exclusive_without_product": "Este conteúdo é exclusivo para assinantes e não possui um produto direto associado para compra."
+    }
+  },
+  "course": {
+    "select_lesson": "Selecione uma aula",
+    "supplementary_material": "Material complementar",
+    "file_access_hint": "Clique para acessar o arquivo ou link externo",
+    "access_resource": "Acessar recurso",
+    "resource_gallery": "Galeria de recursos",
+    "access": "Acessar",
+    "module_label": "Módulo",
+    "completed": "Concluída",
+    "mark_completed": "Marcar como concluída",
+    "search_placeholder": "Buscar conteúdo",
+    "click_to_access": "Clique para acessar",
+    "module_number": "Módulo {{number}}",
+    "empty_module": "Ning?na aula neste módulo.",
+    "error_title": "Erro",
+    "try_again": "Tentar novamente",
+    "errors": {
+      "member_area_not_found": "Área de membros não encontrada para este domínio.",
+      "content_not_found": "Conteúdo não encontrado.",
+      "load_course": "Error al carregar curso."
+    }
+  },
+  "track": {
+    "free": "Gratuito",
+    "owned": "Seu",
+    "module_count": "{{count}} módulos"
+  },
+  "sales_modal": {
+    "special_offer": "Oferta especial",
+    "default_description": "Aproveite esta oportunidade exclusiva para adquirir este produto e desbloquear todo o tu potencial.",
+    "from_price": "de",
+    "only_for": "por apenas",
+    "buy_now": "Comprar agora",
+    "secure_payment": "Pago seguro",
+    "immediate_access": "Acceso imediato",
+    "no_purchase_link": "Não há link de compra configurado para este produto. Cuentate o administrador."
+  },
+  "login": {
+    "background_alt": "Imagem de fundo do login",
+    "hero_subtitle": "Acesse tu conta para continuar aprendendo.",
+    "title": "Bem-vindo de volta",
+    "subtitle": "Entre com tus credenciais para acessar.",
+    "recover_password": "Crear/recuperar senha",
+    "recovery_success": "Se este e-mail tiver acesso, enviaremos um link para criar ou alterar a senha.",
+    "errors": {
+      "unexpected_backend": "Backend de login respondeu algo inesperado: {{message}}",
+      "backend_unavailable": "Backend de login indisponível no momento.",
+      "rate_limited": "Muitas tentativas. Tente novamente em {{count}} minutos.",
+      "invalid_credentials": "Email ou senha incorretos.",
+      "email_required": "Informe tu e-mail para receber o link de recuperação.",
+      "recovery_send_failed": "Não foi possível enviar o link agora."
+    }
+  },
+  "signup": {
+    "background_alt": "Imagem de fundo do cadastro",
+    "hero_title": "Crie tu conta gratuita",
+    "hero_subtitle": "Junte-se a nós e comece a aprender hoje mesmo.",
+    "title": "Crear conta",
+    "subtitle": "Preencha os dados abaixo para se cadastrar.",
+    "full_name": "Nombre completo",
+    "name_placeholder": "Seu nome",
+    "create_account": "Crear conta",
+    "already_have_account": "Já tem uma conta?",
+    "login_link": "Fazer login",
+    "errors": {
+      "create_account": "Error al criar conta."
+    }
+  },
+  "faq": {
+    "title": "Perguntas frequentes",
+    "subtitle": "Tire tus dúvidas sobre o conteúdo e a plataforma.",
+    "empty_title": "Ning?na dúvida encontrada",
+    "empty_desc": "No momento não há perguntas frequentes cadastradas."
+  },
+  "my_products": {
+    "title": "Meus produtos",
+    "subtitle": "Productos que você já adquiriu e tem acesso.",
+    "empty_title": "Ning?n produto adquirido",
+    "empty_desc": "Você ainda não possui nenhum produto.",
+    "view_products": "Ver produtos à venda",
+    "owned_badge": "Adquirido",
+    "access_content": "Acessar conteúdo"
+  },
+  "products": {
+    "title": "Productos à venda",
+    "subtitle": "Confira outros produtos disponíveis para você.",
+    "empty_title": "Ning?n produto disponível",
+    "empty_desc": "Você já possui acesso a todos os produtos ou não há produtos à venda no momento.",
+    "buy": "Comprar"
+  },
+  "content_modules": {
+    "back": "Volver",
+    "module_count": "{{count}} módulos",
+    "modules_title": "Módulos"
+  },
+  "layout": {
+    "member_fallback": "Miembro",
+    "area_suffix": "Área",
+    "menu": "Menu",
+    "created_by": "Criado por",
+    "member_area_fallback": "Área de membros",
+    "powered_by": "Criado com",
+    "logo_alt": "Logo"
+  }
+}
