@@ -29,6 +29,8 @@ const safeInstallerErrorMessage = (error: any) =>
 
 const INSTALLER_STORAGE_BUCKETS = ['products', 'contents', 'checkouts', 'member-areas', 'avatars'] as const;
 const DISTRIBUTION_REPOSITORY_URL = 'https://github.com/DigitalMarketingSia/super-checkout-platform';
+const BACKEND_VERIFY_ATTEMPTS = 12;
+const BACKEND_VERIFY_INTERVAL_MS = 5000;
 
 const isAlreadyExistsError = (error: any) =>
     /already exists|resource_already_exists/i.test(String(error?.message || error || ''));
@@ -39,7 +41,7 @@ const verifyDistributionBackend = async (domain: string) => {
     const baseUrl = `https://${domain}`;
     let lastResult = 'sem resposta';
 
-    for (let attempt = 1; attempt <= 4; attempt += 1) {
+    for (let attempt = 1; attempt <= BACKEND_VERIFY_ATTEMPTS; attempt += 1) {
         try {
             const response = await fetch(`${baseUrl}/api/config?probe=${Date.now()}`, {
                 method: 'GET',
@@ -53,10 +55,10 @@ const verifyDistributionBackend = async (domain: string) => {
             lastResult = safeInstallerErrorMessage(error);
         }
 
-        if (attempt < 4) await wait(2500);
+        if (attempt < BACKEND_VERIFY_ATTEMPTS) await wait(BACKEND_VERIFY_INTERVAL_MS);
     }
 
-    throw new Error(`O deploy em ${domain} ainda esta sem backend /api ativo (${lastResult}). Aguarde o build/deploy concluir ou refaca o deploy com a versao atualizada.`);
+    throw new Error(`O deploy em ${domain} ainda esta sem backend /api ativo (${lastResult}). Aguarde o build/deploy concluir, atualize esta aba e tente finalizar novamente.`);
 };
 
 export default function InstallerWizard() {
