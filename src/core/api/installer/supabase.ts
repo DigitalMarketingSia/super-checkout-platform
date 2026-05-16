@@ -942,6 +942,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(429).json({ error: 'Too many installer attempts. Try again later.' });
     }
 
+    const deploymentDomain = action === 'verify_backend'
+      ? normalizeVercelDeploymentDomain(targetDomain)
+      : '';
+
+    if (action === 'verify_backend' && !deploymentDomain) {
+      return res.status(400).json({ error: 'Invalid deployment domain' });
+    }
+
+    const validationDomain = deploymentDomain || 'setup-pending';
+
     // CENTRAL API CONFIG
     const CENTRAL_API_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co/functions/v1';
 
@@ -952,7 +962,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         body: JSON.stringify({
           license_key: licenseKey,
           installation_id: installationId,
-          current_domain: req.headers.host || 'unknown',
+          current_domain: validationDomain,
           register: true
         })
       });
@@ -970,12 +980,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     try {
       if (action === 'verify_backend') {
-        const domain = normalizeVercelDeploymentDomain(targetDomain);
-        if (!domain) {
-          return res.status(400).json({ error: 'Invalid deployment domain' });
-        }
-
-        const result = await verifyVercelBackend(domain);
+        const result = await verifyVercelBackend(deploymentDomain);
         if (!result.ok) {
           return res.status(409).json({
             success: false,
