@@ -366,6 +366,14 @@ export const SystemManager = {
       return hasColumn('public_gateways', 'public_key');
     }
 
+    if (version === '1.0.8') {
+      const [hasLastLoginAt, hasBannerDescription] = await Promise.all([
+        hasColumn('profiles', 'last_login_at'),
+        hasColumn('member_areas', 'banner_description')
+      ]);
+      return hasLastLoginAt && hasBannerDescription;
+    }
+
     return false;
   },
 

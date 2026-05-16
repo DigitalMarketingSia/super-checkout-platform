@@ -3,7 +3,7 @@
 -- ==========================================
 CREATE TABLE IF NOT EXISTS public.system_info(
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    db_version TEXT NOT NULL DEFAULT '1.0.7',
+    db_version TEXT NOT NULL DEFAULT '1.0.8',
     last_update_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
     github_installation_id TEXT,
     github_repository TEXT,
@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS public.system_info(
 );
 
 INSERT INTO public.system_info (db_version) 
-SELECT '1.0.7' WHERE NOT EXISTS (SELECT 1 FROM public.system_info);
+SELECT '1.0.8' WHERE NOT EXISTS (SELECT 1 FROM public.system_info);
 
 DO $$
 BEGIN
@@ -184,8 +184,17 @@ CREATE TABLE IF NOT EXISTS member_areas(
     favicon_url TEXT,
     primary_color TEXT DEFAULT '#E50914',
     banner_url TEXT,
+    banner_title TEXT,
+    banner_description TEXT,
+    banner_button_text TEXT,
+    banner_button_link TEXT,
     login_image_url TEXT,
     allow_free_signup BOOLEAN DEFAULT TRUE,
+    layout_mode TEXT DEFAULT 'content',
+    card_style TEXT DEFAULT 'standard',
+    sidebar_config JSONB DEFAULT '[]'::jsonb,
+    custom_links JSONB DEFAULT '[]'::jsonb,
+    faqs JSONB DEFAULT '[]'::jsonb,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -195,8 +204,17 @@ BEGIN
     ALTER TABLE member_areas ADD COLUMN IF NOT EXISTS favicon_url TEXT;
     ALTER TABLE member_areas ADD COLUMN IF NOT EXISTS primary_color TEXT DEFAULT '#E50914';
     ALTER TABLE member_areas ADD COLUMN IF NOT EXISTS banner_url TEXT;
+    ALTER TABLE member_areas ADD COLUMN IF NOT EXISTS banner_title TEXT;
+    ALTER TABLE member_areas ADD COLUMN IF NOT EXISTS banner_description TEXT;
+    ALTER TABLE member_areas ADD COLUMN IF NOT EXISTS banner_button_text TEXT;
+    ALTER TABLE member_areas ADD COLUMN IF NOT EXISTS banner_button_link TEXT;
     ALTER TABLE member_areas ADD COLUMN IF NOT EXISTS login_image_url TEXT;
     ALTER TABLE member_areas ADD COLUMN IF NOT EXISTS allow_free_signup BOOLEAN DEFAULT TRUE;
+    ALTER TABLE member_areas ADD COLUMN IF NOT EXISTS layout_mode TEXT DEFAULT 'content';
+    ALTER TABLE member_areas ADD COLUMN IF NOT EXISTS card_style TEXT DEFAULT 'standard';
+    ALTER TABLE member_areas ADD COLUMN IF NOT EXISTS sidebar_config JSONB DEFAULT '[]'::jsonb;
+    ALTER TABLE member_areas ADD COLUMN IF NOT EXISTS custom_links JSONB DEFAULT '[]'::jsonb;
+    ALTER TABLE member_areas ADD COLUMN IF NOT EXISTS faqs JSONB DEFAULT '[]'::jsonb;
 END $$;
 
 -- 2.3 Products
@@ -638,6 +656,7 @@ CREATE TABLE IF NOT EXISTS public.profiles(
     installation_id TEXT,
     central_user_id UUID,
     last_seen_at TIMESTAMP WITH TIME ZONE,
+    last_login_at TIMESTAMP WITH TIME ZONE,
     totp_secret_encrypted TEXT,
     totp_enabled BOOLEAN DEFAULT FALSE,
     totp_verified_at TIMESTAMP WITH TIME ZONE,
@@ -649,6 +668,7 @@ DO $$
 BEGIN
     ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS central_user_id UUID;
     ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS installation_id TEXT;
+    ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP WITH TIME ZONE;
     ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS totp_secret_encrypted TEXT;
     ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN DEFAULT FALSE;
     ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS totp_verified_at TIMESTAMP WITH TIME ZONE;
@@ -1457,8 +1477,19 @@ INSERT INTO public.schema_migrations(version, description, success, execution_ti
 SELECT '1.0.7', 'Canonical schema includes server-side 2FA challenges', true, 0
 WHERE NOT EXISTS (SELECT 1 FROM public.schema_migrations WHERE version = '1.0.7');
 
+UPDATE public.schema_migrations
+SET success = true,
+    description = 'Canonical schema includes login telemetry and member area branding columns',
+    error_log = NULL,
+    executed_at = timezone('utc'::text, now())
+WHERE version = '1.0.8';
+
+INSERT INTO public.schema_migrations(version, description, success, execution_time_ms)
+SELECT '1.0.8', 'Canonical schema includes login telemetry and member area branding columns', true, 0
+WHERE NOT EXISTS (SELECT 1 FROM public.schema_migrations WHERE version = '1.0.8');
+
 UPDATE public.system_info
-SET db_version = '1.0.7',
+SET db_version = '1.0.8',
     last_update_at = timezone('utc'::text, now());
 
 NOTIFY pgrst, 'reload schema';

@@ -8,6 +8,8 @@ const SCHEMA_CHECKS = [
   { table: 'business_settings', columns: ['account_id', 'support_email', 'is_ready_to_sell'] },
   { table: 'licenses', columns: ['key', 'account_id', 'max_instances', 'status'] },
   { table: 'installations', columns: ['license_key', 'account_id', 'installation_id', 'status'] },
+  { table: 'profiles', columns: ['role', 'status', 'last_login_at'] },
+  { table: 'member_areas', columns: ['banner_description', 'sidebar_config', 'custom_links', 'faqs'] },
   { table: 'gateways', columns: ['provider', 'credentials', 'config', 'is_active'] },
   { table: 'public_gateways', columns: ['id', 'provider', 'public_key', 'config'] },
   { table: 'email_templates', columns: ['event_type', 'language', 'html_body'] },
