@@ -221,6 +221,56 @@ async function validateJwtWithSupabase(url: string, key: string, jwt: string, la
     }
 }
 
+async function fetchLocalProfileAccess(
+    localSupabaseUrl: string,
+    localServiceKey: string,
+    filters: string[],
+    label: string
+) {
+    const baseUrl = `${localSupabaseUrl}/rest/v1/profiles?or=(${filters.join(',')})&limit=1`;
+    const headers = {
+        apikey: localServiceKey,
+        Authorization: `Bearer ${localServiceKey}`,
+    };
+
+    let response = await fetch(`${baseUrl}&select=role,status,is_blocked`, {
+        method: 'GET',
+        headers,
+    });
+    let assumesNotBlocked = false;
+
+    if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        if (response.status === 400 && /is_blocked|PGRST204|schema cache/i.test(errorText)) {
+            assumesNotBlocked = true;
+            response = await fetch(`${baseUrl}&select=role,status`, {
+                method: 'GET',
+                headers,
+            });
+        } else {
+            console.warn(`[Central Proxy] ${label} lookup failed: ${response.status}`);
+            return { allowed: false, role: null as string | null };
+        }
+    }
+
+    if (!response.ok) {
+        console.warn(`[Central Proxy] ${label} lookup fallback failed: ${response.status}`);
+        return { allowed: false, role: null as string | null };
+    }
+
+    const rows = await response.json();
+    const profile = Array.isArray(rows) ? rows[0] : null;
+    const role = String(profile?.role || '').toLowerCase();
+    const status = String(profile?.status || 'active').toLowerCase();
+
+    return {
+        allowed: ['owner', 'master_admin', 'admin'].includes(role)
+            && status !== 'suspended'
+            && (assumesNotBlocked || profile?.is_blocked !== true),
+        role: role || null,
+    };
+}
+
 async function resolveControlPlaneAdminAccess(
     req: VercelRequest,
     localSupabaseUrl: string,
@@ -238,30 +288,7 @@ async function resolveControlPlaneAdminAccess(
             userEmail ? `email.eq.${encodeURIComponent(String(userEmail).toLowerCase())}` : '',
         ].filter(Boolean);
 
-        const response = await fetch(`${localSupabaseUrl}/rest/v1/profiles?or=(${filters.join(',')})&select=role,status,is_blocked&limit=1`, {
-            method: 'GET',
-            headers: {
-                apikey: localServiceKey,
-                Authorization: `Bearer ${localServiceKey}`,
-            },
-        });
-
-        if (!response.ok) {
-            console.warn(`[Central Proxy] Local admin role lookup failed: ${response.status}`);
-            return { allowed: false, role: null as string | null };
-        }
-
-        const rows = await response.json();
-        const profile = Array.isArray(rows) ? rows[0] : null;
-        const role = String(profile?.role || '').toLowerCase();
-        const status = String(profile?.status || 'active').toLowerCase();
-
-        return {
-            allowed: ['owner', 'master_admin', 'admin'].includes(role)
-            && status !== 'suspended'
-            && profile?.is_blocked !== true,
-            role: role || null,
-        };
+        return fetchLocalProfileAccess(localSupabaseUrl, localServiceKey, filters, 'Local admin role');
     } catch (error: any) {
         console.warn(`[Central Proxy] Local admin role lookup exception: ${error?.message || error}`);
         return { allowed: false, role: null as string | null };
@@ -284,30 +311,7 @@ async function resolveLocalAdminAccess(
             userEmail ? `email.eq.${encodeURIComponent(String(userEmail).toLowerCase())}` : '',
         ].filter(Boolean);
 
-        const response = await fetch(`${localSupabaseUrl}/rest/v1/profiles?or=(${filters.join(',')})&select=role,status,is_blocked&limit=1`, {
-            method: 'GET',
-            headers: {
-                apikey: localServiceKey,
-                Authorization: `Bearer ${localServiceKey}`,
-            },
-        });
-
-        if (!response.ok) {
-            console.warn(`[Central Proxy] Local profile role lookup failed: ${response.status}`);
-            return { allowed: false, role: null as string | null };
-        }
-
-        const rows = await response.json();
-        const profile = Array.isArray(rows) ? rows[0] : null;
-        const role = String(profile?.role || '').toLowerCase();
-        const status = String(profile?.status || 'active').toLowerCase();
-
-        return {
-            allowed: ['owner', 'master_admin', 'admin'].includes(role)
-                && status !== 'suspended'
-                && profile?.is_blocked !== true,
-            role: role || null,
-        };
+        return fetchLocalProfileAccess(localSupabaseUrl, localServiceKey, filters, 'Local profile role');
     } catch (error: any) {
         console.warn(`[Central Proxy] Local profile role lookup exception: ${error?.message || error}`);
         return { allowed: false, role: null as string | null };

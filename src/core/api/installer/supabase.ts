@@ -533,6 +533,9 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   central_user_id UUID,
   last_seen_at TIMESTAMP WITH TIME ZONE,
   last_login_at TIMESTAMP WITH TIME ZONE,
+  is_blocked BOOLEAN DEFAULT false,
+  blocked_at TIMESTAMP WITH TIME ZONE,
+  signup_source TEXT,
   totp_secret_encrypted TEXT,
   totp_enabled BOOLEAN DEFAULT FALSE,
   totp_verified_at TIMESTAMP WITH TIME ZONE,
@@ -545,9 +548,13 @@ BEGIN
     ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS central_user_id UUID;
     ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS installation_id TEXT;
     ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP WITH TIME ZONE;
+    ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS is_blocked BOOLEAN DEFAULT false;
+    ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS blocked_at TIMESTAMP WITH TIME ZONE;
+    ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS signup_source TEXT;
     ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS totp_secret_encrypted TEXT;
     ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN DEFAULT FALSE;
     ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS totp_verified_at TIMESTAMP WITH TIME ZONE;
+    UPDATE public.profiles SET is_blocked = false WHERE is_blocked IS NULL;
 END $$;
 
 CREATE TABLE IF NOT EXISTS public.member_notes (

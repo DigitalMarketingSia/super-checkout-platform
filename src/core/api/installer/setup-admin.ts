@@ -74,11 +74,16 @@ async function upsertProfile(supabase: any, params: {
         role: 'admin',
         status: 'active'
     };
+    const profileWithBlockFlag = { ...baseProfile, is_blocked: false };
 
     const variants = [
         {
-            ...baseProfile,
+            ...profileWithBlockFlag,
             installation_id: params.installationId,
+            ...(params.centralUserId ? { central_user_id: params.centralUserId } : {})
+        },
+        {
+            ...profileWithBlockFlag,
             ...(params.centralUserId ? { central_user_id: params.centralUserId } : {})
         },
         {
@@ -98,7 +103,7 @@ async function upsertProfile(supabase: any, params: {
 
         lastError = error;
         const msg = `${error.message || ''} ${error.details || ''}`;
-        if (!msg.includes('installation_id') && !msg.includes('central_user_id') && !msg.includes('schema cache')) {
+        if (!msg.includes('installation_id') && !msg.includes('central_user_id') && !msg.includes('is_blocked') && !msg.includes('schema cache')) {
             break;
         }
     }

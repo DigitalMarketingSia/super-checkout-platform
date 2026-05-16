@@ -3,7 +3,7 @@
 -- ==========================================
 CREATE TABLE IF NOT EXISTS public.system_info(
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    db_version TEXT NOT NULL DEFAULT '1.0.8',
+    db_version TEXT NOT NULL DEFAULT '1.0.9',
     last_update_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
     github_installation_id TEXT,
     github_repository TEXT,
@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS public.system_info(
 );
 
 INSERT INTO public.system_info (db_version) 
-SELECT '1.0.8' WHERE NOT EXISTS (SELECT 1 FROM public.system_info);
+SELECT '1.0.9' WHERE NOT EXISTS (SELECT 1 FROM public.system_info);
 
 DO $$
 BEGIN
@@ -657,6 +657,9 @@ CREATE TABLE IF NOT EXISTS public.profiles(
     central_user_id UUID,
     last_seen_at TIMESTAMP WITH TIME ZONE,
     last_login_at TIMESTAMP WITH TIME ZONE,
+    is_blocked BOOLEAN DEFAULT false,
+    blocked_at TIMESTAMP WITH TIME ZONE,
+    signup_source TEXT,
     totp_secret_encrypted TEXT,
     totp_enabled BOOLEAN DEFAULT FALSE,
     totp_verified_at TIMESTAMP WITH TIME ZONE,
@@ -669,9 +672,13 @@ BEGIN
     ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS central_user_id UUID;
     ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS installation_id TEXT;
     ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP WITH TIME ZONE;
+    ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS is_blocked BOOLEAN DEFAULT false;
+    ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS blocked_at TIMESTAMP WITH TIME ZONE;
+    ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS signup_source TEXT;
     ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS totp_secret_encrypted TEXT;
     ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN DEFAULT FALSE;
     ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS totp_verified_at TIMESTAMP WITH TIME ZONE;
+    UPDATE public.profiles SET is_blocked = false WHERE is_blocked IS NULL;
 END $$;
 
 CREATE TABLE IF NOT EXISTS public.two_factor_challenges(
@@ -1488,8 +1495,19 @@ INSERT INTO public.schema_migrations(version, description, success, execution_ti
 SELECT '1.0.8', 'Canonical schema includes login telemetry and member area branding columns', true, 0
 WHERE NOT EXISTS (SELECT 1 FROM public.schema_migrations WHERE version = '1.0.8');
 
+UPDATE public.schema_migrations
+SET success = true,
+    description = 'Canonical schema includes profile permission flags',
+    error_log = NULL,
+    executed_at = timezone('utc'::text, now())
+WHERE version = '1.0.9';
+
+INSERT INTO public.schema_migrations(version, description, success, execution_time_ms)
+SELECT '1.0.9', 'Canonical schema includes profile permission flags', true, 0
+WHERE NOT EXISTS (SELECT 1 FROM public.schema_migrations WHERE version = '1.0.9');
+
 UPDATE public.system_info
-SET db_version = '1.0.8',
+SET db_version = '1.0.9',
     last_update_at = timezone('utc'::text, now());
 
 NOTIFY pgrst, 'reload schema';

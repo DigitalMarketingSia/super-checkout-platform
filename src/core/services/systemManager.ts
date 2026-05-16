@@ -374,6 +374,10 @@ export const SystemManager = {
       return hasLastLoginAt && hasBannerDescription;
     }
 
+    if (version === '1.0.9') {
+      return hasColumn('profiles', 'is_blocked');
+    }
+
     return false;
   },
 
