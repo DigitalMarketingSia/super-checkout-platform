@@ -333,6 +333,16 @@ export const SystemManager = {
       const { error } = await supabase.from(table).select(column).limit(1);
       return !error;
     };
+    const hasProtectedColumn = async (table: string, column: string) => {
+      const { error } = await supabase.from(table).select(column).limit(1);
+      if (!error) return true;
+
+      const message = String(error.message || '').toLowerCase();
+      return error.code === '42501'
+        || message.includes('permission denied')
+        || message.includes('row-level security')
+        || message.includes('rls');
+    };
 
     if (version === '1.0.1') {
       return hasColumn('system_info', 'testing_evolution');
@@ -368,8 +378,8 @@ export const SystemManager = {
 
     if (version === '1.0.7') {
       const [hasTokenHash, hasEncryptedPayload] = await Promise.all([
-        hasColumn('two_factor_challenges', 'token_hash'),
-        hasColumn('two_factor_challenges', 'session_payload_encrypted')
+        hasProtectedColumn('two_factor_challenges', 'token_hash'),
+        hasProtectedColumn('two_factor_challenges', 'session_payload_encrypted')
       ]);
       return hasTokenHash && hasEncryptedPayload;
     }
