@@ -223,14 +223,15 @@ async function validateJwtWithSupabase(url: string, key: string, jwt: string, la
 
 async function fetchLocalProfileAccess(
     localSupabaseUrl: string,
-    localServiceKey: string,
+    localKey: string,
     filters: string[],
-    label: string
+    label: string,
+    bearerToken?: string
 ) {
     const baseUrl = `${localSupabaseUrl}/rest/v1/profiles?or=(${filters.join(',')})&limit=1`;
     const headers = {
-        apikey: localServiceKey,
-        Authorization: `Bearer ${localServiceKey}`,
+        apikey: localKey,
+        Authorization: `Bearer ${bearerToken || localKey}`,
     };
 
     let response = await fetch(`${baseUrl}&select=role,status,is_blocked`, {
@@ -274,11 +275,12 @@ async function fetchLocalProfileAccess(
 async function resolveControlPlaneAdminAccess(
     req: VercelRequest,
     localSupabaseUrl: string,
-    localServiceKey: string | undefined,
+    localKey: string | undefined,
     userId: string,
-    userEmail?: string | null
+    userEmail?: string | null,
+    bearerToken?: string
 ) {
-    if (!isControlPlaneRequest(req) || !localSupabaseUrl || !localServiceKey || (!userId && !userEmail)) {
+    if (!isControlPlaneRequest(req) || !localSupabaseUrl || !localKey || (!userId && !userEmail)) {
         return { allowed: false, role: null as string | null };
     }
 
@@ -288,7 +290,7 @@ async function resolveControlPlaneAdminAccess(
             userEmail ? `email.eq.${encodeURIComponent(String(userEmail).toLowerCase())}` : '',
         ].filter(Boolean);
 
-        return fetchLocalProfileAccess(localSupabaseUrl, localServiceKey, filters, 'Local admin role');
+        return await fetchLocalProfileAccess(localSupabaseUrl, localKey, filters, 'Local admin role', bearerToken);
     } catch (error: any) {
         console.warn(`[Central Proxy] Local admin role lookup exception: ${error?.message || error}`);
         return { allowed: false, role: null as string | null };
@@ -297,11 +299,12 @@ async function resolveControlPlaneAdminAccess(
 
 async function resolveLocalAdminAccess(
     localSupabaseUrl: string,
-    localServiceKey: string | undefined,
+    localKey: string | undefined,
     userId: string,
-    userEmail?: string | null
+    userEmail?: string | null,
+    bearerToken?: string
 ) {
-    if (!localSupabaseUrl || !localServiceKey || (!userId && !userEmail)) {
+    if (!localSupabaseUrl || !localKey || (!userId && !userEmail)) {
         return { allowed: false, role: null as string | null };
     }
 
@@ -311,7 +314,7 @@ async function resolveLocalAdminAccess(
             userEmail ? `email.eq.${encodeURIComponent(String(userEmail).toLowerCase())}` : '',
         ].filter(Boolean);
 
-        return fetchLocalProfileAccess(localSupabaseUrl, localServiceKey, filters, 'Local profile role');
+        return await fetchLocalProfileAccess(localSupabaseUrl, localKey, filters, 'Local profile role', bearerToken);
     } catch (error: any) {
         console.warn(`[Central Proxy] Local profile role lookup exception: ${error?.message || error}`);
         return { allowed: false, role: null as string | null };
@@ -412,7 +415,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         || getDevFallback(DEV_CENTRAL_API_URL);
     const centralSecret = process.env.CENTRAL_SHARED_SECRET || process.env.SHARED_SECRET;
     const centralAnonEnv =
-        process.env.CENTRAL_SUPABASE_ANON_KEY
+        process.env.CENTRAL_SUPABASE_PUBLISHABLE_KEY
+        || process.env.VITE_CENTRAL_SUPABASE_PUBLISHABLE_KEY
+        || process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_PUBLISHABLE_KEY
+        || process.env.CENTRAL_SUPABASE_ANON_KEY
         || process.env.VITE_CENTRAL_SUPABASE_ANON_KEY
         || process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_ANON_KEY;
     if (!centralApiUrl || !centralAnonEnv) {
@@ -454,7 +460,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
         let user: any = null;
         const localSupabaseUrl = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || getDevFallback(DEV_LOCAL_SUPABASE_URL);
-        const localAnonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+        const localAnonKey =
+            process.env.SUPABASE_PUBLISHABLE_KEY
+            || process.env.VITE_SUPABASE_PUBLISHABLE_KEY
+            || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+            || process.env.VITE_SUPABASE_ANON_KEY
+            || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
         const localServiceKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
         const centralSupUrl =
             process.env.CENTRAL_SUPABASE_URL
@@ -497,16 +508,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const maskedUserEmail = maskEmail(user.email);
         const localAdminAccess = await resolveLocalAdminAccess(
             localSupabaseUrl as string,
-            localServiceKey,
+            localAnonKey || localServiceKey,
             user.id,
-            userEmail
+            userEmail,
+            jwt
         );
         const controlPlaneAdminAccess = await resolveControlPlaneAdminAccess(
             req,
             localSupabaseUrl as string,
-            localServiceKey,
+            localAnonKey || localServiceKey,
             user.id,
-            userEmail
+            userEmail,
+            jwt
         );
         const hasLocalAdminAccess = localAdminAccess.allowed;
         const hasSystemOwnerControlPlaneAccess = isControlPlaneRequest(req) && isSystemOwnerEmail(userEmail);
@@ -662,7 +675,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const targetUrl = `${centralApiUrl}/${endpoint}${queryString ? '?' + queryString : ''}`;
 
         // --- 6. Forward request to Central with secret ---
-        const centralFunctionAuthToken = centralServiceKey || centralAnon;
+        const centralFunctionAuthToken = centralAnon;
         const forwardHeaders: Record<string, string> = {
             'Content-Type': 'application/json',
             'apikey': centralAnon,
