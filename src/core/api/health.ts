@@ -19,7 +19,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+    const supabaseKey =
+        process.env.SUPABASE_PUBLISHABLE_KEY ||
+        process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+        process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+        process.env.VITE_SUPABASE_ANON_KEY ||
+        process.env.SUPABASE_SECRET_KEY ||
+        process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseUrl || !supabaseKey) {
         return res.status(500).json({ error: 'Service unavailable' });
@@ -27,12 +34,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     try {
         // Simple query via REST API to generate activity on the customer's Supabase project.
-        const response = await fetch(`${supabaseUrl}/rest/v1/modules?select=id&limit=1`, {
-            headers: {
-                'apikey': supabaseKey,
-                'Authorization': `Bearer ${supabaseKey}`
-            }
-        });
+        const headers: Record<string, string> = { apikey: supabaseKey };
+        if (!supabaseKey.startsWith('sb_')) {
+            headers.Authorization = `Bearer ${supabaseKey}`;
+        }
+
+        const response = await fetch(`${supabaseUrl}/rest/v1/modules?select=id&limit=1`, { headers });
 
         if (!response.ok) {
             throw new Error(`Supabase REST API returned ${response.status}`);
