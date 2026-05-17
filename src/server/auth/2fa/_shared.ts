@@ -21,8 +21,33 @@ const ALLOWED_ORIGINS = [
 
 export const TWO_FACTOR_ISSUER = 'Super Checkout';
 export const TWO_FACTOR_CHALLENGE_TTL_MS = 5 * 60 * 1000;
+export const STATELESS_LOGIN_CHALLENGE_PREFIX = 'sc2fa:v1:';
 const DEV_CENTRAL_API_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co/functions/v1';
 const DEV_CENTRAL_SUPABASE_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co';
+const STATELESS_CHALLENGE_TTL_SEC = 10 * 60;
+
+type UpstashResponse<T> = { result?: T; error?: string };
+
+export type StatelessLoginChallengePayload = {
+  jti: string;
+  session: any;
+  user_id: string;
+  user_email?: string | null;
+  user_updated_at?: string | null;
+  target?: string | null;
+  issued_at: string;
+  expires_at: string;
+  max_attempts: number;
+};
+
+export type StatelessChallengeState = {
+  attempts: number;
+  status: 'pending' | 'verified' | 'failed' | 'expired';
+  used_at?: string | null;
+  updated_at: string;
+};
+
+const statelessChallengeMemory = new Map<string, StatelessChallengeState>();
 
 function getDevFallback(value: string) {
   return process.env.NODE_ENV !== 'production' ? value : '';
@@ -131,6 +156,90 @@ export function isLegacyApiKeyDisabledError(error: any): boolean {
 
 export function encryptChallenge(payload: Record<string, any>): string {
   return encrypt(JSON.stringify(payload));
+}
+
+export function createStatelessLoginChallengeToken(payload: StatelessLoginChallengePayload): string {
+  return `${STATELESS_LOGIN_CHALLENGE_PREFIX}${encrypt(JSON.stringify(payload))}`;
+}
+
+export function isStatelessLoginChallengeToken(token: string): boolean {
+  return String(token || '').startsWith(STATELESS_LOGIN_CHALLENGE_PREFIX);
+}
+
+export function readStatelessLoginChallengeToken(token: string): StatelessLoginChallengePayload {
+  const raw = String(token || '');
+  if (!isStatelessLoginChallengeToken(raw)) {
+    throw new Error('INVALID_STATELESS_CHALLENGE');
+  }
+
+  return JSON.parse(decrypt(raw.slice(STATELESS_LOGIN_CHALLENGE_PREFIX.length))) as StatelessLoginChallengePayload;
+}
+
+function getUpstashRedisConfig(): { url: string; token: string } | null {
+  const url = process.env.UPSTASH_REDIS_REST_URL?.replace(/\/+$/, '');
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) return null;
+  return { url, token };
+}
+
+async function upstashRedisCommand<T>(command: Array<string | number>): Promise<T> {
+  const config = getUpstashRedisConfig();
+  if (!config) {
+    throw new Error('Upstash Redis is not configured.');
+  }
+
+  const response = await fetch(config.url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${config.token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(command),
+  });
+
+  const payload = await response.json().catch(() => ({})) as UpstashResponse<T>;
+  if (!response.ok || payload.error) {
+    throw new Error(payload.error || `Upstash Redis request failed with ${response.status}`);
+  }
+
+  return payload.result as T;
+}
+
+function statelessChallengeStateKey(jti: string): string {
+  const hash = createHash('sha256').update(String(jti || 'unknown')).digest('hex');
+  return `sc:auth:2fa:challenge:${hash}`;
+}
+
+export async function getStatelessChallengeState(jti: string): Promise<StatelessChallengeState | null> {
+  if (getUpstashRedisConfig()) {
+    try {
+      const value = await upstashRedisCommand<string | null>(['GET', statelessChallengeStateKey(jti)]);
+      return value ? JSON.parse(value) as StatelessChallengeState : null;
+    } catch (error: any) {
+      console.warn('[2FA Shared] Redis challenge read failed, using memory fallback:', error?.message || error);
+    }
+  }
+
+  return statelessChallengeMemory.get(jti) || null;
+}
+
+export async function setStatelessChallengeState(jti: string, state: StatelessChallengeState): Promise<void> {
+  if (getUpstashRedisConfig()) {
+    try {
+      await upstashRedisCommand<string>([
+        'SET',
+        statelessChallengeStateKey(jti),
+        JSON.stringify(state),
+        'EX',
+        STATELESS_CHALLENGE_TTL_SEC,
+      ]);
+      return;
+    } catch (error: any) {
+      console.warn('[2FA Shared] Redis challenge write failed, using memory fallback:', error?.message || error);
+    }
+  }
+
+  statelessChallengeMemory.set(jti, state);
 }
 
 export function createOpaqueChallengeToken(): string {

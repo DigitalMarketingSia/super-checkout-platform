@@ -1,10 +1,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import { createHash } from 'node:crypto';
-import { encrypt } from '../../core/utils/cryptoUtils.js';
 import {
     createOpaqueChallengeToken,
-    hashChallengeToken,
+    createStatelessLoginChallengeToken,
     TWO_FACTOR_CHALLENGE_TTL_MS,
 } from './2fa/_shared.js';
 
@@ -695,18 +694,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (target !== 'central') {
             try {
-                if (!serviceKey) {
-                    throw new Error('Missing service role key for 2FA inspection.');
+                if (!data.session?.access_token) {
+                    throw new Error('Missing user session for 2FA inspection.');
                 }
 
-                const adminClient = createClient(auditSupabaseUrl, serviceKey, {
+                const userClient = createClient(auditSupabaseUrl, supabaseAnonKey, {
                     auth: {
                         autoRefreshToken: false,
                         persistSession: false
+                    },
+                    global: {
+                        headers: {
+                            Authorization: `Bearer ${data.session.access_token}`
+                        }
                     }
                 });
 
-                const { data: profile, error: profileError } = await adminClient
+                const { data: profile, error: profileError } = await userClient
                     .from('profiles')
                     .select('id, email, totp_enabled, totp_secret_encrypted')
                     .eq('id', data.user.id)
@@ -769,55 +773,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         });
                     }
 
-                    const challengeToken = createOpaqueChallengeToken();
+                    const challengeId = createOpaqueChallengeToken();
                     const expiresAt = new Date(Date.now() + TWO_FACTOR_CHALLENGE_TTL_MS).toISOString();
-                    const sessionPayloadEncrypted = encrypt(JSON.stringify({
+                    const challengeToken = createStatelessLoginChallengeToken({
+                        jti: challengeId,
                         session: data.session,
                         user_id: data.user.id,
                         user_email: data.user.email || null,
                         user_updated_at: data.user.updated_at || null,
                         target: target || 'local',
-                        issued_at: new Date().toISOString()
-                    }));
-
-                    const { error: challengeInsertError } = await adminClient
-                        .from('two_factor_challenges')
-                        .insert({
-                            token_hash: hashChallengeToken(challengeToken),
-                            user_id: data.user.id,
-                            target: target || 'local',
-                            session_payload_encrypted: sessionPayloadEncrypted,
-                            ip_address: ip,
-                            user_agent: getUserAgent(req),
-                            status: 'pending',
-                            attempts: 0,
-                            max_attempts: 5,
-                            expires_at: expiresAt
-                        });
-
-                    if (challengeInsertError) {
-                        await logAuthEvent({
-                            supabaseUrl: auditSupabaseUrl,
-                            serviceKey,
-                            eventType: 'two_factor_challenge_create_failed',
-                            severity: 'CRITICAL',
-                            ip,
-                            userAgent: getUserAgent(req),
-                            userId: data.user.id,
-                            metadata: {
-                                target: target || 'local',
-                                email: maskedEmail,
-                                source: 'auth_login_proxy',
-                                reason: challengeInsertError.message,
-                                two_factor_required: true
-                            }
-                        });
-
-                        return res.status(500).json({
-                            error: 'Nao foi possivel preparar a validacao em duas etapas.',
-                            error_code: 'two_factor_challenge_unavailable'
-                        });
-                    }
+                        issued_at: new Date().toISOString(),
+                        expires_at: expiresAt,
+                        max_attempts: 5
+                    });
 
                     await logAuthEvent({
                         supabaseUrl: auditSupabaseUrl,

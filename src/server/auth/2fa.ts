@@ -5,14 +5,19 @@ import {
   applyCors,
   encryptChallenge,
   getIp,
+  getStatelessChallengeState,
+  getSupabaseAnonKey,
   getSupabaseServiceKey,
   getSupabaseUrl,
   getUserAgent,
   hashChallengeToken,
+  isStatelessLoginChallengeToken,
   isLegacyApiKeyDisabledError,
   logSecurityEvent,
   maskEmail,
   normalizeTotpCode,
+  readStatelessLoginChallengeToken,
+  setStatelessChallengeState,
   TWO_FACTOR_ISSUER,
 } from './2fa/_shared.js';
 import { decrypt } from '../../core/utils/cryptoUtils.js';
@@ -152,6 +157,52 @@ async function resolveStoredLoginSession(admin: any, storedSession: any, expecte
   };
 }
 
+async function resolveStoredLoginSessionWithPublishable(
+  supabaseUrl: string,
+  anonKey: string,
+  storedSession: any,
+  expectedUserId: string
+) {
+  const accessToken = String(storedSession?.access_token || '');
+  if (!accessToken || !anonKey) {
+    return {
+      session: null,
+      user: null,
+      reason: !anonKey ? 'publishable_key_missing' : 'access_token_missing',
+    };
+  }
+
+  const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
+    headers: {
+      apikey: anonKey,
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  if (!response.ok) {
+    return {
+      session: null,
+      user: null,
+      reason: `auth_user_failed_${response.status}`,
+    };
+  }
+
+  const user = await response.json().catch(() => null);
+  if (!user?.id || user.id !== expectedUserId) {
+    return {
+      session: null,
+      user: null,
+      reason: 'user_mismatch',
+    };
+  }
+
+  return {
+    session: storedSession,
+    user,
+    reason: null,
+  };
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   applyCors(req, res);
 
@@ -240,6 +291,205 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (challengeToken) {
+      if (isStatelessLoginChallengeToken(String(challengeToken))) {
+        const anonKey = getSupabaseAnonKey();
+        if (!anonKey) {
+          return res.status(500).json({ error: 'Server configuration missing.' });
+        }
+
+        let storedPayload: ReturnType<typeof readStatelessLoginChallengeToken>;
+        try {
+          storedPayload = readStatelessLoginChallengeToken(String(challengeToken));
+        } catch {
+          return res.status(400).json({ error: 'Challenge invalido.' });
+        }
+
+        const challengeId = String(storedPayload?.jti || '');
+        const expectedUserId = String(storedPayload?.user_id || '');
+        const storedSession = storedPayload?.session;
+        const expiresAt = parseTimestamp(storedPayload?.expires_at);
+        const maxAttempts = Math.max(1, Number(storedPayload?.max_attempts || 5));
+
+        if (!challengeId || !expectedUserId || !storedSession?.access_token || !storedSession?.refresh_token) {
+          return res.status(400).json({ error: 'Challenge invalido.' });
+        }
+
+        const state = await getStatelessChallengeState(challengeId);
+        const attempts = Number(state?.attempts || 0);
+
+        if (state?.used_at || state?.status === 'verified') {
+          await logSecurityEvent({
+            supabaseUrl,
+            serviceKey,
+            eventType: 'two_factor_challenge_replay',
+            severity: 'WARNING',
+            ip: getIp(req),
+            userAgent: getUserAgent(req),
+            userId: expectedUserId,
+            metadata: {
+              source: 'auth_2fa_verify',
+              flow: 'login',
+              target: storedPayload.target || 'local',
+              status: state?.status || 'verified',
+              challenge_mode: 'stateless',
+            },
+          });
+          return res.status(400).json({ error: 'Challenge ja utilizado ou invalido.' });
+        }
+
+        if (!expiresAt || expiresAt <= Date.now()) {
+          await setStatelessChallengeState(challengeId, {
+            attempts,
+            status: 'expired',
+            updated_at: new Date().toISOString(),
+          });
+          return res.status(400).json({ error: 'Challenge expirado.' });
+        }
+
+        if (attempts >= maxAttempts || state?.status === 'failed') {
+          await setStatelessChallengeState(challengeId, {
+            attempts,
+            status: 'failed',
+            updated_at: new Date().toISOString(),
+          });
+          return res.status(429).json({ error: 'Challenge bloqueado por excesso de tentativas.' });
+        }
+
+        const resolvedAuth = await resolveStoredLoginSessionWithPublishable(
+          supabaseUrl,
+          anonKey,
+          storedSession,
+          expectedUserId
+        );
+
+        if (!resolvedAuth.session || !resolvedAuth.user) {
+          await setStatelessChallengeState(challengeId, {
+            attempts,
+            status: 'failed',
+            updated_at: new Date().toISOString(),
+          });
+          await logSecurityEvent({
+            supabaseUrl,
+            serviceKey,
+            eventType: 'two_factor_session_invalid',
+            severity: 'WARNING',
+            ip: getIp(req),
+            userAgent: getUserAgent(req),
+            userId: expectedUserId,
+            metadata: {
+              source: 'auth_2fa_verify',
+              flow: 'login',
+              target: storedPayload.target || 'local',
+              reason: resolvedAuth.reason || 'session_validation_failed',
+              challenge_mode: 'stateless',
+            },
+          });
+          return res.status(401).json({ error: 'Sessao expirada. Faca login novamente.' });
+        }
+
+        if (hasUserChangedSinceStoredLogin(resolvedAuth.user.updated_at, storedPayload.user_updated_at)) {
+          await setStatelessChallengeState(challengeId, {
+            attempts,
+            status: 'failed',
+            updated_at: new Date().toISOString(),
+          });
+          return res.status(401).json({ error: 'Sessao expirada. Faca login novamente.' });
+        }
+
+        const userClient = createClient(supabaseUrl, anonKey, {
+          auth: { autoRefreshToken: false, persistSession: false },
+          global: {
+            headers: {
+              Authorization: `Bearer ${storedSession.access_token}`,
+            },
+          },
+        });
+
+        const { data: profile, error: profileError } = await userClient
+          .from('profiles')
+          .select('id, email, totp_enabled, totp_secret_encrypted')
+          .eq('id', expectedUserId)
+          .single();
+
+        if (profileError || !profile) {
+          return res.status(404).json({ error: 'Perfil de 2FA nao encontrado.' });
+        }
+
+        if (!profile.totp_enabled || !profile.totp_secret_encrypted) {
+          return res.status(403).json({ error: '2FA nao esta habilitado para esta conta.' });
+        }
+
+        let secret = '';
+        try {
+          secret = resolveTotpSecret(profile.totp_secret_encrypted);
+        } catch (secretError: any) {
+          if (secretError?.message === 'TOTP_DECRYPTION_FAILED') {
+            return res.status(500).json({
+              error: 'Configuracao local de 2FA incompativel. Verifique se PAYMENT_ENCRYPTION_KEY e a mesma do ambiente onde a 2FA foi ativada.',
+              error_code: 'totp_secret_decryption_failed',
+            });
+          }
+          throw secretError;
+        }
+
+        if (!authenticator.check(normalizedCode, secret)) {
+          const failedAttempts = attempts + 1;
+          await setStatelessChallengeState(challengeId, {
+            attempts: failedAttempts,
+            status: failedAttempts >= maxAttempts ? 'failed' : 'pending',
+            updated_at: new Date().toISOString(),
+          });
+          await logSecurityEvent({
+            supabaseUrl,
+            serviceKey,
+            eventType: 'two_factor_login_failed',
+            severity: 'WARNING',
+            ip: getIp(req),
+            userAgent: getUserAgent(req),
+            userId: expectedUserId,
+            metadata: {
+              email: maskEmail(profile.email || ''),
+              source: 'auth_2fa_verify',
+              flow: 'login',
+              target: storedPayload.target || 'local',
+              failed_attempts: failedAttempts,
+              attempts_remaining: Math.max(0, maxAttempts - failedAttempts),
+              challenge_mode: 'stateless',
+            },
+          });
+          return res.status(401).json({ error: 'Codigo TOTP invalido.' });
+        }
+
+        await setStatelessChallengeState(challengeId, {
+          attempts,
+          status: 'verified',
+          used_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+
+        await logSecurityEvent({
+          supabaseUrl,
+          serviceKey,
+          eventType: 'two_factor_verified',
+          severity: 'INFO',
+          ip: getIp(req),
+          userAgent: getUserAgent(req),
+          userId: expectedUserId,
+          metadata: {
+            email: maskEmail(profile.email || resolvedAuth.user.email || ''),
+            source: 'auth_2fa_verify',
+            flow: 'login',
+            target: storedPayload.target || 'local',
+            challenge_mode: 'stateless',
+          },
+        });
+
+        return res.status(200).json({
+          session: resolvedAuth.session,
+          user: resolvedAuth.user,
+        });
+      }
+
       let tokenHash = '';
       try {
         tokenHash = hashChallengeToken(String(challengeToken));
