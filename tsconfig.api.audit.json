@@ -1,0 +1,24 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "allowJs": false,
+    "skipLibCheck": true,
+    "types": [
+      "node",
+      "@vercel/node"
+    ]
+  },
+  "include": [
+    "api/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "@archive",
+    "src",
+    "scripts",
+    "supabase",
+    "supabase_central"
+  ]
+}
