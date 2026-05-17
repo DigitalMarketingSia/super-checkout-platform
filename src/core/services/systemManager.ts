@@ -366,6 +366,14 @@ export const SystemManager = {
       return hasColumn('public_gateways', 'public_key');
     }
 
+    if (version === '1.0.7') {
+      const [hasTokenHash, hasEncryptedPayload] = await Promise.all([
+        hasColumn('two_factor_challenges', 'token_hash'),
+        hasColumn('two_factor_challenges', 'session_payload_encrypted')
+      ]);
+      return hasTokenHash && hasEncryptedPayload;
+    }
+
     if (version === '1.0.8') {
       const [hasLastLoginAt, hasBannerDescription] = await Promise.all([
         hasColumn('profiles', 'last_login_at'),
