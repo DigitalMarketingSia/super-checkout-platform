@@ -14,18 +14,37 @@ export const getEnv = (key: string): string | undefined => {
     CENTRAL_SUPABASE_ANON_KEY: ['CENTRAL_SUPABASE_PUBLISHABLE_KEY', 'VITE_CENTRAL_SUPABASE_PUBLISHABLE_KEY', 'NEXT_PUBLIC_CENTRAL_SUPABASE_PUBLISHABLE_KEY'],
     CENTRAL_SUPABASE_SERVICE_ROLE_KEY: ['CENTRAL_SUPABASE_SECRET_KEY'],
   };
-  const candidateKeys = [key, ...(aliases[key] || [])];
+  const aliasKeys = aliases[key] || [];
+  const prefersPublishableKey = key.includes('SUPABASE') && key.includes('ANON');
+  const candidateKeys = prefersPublishableKey ? [...aliasKeys, key] : [key, ...aliasKeys];
+  const isSupabasePublicClientKey = key.includes('SUPABASE') && (key.includes('ANON') || key.includes('PUBLISHABLE'));
   const isServerOnlyKey =
     key.includes('SERVICE_ROLE')
     || key.endsWith('_SECRET_KEY')
     || key.includes('PRIVATE_KEY')
     || key.includes('PAYMENT_ENCRYPTION_KEY');
+  const getStoredPublishableKey = (): string | undefined => {
+    if (typeof window === 'undefined' || !isSupabasePublicClientKey || key.includes('CENTRAL_')) {
+      return undefined;
+    }
+
+    const localVal = window.localStorage.getItem('installer_supabase_anon_key');
+    return localVal?.startsWith('sb_publishable_') ? localVal : undefined;
+  };
+  const resolveSupabasePublicKey = (value: unknown): string => {
+    const current = String(value);
+    if (!isSupabasePublicClientKey || current.startsWith('sb_publishable_')) {
+      return current;
+    }
+
+    return getStoredPublishableKey() || current;
+  };
 
   // 1. Prioridade maxima: injecao em tempo de execucao (window._env_)
   if (typeof window !== 'undefined' && (window as any)._env_) {
     for (const candidate of candidateKeys) {
       const value = (window as any)._env_[candidate];
-      if (value) return String(value);
+      if (value) return resolveSupabasePublicKey(value);
     }
   }
 
@@ -55,17 +74,17 @@ export const getEnv = (key: string): string | undefined => {
         continue;
       }
 
-      if (import.meta.env[candidate]) return import.meta.env[candidate];
+      if (import.meta.env[candidate]) return resolveSupabasePublicKey(import.meta.env[candidate]);
 
       if (isServerOnlyKey) {
         continue;
       }
 
       const cleanKey = candidate.replace('VITE_', '');
-      if (import.meta.env[cleanKey]) return import.meta.env[cleanKey];
+      if (import.meta.env[cleanKey]) return resolveSupabasePublicKey(import.meta.env[cleanKey]);
 
       const nextKey = candidate.startsWith('VITE_') ? candidate.replace('VITE_', 'NEXT_PUBLIC_') : `NEXT_PUBLIC_${candidate}`;
-      if (import.meta.env[nextKey]) return import.meta.env[nextKey];
+      if (import.meta.env[nextKey]) return resolveSupabasePublicKey(import.meta.env[nextKey]);
     }
   }
 

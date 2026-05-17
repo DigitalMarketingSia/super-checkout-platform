@@ -21,8 +21,12 @@ export const ConfigLoader: React.FC<ConfigLoaderProps> = ({ onConfigLoaded }) =>
                 const envUrl = getEnv('VITE_SUPABASE_URL');
                 const envAnon = getEnv('VITE_SUPABASE_ANON_KEY');
                 const envLicense = getEnv('VITE_LICENSE_KEY');
+                const shouldRefreshLegacyAnon = !!envAnon
+                    && envAnon.startsWith('eyJ')
+                    && window.location.hostname !== 'localhost'
+                    && window.location.hostname !== '127.0.0.1';
 
-                if (envUrl && envAnon) {
+                if (envUrl && envAnon && !shouldRefreshLegacyAnon) {
                     if (envLicense) {
                         setStatus('found');
                         return;
@@ -36,6 +40,10 @@ export const ConfigLoader: React.FC<ConfigLoaderProps> = ({ onConfigLoaded }) =>
                         setErrorMsg('A licença não foi encontrada nas variáveis de ambiente.');
                         return;
                     }
+                }
+
+                if (shouldRefreshLegacyAnon) {
+                    console.warn('[ConfigLoader] Legacy Supabase anon key detected. Fetching runtime publishable key...');
                 }
 
                 console.log('[ConfigLoader] Fetching remote configuration...');
