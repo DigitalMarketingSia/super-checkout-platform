@@ -1,0 +1,13 @@
+{
+    "rewrites": [
+        {
+            "source": "/mp-api/:path*",
+            "destination": "https://api.mercadopago.com/:path*"
+        },
+        {
+            "source": "/((?!api/|mp-api/).*)",
+            "destination": "/index.html"
+        }
+    ],
+    "headers": []
+}

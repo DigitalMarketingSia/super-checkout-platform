@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "vercel": "vercel dev",
-    "build": "mkdir -p dist && cp -r assets index.html public/* *.png *.svg *.ico *.json *.xml dist/ 2>/dev/null || :",
+    "build": "vite build",
     "preview": "vite preview",
     "typecheck:audit": "tsc -p tsconfig.audit.json --pretty false",
     "typecheck:api": "tsc -p tsconfig.api.audit.json --pretty false",
