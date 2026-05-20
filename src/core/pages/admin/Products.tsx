@@ -130,11 +130,29 @@ export const Products = () => {
     setLoading(true);
 
     try {
+      const sanitizedFormData = { ...formData };
+      if (sanitizedFormData.member_area_action === 'sales_page') {
+        const deliveryUrl = String(sanitizedFormData.redirect_link || '').trim();
+        try {
+          const normalizedUrl = !/^[a-z][a-z0-9+.-]*:\/\//i.test(deliveryUrl) && deliveryUrl.includes('.')
+            ? `https://${deliveryUrl}`
+            : deliveryUrl;
+          const parsedUrl = new URL(normalizedUrl);
+          if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+            throw new Error('Invalid delivery URL protocol.');
+          }
+          sanitizedFormData.redirect_link = parsedUrl.toString();
+        } catch {
+          showAlert('Entrega invalida', 'Informe uma URL valida para entregar este produto por link externo/PDF.', 'error');
+          return;
+        }
+      }
+
       if (editingId) {
-        const productToUpdate: Product = { id: editingId, ...formData };
+        const productToUpdate: Product = { id: editingId, ...sanitizedFormData };
         await storage.updateProduct(productToUpdate);
       } else {
-        await storage.createProduct({ id: currentProductId!, ...formData });
+        await storage.createProduct({ id: currentProductId!, ...sanitizedFormData });
       }
 
       if (currentProductId) {
@@ -533,7 +551,7 @@ export const Products = () => {
 
              <div className="space-y-6">
                 <div className="p-8 rounded-[2rem] bg-black/40 border border-white/5">
-                   <label className="text-[10px] text-gray-600 font-black uppercase tracking-widest mb-4 block">Página de Destino após Compra</label>
+                   <label className="text-[10px] text-gray-600 font-black uppercase tracking-widest mb-4 block">Entrega do Produto apos Compra</label>
                    <div className="flex flex-col md:flex-row gap-4 mb-8">
                       {['checkout', 'sales_page'].map(act => (
                          <label key={act} className={`flex-1 flex items-center gap-4 p-5 rounded-[1.5rem] border transition-all cursor-pointer ${formData.member_area_action === act ? 'bg-primary/10 border-primary shadow-lg shadow-primary/10' : 'bg-black/40 border-white/5 hover:border-white/10'}`}>
@@ -543,7 +561,7 @@ export const Products = () => {
                             </div>
                             <div>
                                <p className="text-sm font-bold text-white mb-0.5">{act === 'checkout' ? 'Painel de Membros' : 'Link Externo / PDF'}</p>
-                               <p className="text-[10px] text-gray-700 line-clamp-1">{act === 'checkout' ? 'Direciona para o conteúdo' : 'Link customizado'}</p>
+                                <p className="text-[10px] text-gray-700 line-clamp-1">{act === 'checkout' ? 'Libera acesso na area de membros' : 'Entrega um link externo ou PDF'}</p>
                             </div>
                          </label>
                       ))}
@@ -587,7 +605,7 @@ export const Products = () => {
 
                    {formData.member_area_action === 'sales_page' && (
                      <div className="animate-in fade-in slide-in-from-top-2 duration-300">
-                        <label className="text-[10px] text-gray-600 font-black uppercase tracking-widest mb-3 block">Link de Redirecionamento</label>
+                         <label className="text-[10px] text-gray-600 font-black uppercase tracking-widest mb-3 block">Link de Entrega</label>
                         <input type="text" className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-4 text-white focus:border-white/20" placeholder="https://..." value={formData.redirect_link || ''} onChange={e => setFormData({ ...formData, redirect_link: e.target.value })} />
                      </div>
                    )}

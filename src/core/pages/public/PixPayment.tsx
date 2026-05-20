@@ -1,5 +1,5 @@
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
 import { Copy, Check, Clock, ShieldCheck, Smartphone, QrCode, AlertCircle, Loader2 } from 'lucide-react';
 import { storage } from '../../services/storageService';
@@ -62,6 +62,13 @@ export const PixPayment = () => {
   const closeAlert = () => {
     setAlertState(prev => ({ ...prev, isOpen: false }));
   };
+
+  const statusSignature = new URLSearchParams(location.search).get('sig') || location.state?.statusSignature || '';
+  const appendStatusSignature = useCallback((path: string) => {
+    if (!statusSignature) return path;
+    const separator = path.includes('?') ? '&' : '?';
+    return `${path}${separator}sig=${encodeURIComponent(statusSignature)}`;
+  }, [statusSignature]);
 
   useEffect(() => {
     const load = async () => {
@@ -201,7 +208,7 @@ export const PixPayment = () => {
 
             if (isAlreadyPaid) {
               setPaymentConfirmed(true);
-              setRedirectTarget(`/thank-you/${orderId}`);
+              setRedirectTarget(appendStatusSignature(`/thank-you/${orderId}`));
             }
           }
         } catch (err) {
@@ -218,7 +225,7 @@ export const PixPayment = () => {
       setLoading(false);
     };
     load();
-  }, [orderId, location.state]);
+  }, [orderId, location.state, appendStatusSignature]);
 
   // Fetch Config for Upsell Logic
   const [upsellActive, setUpsellActive] = useState<boolean | null>(null);
@@ -280,8 +287,6 @@ export const PixPayment = () => {
   useEffect(() => {
     if (!orderId) return;
 
-    const statusSignature = new URLSearchParams(location.search).get('sig') || location.state?.statusSignature || '';
-
     const checkStatus = async () => {
       if (hasRedirectedRef.current || redirectTarget) return;
 
@@ -310,7 +315,7 @@ export const PixPayment = () => {
           setPaymentConfirmed(true);
           console.log('[PixPayment] 💳 Payment CONFIRMED! Preparing redirect...');
           const isUpsell = upsellActive === true;
-          const target = isUpsell ? `/upsell/${orderId}` : `/thank-you/${orderId}`;
+          const target = appendStatusSignature(isUpsell ? `/upsell/${orderId}` : `/thank-you/${orderId}`);
           setRedirectTarget(target);
         }
 
@@ -337,7 +342,7 @@ export const PixPayment = () => {
       window.removeEventListener('focus', handleVisibilityResume);
       document.removeEventListener('visibilitychange', handleVisibilityResume);
     };
-  }, [orderId, location.search, location.state, upsellActive, redirectTarget]);
+  }, [orderId, location.search, location.state, upsellActive, redirectTarget, statusSignature, appendStatusSignature]);
 
   useEffect(() => {
     if (!orderId || redirectTarget) return;
@@ -356,7 +361,7 @@ export const PixPayment = () => {
           const nextStatus = String(payload.new?.status || '').toLowerCase();
           if (nextStatus === 'paid' || nextStatus === 'approved') {
             setPaymentConfirmed(true);
-            const target = upsellActive === true ? `/upsell/${orderId}` : `/thank-you/${orderId}`;
+            const target = appendStatusSignature(upsellActive === true ? `/upsell/${orderId}` : `/thank-you/${orderId}`);
             setRedirectTarget(target);
           }
         }
@@ -366,7 +371,7 @@ export const PixPayment = () => {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [orderId, redirectTarget, upsellActive]);
+  }, [orderId, redirectTarget, upsellActive, appendStatusSignature]);
 
   useEffect(() => {
     if (!redirectTarget || hasRedirectedRef.current) return;

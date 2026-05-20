@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
-import { decrypt } from '../../core/utils/cryptoUtils.js';
+import { decrypt, generateSignature } from '../../core/utils/cryptoUtils.js';
 import { securityService } from '../../core/services/securityService.js';
 import { applyCors } from '../../core/api/_cors.js';
 import { fulfillOrder } from '../../core/services/fulfillment.js';
@@ -314,6 +314,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             serverPersisted,
             orderStatus: internalPaymentStatus,
             fulfillmentTriggered,
+            statusSignature: generateSignature(orderId),
             // For 3D Secure: if status is 'requires_action', frontend needs client_secret
             requiresAction: paymentIntent.status === 'requires_action',
             lastPaymentError: paymentIntent.last_payment_error?.message || null

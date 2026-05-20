@@ -590,7 +590,7 @@ class PaymentService {
 
       // Handle Response
       if (result.status === 'succeeded' || result.status === 'processing') {
-        return { success: true, gatewayStatus: result.status };
+        return { success: true, gatewayStatus: result.status, statusSignature: result.statusSignature };
       } else {
         return {
           success: false,

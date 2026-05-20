@@ -1,4 +1,10 @@
 import { createLoginToken } from '../utils/loginToken.js';
+import {
+  buildOrderDeliverables,
+  hasActionableDeliverables,
+  renderDeliverablesEmailHtml,
+  renderDeliverablesText,
+} from './orderDeliverables.js';
 
 type SupabaseAdmin = any;
 
@@ -44,7 +50,7 @@ function getAreaDomain(area: any): string {
   return domains?.domain || '';
 }
 
-function ensureTokenizedAccessLink(html: string, membersAreaUrl: string) {
+function ensureTokenizedAccessLink(html: string, membersAreaUrl: string, appendFallbackButton = true) {
   if (!html) return html;
   let output = /<\/?[a-z][\s\S]*>/i.test(html)
     ? html
@@ -77,11 +83,18 @@ function ensureTokenizedAccessLink(html: string, membersAreaUrl: string) {
   }
 
   if (output.includes('login_token=') || output.includes('auth_token=')) return output;
+  if (!appendFallbackButton) return output;
 
   return `${output}
     <div style="margin-top: 24px; text-align: center;">
       <a href="${membersAreaUrl}" style="background-color: #0070f3; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">Acessar area de membros</a>
     </div>`;
+}
+
+function appendDeliverablesHtml(html: string, deliverablesHtml: string) {
+  if (!deliverablesHtml || html.includes('data-super-checkout-deliverables="true"')) return html;
+  return `${html}
+    ${deliverablesHtml}`;
 }
 
 async function findTemplateByEvent(supabaseAdmin: SupabaseAdmin, eventType: string, activeOnly = true) {
@@ -308,6 +321,13 @@ export async function sendOrderAccessEmail(
     ? order.items.map((item: any) => item.name).filter(Boolean).join(', ')
     : 'Produto';
   const membersAreaUrl = await resolveMembersAreaUrl(supabaseAdmin, order, input.origin, to);
+  const deliverables = await buildOrderDeliverables(supabaseAdmin, {
+    order,
+    origin: input.origin,
+    recipientEmail: to,
+    includeAccessTokens: true,
+  });
+  const deliverablesHtml = renderDeliverablesEmailHtml(deliverables);
   const variables = {
     '{{order_id}}': orderId ? `#${orderId.split('-')[0]}` : '',
     '{{customer_name}}': name,
@@ -315,11 +335,18 @@ export async function sendOrderAccessEmail(
     '{{email}}': to,
     '{{product_names}}': productNames || 'Produto',
     '{{members_area_url}}': membersAreaUrl,
+    '{{deliverables_html}}': deliverablesHtml,
+    '{{deliverables_text}}': renderDeliverablesText(deliverables),
     '{{business_name}}': settings?.business_name || 'Super Checkout',
   };
 
   const subject = replaceTemplateVars(template.subject, variables);
-  const html = ensureTokenizedAccessLink(replaceTemplateVars(template.html_body, variables), membersAreaUrl);
+  const renderedHtml = ensureTokenizedAccessLink(
+    replaceTemplateVars(template.html_body, variables),
+    membersAreaUrl,
+    !hasActionableDeliverables(deliverables),
+  );
+  const html = appendDeliverablesHtml(renderedHtml, deliverablesHtml);
 
   const senderName = settings?.sender_name || settings?.business_name;
   const cleanFromEmail = String(fromEmail).replace(/.*<|>/g, '');

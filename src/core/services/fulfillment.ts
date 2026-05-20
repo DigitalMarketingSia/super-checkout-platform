@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { buildOrderDeliverables, stripSensitiveDeliverableFields } from './orderDeliverables.js';
 
 type SupabaseAdmin = any;
 
@@ -297,6 +298,31 @@ export async function fulfillOrder(
         phone: order.customer_phone || null,
         cpf: order.customer_cpf || null,
       },
+    });
+  }
+
+  try {
+    const deliveryOrigin =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      process.env.VITE_SITE_URL ||
+      process.env.APP_URL ||
+      'https://app.supercheckout.app';
+    const deliverables = await buildOrderDeliverables(supabaseAdmin, {
+      order: { ...order, items },
+      origin: deliveryOrigin,
+      recipientEmail: payerEmail,
+      includeAccessTokens: false,
+    });
+
+    Object.assign(mergedMetadata, {
+      order_deliverables: deliverables.map(stripSensitiveDeliverableFields),
+      order_deliverables_generated_at: new Date().toISOString(),
+      order_deliverables_source: 'fulfillment',
+    });
+  } catch (deliveryError: any) {
+    console.warn('[FulfillmentService] Failed to build order deliverables:', deliveryError?.message || deliveryError);
+    Object.assign(mergedMetadata, {
+      order_deliverables_error_at: new Date().toISOString(),
     });
   }
 

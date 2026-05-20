@@ -1,12 +1,23 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { CheckCircle, Package, Mail, ArrowRight, ShoppingBag } from 'lucide-react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { CheckCircle, Package, Mail, ArrowRight, ShoppingBag, ExternalLink, LockKeyhole } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Loading } from '../../components/ui/Loading';
 import { supabase } from '../../services/supabase';
 import { Order } from '../../types';
 import { TrackingProvider, useTracking } from '../../context/TrackingContext';
 import { useTranslation } from 'react-i18next';
+import { getApiUrl } from '../../utils/apiUtils';
+
+interface OrderDeliverable {
+  id: string;
+  title: string;
+  delivery_type: 'external_link' | 'member_area' | 'none';
+  status: 'available' | 'not_configured';
+  url: string | null;
+  label: string;
+  instructions?: string | null;
+}
 
 const PurchaseTracker: React.FC<{ order: Order }> = ({ order }) => {
   const { trackPurchase, isInitialized } = useTracking();
@@ -25,9 +36,11 @@ const PurchaseTracker: React.FC<{ order: Order }> = ({ order }) => {
 export const ThankYou = () => {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { t } = useTranslation('public');
   const [order, setOrder] = useState<Order | null>(null);
   const [checkout, setCheckout] = useState<any>(null);
+  const [deliverables, setDeliverables] = useState<OrderDeliverable[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -35,6 +48,7 @@ export const ThankYou = () => {
       if (!orderId) return;
 
       try {
+        setDeliverables([]);
         // Fetch order
         const { data: orderData, error: orderError } = await supabase
           .from('orders')
@@ -44,6 +58,17 @@ export const ThankYou = () => {
 
         if (orderError) throw orderError;
         setOrder(orderData);
+
+        if (orderData?.status === 'paid' || orderData?.status === 'approved') {
+          const sig = new URLSearchParams(location.search).get('sig') || '';
+          const deliveryResponse = await fetch(getApiUrl(`/api/system?action=order-deliverables&orderId=${encodeURIComponent(orderId)}&sig=${encodeURIComponent(sig)}`));
+          if (deliveryResponse.ok) {
+            const deliveryData = await deliveryResponse.json().catch(() => ({}));
+            if (Array.isArray(deliveryData?.deliverables)) {
+              setDeliverables(deliveryData.deliverables);
+            }
+          }
+        }
 
         // Fetch checkout
         if (orderData?.checkout_id) {
@@ -65,7 +90,7 @@ export const ThankYou = () => {
     };
 
     fetchOrder();
-  }, [orderId]);
+  }, [orderId, location.search]);
 
   if (loading) {
     return <Loading label={t('thank_you.loading', 'Carregando pedido')} />;
@@ -73,6 +98,8 @@ export const ThankYou = () => {
 
   // Ensure config exists
   const config = checkout?.config || {};
+  const actionableDeliverables = deliverables.filter((deliverable) => deliverable.status === 'available' && deliverable.url);
+  const missingDeliverables = deliverables.filter((deliverable) => deliverable.status !== 'available' || !deliverable.url);
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-gray-900">
@@ -126,6 +153,56 @@ export const ThankYou = () => {
                 </div>
               </div>
             </div>
+
+            {actionableDeliverables.length > 0 && (
+              <div className="max-w-lg mx-auto mb-8 text-left">
+                <div className="flex items-center gap-2 mb-3">
+                  <LockKeyhole className="w-4 h-4 text-green-600" />
+                  <h2 className="text-sm font-bold text-gray-900">
+                    {t('thank_you.deliverables_title', 'Seus acessos')}
+                  </h2>
+                </div>
+                <div className="space-y-3">
+                  {actionableDeliverables.map((deliverable) => (
+                    <div key={deliverable.id} className="rounded-xl border border-green-100 bg-green-50/60 p-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+                        <div className="min-w-0">
+                          <p className="font-bold text-sm text-gray-900 truncate">{deliverable.title}</p>
+                          <p className="text-xs text-gray-600 mt-1">
+                            {deliverable.instructions || t('thank_you.deliverable_ready', 'Material liberado para acesso imediato.')}
+                          </p>
+                        </div>
+                        <Button
+                          onClick={() => {
+                            const targetUrl = deliverable.url || '';
+                            if (targetUrl.startsWith('http')) {
+                              window.open(targetUrl, '_blank', 'noopener,noreferrer');
+                            } else {
+                              navigate(targetUrl);
+                            }
+                          }}
+                          className="w-full sm:w-auto shrink-0"
+                        >
+                          {deliverable.label || t('thank_you.access', 'Acessar')}
+                          <ExternalLink className="w-4 h-4 ml-2" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {missingDeliverables.length > 0 && actionableDeliverables.length === 0 && (
+              <div className="max-w-lg mx-auto mb-8 rounded-xl border border-amber-100 bg-amber-50 p-4 text-left">
+                <p className="text-sm font-bold text-amber-900">
+                  {t('thank_you.delivery_pending_title', 'Entrega em processamento')}
+                </p>
+                <p className="text-xs text-amber-800 mt-1">
+                  {t('thank_you.delivery_pending_desc', 'Seu pagamento foi aprovado, mas este produto ainda nao possui entrega automatica configurada. Verifique seu e-mail ou fale com o suporte.')}
+                </p>
+              </div>
+            )}
 
             {/* Next Steps */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg mx-auto">

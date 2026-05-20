@@ -38,7 +38,11 @@
     "track_order_title": "Sigue el pedido",
     "track_order_desc": "Puedes ver el estado de tu compra en cualquier momento.",
     "access": "Acceder",
-    "thanks": "Gracias por tu compra."
+    "thanks": "Gracias por tu compra.",
+    "deliverables_title": "Tus accesos",
+    "deliverable_ready": "Tu material esta disponible para acceso inmediato.",
+    "delivery_pending_title": "Entrega en proceso",
+    "delivery_pending_desc": "Tu pago fue aprobado, pero este producto aun no tiene entrega automatica configurada. Revisa tu correo o contacta al soporte."
   },
   "upsell": {
     "loading": "Cargando oferta",

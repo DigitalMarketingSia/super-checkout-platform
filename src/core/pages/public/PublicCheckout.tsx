@@ -984,14 +984,15 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                   });
                } else if (paymentMethod === 'boleto' && result.boletoData) {
                   window.location.href = result.boletoData.url;
-               } else {
-                  if (data.checkout.config?.upsell?.active) {
-                     navigate(`/upsell/${result.orderId}`);
-                  } else {
-                     navigate(`/thank-you/${result.orderId}`);
-                  }
-               }
-            }, 1000); // 1 second showing the green checkmark
+                } else {
+                   const signedQuery = result.statusSignature ? `?sig=${encodeURIComponent(result.statusSignature)}` : '';
+                   if (data.checkout.config?.upsell?.active) {
+                      navigate(`/upsell/${result.orderId}${signedQuery}`);
+                   } else {
+                      navigate(`/thank-you/${result.orderId}${signedQuery}`);
+                   }
+                }
+             }, 1000); // 1 second showing the green checkmark
          } else {
             setProcessState('error');
             setProcessError(result.message || t('checkout.transaction_declined', 'Transação recusada. Verifique os dados do cartão.'));
@@ -1911,10 +1912,11 @@ const WalletExpressButton = ({
                   created_at: new Date().toISOString()
                });
                ev.complete('success');
+               const signedQuery = result.statusSignature ? `?sig=${encodeURIComponent(result.statusSignature)}` : '';
                if (data.checkout.config?.upsell?.active) {
-                  navigate(`/upsell/${result.orderId}`);
+                  navigate(`/upsell/${result.orderId}${signedQuery}`);
                } else {
-                  navigate(`/thank-you/${result.orderId}`);
+                  navigate(`/thank-you/${result.orderId}${signedQuery}`);
                }
             } else {
                ev.complete('fail');

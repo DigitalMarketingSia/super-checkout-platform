@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { decrypt, verifySignature } from '../utils/cryptoUtils.js';
 import { applyCors } from './_cors.js';
 import { fulfillOrder } from '../services/fulfillment.js';
+import { sendOrderAccessEmail } from '../services/orderEmail.js';
 import { enforceApiRateLimit } from './_rate-limit.js';
 
 // Define types locally since we are in a serverless function structure that might not share types easily with frontend
@@ -51,8 +52,9 @@ async function processPaidSideEffects(params: {
     serviceRoleKey?: string;
     orderId: string;
     knownOrder?: Order;
+    origin?: string;
 }) {
-    const { supabaseUrl, serviceRoleKey, orderId, knownOrder } = params;
+    const { supabaseUrl, serviceRoleKey, orderId, knownOrder, origin } = params;
     if (!serviceRoleKey) {
         console.warn(`[CheckStatus] Missing service role key; cannot run paid side effects for ${orderId}.`);
         return;
@@ -78,6 +80,15 @@ async function processPaidSideEffects(params: {
                 orderId,
                 email: order?.customer_email,
                 name: order?.customer_name,
+            });
+        }
+
+        if (order?.customer_email) {
+            await sendOrderAccessEmail(supabaseAdmin, {
+                orderId,
+                origin: origin || 'https://app.supercheckout.app',
+                email: order.customer_email,
+                name: order.customer_name,
             });
         }
     } catch (error: any) {
@@ -151,6 +162,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const safeOrderId = encodeURIComponent(orderId);
+    const requestOrigin = `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host || 'app.supercheckout.app'}`;
     console.log(`[CheckStatus] Checking order: ${maskIdentifier(orderId)}`);
 
     try {
@@ -196,6 +208,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             serviceRoleKey,
             orderId: orderId as string,
             knownOrder: order,
+            origin: requestOrigin,
         });
         return res.status(200).json({ status: 'paid' });
     }
@@ -245,6 +258,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             serviceRoleKey,
             orderId: orderId as string,
             knownOrder: { ...order, status: 'paid' },
+            origin: requestOrigin,
         });
         return res.status(200).json({ status: 'paid' });
     }
@@ -463,6 +477,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     serviceRoleKey,
                     orderId: orderId as string,
                     knownOrder: { ...order, status: 'paid' },
+                    origin: requestOrigin,
                 });
             }
         }

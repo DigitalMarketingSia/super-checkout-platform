@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useCallback, useState, useEffect } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { storage } from '../../services/storageService';
 import { paymentService } from '../../services/paymentService';
 import { Order, Checkout, Product, CheckoutConfig } from '../../types';
@@ -16,7 +16,14 @@ const getUpsellOrderSessionKey = (orderId?: string) => `upsell-original-order:${
 export const UpsellPage = () => {
     const { orderId } = useParams<{ orderId: string }>();
     const navigate = useNavigate();
+    const location = useLocation();
     const { t } = useTranslation('public');
+    const originalStatusSignature = new URLSearchParams(location.search).get('sig') || '';
+    const appendOriginalSignature = useCallback((path: string) => {
+        if (!originalStatusSignature) return path;
+        const separator = path.includes('?') ? '&' : '?';
+        return `${path}${separator}sig=${encodeURIComponent(originalStatusSignature)}`;
+    }, [originalStatusSignature]);
 
     const [loading, setLoading] = useState(true);
     const [processing, setProcessing] = useState(false);
@@ -89,7 +96,7 @@ export const UpsellPage = () => {
                 const chk = await storage.getPublicCheckout(order.checkout_id);
                 if (!chk || !chk.config.upsell?.active) {
                     // Redirect to Thank You if upsell not valid
-                    navigate(`/thank-you/${orderId}`);
+                    navigate(appendOriginalSignature(`/thank-you/${orderId}`));
                     return;
                 }
                 setCheckout(chk);
@@ -97,7 +104,7 @@ export const UpsellPage = () => {
                 // 3. Fetch Upsell Product
                 const prod = await storage.getPublicProduct(chk.config.upsell.product_id);
                 if (!prod) {
-                    navigate(`/thank-you/${orderId}`);
+                    navigate(appendOriginalSignature(`/thank-you/${orderId}`));
                     return;
                 }
                 setUpsellProduct(prod);
@@ -110,7 +117,7 @@ export const UpsellPage = () => {
             }
         };
         load();
-    }, [orderId, navigate, t]);
+    }, [orderId, navigate, t, appendOriginalSignature]);
 
     const handleAccept = async () => {
         if (!originalOrder || !upsellProduct || !checkout) return;
@@ -175,7 +182,8 @@ export const UpsellPage = () => {
                     setProcessing(false);
                 } else {
                     // Approved (Card)
-                    navigate(`/thank-you/${result.orderId}?upsell=true`);
+                    const signedQuery = result.statusSignature ? `&sig=${encodeURIComponent(result.statusSignature)}` : '';
+                    navigate(`/thank-you/${result.orderId}?upsell=true${signedQuery}`);
                 }
             } else {
                 alert(t('upsell.payment_declined', 'Pagamento recusado: {{message}}', { message: result.message }));
@@ -190,7 +198,7 @@ export const UpsellPage = () => {
     };
 
     const handleDecline = () => {
-        navigate(`/thank-you/${orderId}`);
+        navigate(appendOriginalSignature(`/thank-you/${orderId}`));
     };
 
     if (loading) return <Loading label={t('upsell.loading', 'Carregando oferta')} />;
@@ -221,7 +229,7 @@ export const UpsellPage = () => {
                         className="w-full bg-black/50 border border-white/10 rounded-lg p-3 text-xs text-gray-500 h-24 resize-none"
                     />
 
-                    <Button onClick={() => navigate(`/thank-you/${orderId}`)} className="w-full">
+                    <Button onClick={() => navigate(appendOriginalSignature(`/thank-you/${orderId}`))} className="w-full">
                         {t('upsell.already_paid', 'Já realizei o pagamento')}
                     </Button>
                 </div>

@@ -38,7 +38,11 @@
     "track_order_title": "Track your order",
     "track_order_desc": "You can check the status of your purchase at any time.",
     "access": "Access",
-    "thanks": "Thank you for your purchase."
+    "thanks": "Thank you for your purchase.",
+    "deliverables_title": "Your access",
+    "deliverable_ready": "Your material is available for immediate access.",
+    "delivery_pending_title": "Delivery in progress",
+    "delivery_pending_desc": "Your payment was approved, but this product does not have automatic delivery configured yet. Check your email or contact support."
   },
   "upsell": {
     "loading": "Loading offer",

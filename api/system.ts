@@ -4,6 +4,7 @@ import healthHandler from '../src/core/api/health.js';
 import proxyHandler from '../src/core/api/proxy.js';
 import sendEmailHandler from '../src/core/api/send-email.js';
 import { sendOrderAccessEmail } from '../src/core/services/orderEmail.js';
+import { buildOrderDeliverables, stripSensitiveDeliverableFields } from '../src/core/services/orderDeliverables.js';
 import { verifySignature } from '../src/core/utils/cryptoUtils.js';
 import { verifyLoginToken } from '../src/core/utils/loginToken.js';
 import { enforceApiRateLimit } from '../src/core/api/_rate-limit.js';
@@ -323,6 +324,99 @@ async function resendOrderAccessHandler(req: VercelRequest, res: VercelResponse)
   }
 }
 
+async function orderDeliverablesHandler(req: VercelRequest, res: VercelResponse) {
+  const corsAllowed = applyMemberCors(req, res);
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (!corsAllowed) return res.status(403).json({ error: 'Origin not allowed' });
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+
+  const orderId = String(req.query.orderId || '').trim();
+  const sig = String(req.query.sig || '').trim();
+  if (!UUID_REGEX.test(orderId)) {
+    return res.status(400).json({ error: 'Invalid orderId' });
+  }
+
+  const rateLimit = enforceApiRateLimit(req, res, {
+    scope: 'system_order_deliverables',
+    identifiers: [orderId],
+    limit: 80,
+    windowMs: 15 * 60 * 1000,
+  });
+  if (!rateLimit.allowed) {
+    return res.status(429).json({ error: 'Too many requests' });
+  }
+
+  let hasValidSignature = false;
+  try {
+    hasValidSignature = verifySignature(orderId, sig);
+  } catch (signatureError: any) {
+    console.error('[System] order-deliverables signature verification failed:', signatureError?.message || signatureError);
+  }
+
+  if (!hasValidSignature) {
+    return res.status(200).json({ status: 'pending', deliverables: [], authorized: false });
+  }
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const serviceKey = getSupabaseServiceKey();
+  if (!supabaseUrl || !serviceKey) {
+    return res.status(500).json({ error: 'Server configuration error' });
+  }
+
+  try {
+    const supabaseAdmin = createClient(supabaseUrl, serviceKey);
+    const { data: order, error: orderError } = await supabaseAdmin
+      .from('orders')
+      .select('id, status, customer_email, customer_name, items, metadata, checkout_id')
+      .eq('id', orderId)
+      .single();
+
+    if (orderError || !order) {
+      return res.status(200).json({ status: 'pending', deliverables: [], authorized: true });
+    }
+
+    const status = String(order.status || '').toLowerCase();
+    if (status !== 'paid' && status !== 'approved') {
+      return res.status(200).json({ status: order.status || 'pending', deliverables: [], authorized: true });
+    }
+
+    const origin = normalizeRequestOrigin(req);
+    const deliverables = await buildOrderDeliverables(supabaseAdmin, {
+      order,
+      origin,
+      recipientEmail: order.customer_email,
+      includeAccessTokens: true,
+    });
+
+    const metadata = order.metadata && typeof order.metadata === 'object' ? order.metadata : {};
+    if (!metadata.order_deliverables_generated_at) {
+      await supabaseAdmin
+        .from('orders')
+        .update({
+          metadata: {
+            ...metadata,
+            order_deliverables: deliverables.map(stripSensitiveDeliverableFields),
+            order_deliverables_generated_at: new Date().toISOString(),
+            order_deliverables_source: 'thank_you_endpoint',
+          },
+        })
+        .eq('id', orderId);
+    }
+
+    return res.status(200).json({
+      status: order.status,
+      authorized: true,
+      deliverables,
+    });
+  } catch (err: any) {
+    console.error('[System] order-deliverables failed:', err?.message || err);
+    return res.status(500).json({ error: 'Failed to load order deliverables' });
+  }
+}
+
 function maskEmail(email?: string | null) {
   const [name, domain] = String(email || '').split('@');
   if (!name || !domain) return 'unknown';
@@ -604,6 +698,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return await autoLoginHandler(req, res);
             case 'resend-order-access':
                 return await resendOrderAccessHandler(req, res);
+            case 'order-deliverables':
+                return await orderDeliverablesHandler(req, res);
             case 'member-password-reset':
                 return await memberPasswordResetHandler(req, res);
             default:

@@ -3,7 +3,7 @@ import crypto from 'crypto';
 const TOKEN_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 function getSecret(): string {
-  return process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.CENTRAL_SERVICE_ROLE_KEY || '';
+  return process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.CENTRAL_SERVICE_ROLE_KEY || '';
 }
 
 /**
