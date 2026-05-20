@@ -60,6 +60,7 @@ export const ActivationLogin = () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'apikey': CENTRAL_SUPABASE_ANON_KEY,
                     'Authorization': `Bearer ${CENTRAL_SUPABASE_ANON_KEY}`
                 },
                 body: JSON.stringify({

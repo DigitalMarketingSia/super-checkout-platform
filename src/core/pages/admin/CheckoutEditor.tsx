@@ -165,6 +165,20 @@ export const CheckoutEditor = () => {
 
       try {
          setLoading(true);
+         const sanitizedPixels = config.pixels ? {
+            ...config.pixels,
+            gtm_id: config.pixels.gtm_id ? config.pixels.gtm_id.trim().toUpperCase() : undefined,
+            facebook_pixel_id: config.pixels.facebook_pixel_id ? config.pixels.facebook_pixel_id.trim() : undefined,
+            tiktok_pixel_id: config.pixels.tiktok_pixel_id ? config.pixels.tiktok_pixel_id.trim().toUpperCase() : undefined,
+            google_analytics_id: config.pixels.google_analytics_id ? config.pixels.google_analytics_id.trim().toUpperCase() : undefined,
+            google_ads_id: config.pixels.google_ads_id ? config.pixels.google_ads_id.trim().toUpperCase() : undefined,
+         } : undefined;
+
+         const sanitizedConfig = {
+            ...config,
+            pixels: sanitizedPixels
+         };
+
          const checkoutData = {
             name,
             active,
@@ -178,7 +192,7 @@ export const CheckoutEditor = () => {
             thank_you_button_text: thankYouButtonText || null,
             currency,
             backup_gateway_id: backupGatewayId || null,
-            config,
+            config: sanitizedConfig,
             user_id: user?.id || '', // Requisito da interface
             offer_id: undefined // Legacy field, not used in current implementation
          };

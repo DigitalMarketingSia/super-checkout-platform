@@ -109,6 +109,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s timeout
                 const centralAnonKey =
+                    process.env.CENTRAL_SUPABASE_PUBLISHABLE_KEY ||
+                    process.env.VITE_CENTRAL_SUPABASE_PUBLISHABLE_KEY ||
+                    process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_PUBLISHABLE_KEY ||
+                    process.env.CENTRAL_SUPABASE_ANON_KEY ||
                     process.env.VITE_CENTRAL_SUPABASE_ANON_KEY ||
                     process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_ANON_KEY;
 

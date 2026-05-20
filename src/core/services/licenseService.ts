@@ -473,8 +473,8 @@ export const licenseService = {
         });
 
         if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.error || 'Falha ao ativar licença');
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.error || err.message || 'Falha ao ativar licença');
         }
 
         return await response.json();

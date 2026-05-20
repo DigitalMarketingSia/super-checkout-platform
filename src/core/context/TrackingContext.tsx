@@ -189,24 +189,36 @@ export const useTracking = () => {
 
 // --- Injection Helpers ---
 
-function injectGTM(id: string) {
+import { 
+    sanitizeGtmId, 
+    sanitizeFacebookId, 
+    sanitizeTiktokId, 
+    sanitizeGoogleAnalyticsId, 
+    sanitizeGoogleAdsId 
+} from '../utils/trackingSanitizer';
+
+function injectGTM(rawId: string) {
+    const id = sanitizeGtmId(rawId);
+    if (!id) return;
     // Head
     const script = document.createElement('script');
     script.innerHTML = `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
     new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
     j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
     'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-    })(window,document,'script','dataLayer','${id}');`;
+    })(window,document,'script','dataLayer',${JSON.stringify(id)});`;
     document.head.appendChild(script);
 
     // Body (NoScript)
     const noscript = document.createElement('noscript');
-    noscript.innerHTML = `<iframe src="https://www.googletagmanager.com/ns.html?id=${id}"
+    noscript.innerHTML = `<iframe src="https://www.googletagmanager.com/ns.html?id=${encodeURIComponent(id)}"
     height="0" width="0" style="display:none;visibility:hidden"></iframe>`;
     document.body.appendChild(noscript);
 }
 
-function injectFacebook(id: string) {
+function injectFacebook(rawId: string) {
+    const id = sanitizeFacebookId(rawId);
+    if (!id) return;
     const script = document.createElement('script');
     script.innerHTML = `!function(f,b,e,v,n,t,s)
     {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
@@ -216,11 +228,13 @@ function injectFacebook(id: string) {
     t.src=v;s=b.getElementsByTagName(e)[0];
     s.parentNode.insertBefore(t,s)}(window, document,'script',
     'https://connect.facebook.net/en_US/fbevents.js');
-    fbq('init', '${id}');`;
+    fbq('init', ${JSON.stringify(id)});`;
     document.head.appendChild(script);
 }
 
-function injectTikTok(id: string) {
+function injectTikTok(rawId: string) {
+    const id = sanitizeTiktokId(rawId);
+    if (!id) return;
     const script = document.createElement('script');
     script.innerHTML = `!function (w, d, t) {
       w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];
@@ -232,16 +246,18 @@ function injectTikTok(id: string) {
       ttq._i=ttq._i||{},ttq._i[e]=[],ttq._i[e]._u=i,ttq._t=ttq._t||{},ttq._t[e]=+new Date,ttq._o=ttq._o||{},ttq._o[e]=n||{};
       var o=document.createElement("script");o.type="text/javascript",o.async=!0,o.src=i+"?sdkid="+e+"&lib="+t;
       var a=document.getElementsByTagName("script")[0];a.parentNode.insertBefore(o,a)};
-      ttq.load('${id}');
+      ttq.load(${JSON.stringify(id)});
     }(window, document, 'ttq');`;
     document.head.appendChild(script);
 }
 
-function injectGA4(id: string) {
+function injectGA4(rawId: string) {
+    const id = sanitizeGoogleAnalyticsId(rawId);
+    if (!id) return;
     // 1. Script Tag
     const script = document.createElement('script');
     script.async = true;
-    script.src = `https://www.googletagmanager.com/gtag/js?id=${id}`;
+    script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(id)}`;
     document.head.appendChild(script);
 
     // 2. Init
@@ -250,19 +266,21 @@ function injectGA4(id: string) {
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
-      gtag('config', '${id}');
+      gtag('config', ${JSON.stringify(id)});
     `;
     document.head.appendChild(initScript);
 }
 
-function injectGoogleAds(id: string) {
+function injectGoogleAds(rawId: string) {
+    const id = sanitizeGoogleAdsId(rawId);
+    if (!id) return;
     // Usually shares gtag logic with GA4, but needs config.
     // We assume GA4 might OR might not be present.
     // If GA4 is NOT present, we need to load the gtag lib.
     if (!document.querySelector('script[src*="googletagmanager.com/gtag/js"]')) {
         const script = document.createElement('script');
         script.async = true;
-        script.src = `https://www.googletagmanager.com/gtag/js?id=${id}`;
+        script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(id)}`;
         document.head.appendChild(script);
 
         const initScript = document.createElement('script');
@@ -270,13 +288,14 @@ function injectGoogleAds(id: string) {
           window.dataLayer = window.dataLayer || [];
           function gtag(){dataLayer.push(arguments);}
           gtag('js', new Date());
-          gtag('config', '${id}');
+          gtag('config', ${JSON.stringify(id)});
         `;
         document.head.appendChild(initScript);
     } else {
         // Just config if lib exists
         const configScript = document.createElement('script');
-        configScript.innerHTML = `gtag('config', '${id}');`;
+        configScript.innerHTML = `gtag('config', ${JSON.stringify(id)});`;
         document.head.appendChild(configScript);
     }
 }
+

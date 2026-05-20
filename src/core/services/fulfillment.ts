@@ -95,6 +95,9 @@ async function consumeUpgradeIntent(params: {
 }) {
   const centralUrl = (process.env.CENTRAL_SUPABASE_URL || 'https://bcmnryxjweiovrwmztpn.supabase.co').replace(/\/+$/, '');
   const centralInvokeKey =
+    process.env.CENTRAL_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.VITE_CENTRAL_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_PUBLISHABLE_KEY ||
     process.env.CENTRAL_SUPABASE_ANON_KEY ||
     process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_ANON_KEY ||
     process.env.VITE_CENTRAL_SUPABASE_ANON_KEY ||

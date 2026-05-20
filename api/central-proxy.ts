@@ -118,10 +118,232 @@ const DEV_CENTRAL_SUPABASE_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co';
 const DEV_LOCAL_SUPABASE_URL = 'https://vixlzrmhqsbzjhpgfwdn.supabase.co';
 const OFFICIAL_CENTRAL_API_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co/functions/v1';
 const OFFICIAL_CENTRAL_SUPABASE_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co';
+const OFFICIAL_CENTRAL_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_TWNJjc7T2N9vCNkiBHaP9A_2XIgMgCF';
 
 function getDevFallback(value: string) {
     return process.env.NODE_ENV !== 'production' ? value : '';
 }
+
+function normalizeCentralApiUrl(value: string) {
+    return String(value || '').trim().replace(/\/+$/, '');
+}
+
+function uniqueNonEmpty(values: Array<string | undefined | null>) {
+    return Array.from(new Set(values.map((value) => String(value || '').trim()).filter(Boolean)));
+}
+
+function getCentralApiUrlCandidates() {
+    return uniqueNonEmpty([
+        process.env.CENTRAL_API_URL,
+        process.env.VITE_CENTRAL_API_URL,
+        process.env.NEXT_PUBLIC_CENTRAL_API_URL,
+        OFFICIAL_CENTRAL_API_URL,
+        getDevFallback(DEV_CENTRAL_API_URL),
+    ]).map(normalizeCentralApiUrl);
+}
+
+function getCentralApiUrl() {
+    return getCentralApiUrlCandidates()[0] || '';
+}
+
+function getCentralSupabaseInvokeKeyCandidates() {
+    const configuredCandidates = uniqueNonEmpty([
+        process.env.CENTRAL_SUPABASE_SECRET_KEY,
+        process.env.CENTRAL_SUPABASE_SECRET_KEY_NEW,
+        process.env.CENTRAL_SUPABASE_SERVICE_ROLE_KEY,
+        process.env.CENTRAL_SUPABASE_SERVICE_ROLE_KEY_NEW,
+        process.env.CENTRAL_SUPABASE_PUBLISHABLE_KEY,
+        process.env.VITE_CENTRAL_SUPABASE_PUBLISHABLE_KEY,
+        process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_PUBLISHABLE_KEY,
+        process.env.CENTRAL_SUPABASE_ANON_KEY,
+        process.env.VITE_CENTRAL_SUPABASE_ANON_KEY,
+        process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_ANON_KEY,
+    ]);
+
+    const secretCandidates = configuredCandidates.filter((value) => value.startsWith('sb_secret_'));
+    const publishableCandidates = configuredCandidates.filter((value) => value.startsWith('sb_publishable_'));
+    const legacyCandidates = configuredCandidates.filter((value) => !value.startsWith('sb_secret_') && !value.startsWith('sb_publishable_'));
+
+    return uniqueNonEmpty([
+        ...secretCandidates,
+        ...publishableCandidates,
+        ...legacyCandidates,
+        OFFICIAL_CENTRAL_SUPABASE_PUBLISHABLE_KEY,
+    ]);
+}
+
+function getCentralSupabaseInvokeKey() {
+    return getCentralSupabaseInvokeKeyCandidates()[0] || '';
+}
+
+function isCentralApiKeyFailure(responseBody: string) {
+    return /invalid api key|legacy api key/i.test(String(responseBody || ''));
+}
+
+function centralApiKeyFailureResponse(endpoint: string, res: VercelResponse) {
+    console.error(`[Central Proxy] Central Supabase rejected every configured invoke key while calling ${endpoint}. Check CENTRAL_SUPABASE_SECRET_KEY / CENTRAL_SUPABASE_PUBLISHABLE_KEY in the runtime environment.`);
+    return res.status(502).json({
+        error: 'Falha de configuracao da Central: chave de invocacao do Supabase invalida ou desatualizada.'
+    });
+}
+
+function withCentralInvokeAuthHeaders(fetchOptions: RequestInit, invokeKey: string): RequestInit {
+    return {
+        ...fetchOptions,
+        headers: {
+            ...((fetchOptions.headers as Record<string, string>) || {}),
+            apikey: invokeKey,
+            Authorization: `Bearer ${invokeKey}`,
+        },
+    };
+}
+
+function withCentralDatabaseHeaders(dbKey: string, extraHeaders: Record<string, string> = {}) {
+    return {
+        apikey: dbKey,
+        Authorization: `Bearer ${dbKey}`,
+        'Content-Type': 'application/json',
+        'User-Agent': 'super-checkout-server',
+        ...extraHeaders,
+    };
+}
+
+async function fetchCentralWithInvokeKeyFallback(params: {
+    endpoint: string;
+    primaryApiUrl: string;
+    primaryInvokeKey: string;
+    fetchOptions: RequestInit;
+    queryString?: string;
+}) {
+    const buildTargetUrl = (apiUrl: string) => {
+        const normalizedApiUrl = normalizeCentralApiUrl(apiUrl);
+        return `${normalizedApiUrl}/${params.endpoint}${params.queryString ? '?' + params.queryString : ''}`;
+    };
+
+    const apiUrlCandidates = uniqueNonEmpty([
+        params.primaryApiUrl,
+        OFFICIAL_CENTRAL_API_URL,
+    ]).map(normalizeCentralApiUrl);
+    const invokeKeyCandidates = uniqueNonEmpty([
+        params.primaryInvokeKey,
+        ...getCentralSupabaseInvokeKeyCandidates(),
+    ]);
+
+    let lastResponse: Response | null = null;
+    let lastResponseData = '';
+
+    for (const apiUrl of apiUrlCandidates) {
+        for (const invokeKey of invokeKeyCandidates) {
+            const response = await fetch(
+                buildTargetUrl(apiUrl),
+                withCentralInvokeAuthHeaders(params.fetchOptions, invokeKey)
+            );
+            const responseData = await response.text();
+
+            if (!isCentralApiKeyFailure(responseData)) {
+                return { response, responseData };
+            }
+
+            lastResponse = response;
+            lastResponseData = responseData;
+        }
+    }
+
+    console.error(`[Central Proxy] Central rejected all configured invoke keys for ${params.endpoint}.`);
+    return { response: lastResponse as Response, responseData: lastResponseData };
+}
+
+async function fetchCentralLicenseByFilter(centralSupUrl: string, dbKey: string, filter: string) {
+    const query = new URLSearchParams({
+        select: 'key,plan,status,client_name,client_email,max_instances,created_at,owner_id',
+        order: 'created_at.desc',
+        limit: '1',
+    });
+    const response = await fetch(`${centralSupUrl}/rest/v1/licenses?${query.toString()}&${filter}`, {
+        method: 'GET',
+        headers: withCentralDatabaseHeaders(dbKey),
+    });
+    const responseData = await response.text();
+
+    if (!response.ok) {
+        throw new Error(`Central license lookup failed: ${response.status} ${responseData.slice(0, 120)}`);
+    }
+
+    const rows = JSON.parse(responseData || '[]');
+    return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+}
+
+async function activateFreeLicenseDirect(params: {
+    centralSupUrl: string;
+    dbKey: string;
+    user: any;
+    requestBody: Record<string, any>;
+}) {
+    const userEmail = String(params.user?.email || params.requestBody?._user_email || '').trim().toLowerCase();
+    const userId = String(params.user?.id || '').trim();
+    const userName = String(params.user?.user_metadata?.full_name || params.requestBody?._user_name || userEmail).trim() || userEmail;
+
+    if (!userId || !userEmail) {
+        return { status: 401, payload: { error: 'Unauthorized' } };
+    }
+
+    if (params.requestBody?.termsAccepted !== true) {
+        return { status: 400, payload: { error: 'You must accept the terms to activate the free license.' } };
+    }
+
+    const encodedUserId = encodeURIComponent(userId);
+    const encodedEmail = encodeURIComponent(userEmail);
+    const existingByOwner = await fetchCentralLicenseByFilter(params.centralSupUrl, params.dbKey, `owner_id=eq.${encodedUserId}`);
+    const existingLicense = existingByOwner
+        || await fetchCentralLicenseByFilter(params.centralSupUrl, params.dbKey, `client_email=eq.${encodedEmail}`);
+
+    if (existingLicense) {
+        const isActive = existingLicense.status === 'active';
+        return {
+            status: 200,
+            payload: {
+                success: isActive,
+                message: isActive
+                    ? 'Licenca gratuita ja estava ativa.'
+                    : 'Voce ja possui uma licenca, mas ela nao esta ativa.',
+                license: existingLicense,
+            },
+        };
+    }
+
+    const createResponse = await fetch(`${params.centralSupUrl}/rest/v1/licenses?select=*`, {
+        method: 'POST',
+        headers: withCentralDatabaseHeaders(params.dbKey, { Prefer: 'return=representation' }),
+        body: JSON.stringify({
+            owner_id: userId,
+            client_email: userEmail,
+            client_name: userName,
+            plan: 'free',
+            max_instances: 1,
+            status: 'active',
+            key: crypto.randomUUID(),
+            created_at: new Date().toISOString(),
+        }),
+    });
+    const createData = await createResponse.text();
+
+    if (!createResponse.ok) {
+        throw new Error(`Central license creation failed: ${createResponse.status} ${createData.slice(0, 120)}`);
+    }
+
+    const createdRows = JSON.parse(createData || '[]');
+    const newLicense = Array.isArray(createdRows) ? createdRows[0] : createdRows;
+
+    return {
+        status: 200,
+        payload: {
+            success: true,
+            message: 'Licenca gratuita ativada com sucesso!',
+            license: newLicense,
+        },
+    };
+}
+
 
 const getHostnameFromUrl = (url?: string | null) => {
     if (!url) return null;
@@ -407,22 +629,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // --- 2. Validate required env vars ---
-    const centralApiUrl =
-        process.env.CENTRAL_API_URL
-        || process.env.VITE_CENTRAL_API_URL
-        || process.env.NEXT_PUBLIC_CENTRAL_API_URL
-        || OFFICIAL_CENTRAL_API_URL
-        || getDevFallback(DEV_CENTRAL_API_URL);
+    const centralApiUrl = getCentralApiUrl();
     const centralSecret = process.env.CENTRAL_SHARED_SECRET || process.env.SHARED_SECRET;
-    const centralAnonEnv =
-        process.env.CENTRAL_SUPABASE_PUBLISHABLE_KEY
-        || process.env.VITE_CENTRAL_SUPABASE_PUBLISHABLE_KEY
-        || process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_PUBLISHABLE_KEY
-        || process.env.CENTRAL_SUPABASE_ANON_KEY
-        || process.env.VITE_CENTRAL_SUPABASE_ANON_KEY
-        || process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_ANON_KEY;
-    if (!centralApiUrl || !centralAnonEnv) {
-        console.error('[Central Proxy] Missing CENTRAL_API_URL or CENTRAL_SUPABASE_ANON_KEY');
+    const centralInvokeKeyEnv = getCentralSupabaseInvokeKey();
+    if (!centralApiUrl || !centralInvokeKeyEnv) {
+        console.error('[Central Proxy] Missing CENTRAL_API_URL or CENTRAL_SUPABASE_SECRET_KEY/CENTRAL_SUPABASE_PUBLISHABLE_KEY');
         return res.status(500).json({ error: 'Server configuration error' });
     }
 
@@ -431,17 +642,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(405).json({ error: 'Method not allowed' });
         }
 
-        const centralAnon = centralAnonEnv;
-        const response = await fetch(`${centralApiUrl}/${endpoint}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                apikey: centralAnon,
-                Authorization: `Bearer ${centralAnon}`,
+        const { response, responseData } = await fetchCentralWithInvokeKeyFallback({
+            endpoint,
+            primaryApiUrl: centralApiUrl,
+            primaryInvokeKey: centralInvokeKeyEnv,
+            fetchOptions: {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(requestBody),
             },
-            body: JSON.stringify(requestBody),
         });
-        const responseData = await response.text();
+        if (isCentralApiKeyFailure(responseData)) {
+            return centralApiKeyFailureResponse(endpoint, res);
+        }
         const contentType = response.headers.get('content-type');
         if (contentType) {
             res.setHeader('Content-Type', contentType);
@@ -466,7 +681,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
             || process.env.VITE_SUPABASE_ANON_KEY
             || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-        const localServiceKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+        const localServiceKey =
+            process.env.SUPABASE_SECRET_KEY
+            || process.env.SUPABASE_SECRET_KEY_NEW
+            || process.env.SUPABASE_SERVICE_ROLE_KEY
+            || process.env.SUPABASE_SERVICE_ROLE_KEY_NEW;
         const centralSupUrl =
             process.env.CENTRAL_SUPABASE_URL
             || process.env.VITE_CENTRAL_SUPABASE_URL
@@ -474,14 +693,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             || centralApiUrl.replace('/functions/v1', '')
             || OFFICIAL_CENTRAL_SUPABASE_URL
             || getDevFallback(DEV_CENTRAL_SUPABASE_URL);
-        const centralAnon = centralAnonEnv;
-        const centralServiceKey = process.env.CENTRAL_SUPABASE_SECRET_KEY || process.env.CENTRAL_SUPABASE_SERVICE_ROLE_KEY;
+        const centralInvokeKey = centralInvokeKeyEnv;
+        const centralServiceKey =
+            process.env.CENTRAL_SUPABASE_SECRET_KEY
+            || process.env.CENTRAL_SUPABASE_SECRET_KEY_NEW
+            || process.env.CENTRAL_SUPABASE_SERVICE_ROLE_KEY
+            || process.env.CENTRAL_SUPABASE_SERVICE_ROLE_KEY_NEW;
 
         const validationTargets = [
             { label: 'local-service-role', url: localSupabaseUrl, key: localServiceKey },
             { label: 'local-anon', url: localSupabaseUrl, key: localAnonKey },
             { label: 'central-service-role', url: centralSupUrl, key: centralServiceKey },
-            { label: 'central-anon', url: centralSupUrl, key: centralAnon },
+            { label: 'central-invoke-key', url: centralSupUrl, key: centralInvokeKey },
+            { label: 'central-official-anon', url: OFFICIAL_CENTRAL_SUPABASE_URL, key: OFFICIAL_CENTRAL_SUPABASE_PUBLISHABLE_KEY },
         ].filter((target) => target.url && target.key);
 
         for (const target of validationTargets) {
@@ -649,6 +873,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(500).json({ error: 'Server configuration error' });
         }
 
+        if (endpoint === 'activate-free-license') {
+            const centralDbKey = centralServiceKey || centralInvokeKey;
+            if (!centralDbKey) {
+                console.error('[Central Proxy] Missing Central database secret key for activate-free-license');
+                return res.status(500).json({ error: 'Server configuration error' });
+            }
+
+            try {
+                const result = await activateFreeLicenseDirect({
+                    centralSupUrl: centralSupUrl as string,
+                    dbKey: centralDbKey,
+                    user,
+                    requestBody,
+                });
+
+                return res.status(result.status).json(result.payload);
+            } catch (error: any) {
+                const message = String(error?.message || error || '');
+                console.error(`[Central Proxy] Direct free license activation failed: ${message}`);
+                if (isCentralApiKeyFailure(message)) {
+                    return centralApiKeyFailureResponse(endpoint, res);
+                }
+
+                return res.status(400).json({ error: 'Unable to activate free license' });
+            }
+        }
+
         // --- 5. Build target URL ---
         // Remove the endpoint from query params, keep the rest as-is
         const queryParams = new URLSearchParams();
@@ -672,14 +923,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         const queryString = queryParams.toString();
-        const targetUrl = `${centralApiUrl}/${endpoint}${queryString ? '?' + queryString : ''}`;
 
         // --- 6. Forward request to Central with secret ---
-        const centralFunctionAuthToken = centralAnon;
         const forwardHeaders: Record<string, string> = {
             'Content-Type': 'application/json',
-            'apikey': centralAnon,
-            'Authorization': `Bearer ${centralFunctionAuthToken}`,
         };
         if (shouldSendAdminSecret && centralSecret) {
             forwardHeaders['x-admin-secret'] = centralSecret;
@@ -726,8 +973,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
         }
 
-        const response = await fetch(targetUrl, fetchOptions);
-        const responseData = await response.text();
+        const { response, responseData } = await fetchCentralWithInvokeKeyFallback({
+            endpoint,
+            primaryApiUrl: centralApiUrl,
+            primaryInvokeKey: centralInvokeKey,
+            fetchOptions,
+            queryString,
+        });
+
+        if (isCentralApiKeyFailure(responseData)) {
+            return centralApiKeyFailureResponse(endpoint, res);
+        }
 
         if (endpoint === 'system-update-runner' && response.status === 401) {
             const centralPayload = (() => {

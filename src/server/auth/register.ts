@@ -364,7 +364,10 @@ function getCentralClient(): SupabaseClient | null {
         || getDevFallback(DEV_CENTRAL_API_URL.replace('/functions/v1', ''))
         || getDevFallback(DEV_CENTRAL_SUPABASE_URL);
     const supabaseAnonKey =
-        process.env.CENTRAL_SUPABASE_ANON_KEY
+        process.env.CENTRAL_SUPABASE_PUBLISHABLE_KEY
+        || process.env.VITE_CENTRAL_SUPABASE_PUBLISHABLE_KEY
+        || process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_PUBLISHABLE_KEY
+        || process.env.CENTRAL_SUPABASE_ANON_KEY
         || process.env.VITE_CENTRAL_SUPABASE_ANON_KEY
         || process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_ANON_KEY;
 
@@ -391,7 +394,8 @@ function getCentralAdminClient(): SupabaseClient | null {
         || getDevFallback(DEV_CENTRAL_API_URL.replace('/functions/v1', ''))
         || getDevFallback(DEV_CENTRAL_SUPABASE_URL);
     const serviceRoleKey =
-        process.env.CENTRAL_SUPABASE_SERVICE_ROLE_KEY;
+        process.env.CENTRAL_SUPABASE_SECRET_KEY
+        || process.env.CENTRAL_SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseUrl || !serviceRoleKey) {
         return null;

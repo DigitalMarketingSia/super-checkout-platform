@@ -173,7 +173,7 @@ export async function requireApiAuth(
 
   const { data: profile, error: profileError } = await supabaseAdmin
     .from('profiles')
-    .select('id,email,role,status,installation_id,central_user_id')
+    .select('id,email,role,status,installation_id')
     .eq('id', user.id)
     .maybeSingle();
 

@@ -25,9 +25,13 @@ export const ConfigLoader: React.FC<ConfigLoaderProps> = ({ onConfigLoaded }) =>
                     && envAnon.startsWith('eyJ')
                     && window.location.hostname !== 'localhost'
                     && window.location.hostname !== '127.0.0.1';
+                const legacyAnonRefreshAttempted = sessionStorage.getItem('config_legacy_anon_refresh_attempted') === 'true';
 
-                if (envUrl && envAnon && !shouldRefreshLegacyAnon) {
+                if (envUrl && envAnon && (!shouldRefreshLegacyAnon || legacyAnonRefreshAttempted)) {
                     if (envLicense) {
+                        if (!shouldRefreshLegacyAnon) {
+                            sessionStorage.removeItem('config_legacy_anon_refresh_attempted');
+                        }
                         setStatus('found');
                         return;
                     } else {
@@ -56,12 +60,18 @@ export const ConfigLoader: React.FC<ConfigLoaderProps> = ({ onConfigLoaded }) =>
                 const data = await res.json();
 
                 if (data.url && data.anon) {
+                    const serverReturnedLegacyAnon = typeof data.anon === 'string' && data.anon.startsWith('eyJ');
                     // Save to localStorage so supabase.ts can pick it up on reload
                     localStorage.setItem('installer_supabase_url', data.url);
                     localStorage.setItem('installer_supabase_anon_key', data.anon);
 
                     if (data.license) {
                         localStorage.setItem('installer_license_key', data.license);
+                        if (serverReturnedLegacyAnon) {
+                            sessionStorage.setItem('config_legacy_anon_refresh_attempted', 'true');
+                        } else {
+                            sessionStorage.removeItem('config_legacy_anon_refresh_attempted');
+                        }
                         console.log('[ConfigLoader] Config secured. Reloading...');
                         window.location.reload();
                     } else {
