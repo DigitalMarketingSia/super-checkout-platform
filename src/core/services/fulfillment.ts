@@ -162,11 +162,11 @@ export async function fulfillOrder(
   if (!payerEmail) throw new Error('Missing customer email for fulfillment.');
 
   const orderMetadata = isPlainObject(order.metadata) ? order.metadata : {};
-  if (orderMetadata.fulfilled_at && order.customer_user_id) {
+  if (orderMetadata.fulfilled_at) {
     return {
       success: true,
       orderId,
-      userId: order.customer_user_id,
+      userId: order.customer_user_id || null,
       accessGrantedCount: Number(orderMetadata.fulfillment_access_granted_count || 0),
       saasPlans: Array.isArray(orderMetadata.fulfillment_saas_plans) ? orderMetadata.fulfillment_saas_plans : [],
       beneficiaryEmail: orderMetadata.fulfillment_beneficiary_email || payerEmail,
@@ -177,9 +177,39 @@ export async function fulfillOrder(
   console.log(`[FulfillmentService] Processing order ${orderId} for ${maskEmail(payerEmail)}`);
 
   const items = input.items || order.items || [];
+  const itemProductIds = Array.from(new Set<string>(items
+    .map((item: any) => String(item.product_id || item.id || '').trim())
+    .filter(Boolean)));
   let userId = order.customer_user_id || null;
   const saasPlansToCreate: string[] = [];
   let accessGrantedCount = 0;
+  const deliveryOrigin =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.VITE_SITE_URL ||
+    process.env.APP_URL ||
+    'https://app.supercheckout.app';
+  let deliveryResolutionFailed = false;
+  let deliverables = [];
+
+  try {
+    deliverables = await buildOrderDeliverables(supabaseAdmin, {
+      order: { ...order, items },
+      origin: deliveryOrigin,
+      recipientEmail: payerEmail,
+      includeAccessTokens: false,
+    });
+  } catch (deliveryError: any) {
+    deliveryResolutionFailed = true;
+    console.warn('[FulfillmentService] Failed to build order deliverables:', deliveryError?.message || deliveryError);
+  }
+
+  const memberAccessProductIds = new Set<string>((deliverables as any[])
+    .filter((deliverable) => deliverable.delivery_type === 'member_area' && deliverable.product_id)
+    .map((deliverable) => deliverable.product_id));
+
+  if (deliveryResolutionFailed) {
+    itemProductIds.forEach((productId) => memberAccessProductIds.add(productId));
+  }
 
   for (const item of items) {
     const productId = item.product_id || item.id;
@@ -220,7 +250,9 @@ export async function fulfillOrder(
     userId = upgradeBeneficiary.target_user_id;
   }
 
-  if (!userId) {
+  const needsCustomerUser = memberAccessProductIds.size > 0 || uniqueSaasPlansToCreate.length > 0 || Boolean(upgradeIntentToken);
+
+  if (!userId && needsCustomerUser) {
     const { data: existingProfile } = await supabaseAdmin
       .from('profiles')
       .select('id')
@@ -256,24 +288,28 @@ export async function fulfillOrder(
     }
   }
 
-  if (!userId) throw new Error(`Could not create or locate customer user for ${maskEmail(payerEmail)}.`);
-
-  try {
-    await supabaseAdmin.auth.admin.updateUserById(userId, {
-      user_metadata: {
-        full_name: payerName,
-        name: payerName,
-      },
-    });
-  } catch (metadataError: any) {
-    console.warn('[FulfillmentService] Could not sync buyer auth metadata:', metadataError?.message || metadataError);
+  if (!userId && memberAccessProductIds.size > 0) {
+    throw new Error(`Could not create or locate customer user for ${maskEmail(payerEmail)}.`);
   }
 
-  await supabaseAdmin
-    .from('profiles')
-    .update({ full_name: payerName })
-    .eq('id', userId)
-    .or('full_name.is.null,full_name.eq.Usuario,full_name.eq.User');
+  if (userId) {
+    try {
+      await supabaseAdmin.auth.admin.updateUserById(userId, {
+        user_metadata: {
+          full_name: payerName,
+          name: payerName,
+        },
+      });
+    } catch (metadataError: any) {
+      console.warn('[FulfillmentService] Could not sync buyer auth metadata:', metadataError?.message || metadataError);
+    }
+
+    await supabaseAdmin
+      .from('profiles')
+      .update({ full_name: payerName })
+      .eq('id', userId)
+      .or('full_name.is.null,full_name.eq.Usuario,full_name.eq.User');
+  }
 
   const mergedMetadata: Record<string, any> = {
     ...orderMetadata,
@@ -301,39 +337,30 @@ export async function fulfillOrder(
     });
   }
 
-  try {
-    const deliveryOrigin =
-      process.env.NEXT_PUBLIC_APP_URL ||
-      process.env.VITE_SITE_URL ||
-      process.env.APP_URL ||
-      'https://app.supercheckout.app';
-    const deliverables = await buildOrderDeliverables(supabaseAdmin, {
-      order: { ...order, items },
-      origin: deliveryOrigin,
-      recipientEmail: payerEmail,
-      includeAccessTokens: false,
-    });
-
+  if (!deliveryResolutionFailed) {
     Object.assign(mergedMetadata, {
       order_deliverables: deliverables.map(stripSensitiveDeliverableFields),
       order_deliverables_generated_at: new Date().toISOString(),
       order_deliverables_source: 'fulfillment',
     });
-  } catch (deliveryError: any) {
-    console.warn('[FulfillmentService] Failed to build order deliverables:', deliveryError?.message || deliveryError);
+  } else {
     Object.assign(mergedMetadata, {
       order_deliverables_error_at: new Date().toISOString(),
     });
   }
 
+  const fulfillmentUpdate: Record<string, any> = { metadata: mergedMetadata };
+  if (userId) fulfillmentUpdate.customer_user_id = userId;
+
   await supabaseAdmin
     .from('orders')
-    .update({ customer_user_id: userId, metadata: mergedMetadata })
+    .update(fulfillmentUpdate)
     .eq('id', orderId);
 
   for (const item of items) {
     const productId = item.product_id || item.id;
     if (!productId) continue;
+    if (!memberAccessProductIds.has(productId)) continue;
     const grantedAt = new Date().toISOString();
 
     const { error } = await supabaseAdmin.from('access_grants').upsert({

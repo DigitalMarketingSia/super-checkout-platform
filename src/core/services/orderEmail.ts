@@ -1,12 +1,19 @@
-import { createLoginToken } from '../utils/loginToken.js';
 import {
   buildOrderDeliverables,
-  hasActionableDeliverables,
-  renderDeliverablesEmailHtml,
-  renderDeliverablesText,
+  stripSensitiveDeliverableFields,
+  type OrderDeliverable,
 } from './orderDeliverables.js';
 
 type SupabaseAdmin = any;
+
+type DeliveryEmailKind = 'direct_delivery' | 'member_access' | 'processing';
+
+interface DeliveryEmailMessage {
+  kind: DeliveryEmailKind;
+  subject: string;
+  html: string;
+  deliverables: OrderDeliverable[];
+}
 
 export interface SendOrderAccessEmailInput {
   orderId: string;
@@ -16,16 +23,19 @@ export interface SendOrderAccessEmailInput {
   force?: boolean;
 }
 
-const replaceTemplateVars = (template: string, variables: Record<string, string>) => {
-  let output = template || '';
-  for (const [key, value] of Object.entries(variables)) {
-    output = output.replace(new RegExp(key, 'g'), value || '');
-  }
-  return output;
+const SENT_AT_KEY_BY_KIND: Record<DeliveryEmailKind, string> = {
+  direct_delivery: 'direct_delivery_email_sent_at',
+  member_access: 'member_access_email_sent_at',
+  processing: 'delivery_processing_email_sent_at',
 };
 
-function escapeRegExp(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+function escapeHtml(value: string) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function maskEmail(email?: string | null) {
@@ -34,260 +44,112 @@ function maskEmail(email?: string | null) {
   return `${name.slice(0, 2)}***@${domain}`;
 }
 
-function normalizeOrigin(origin: string) {
-  const raw = origin || process.env.NEXT_PUBLIC_APP_URL || process.env.VITE_SITE_URL || 'https://app.supercheckout.app';
-  try {
-    const parsed = new URL(raw);
-    return parsed.origin;
-  } catch {
-    return String(raw).replace(/\/+$/, '');
-  }
+function normalizeText(value: unknown, fallback: string) {
+  const text = String(value || '').trim();
+  return text || fallback;
 }
 
-function getAreaDomain(area: any): string {
-  const domains = area?.domains;
-  if (Array.isArray(domains)) return domains[0]?.domain || '';
-  return domains?.domain || '';
+function renderEmailShell(params: {
+  title: string;
+  greetingName: string;
+  intro: string;
+  sectionTitle?: string;
+  bodyHtml?: string;
+  businessName: string;
+}) {
+  const sectionTitle = params.sectionTitle
+    ? `<h2 style="font-size:18px;color:#111827;margin:24px 0 12px;">${escapeHtml(params.sectionTitle)}</h2>`
+    : '';
+
+  return `
+    <div style="font-family:Arial,sans-serif;max-width:640px;margin:0 auto;color:#111827;line-height:1.6;">
+      <h1 style="font-size:24px;line-height:1.2;margin:0 0 16px;color:#111827;">${escapeHtml(params.title)}</h1>
+      <p style="margin:0 0 12px;color:#374151;">Ola, ${escapeHtml(params.greetingName)}.</p>
+      <p style="margin:0;color:#374151;">${escapeHtml(params.intro)}</p>
+      ${sectionTitle}
+      ${params.bodyHtml || ''}
+      <p style="margin:28px 0 0;color:#6b7280;font-size:13px;">Atenciosamente,<br/>Equipe ${escapeHtml(params.businessName)}</p>
+    </div>
+  `;
 }
 
-function ensureTokenizedAccessLink(html: string, membersAreaUrl: string, appendFallbackButton = true) {
-  if (!html) return html;
-  let output = /<\/?[a-z][\s\S]*>/i.test(html)
-    ? html
-    : `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #222; line-height: 1.5;">
-        ${html.split(/\n+/).map((line) => line.trim()).filter(Boolean).map((line) => `<p>${line}</p>`).join('')}
-      </div>`;
+function renderDeliverableCards(deliverables: OrderDeliverable[], fallbackLabel: string) {
+  return deliverables.map((deliverable) => {
+    const url = escapeHtml(deliverable.url || '');
+    const label = escapeHtml(normalizeText(deliverable.label, fallbackLabel));
+    const instructions = normalizeText(deliverable.instructions, 'Seu acesso esta disponivel.');
 
-  if (output.includes('login_token=') || output.includes('auth_token=')) return output;
-
-  let visualUrl = membersAreaUrl;
-  try {
-    const parsed = new URL(membersAreaUrl);
-    parsed.search = '';
-    parsed.hash = '';
-    visualUrl = parsed.toString().replace(/\/$/, '');
-  } catch {
-    visualUrl = membersAreaUrl.split('?')[0].replace(/\/$/, '');
-  }
-
-  const candidates = Array.from(new Set([
-    visualUrl,
-    visualUrl.replace(/^https?:\/\/[^/]+/, ''),
-  ].filter(Boolean)));
-
-  for (const candidate of candidates) {
-    const pattern = new RegExp(escapeRegExp(candidate), 'g');
-    if (pattern.test(output)) {
-      output = output.replace(pattern, membersAreaUrl);
-    }
-  }
-
-  if (output.includes('login_token=') || output.includes('auth_token=')) return output;
-  if (!appendFallbackButton) return output;
-
-  return `${output}
-    <div style="margin-top: 24px; text-align: center;">
-      <a href="${membersAreaUrl}" style="background-color: #0070f3; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">Acessar area de membros</a>
-    </div>`;
+    return `
+      <div style="border:1px solid #e5e7eb;border-radius:10px;padding:16px;margin:12px 0;background:#ffffff;">
+        <div style="font-weight:700;color:#111827;margin-bottom:6px;">${escapeHtml(deliverable.title)}</div>
+        <div style="font-size:13px;color:#6b7280;margin-bottom:12px;">${escapeHtml(instructions)}</div>
+        ${url ? `<a href="${url}" style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;font-weight:700;padding:11px 16px;border-radius:8px;">${label}</a>` : ''}
+      </div>
+    `;
+  }).join('');
 }
 
-function appendDeliverablesHtml(html: string, deliverablesHtml: string) {
-  if (!deliverablesHtml || html.includes('data-super-checkout-deliverables="true"')) return html;
-  return `${html}
-    ${deliverablesHtml}`;
+function buildDeliveryMessages(params: {
+  deliverables: OrderDeliverable[];
+  customerName: string;
+  businessName: string;
+}): DeliveryEmailMessage[] {
+  const actionable = params.deliverables.filter((deliverable) => deliverable.status === 'available' && deliverable.url);
+  const directDeliverables = actionable.filter((deliverable) => deliverable.delivery_type === 'external_link');
+  const memberDeliverables = actionable.filter((deliverable) => deliverable.delivery_type === 'member_area');
+
+  const messages: DeliveryEmailMessage[] = [];
+
+  if (memberDeliverables.length > 0) {
+    messages.push({
+      kind: 'member_access',
+      subject: 'Seu acesso foi liberado',
+      deliverables: memberDeliverables,
+      html: renderEmailShell({
+        title: 'Seu acesso foi liberado',
+        greetingName: params.customerName,
+        intro: 'Seu acesso a area de membros foi liberado com sucesso. Use o botao abaixo para entrar no conteudo comprado.',
+        sectionTitle: memberDeliverables.length > 1 ? 'Areas liberadas' : 'Area liberada',
+        bodyHtml: renderDeliverableCards(memberDeliverables, 'Acessar area de membros'),
+        businessName: params.businessName,
+      }),
+    });
+  }
+
+  if (directDeliverables.length > 0) {
+    messages.push({
+      kind: 'direct_delivery',
+      subject: directDeliverables.length > 1 ? 'Seus materiais estao disponiveis' : 'Seu material esta disponivel',
+      deliverables: directDeliverables,
+      html: renderEmailShell({
+        title: directDeliverables.length > 1 ? 'Seus materiais estao disponiveis' : 'Seu material esta disponivel',
+        greetingName: params.customerName,
+        intro: 'Sua compra foi aprovada e os materiais de entrega direta ja estao disponiveis para acesso.',
+        sectionTitle: directDeliverables.length > 1 ? 'Materiais da compra' : 'Material da compra',
+        bodyHtml: renderDeliverableCards(directDeliverables, 'Acessar material'),
+        businessName: params.businessName,
+      }),
+    });
+  }
+
+  if (messages.length === 0) {
+    messages.push({
+      kind: 'processing',
+      subject: 'Pedido aprovado',
+      deliverables: [],
+      html: renderEmailShell({
+        title: 'Pedido aprovado',
+        greetingName: params.customerName,
+        intro: 'Seu pagamento foi aprovado. A entrega automatica ainda esta em processamento; caso precise de ajuda, responda este e-mail.',
+        businessName: params.businessName,
+      }),
+    });
+  }
+
+  return messages;
 }
 
-async function findTemplateByEvent(supabaseAdmin: SupabaseAdmin, eventType: string, activeOnly = true) {
-  const baseQuery = () => {
-    let query = supabaseAdmin
-    .from('email_templates')
-    .select('*')
-      .eq('event_type', eventType);
-    if (activeOnly) query = query.eq('active', true);
-    return query;
-  };
-
-  try {
-    const { data } = await baseQuery()
-      .eq('language', 'pt')
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (data) return data;
-  } catch (error: any) {
-    console.warn('[OrderEmailService] Localized template lookup failed:', error?.message || error);
-  }
-
-  const { data } = await baseQuery()
-    .order('updated_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  return data;
-}
-
-async function getAccessEmailTemplate(supabaseAdmin: SupabaseAdmin) {
-  for (const activeOnly of [true, false]) {
-    for (const eventType of ['ACCESS_GRANTED', 'ORDER_COMPLETED']) {
-      const template = await findTemplateByEvent(supabaseAdmin, eventType, activeOnly);
-      if (template) {
-        if (!activeOnly) {
-          console.warn(`[OrderEmailService] Using inactive ${eventType} template because no active access template was found.`);
-        }
-        return template;
-      }
-    }
-  }
-
-  throw new Error('No email template found for ACCESS_GRANTED or ORDER_COMPLETED.');
-}
-
-async function resolveMembersAreaUrl(
-  supabaseAdmin: SupabaseAdmin,
-  order: any,
-  origin: string,
-  email: string,
-) {
-  const safeOrigin = normalizeOrigin(origin);
-  let visualUrl = `${safeOrigin}/login`;
-  const items = Array.isArray(order.items) ? order.items : [];
-  const productIds = items.map((item: any) => item.product_id || item.id).filter(Boolean);
-
-  try {
-    if (productIds.length > 0) {
-      const { data: products } = await supabaseAdmin
-        .from('products')
-        .select('id, member_area_id')
-        .in('id', productIds);
-
-      const directAreaId = (products || []).find((product: any) => product.member_area_id)?.member_area_id;
-      if (directAreaId) {
-        const { data: area } = await supabaseAdmin
-          .from('member_areas')
-          .select('slug, domains(domain)')
-          .eq('id', directAreaId)
-          .maybeSingle();
-
-        if (area?.slug) {
-          visualUrl = `${safeOrigin}/app/${area.slug}`;
-        }
-        const domain = getAreaDomain(area);
-        if (domain) {
-          visualUrl = `https://${domain}`;
-        }
-      }
-
-      const { data: links } = await supabaseAdmin
-        .from('product_contents')
-        .select('content:contents(member_area_id, member_areas(slug, domains(domain)))')
-        .in('product_id', productIds)
-        .limit(1);
-
-      const area = links?.[0]?.content?.member_areas;
-      if (area?.slug && visualUrl === `${safeOrigin}/login`) {
-        visualUrl = `${safeOrigin}/app/${area.slug}`;
-      }
-      const domain = getAreaDomain(area);
-      if (domain) {
-        visualUrl = `https://${domain}`;
-      }
-    }
-  } catch (error: any) {
-    console.warn('[OrderEmailService] Failed to resolve member area URL:', error.message || error);
-  }
-
-  // Generate a self-signed token containing the email.
-  // The frontend will send this to POST /api/system?action=auto-login
-  // which verifies it server-side and returns a ready session.
-  const loginToken = createLoginToken(email);
-  const separator = visualUrl.includes('?') ? '&' : '?';
-  return `${visualUrl}${separator}login_token=${encodeURIComponent(loginToken)}`;
-}
-
-export async function sendOrderAccessEmail(
-  supabaseAdmin: SupabaseAdmin,
-  input: SendOrderAccessEmailInput,
-) {
-  const { orderId } = input;
-  if (!orderId) throw new Error('Missing orderId for order email.');
-
-  const { data: order, error: orderError } = await supabaseAdmin
-    .from('orders')
-    .select('id, customer_email, customer_name, items, metadata, checkout_id, checkouts(user_id)')
-    .eq('id', orderId)
-    .single();
-
-  if (orderError || !order) throw new Error(`Order ${orderId} not found for access email.`);
-
-  const metadata = order.metadata && typeof order.metadata === 'object' ? order.metadata : {};
-  if (!input.force && metadata.order_completed_email_sent_at) {
-    return { skipped: true, reason: 'already_sent' };
-  }
-
-  let emailMetadata = metadata;
-  if (!input.force) {
-    const sendingAt = new Date().toISOString();
-    const { data: lockRows, error: lockError } = await supabaseAdmin
-      .from('orders')
-      .update({
-        metadata: {
-          ...metadata,
-          order_completed_email_sending_at: sendingAt,
-        },
-      })
-      .eq('id', orderId)
-      .is('metadata->>order_completed_email_sent_at', null)
-      .is('metadata->>order_completed_email_sending_at', null)
-      .select('id')
-      .limit(1);
-
-    if (lockError) {
-      console.warn('[OrderEmailService] Could not acquire email send lock:', lockError.message);
-      return { skipped: true, reason: 'email_lock_error' };
-    } else if (!lockRows || lockRows.length === 0) {
-      return { skipped: true, reason: 'send_in_progress_or_already_sent' };
-    } else {
-      emailMetadata = {
-        ...metadata,
-        order_completed_email_sending_at: sendingAt,
-      };
-    }
-  }
-
-  const to = input.email || order.customer_email;
-  const name = input.name || order.customer_name || 'Cliente';
-  if (!to) throw new Error(`Order ${orderId} has no recipient email.`);
-
-  const merchantUserId = order.checkouts?.user_id;
-  let integrationQuery = supabaseAdmin
-    .from('integrations')
-    .select('*')
-    .eq('name', 'resend')
-    .eq('active', true)
-    .limit(1);
-
-  if (merchantUserId) integrationQuery = integrationQuery.eq('user_id', merchantUserId);
-  const { data: merchantIntegration } = await integrationQuery.maybeSingle();
-  let integration = merchantIntegration;
-
-  if (!integration && merchantUserId) {
-    const { data: globalIntegration } = await supabaseAdmin
-      .from('integrations')
-      .select('*')
-      .eq('name', 'resend')
-      .eq('active', true)
-      .limit(1)
-      .maybeSingle();
-    integration = globalIntegration;
-  }
-
-  const apiKey = integration?.config?.apiKey || integration?.config?.api_key;
-  const fromEmail = integration?.config?.senderEmail || integration?.config?.from_email || 'onboarding@resend.dev';
-  if (!apiKey) throw new Error("Email provider 'resend' is not active or configured.");
-
-  const template = await getAccessEmailTemplate(supabaseAdmin);
-
+async function loadBusinessSettings(supabaseAdmin: SupabaseAdmin, merchantUserId?: string | null) {
   let settings: any = null;
   if (merchantUserId) {
     const { data: account } = await supabaseAdmin
@@ -317,80 +179,198 @@ export async function sendOrderAccessEmail(
     settings = data;
   }
 
-  const productNames = Array.isArray(order.items) && order.items.length > 0
-    ? order.items.map((item: any) => item.name).filter(Boolean).join(', ')
-    : 'Produto';
-  const membersAreaUrl = await resolveMembersAreaUrl(supabaseAdmin, order, input.origin, to);
+  return settings;
+}
+
+async function loadResendIntegration(supabaseAdmin: SupabaseAdmin, merchantUserId?: string | null) {
+  let integrationQuery = supabaseAdmin
+    .from('integrations')
+    .select('*')
+    .eq('name', 'resend')
+    .eq('active', true)
+    .limit(1);
+
+  if (merchantUserId) integrationQuery = integrationQuery.eq('user_id', merchantUserId);
+  const { data: merchantIntegration } = await integrationQuery.maybeSingle();
+  if (merchantIntegration || !merchantUserId) return merchantIntegration;
+
+  const { data: globalIntegration } = await supabaseAdmin
+    .from('integrations')
+    .select('*')
+    .eq('name', 'resend')
+    .eq('active', true)
+    .limit(1)
+    .maybeSingle();
+
+  return globalIntegration;
+}
+
+async function sendViaResend(params: {
+  apiKey: string;
+  from: string;
+  to: string;
+  subject: string;
+  html: string;
+}) {
+  const resendRes = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${params.apiKey}`,
+    },
+    body: JSON.stringify({
+      from: params.from,
+      to: [params.to],
+      subject: params.subject,
+      html: params.html,
+    }),
+  });
+
+  const resendData = await resendRes.json().catch(() => ({}));
+  if (!resendRes.ok) {
+    throw new Error(`Resend rejected order email: ${JSON.stringify(resendData)}`);
+  }
+
+  return resendData;
+}
+
+export async function sendOrderAccessEmail(
+  supabaseAdmin: SupabaseAdmin,
+  input: SendOrderAccessEmailInput,
+) {
+  const { orderId } = input;
+  if (!orderId) throw new Error('Missing orderId for order email.');
+
+  const { data: order, error: orderError } = await supabaseAdmin
+    .from('orders')
+    .select('id, customer_email, customer_name, items, metadata, checkout_id, checkouts(user_id)')
+    .eq('id', orderId)
+    .single();
+
+  if (orderError || !order) throw new Error(`Order ${orderId} not found for access email.`);
+
+  const metadata = order.metadata && typeof order.metadata === 'object' ? order.metadata : {};
+  const to = input.email || order.customer_email;
+  const name = input.name || order.customer_name || 'Cliente';
+  if (!to) throw new Error(`Order ${orderId} has no recipient email.`);
+
+  const merchantUserId = order.checkouts?.user_id;
+  const [integration, settings] = await Promise.all([
+    loadResendIntegration(supabaseAdmin, merchantUserId),
+    loadBusinessSettings(supabaseAdmin, merchantUserId),
+  ]);
+
+  const apiKey = integration?.config?.apiKey || integration?.config?.api_key;
+  const fromEmail = integration?.config?.senderEmail || integration?.config?.from_email || settings?.sender_email || 'onboarding@resend.dev';
+  if (!apiKey) throw new Error("Email provider 'resend' is not active or configured.");
+
   const deliverables = await buildOrderDeliverables(supabaseAdmin, {
     order,
     origin: input.origin,
     recipientEmail: to,
     includeAccessTokens: true,
   });
-  const deliverablesHtml = renderDeliverablesEmailHtml(deliverables);
-  const variables = {
-    '{{order_id}}': orderId ? `#${orderId.split('-')[0]}` : '',
-    '{{customer_name}}': name,
-    '{{name}}': name,
-    '{{email}}': to,
-    '{{product_names}}': productNames || 'Produto',
-    '{{members_area_url}}': membersAreaUrl,
-    '{{deliverables_html}}': deliverablesHtml,
-    '{{deliverables_text}}': renderDeliverablesText(deliverables),
-    '{{business_name}}': settings?.business_name || 'Super Checkout',
+
+  const businessName = settings?.business_name || 'Super Checkout';
+  const messages = buildDeliveryMessages({
+    deliverables,
+    customerName: name,
+    businessName,
+  }).filter((message) => input.force || !metadata[SENT_AT_KEY_BY_KIND[message.kind]]);
+
+  if (messages.length === 0 || (!input.force && metadata.order_completed_email_sent_at)) {
+    return { skipped: true, reason: 'already_sent' };
+  }
+
+  let emailMetadata = metadata;
+  const persistMetadata = async (partial: Record<string, any>) => {
+    emailMetadata = {
+      ...emailMetadata,
+      ...partial,
+    };
+    await supabaseAdmin
+      .from('orders')
+      .update({ metadata: emailMetadata })
+      .eq('id', orderId);
   };
 
-  const subject = replaceTemplateVars(template.subject, variables);
-  const renderedHtml = ensureTokenizedAccessLink(
-    replaceTemplateVars(template.html_body, variables),
-    membersAreaUrl,
-    !hasActionableDeliverables(deliverables),
-  );
-  const html = appendDeliverablesHtml(renderedHtml, deliverablesHtml);
+  if (!input.force) {
+    const sendingAt = new Date().toISOString();
+    const { data: lockRows, error: lockError } = await supabaseAdmin
+      .from('orders')
+      .update({
+        metadata: {
+          ...metadata,
+          order_completed_email_sending_at: sendingAt,
+        },
+      })
+      .eq('id', orderId)
+      .is('metadata->>order_completed_email_sent_at', null)
+      .is('metadata->>order_completed_email_sending_at', null)
+      .select('id')
+      .limit(1);
+
+    if (lockError) {
+      console.warn('[OrderEmailService] Could not acquire email send lock:', lockError.message);
+      return { skipped: true, reason: 'email_lock_error' };
+    } else if (!lockRows || lockRows.length === 0) {
+      return { skipped: true, reason: 'send_in_progress_or_already_sent' };
+    }
+
+    emailMetadata = {
+      ...metadata,
+      order_completed_email_sending_at: sendingAt,
+    };
+  }
 
   const senderName = settings?.sender_name || settings?.business_name;
   const cleanFromEmail = String(fromEmail).replace(/.*<|>/g, '');
   const from = senderName ? `${senderName} <${cleanFromEmail}>` : cleanFromEmail;
+  const sentIds: Record<string, string | null> = {};
+  const sentTypes: DeliveryEmailKind[] = [];
 
-  console.log(`[OrderEmailService] Sending access email for ${orderId} to ${maskEmail(to)}.`);
+  console.log(`[OrderEmailService] Sending ${messages.length} post-purchase email(s) for ${orderId} to ${maskEmail(to)}.`);
 
-  const resendRes = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({ from, to: [to], subject, html }),
-  });
+  try {
+    for (const message of messages) {
+      const resendData = await sendViaResend({
+        apiKey,
+        from,
+        to,
+        subject: message.subject,
+        html: message.html,
+      });
 
-  const resendData = await resendRes.json().catch(() => ({}));
-  if (!resendRes.ok) {
-    await supabaseAdmin
-      .from('orders')
-      .update({
-        metadata: {
-          ...emailMetadata,
-          order_completed_email_sending_at: null,
-          order_completed_email_error: JSON.stringify(resendData),
-          order_completed_email_failed_at: new Date().toISOString(),
-        },
-      })
-      .eq('id', orderId);
-    throw new Error(`Resend rejected order email: ${JSON.stringify(resendData)}`);
+      sentIds[message.kind] = resendData?.id || null;
+      sentTypes.push(message.kind);
+      await persistMetadata({
+        [SENT_AT_KEY_BY_KIND[message.kind]]: new Date().toISOString(),
+        [`${message.kind}_email_resend_id`]: resendData?.id || null,
+      });
+    }
+
+    await persistMetadata({
+      order_completed_email_sending_at: null,
+      order_completed_email_sent_at: new Date().toISOString(),
+      order_completed_email_resend_id: Object.values(sentIds).find(Boolean) || null,
+      order_completed_email_resend_ids: sentIds,
+      order_completed_email_types: sentTypes,
+      order_completed_email_source: 'vercel',
+      order_deliverables_email_snapshot: deliverables.map(stripSensitiveDeliverableFields),
+    });
+  } catch (error: any) {
+    await persistMetadata({
+      order_completed_email_sending_at: null,
+      order_completed_email_error: error?.message || 'email_send_failed',
+      order_completed_email_failed_at: new Date().toISOString(),
+    });
+    throw error;
   }
 
-  await supabaseAdmin
-    .from('orders')
-    .update({
-      metadata: {
-        ...emailMetadata,
-        order_completed_email_sending_at: null,
-        order_completed_email_sent_at: new Date().toISOString(),
-        order_completed_email_resend_id: resendData?.id || null,
-        order_completed_email_source: 'vercel',
-      },
-    })
-    .eq('id', orderId);
-
-  return { sent: true, id: resendData?.id, membersAreaUrl };
+  return {
+    sent: true,
+    id: Object.values(sentIds).find(Boolean) || null,
+    ids: sentIds,
+    sentTypes,
+  };
 }

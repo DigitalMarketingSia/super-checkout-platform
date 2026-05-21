@@ -71,7 +71,7 @@ async function processPaidSideEffects(params: {
                 .single()).data;
 
         const metadata = order?.metadata && typeof order.metadata === 'object' ? order.metadata : {};
-        const needsFulfillment = !order?.customer_user_id || !metadata.fulfilled_at;
+        const needsFulfillment = !metadata.fulfilled_at;
 
         if (!needsFulfillment) return;
 
