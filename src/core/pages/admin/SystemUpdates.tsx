@@ -15,7 +15,6 @@ import {
   History,
   Clock,
   Database,
-  ArrowRight,
   Activity,
   Cpu,
   Unplug
@@ -51,6 +50,9 @@ export const SystemUpdates = () => {
     const [checkingUpdate, setCheckingUpdate] = useState(false);
     const [updateAvailable, setUpdateAvailable] = useState(false);
     const [updateHistory, setUpdateHistory] = useState<SystemUpdateLog[]>([]);
+    const [applyingDatabaseUpdate, setApplyingDatabaseUpdate] = useState(false);
+    const [databaseUpdateError, setDatabaseUpdateError] = useState<string | null>(null);
+    const [showDatabaseConfirm, setShowDatabaseConfirm] = useState(false);
 
     useEffect(() => {
         fetchData();
@@ -67,6 +69,7 @@ export const SystemUpdates = () => {
             
             setSystemInfo(info);
             setUpdateHistory(history);
+            setUpdateAvailable(info ? SystemManager.compareVersions(info.db_version || '1.0.0', SCHEMA_VERSION) < 0 : false);
             
             if (info) {
                 setInstallationId(info.github_installation_id || '');
@@ -101,6 +104,7 @@ export const SystemUpdates = () => {
             const required = await SystemManager.checkMigrationsRequired();
             if (required) {
                 setUpdateAvailable(true);
+                setDatabaseUpdateError(null);
                 toast.info(`Atualizações de banco de dados (até v${SCHEMA_VERSION}) disponíveis.`);
             } else {
                 setUpdateAvailable(false);
@@ -144,6 +148,9 @@ export const SystemUpdates = () => {
                     toast.success(`${result.filesUpdated} arquivos sincronizados. Aguarde o deploy da Vercel e recarregue a página.`);
                 } else {
                     toast.success(result.message || 'Nenhum arquivo novo encontrado no repositório oficial.');
+                    if (updateAvailable) {
+                        toast.info('O codigo ja esta sincronizado. Use Atualizar Banco para aplicar o schema pendente.');
+                    }
                 }
                 if (result.historyLogged === false) {
                     toast.warning('Sincronização concluída, mas o histórico local não pôde ser gravado.');
@@ -169,6 +176,34 @@ export const SystemUpdates = () => {
         }
         setRollingBack(false);
         setShowRollbackConfirm(null);
+    };
+
+    const handleApplyDatabaseUpdate = async () => {
+        setApplyingDatabaseUpdate(true);
+        setDatabaseUpdateError(null);
+
+        try {
+            const result = await SystemManager.runPendingMigrations();
+
+            if (!result.success) {
+                const error = result.failedVersion
+                    ? `Migration v${result.failedVersion}: ${result.error || 'Falha ao aplicar o schema.'}`
+                    : (result.error || 'Falha ao aplicar o schema.');
+
+                setDatabaseUpdateError(error);
+                toast.error(error);
+                return;
+            }
+
+            setUpdateAvailable(false);
+            toast.success(result.applied.length > 0
+                ? `Banco atualizado: ${result.applied.join(', ')}.`
+                : `Banco ja esta no schema v${SCHEMA_VERSION}.`);
+            await fetchData();
+        } finally {
+            setApplyingDatabaseUpdate(false);
+            setShowDatabaseConfirm(false);
+        }
     };
 
     const handleRunAudit = async () => {
@@ -338,7 +373,7 @@ export const SystemUpdates = () => {
                             <RefreshCw className="w-4 h-4 text-blue-500" /> Status do Banco
                         </h3>
                         <div className="space-y-4">
-                            <div className={`p-5 rounded-2xl border flex items-center justify-between ${updateAvailable ? 'bg-blue-500/10 border-blue-500/20 shadow-inner' : 'bg-white/5 border-white/5 opacity-50'}`}>
+                            <div className={`p-5 rounded-2xl border flex flex-col gap-4 ${updateAvailable ? 'bg-blue-500/10 border-blue-500/20 shadow-inner' : 'bg-white/5 border-white/5 opacity-70'}`}>
                                 <div className="flex items-center gap-3">
                                     {updateAvailable ? <AlertCircle className="w-5 h-5 text-blue-400 animate-pulse" /> : <CheckCircle2 className="w-5 h-5 text-gray-600" />}
                                     <div className="flex flex-col">
@@ -349,14 +384,26 @@ export const SystemUpdates = () => {
                                     </div>
                                 </div>
                                 {updateAvailable && (
+                                    <p className="text-[10px] text-blue-100/70 font-medium leading-relaxed">
+                                        Codigo e banco sao etapas separadas. Este botao aplica no Supabase as migrations aprovadas que faltam nesta instalacao.
+                                    </p>
+                                )}
+                                {updateAvailable && (
                                     <button 
-                                        onClick={handleSyncFiles}
-                                        className="p-2 bg-blue-500 text-white rounded-xl shadow-lg shadow-blue-500/20 active:scale-95 transition-transform"
+                                        onClick={() => setShowDatabaseConfirm(true)}
+                                        disabled={applyingDatabaseUpdate}
+                                        className="w-full px-4 py-3 bg-blue-500 hover:bg-blue-400 disabled:opacity-50 text-white rounded-xl shadow-lg shadow-blue-500/20 active:scale-95 transition-all flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest"
                                     >
-                                        <ArrowRight className="w-4 h-4" />
+                                        <Database className={`w-4 h-4 ${applyingDatabaseUpdate ? 'animate-pulse' : ''}`} />
+                                        {applyingDatabaseUpdate ? 'Atualizando...' : 'Atualizar Banco'}
                                     </button>
                                 )}
                             </div>
+                            {databaseUpdateError && (
+                                <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-[10px] text-red-300 font-medium leading-relaxed break-words">
+                                    {databaseUpdateError}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -590,6 +637,17 @@ export const SystemUpdates = () => {
             </div>
 
             {/* Modals */}
+            <ConfirmModal
+                isOpen={showDatabaseConfirm}
+                onClose={() => setShowDatabaseConfirm(false)}
+                onConfirm={handleApplyDatabaseUpdate}
+                title={<div className="flex items-center gap-2 italic uppercase font-black"><Database className="w-5 h-5 text-blue-400" /> Atualizar Banco</div>}
+                message="Isso aplica no Supabase apenas as migrations aprovadas que faltam para esta versao do sistema. Sincronizar Codigo e deploy da Vercel continuam sendo etapas separadas."
+                confirmText="Aplicar Schema"
+                cancelText="Cancelar"
+                loading={applyingDatabaseUpdate}
+            />
+
             <ConfirmModal
                 isOpen={showSyncConfirm}
                 onClose={() => setShowSyncConfirm(false)}

@@ -412,7 +412,7 @@ export const SystemManager = {
   /**
    * Runs all pending migrations in order
    */
-  async runPendingMigrations(): Promise<{ success: boolean; applied: string[]; error?: string }> {
+  async runPendingMigrations(): Promise<{ success: boolean; applied: string[]; error?: string; failedVersion?: string }> {
     try {
       const info = await this.getSystemInfo();
       if (!info) return { success: false, applied: [], error: 'Could not fetch system info' };
@@ -443,17 +443,18 @@ export const SystemManager = {
 
       for (const migration of pending) {
         console.log(`[SystemManager] Applying migration v${migration.version}...`);
-        const success = await this.runMigration(
+        const result = await this.runMigration(
           migration.version,
           migration.sql,
           `Auto-migration from codebase discover`
         );
 
-        if (!success) {
+        if (!result.success) {
           return { 
             success: false, 
             applied, 
-            error: `Migration v${migration.version} failed. Check schema_migrations for details.` 
+            failedVersion: migration.version,
+            error: result.error || `Migration v${migration.version} failed.`
           };
         }
         applied.push(migration.version);
@@ -508,7 +509,7 @@ export const SystemManager = {
   /**
    * Requests a pre-approved migration by version. Raw SQL never leaves the server allowlist.
    */
-  async runMigration(version: string, _sql: string, description: string): Promise<boolean> {
+  async runMigration(version: string, _sql: string, description: string): Promise<{ success: boolean; error?: string }> {
     const startTime = Date.now();
     try {
       console.log(`[SystemManager] Running migration ${version}...`);
@@ -516,7 +517,7 @@ export const SystemManager = {
       if (await this.verifyMigrationState(version)) {
         console.log(`[SystemManager] Migration ${version} already reflected in schema.`);
         await this.logMigration(version, `${description} (schema already current)`, true, Date.now() - startTime);
-        return true;
+        return { success: true };
       }
 
       const { data: { session } } = await supabase.auth.getSession();
@@ -536,19 +537,23 @@ export const SystemManager = {
       const result = await response.json().catch(() => ({}));
 
       if (!response.ok || !result?.success) {
-        const errorMsg = result?.error || response.statusText || 'Unknown error';
+        const detail = String(result?.detail || '').trim();
+        const serverError = String(result?.error || response.statusText || 'Unknown error').trim();
+        const errorMsg = detail && detail !== serverError
+          ? `${serverError}: ${detail}`
+          : serverError;
         console.error(`[SystemManager] Migration ${version} failed:`, errorMsg);
         await this.logMigration(version, description, false, Date.now() - startTime, errorMsg);
-        return false;
+        return { success: false, error: errorMsg };
       }
 
       console.log(`[SystemManager] Migration ${version} successful!`);
       await this.logMigration(version, description, true, Date.now() - startTime);
-      return true;
+      return { success: true };
     } catch (err: any) {
       console.error(`[SystemManager] Unexpected migration error for ${version}:`, err);
       await this.logMigration(version, description, false, Date.now() - startTime, err.message);
-      return false;
+      return { success: false, error: err.message };
     }
   },
 

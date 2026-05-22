@@ -48,7 +48,23 @@ const MIGRATION_ALLOWLIST: Record<string, { file: string; sha256: string }> = {
   }
 };
 
-const ALLOWED_MIGRATION_ROLES = new Set(['owner', 'master_admin']);
+const ALLOWED_MIGRATION_ROLES = new Set(['admin', 'owner', 'master_admin']);
+
+function cleanMigrationDetail(value: unknown) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  return text ? text.slice(0, 280) : '';
+}
+
+function getMigrationFailureDetail(data: unknown, error: { message?: string; details?: string; hint?: string } | null) {
+  const rpcResult = data && typeof data === 'object' ? data as Record<string, unknown> : {};
+  return cleanMigrationDetail(
+    rpcResult.error
+      || rpcResult.message
+      || error?.message
+      || error?.details
+      || error?.hint
+  );
+}
 
 function parseBody(req: VercelRequest) {
   if (!req.body) return {};
@@ -140,7 +156,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     .maybeSingle();
 
   if (profileError || !ALLOWED_MIGRATION_ROLES.has(String(profile?.role || ''))) {
-    return res.status(403).json({ error: 'Owner access required' });
+    return res.status(403).json({ error: 'Admin access required' });
   }
 
   if (!version) {
@@ -160,13 +176,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { data, error } = await supabase.rpc('exec_sql', { sql_query: approvedMigration.sql });
 
   if (error || !(data as any)?.success) {
+    const detail = getMigrationFailureDetail(data, error);
     console.error('[run-migration] Approved migration failed:', {
       version,
       file: approvedMigration.file,
       sha256: approvedMigration.sha256,
       code: error?.code || null,
+      detail: detail || null,
     });
-    return res.status(500).json({ success: false, error: 'Migration failed' });
+    return res.status(500).json({
+      success: false,
+      error: 'Migration failed',
+      code: error?.code || null,
+      detail: detail || 'The approved database update could not be applied.'
+    });
   }
 
   return res.status(200).json({
