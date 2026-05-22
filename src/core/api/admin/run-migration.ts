@@ -45,6 +45,10 @@ const MIGRATION_ALLOWLIST: Record<string, { file: string; sha256: string }> = {
   '1.0.10': {
     file: 'v1.0.10.sql',
     sha256: '0a8c9a78ffef6b83ab663885326e9011d8d515e4ed1c54be56e687e6dafbf385'
+  },
+  '1.0.11': {
+    file: 'v1.0.11.sql',
+    sha256: '7a44a7da98af1c4c623585e9e578a250dd396055108fc12f574585256dd31241'
   }
 };
 
@@ -68,6 +72,19 @@ function getMigrationFailureDetail(data: unknown, error: { message?: string; det
 
 function requiresAdminSqlSession(detail: string) {
   return detail.toLowerCase().includes('only admins can execute system sql');
+}
+
+function approvedExecutorUnavailable(error: { code?: string } | null, detail: string) {
+  const normalized = `${error?.code || ''} ${detail}`.toLowerCase();
+  return error?.code === 'PGRST202'
+    || (
+      normalized.includes('apply_approved_migration')
+      && (
+        normalized.includes('schema cache')
+        || normalized.includes('could not find')
+        || normalized.includes('not found')
+      )
+    );
 }
 
 function parseBody(req: VercelRequest) {
@@ -192,25 +209,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: 'Migration version is not approved.' });
   }
 
-  let executionMode: 'service' | 'admin_session' = 'service';
-  let { data, error } = await supabase.rpc('exec_sql', { sql_query: approvedMigration.sql });
+  let executionMode: 'approved_service' | 'legacy_service' | 'legacy_admin_session' = 'approved_service';
+  let { data, error } = await supabase.rpc('apply_approved_migration', { sql_query: approvedMigration.sql });
   let detail = getMigrationFailureDetail(data, error);
 
-  if ((error || !(data as any)?.success) && requiresAdminSqlSession(detail)) {
-    const adminSessionSupabase = createClient(supabaseUrl, anonKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
-      global: {
-        headers: {
-          Authorization: `Bearer ${jwt}`
-        }
-      }
-    });
-
-    executionMode = 'admin_session';
-    const retry = await adminSessionSupabase.rpc('exec_sql', { sql_query: approvedMigration.sql });
-    data = retry.data;
-    error = retry.error;
+  if ((error || !(data as any)?.success) && approvedExecutorUnavailable(error, detail)) {
+    executionMode = 'legacy_service';
+    const legacyExecution = await supabase.rpc('exec_sql', { sql_query: approvedMigration.sql });
+    data = legacyExecution.data;
+    error = legacyExecution.error;
     detail = getMigrationFailureDetail(data, error);
+
+    if ((error || !(data as any)?.success) && requiresAdminSqlSession(detail)) {
+      const adminSessionSupabase = createClient(supabaseUrl, anonKey, {
+        auth: { autoRefreshToken: false, persistSession: false },
+        global: {
+          headers: {
+            Authorization: `Bearer ${jwt}`
+          }
+        }
+      });
+
+      executionMode = 'legacy_admin_session';
+      const retry = await adminSessionSupabase.rpc('exec_sql', { sql_query: approvedMigration.sql });
+      data = retry.data;
+      error = retry.error;
+      detail = getMigrationFailureDetail(data, error);
+    }
   }
 
   if (error || !(data as any)?.success) {

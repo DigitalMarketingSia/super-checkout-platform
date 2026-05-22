@@ -3,7 +3,7 @@
 -- ==========================================
 CREATE TABLE IF NOT EXISTS public.system_info(
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    db_version TEXT NOT NULL DEFAULT '1.0.10',
+    db_version TEXT NOT NULL DEFAULT '1.0.11',
     last_update_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
     github_installation_id TEXT,
     github_repository TEXT,
@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS public.system_info(
 );
 
 INSERT INTO public.system_info (db_version) 
-SELECT '1.0.10' WHERE NOT EXISTS (SELECT 1 FROM public.system_info);
+SELECT '1.0.11' WHERE NOT EXISTS (SELECT 1 FROM public.system_info);
 
 DO $$
 BEGIN
@@ -895,6 +895,39 @@ GRANT EXECUTE ON FUNCTION public.is_setup_required() TO anon;
 GRANT EXECUTE ON FUNCTION public.is_setup_required() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.is_setup_required() TO service_role;
 
+-- 4.3.1 Approved Runtime Migration Executor
+CREATE OR REPLACE FUNCTION public.apply_approved_migration(sql_query TEXT)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+  EXECUTE sql_query;
+  RETURN jsonb_build_object('success', true);
+EXCEPTION
+  WHEN OTHERS THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'error', SQLERRM,
+      'code', SQLSTATE
+    );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.apply_approved_migration(TEXT) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.apply_approved_migration(TEXT) FROM anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.apply_approved_migration(TEXT) TO service_role;
+
+DO $$
+BEGIN
+  IF to_regprocedure('public.exec_sql(text)') IS NOT NULL THEN
+    REVOKE ALL ON FUNCTION public.exec_sql(TEXT) FROM PUBLIC;
+    REVOKE EXECUTE ON FUNCTION public.exec_sql(TEXT) FROM anon, authenticated;
+    GRANT EXECUTE ON FUNCTION public.exec_sql(TEXT) TO service_role;
+  END IF;
+END $$;
+
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
@@ -1540,8 +1573,19 @@ INSERT INTO public.schema_migrations(version, description, success, execution_ti
 SELECT '1.0.10', 'Canonical schema includes post-purchase business email templates', true, 0
 WHERE NOT EXISTS (SELECT 1 FROM public.schema_migrations WHERE version = '1.0.10');
 
+UPDATE public.schema_migrations
+SET success = true,
+    description = 'Canonical schema includes approved migration executor hardening',
+    error_log = NULL,
+    executed_at = timezone('utc'::text, now())
+WHERE version = '1.0.11';
+
+INSERT INTO public.schema_migrations(version, description, success, execution_time_ms)
+SELECT '1.0.11', 'Canonical schema includes approved migration executor hardening', true, 0
+WHERE NOT EXISTS (SELECT 1 FROM public.schema_migrations WHERE version = '1.0.11');
+
 UPDATE public.system_info
-SET db_version = '1.0.10',
+SET db_version = '1.0.11',
     last_update_at = timezone('utc'::text, now());
 
 NOTIFY pgrst, 'reload schema';
