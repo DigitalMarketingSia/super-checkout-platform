@@ -1,4 +1,9 @@
 {
+    "functions": {
+        "api/admin.ts": {
+            "includeFiles": "src/migrations/**"
+        }
+    },
     "rewrites": [
         { "source": "/api/check-status", "destination": "/api/system?action=check-status" },
         { "source": "/api/auth/login", "destination": "/api/auth?route=login" },

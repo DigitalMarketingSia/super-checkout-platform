@@ -168,7 +168,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: 'Raw SQL payloads are not accepted.' });
   }
 
-  const approvedMigration = loadApprovedMigrationSql(version);
+  let approvedMigration: ReturnType<typeof loadApprovedMigrationSql>;
+  try {
+    approvedMigration = loadApprovedMigrationSql(version);
+  } catch (loadError: any) {
+    const detail = cleanMigrationDetail(loadError?.message) || 'Approved migration file could not be loaded.';
+    console.error('[run-migration] Approved migration asset failed:', {
+      version,
+      detail
+    });
+    return res.status(500).json({
+      success: false,
+      error: 'Migration asset unavailable',
+      detail
+    });
+  }
+
   if (!approvedMigration) {
     return res.status(400).json({ error: 'Migration version is not approved.' });
   }
