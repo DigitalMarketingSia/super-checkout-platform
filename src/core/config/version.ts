@@ -1,2 +1,2 @@
-export const APP_VERSION = '1.1.45';
-export const SCHEMA_VERSION = '1.0.9';
+export const APP_VERSION = '1.1.46';
+export const SCHEMA_VERSION = '1.0.10';

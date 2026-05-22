@@ -396,6 +396,16 @@ export const SystemManager = {
       return hasColumn('profiles', 'is_blocked');
     }
 
+    if (version === '1.0.10') {
+      const { data, error } = await supabase
+        .from('email_templates')
+        .select('event_type')
+        .in('event_type', ['ORDER_DIRECT_DELIVERY', 'ORDER_MEMBER_ACCESS']);
+      if (error) return false;
+      const templateTypes = new Set((data || []).map((template: any) => template.event_type));
+      return templateTypes.has('ORDER_DIRECT_DELIVERY') && templateTypes.has('ORDER_MEMBER_ACCESS');
+    }
+
     return false;
   },
 

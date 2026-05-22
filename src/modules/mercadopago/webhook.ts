@@ -169,6 +169,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 '{{order_id}}': order.id,
                 '{{amount}}': order.amount,
                 '{{product_names}}': 'Produtos Digitais', // Future: fetch items names
+                '{{business_name}}': 'Super Checkout',
                 '{{members_area_url}}': 'https://app.supercheckout.app/login' // Generic fallback
             };
 

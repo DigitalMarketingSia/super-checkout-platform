@@ -3,13 +3,18 @@ import {
   stripSensitiveDeliverableFields,
   type OrderDeliverable,
 } from './orderDeliverables.js';
+import {
+  getPostPurchaseEmailTemplate,
+  type PostPurchaseTemplateEventType,
+} from './postPurchaseEmailTemplates.js';
 
 type SupabaseAdmin = any;
 
-type DeliveryEmailKind = 'direct_delivery' | 'member_access' | 'processing';
+type DeliveryEmailKind = 'purchase_confirmation' | 'direct_delivery' | 'member_access' | 'processing';
 
 interface DeliveryEmailMessage {
   kind: DeliveryEmailKind;
+  eventType?: PostPurchaseTemplateEventType;
   subject: string;
   html: string;
   deliverables: OrderDeliverable[];
@@ -24,6 +29,7 @@ export interface SendOrderAccessEmailInput {
 }
 
 const SENT_AT_KEY_BY_KIND: Record<DeliveryEmailKind, string> = {
+  purchase_confirmation: 'purchase_confirmation_email_sent_at',
   direct_delivery: 'direct_delivery_email_sent_at',
   member_access: 'member_access_email_sent_at',
   processing: 'delivery_processing_email_sent_at',
@@ -47,6 +53,13 @@ function maskEmail(email?: string | null) {
 function normalizeText(value: unknown, fallback: string) {
   const text = String(value || '').trim();
   return text || fallback;
+}
+
+function replaceTemplateVariables(value: string, variables: Record<string, string>) {
+  return Object.entries(variables).reduce(
+    (rendered, [variable, replacement]) => rendered.split(variable).join(replacement),
+    value,
+  );
 }
 
 function renderEmailShell(params: {
@@ -89,6 +102,45 @@ function renderDeliverableCards(deliverables: OrderDeliverable[], fallbackLabel:
   }).join('');
 }
 
+function renderDeliverableText(deliverables: OrderDeliverable[]) {
+  return deliverables
+    .map((deliverable) => {
+      const title = normalizeText(deliverable.title, 'Produto');
+      const label = normalizeText(deliverable.label, 'Acessar');
+      return `${title} - ${label}: ${deliverable.url || ''}`;
+    })
+    .join('\n');
+}
+
+function ensureDeliverableBlock(html: string, deliverablesHtml: string) {
+  if (html.includes('{{deliverables_html}}') || html.includes('{{deliverables_text}}')) {
+    return html;
+  }
+
+  return `${html}
+    <h2 style="font-size:18px;color:#111827;margin:24px 0 12px;">Seus acessos</h2>
+    ${deliverablesHtml}`;
+}
+
+function buildTemplateMessage(params: {
+  kind: DeliveryEmailKind;
+  eventType: PostPurchaseTemplateEventType;
+  deliverables?: OrderDeliverable[];
+}): DeliveryEmailMessage {
+  const template = getPostPurchaseEmailTemplate(params.eventType);
+  if (!template) {
+    throw new Error(`Missing fallback post-purchase email template for ${params.eventType}.`);
+  }
+
+  return {
+    kind: params.kind,
+    eventType: params.eventType,
+    subject: template.subject,
+    html: template.htmlBody,
+    deliverables: params.deliverables || [],
+  };
+}
+
 function buildDeliveryMessages(params: {
   deliverables: OrderDeliverable[];
   customerName: string;
@@ -100,39 +152,28 @@ function buildDeliveryMessages(params: {
 
   const messages: DeliveryEmailMessage[] = [];
 
+  messages.push(buildTemplateMessage({
+    kind: 'purchase_confirmation',
+    eventType: 'ORDER_COMPLETED',
+  }));
+
   if (memberDeliverables.length > 0) {
-    messages.push({
+    messages.push(buildTemplateMessage({
       kind: 'member_access',
-      subject: 'Seu acesso foi liberado',
+      eventType: 'ORDER_MEMBER_ACCESS',
       deliverables: memberDeliverables,
-      html: renderEmailShell({
-        title: 'Seu acesso foi liberado',
-        greetingName: params.customerName,
-        intro: 'Seu acesso a area de membros foi liberado com sucesso. Use o botao abaixo para entrar no conteudo comprado.',
-        sectionTitle: memberDeliverables.length > 1 ? 'Areas liberadas' : 'Area liberada',
-        bodyHtml: renderDeliverableCards(memberDeliverables, 'Acessar area de membros'),
-        businessName: params.businessName,
-      }),
-    });
+    }));
   }
 
   if (directDeliverables.length > 0) {
-    messages.push({
+    messages.push(buildTemplateMessage({
       kind: 'direct_delivery',
-      subject: directDeliverables.length > 1 ? 'Seus materiais estao disponiveis' : 'Seu material esta disponivel',
+      eventType: 'ORDER_DIRECT_DELIVERY',
       deliverables: directDeliverables,
-      html: renderEmailShell({
-        title: directDeliverables.length > 1 ? 'Seus materiais estao disponiveis' : 'Seu material esta disponivel',
-        greetingName: params.customerName,
-        intro: 'Sua compra foi aprovada e os materiais de entrega direta ja estao disponiveis para acesso.',
-        sectionTitle: directDeliverables.length > 1 ? 'Materiais da compra' : 'Material da compra',
-        bodyHtml: renderDeliverableCards(directDeliverables, 'Acessar material'),
-        businessName: params.businessName,
-      }),
-    });
+    }));
   }
 
-  if (messages.length === 0) {
+  if (memberDeliverables.length === 0 && directDeliverables.length === 0) {
     messages.push({
       kind: 'processing',
       subject: 'Pedido aprovado',
@@ -147,6 +188,70 @@ function buildDeliveryMessages(params: {
   }
 
   return messages;
+}
+
+async function loadBusinessTemplate(
+  supabaseAdmin: SupabaseAdmin,
+  eventType?: PostPurchaseTemplateEventType,
+) {
+  if (!eventType) return null;
+
+  const { data, error } = await supabaseAdmin
+    .from('email_templates')
+    .select('event_type,language,subject,html_body,active')
+    .eq('event_type', eventType)
+    .eq('active', true)
+    .limit(5);
+
+  if (error) {
+    console.warn(`[OrderEmailService] Could not load ${eventType} template:`, error.message);
+    return null;
+  }
+
+  const templates = Array.isArray(data) ? data : [];
+  return templates.find((template) => template.language === 'pt') || templates[0] || null;
+}
+
+async function renderMessageTemplate(params: {
+  supabaseAdmin: SupabaseAdmin;
+  message: DeliveryEmailMessage;
+  order: any;
+  customerName: string;
+  businessName: string;
+}) {
+  const customTemplate = await loadBusinessTemplate(params.supabaseAdmin, params.message.eventType);
+  const subjectTemplate = normalizeText(customTemplate?.subject, params.message.subject);
+  const fallbackHtml = params.message.html;
+  let htmlTemplate = normalizeText(customTemplate?.html_body, fallbackHtml);
+
+  const fallbackLabel = params.message.kind === 'member_access'
+    ? 'Acessar area de membros'
+    : 'Acessar material';
+  const deliverablesHtml = renderDeliverableCards(params.message.deliverables, fallbackLabel);
+  const deliverablesText = escapeHtml(renderDeliverableText(params.message.deliverables)).replace(/\n/g, '<br/>');
+
+  if (params.message.deliverables.length > 0) {
+    htmlTemplate = ensureDeliverableBlock(htmlTemplate, deliverablesHtml);
+  }
+
+  const productNames = (Array.isArray(params.order?.items) ? params.order.items : [])
+    .map((item: any) => String(item?.name || '').trim())
+    .filter(Boolean)
+    .join(', ') || 'Produtos';
+  const variables: Record<string, string> = {
+    '{{customer_name}}': escapeHtml(params.customerName),
+    '{{order_id}}': params.order?.id ? `#${escapeHtml(String(params.order.id).split('-')[0])}` : '',
+    '{{product_names}}': escapeHtml(productNames),
+    '{{business_name}}': escapeHtml(params.businessName),
+    '{{deliverables_html}}': deliverablesHtml,
+    '{{deliverables_text}}': deliverablesText,
+  };
+
+  return {
+    ...params.message,
+    subject: replaceTemplateVariables(subjectTemplate, variables),
+    html: replaceTemplateVariables(htmlTemplate, variables),
+  };
 }
 
 async function loadBusinessSettings(supabaseAdmin: SupabaseAdmin, merchantUserId?: string | null) {
@@ -333,12 +438,19 @@ export async function sendOrderAccessEmail(
 
   try {
     for (const message of messages) {
+      const renderedMessage = await renderMessageTemplate({
+        supabaseAdmin,
+        message,
+        order,
+        customerName: name,
+        businessName,
+      });
       const resendData = await sendViaResend({
         apiKey,
         from,
         to,
-        subject: message.subject,
-        html: message.html,
+        subject: renderedMessage.subject,
+        html: renderedMessage.html,
       });
 
       sentIds[message.kind] = resendData?.id || null;

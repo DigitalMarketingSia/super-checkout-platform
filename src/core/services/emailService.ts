@@ -145,12 +145,14 @@ class EmailService {
 
         const productName = order.items?.[0]?.name || 'seu produto';
         const membersAreaUrl = await this.resolveMembersAreaUrl(order);
+        const businessName = await this.getSenderIdentity() || 'Super Checkout';
 
         if (template) {
             const variables: Record<string, string> = {
                 '{{order_id}}': order.id ? '#' + order.id.split('-')[0] : '',
                 '{{customer_name}}': order.customer_name || 'Cliente',
                 '{{product_names}}': productName,
+                '{{business_name}}': businessName,
                 '{{members_area_url}}': membersAreaUrl,
             };
 
@@ -172,9 +174,9 @@ class EmailService {
 
         // Fallback HTML
         const subjects: any = {
-            pt: "Pagamento Aprovado - Acesso Liberado!",
-            en: "Payment Approved - Access Granted!",
-            es: "¡Pago Aprobado - Acceso Liberado!"
+            pt: "Pagamento Aprovado",
+            en: "Payment Approved",
+            es: "Pago Aprobado"
         };
 
         const html = `
@@ -189,10 +191,11 @@ class EmailService {
                   lang === 'es' ? `¡Tu pago para <strong>${productName}</strong> fue aprobado!` : 
                   `Seu pagamento para <strong>${productName}</strong> foi aprovado!`}
             </p>
-            <a href="${membersAreaUrl}" target="_blank" 
-               style="background: #007bff; color: #ffffff; padding: 15px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; margin: 20px 0;">
-                ${lang === 'en' ? 'ACCESS MEMBERS AREA' : lang === 'es' ? 'ACCEDER ÁREA DE MIEMBROS' : 'ACESSAR ÁREA DE MEMBROS'}
-            </a>
+            <p style="color: #555555; font-size: 16px; line-height: 1.5;">
+                ${lang === 'en' ? 'Any access released for this order will arrive in the delivery email.' :
+                  lang === 'es' ? 'Los accesos liberados para este pedido llegaran en el correo de entrega.' :
+                  'Os acessos liberados para este pedido chegarao no e-mail de entrega.'}
+            </p>
             <p style="color: #999999; font-size: 12px; margin-top: 40px;">Super Checkout</p>
         </div>
     </center>

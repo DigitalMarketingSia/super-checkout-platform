@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Layout } from '../../components/Layout';
-import { Card } from '../../components/ui/Card';
-import { Bell, Edit2, CheckCircle, XCircle, Mail, Info, ChevronRight, Zap, ArrowLeft, Terminal, Code, Plus, Copy, Globe, Search, RefreshCw, Layers } from 'lucide-react';
+import { Bell, Edit2, CheckCircle, XCircle, Mail, Info, Zap, Layers } from 'lucide-react';
 import { supabase } from '../../services/supabase';
 import { EmailTemplateModal } from '../../components/modals/EmailTemplateModal';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '../../components/ui/Button';
-import Aurora from '../../components/ui/Aurora';
+import {
+    POST_PURCHASE_EMAIL_TEMPLATES,
+    POST_PURCHASE_TEMPLATE_EVENT_TYPES,
+} from '../../services/postPurchaseEmailTemplates';
 
 
 interface EmailTemplate {
@@ -20,26 +22,18 @@ interface EmailTemplate {
     isVirtual?: boolean;
 }
 
-const DEFAULT_TEMPLATE: EmailTemplate = {
-    id: 'virtual-default',
-    event_type: 'ORDER_COMPLETED',
-    name: 'Pedido Aprovado',
-    subject: 'Seu pedido #{{order_id}} foi aprovado!',
-    html_body: `<div style="font-family: sans-serif; color: #333;">
-    <h1>Olá, {{customer_name}}!</h1>
-    <p>Parabéns pela sua compra.</p>
-    <p>Seu pedido <strong>#{{order_id}}</strong> foi confirmado com sucesso.</p>
-    <p>Você adquiriu: {{product_names}}</p>
-    <br/>
-    <p>Acesse seu conteúdo agora:</p>
-    <a href="{{members_area_url}}" style="background-color: #0070f3; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Acessar Área de Membros</a>
-    <br/><br/>
-    <p>Atenciosamente,<br/>Sua Equipe Aqui</p>
-  </div>`,
-    active: false,
+const createVirtualTemplate = (template: typeof POST_PURCHASE_EMAIL_TEMPLATES[number]): EmailTemplate => ({
+    id: `virtual-${template.eventType.toLowerCase()}`,
+    event_type: template.eventType,
+    name: template.name,
+    subject: template.subject,
+    html_body: template.htmlBody,
+    active: true,
     updated_at: new Date().toISOString(),
     isVirtual: true
-};
+});
+
+const DEFAULT_POST_PURCHASE_TEMPLATES = POST_PURCHASE_EMAIL_TEMPLATES.map(createVirtualTemplate);
 
 export const Notifications = () => {
     const { profile } = useAuth();
@@ -47,7 +41,7 @@ export const Notifications = () => {
     const [loading, setLoading] = useState(true);
     const [selectedTemplate, setSelectedTemplate] = useState<EmailTemplate | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [clientTemplate, setClientTemplate] = useState<EmailTemplate | null>(null);
+    const [clientTemplates, setClientTemplates] = useState<EmailTemplate[]>(DEFAULT_POST_PURCHASE_TEMPLATES);
 
     const effectiveRole = profile?.effective_role || profile?.role;
     const isOwner = effectiveRole === 'master_admin';
@@ -81,26 +75,24 @@ export const Notifications = () => {
                 if (bizError) throw bizError;
                 setTemplates(bizData || []);
             } else {
-                // Client only sees ORDER_COMPLETED (Post-Sales)
+                // Clients manage the post-purchase templates that affect their buyers.
                 const { data, error } = await supabase
                     .from('email_templates')
                     .select('*')
-                    .eq('event_type', 'ORDER_COMPLETED')
-                    .maybeSingle();
+                    .in('event_type', [...POST_PURCHASE_TEMPLATE_EVENT_TYPES])
+                    .eq('language', 'pt');
 
                 if (error && error.code !== 'PGRST116') throw error;
 
-                if (data) {
-                    setClientTemplate(data);
-                } else {
-                    // Use Default Virtual Template if none exists in DB
-                    setClientTemplate(DEFAULT_TEMPLATE);
-                }
+                const templatesByType = new Map((data || []).map((template) => [template.event_type, template]));
+                setClientTemplates(POST_PURCHASE_EMAIL_TEMPLATES.map((definition) =>
+                    templatesByType.get(definition.eventType) || createVirtualTemplate(definition)
+                ));
             }
         } catch (error) {
             console.error('Error loading templates:', error);
             // Fallback to default on error for clients
-            if (!isOwner) setClientTemplate(DEFAULT_TEMPLATE);
+            if (!isOwner) setClientTemplates(DEFAULT_POST_PURCHASE_TEMPLATES);
         } finally {
             setLoading(false);
         }
@@ -204,107 +196,82 @@ export const Notifications = () => {
         </div>
     );
 
-    // Client View Component
-    const renderClientView = () => {
-        const templateToShow = clientTemplate || DEFAULT_TEMPLATE;
-
-        return (
-            <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-8 duration-1000">
-                <div className="group relative bg-black/40 border border-white/5 rounded-[2.5rem] p-10 overflow-hidden backdrop-blur-2xl transition-all duration-500 hover:border-primary/20">
-
-                    {/* Premium Aurora Glow */}
-                    <div className="absolute -top-32 -right-32 w-64 h-64 bg-primary/10 rounded-full blur-[100px]" />
-                    <div className="absolute -bottom-32 -left-32 w-64 h-64 bg-blue-500/5 rounded-full blur-[100px]" />
-
-                    <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-8 mb-12 pb-12 border-b border-white/5">
-                        <div className="flex items-center gap-6">
-                            <div className={`w-20 h-20 rounded-[1.5rem] flex items-center justify-center transition-all duration-700 group-hover:scale-105 group-hover:rotate-3 shadow-2xl ${
-                                templateToShow.active
-                                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-emerald-500/10'
-                                    : 'bg-rose-500/10 text-rose-400 border border-rose-500/20 shadow-rose-500/10'
-                            }`}>
-                                <Mail className="w-10 h-10" />
-                            </div>
-                            <div>
-                                <div className="flex items-center gap-3 mb-2">
-                                    <h3 className="text-3xl font-portal-display text-white tracking-tight">E-mail de Pós-Venda</h3>
-                                    <span className="text-[10px] font-black bg-primary/20 text-primary px-3 py-1 rounded-full uppercase tracking-widest border border-primary/20">Automated</span>
-                                </div>
-                                <p className="text-gray-500 font-medium max-w-md">Mensagem inteligente transmitida instantaneamente após a aprovação de cada pedido.</p>
-                            </div>
-                        </div>
-                        <div className={`px-6 py-2 rounded-full text-[10px] font-black tracking-widest border transition-all ${
-                            templateToShow.active
-                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                                : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
-                        }`}>
-                            {templateToShow.active ? 'CENTRAL ATIVA' : 'SISTEMA EM PAUSA'}
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 relative z-10">
-                        <div className="space-y-10">
-                            <div>
-                                <div className="flex items-center gap-2 mb-4">
-                                   <label className="text-[10px] text-gray-700 uppercase font-black tracking-[0.2em] mb-0">Assunto da Mensagem</label>
-                                   <div className="h-px flex-1 bg-white/5" />
-                                </div>
-                                <div className="text-white font-bold bg-white/[0.02] p-6 rounded-2xl border border-white/5 group-hover:border-primary/20 transition-all leading-relaxed">
-                                    {templateToShow.subject}
-                                </div>
-                            </div>
-
-                            <div>
-                                <div className="flex items-center gap-2 mb-6">
-                                   <label className="text-[10px] text-gray-700 uppercase font-black tracking-[0.2em] mb-0">Injeção Dinâmica</label>
-                                   <div className="h-px flex-1 bg-white/5" />
-                                </div>
-                                <div className="flex flex-wrap gap-2">
-                                    {['{{customer_name}}', '{{product_names}}', '{{members_area_url}}', '{{order_id}}'].map(v => (
-                                        <code key={v} className="text-[11px] text-gray-400 font-bold bg-white/5 px-4 py-2 rounded-xl border border-white/5 font-mono hover:text-primary hover:border-primary/30 transition-all cursor-default group/var">
-                                            {v}
-                                        </code>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="flex flex-col justify-end gap-4 p-8 bg-primary/5 rounded-[2rem] border border-primary/10 relative overflow-hidden group/actions">
-                           <div className="absolute top-0 right-0 p-4 opacity-10">
-                              <Zap className="w-24 h-24 text-primary" />
-                           </div>
-                           <h4 className="text-white font-black uppercase italic tracking-tighter text-2xl mb-2 relative z-10">Controle de Fluxo</h4>
-                           <p className="text-gray-400 text-xs font-medium mb-6 relative z-10 leading-relaxed">Personalize o HTML do seu e-mail ou gerencie o status de disparo global da sua loja.</p>
-                           
-                           <div className="flex flex-col gap-3 relative z-10">
-                              <Button
-                                 onClick={() => handleEdit(templateToShow)}
-                                 className="w-full bg-primary hover:bg-primary-hover text-white font-black h-16 rounded-2xl transition-all shadow-xl shadow-primary/20 flex items-center justify-center gap-3 transform hover:-translate-y-1 active:translate-y-0"
-                              >
-                                 <Edit2 className="w-5 h-5" />
-                                 EDITAR TEMPLATE
-                              </Button>
-                              <button
-                                 onClick={() => toggleStatus(templateToShow, false)}
-                                 className={`flex items-center justify-center h-16 rounded-2xl border font-black text-[10px] tracking-widest uppercase transition-all ${
-                                    templateToShow.active
-                                       ? 'bg-rose-500/5 border-rose-500/20 text-rose-400 hover:bg-rose-500/10'
-                                       : 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/10'
-                                 }`}
-                              >
-                                 {templateToShow.active ? (
-                                    <><XCircle className="w-5 h-5 mr-3" /> DESATIVAR ENVIO</>
-                                 ) : (
-                                    <><CheckCircle className="w-5 h-5 mr-3" /> ATIVAR ENVIO</>
-                                 )}
-                              </button>
-                           </div>
-                        </div>
-                    </div>
-                </div>
+    const renderClientView = () => (
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
+            <div className="max-w-4xl px-6 py-4 rounded-2xl bg-primary/5 border border-primary/10 flex items-start gap-3">
+                <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                <p className="text-sm text-gray-300 leading-relaxed">
+                    Compra aprovada confirma o pedido. Entrega direta e acesso a area de membros enviam os acessos reais gerados no servidor.
+                </p>
             </div>
-        );
-    };
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                {clientTemplates.map((template) => {
+                    const definition = POST_PURCHASE_EMAIL_TEMPLATES.find((item) => item.eventType === template.event_type);
+                    const variables = definition?.variables || [];
+
+                    return (
+                        <div key={template.id} className="relative flex min-h-[390px] flex-col overflow-hidden rounded-[2rem] border border-white/5 bg-black/40 p-7 backdrop-blur-xl transition-all hover:border-primary/25">
+                            <div className="flex items-start justify-between gap-4">
+                                <div className={`flex h-14 w-14 items-center justify-center rounded-2xl border ${
+                                    template.active
+                                        ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400'
+                                        : 'border-rose-500/20 bg-rose-500/10 text-rose-400'
+                                }`}>
+                                    <Mail className="h-7 w-7" />
+                                </div>
+                                <span className={`rounded-full border px-3 py-1 text-[9px] font-black uppercase tracking-[0.2em] ${
+                                    template.active
+                                        ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400'
+                                        : 'border-rose-500/20 bg-rose-500/10 text-rose-400'
+                                }`}>
+                                    {template.isVirtual ? 'Padrao' : template.active ? 'Ativo' : 'Fallback'}
+                                </span>
+                            </div>
+
+                            <div className="mt-7 space-y-3">
+                                <h3 className="text-xl font-portal-display text-white tracking-tight">{template.name}</h3>
+                                <p className="min-h-[44px] text-sm leading-relaxed text-gray-400">
+                                    {definition?.purpose || 'Template transacional do pos-compra.'}
+                                </p>
+                                <div className="rounded-xl border border-white/5 bg-white/[0.03] p-4 text-sm font-semibold text-white">
+                                    {template.subject}
+                                </div>
+                            </div>
+
+                            <div className="mt-5 flex flex-wrap gap-2">
+                                {variables.map((variable) => (
+                                    <code key={variable} className="rounded-lg border border-white/5 bg-white/5 px-2.5 py-1.5 text-[10px] font-bold text-gray-400">
+                                        {variable}
+                                    </code>
+                                ))}
+                            </div>
+
+                            <div className="mt-auto flex gap-3 pt-7">
+                                <Button
+                                    onClick={() => handleEdit(template)}
+                                    className="h-12 flex-1 rounded-xl bg-primary text-[10px] font-black uppercase tracking-widest text-white hover:bg-primary-hover"
+                                >
+                                    <Edit2 className="mr-2 h-4 w-4" />
+                                    Editar
+                                </Button>
+                                <button
+                                    onClick={() => toggleStatus(template, false)}
+                                    className={`flex h-12 w-12 items-center justify-center rounded-xl border transition-all ${
+                                        template.active
+                                            ? 'border-rose-500/20 bg-rose-500/5 text-rose-400 hover:bg-rose-500/10'
+                                            : 'border-emerald-500/20 bg-emerald-500/5 text-emerald-400 hover:bg-emerald-500/10'
+                                    }`}
+                                    title={template.active ? 'Usar fallback do sistema' : 'Ativar template'}
+                                >
+                                    {template.active ? <XCircle className="h-5 w-5" /> : <CheckCircle className="h-5 w-5" />}
+                                </button>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
 
     return (
         <Layout>

@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { enforceApiRateLimit } from '../_rate-limit.js';
 
-const CURRENT_SCHEMA_VERSION = '1.0.9';
+const CURRENT_SCHEMA_VERSION = '1.0.10';
 
 function parseBody(req: VercelRequest) {
   if (!req.body) return {};

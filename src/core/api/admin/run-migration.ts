@@ -41,6 +41,10 @@ const MIGRATION_ALLOWLIST: Record<string, { file: string; sha256: string }> = {
   '1.0.9': {
     file: 'v1.0.9.sql',
     sha256: '3b740e3971fd0577febbb9ec7ab4e2bca8b6747d7ddb916cea9b9b9957e4f42a'
+  },
+  '1.0.10': {
+    file: 'v1.0.10.sql',
+    sha256: '022cbbbd377aa1fe3715714764efec427c9c878e4530fda40424fcf99c765cfc'
   }
 };
 

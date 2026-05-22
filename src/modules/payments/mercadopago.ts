@@ -71,10 +71,11 @@ async function sendPaymentApprovedEmail(orderId: string, order: any, productName
       '{{order_id}}': orderId ? `#${orderId.split('-')[0]}` : '',
       '{{customer_name}}': order.customer_name || 'Cliente',
       '{{product_names}}': productName || 'seu produto',
+      '{{business_name}}': settings?.business_name || settings?.sender_name || 'Super Checkout',
       '{{members_area_url}}': order.membersAreaUrl || (process.env.VITE_SITE_URL ? `${process.env.VITE_SITE_URL}/login` : 'https://app.supercheckout.app/login')
     };
 
-    let subject = template?.subject || 'Pagamento Aprovado - Acesso Liberado!';
+    let subject = template?.subject || 'Pagamento Aprovado';
     let html = template?.html_body || `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h1>Ola, {{customer_name}}!</h1>

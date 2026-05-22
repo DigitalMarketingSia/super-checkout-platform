@@ -26,7 +26,9 @@ interface EmailTemplateModalProps {
 // Variables Contract
 const EVENT_VARIABLES: Record<string, string[]> = {
     // Business Events
-    ORDER_COMPLETED: ['{{order_id}}', '{{customer_name}}', '{{product_names}}', '{{members_area_url}}'],
+    ORDER_COMPLETED: ['{{order_id}}', '{{customer_name}}', '{{product_names}}', '{{business_name}}'],
+    ORDER_DIRECT_DELIVERY: ['{{order_id}}', '{{customer_name}}', '{{product_names}}', '{{business_name}}', '{{deliverables_html}}', '{{deliverables_text}}'],
+    ORDER_MEMBER_ACCESS: ['{{order_id}}', '{{customer_name}}', '{{product_names}}', '{{business_name}}', '{{deliverables_html}}', '{{deliverables_text}}'],
     ACCESS_GRANTED: ['{{name}}', '{{email}}', '{{members_area_url}}'],
 
     // System Events (Owner Only)
@@ -124,6 +126,9 @@ export const EmailTemplateModal: React.FC<EmailTemplateModalProps> = ({ isOpen, 
             '{{order_id}}': '12345',
             '{{customer_name}}': 'João Silva',
             '{{product_names}}': 'Curso Super Checkout',
+            '{{business_name}}': 'Loja Exemplo',
+            '{{deliverables_html}}': '<div style="border:1px solid #d1d5db;border-radius:10px;padding:16px;"><strong>Curso Super Checkout</strong><p>Seu acesso esta disponivel.</p><a href="https://demo.supercheckout.app/acesso">Acessar agora</a></div>',
+            '{{deliverables_text}}': 'Curso Super Checkout - Acessar agora: https://demo.supercheckout.app/acesso',
             '{{members_area_url}}': 'https://demo.supercheckout.app',
             '{{portal_url}}': 'https://portal.supercheckout.app',
             '{{license_key}}': 'XXXX-XXXX-XXXX',

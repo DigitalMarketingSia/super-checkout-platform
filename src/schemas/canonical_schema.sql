@@ -3,7 +3,7 @@
 -- ==========================================
 CREATE TABLE IF NOT EXISTS public.system_info(
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    db_version TEXT NOT NULL DEFAULT '1.0.9',
+    db_version TEXT NOT NULL DEFAULT '1.0.10',
     last_update_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
     github_installation_id TEXT,
     github_repository TEXT,
@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS public.system_info(
 );
 
 INSERT INTO public.system_info (db_version) 
-SELECT '1.0.9' WHERE NOT EXISTS (SELECT 1 FROM public.system_info);
+SELECT '1.0.10' WHERE NOT EXISTS (SELECT 1 FROM public.system_info);
 
 DO $$
 BEGIN
@@ -766,19 +766,42 @@ END $$;
 CREATE UNIQUE INDEX IF NOT EXISTS email_templates_event_type_language_key
 ON public.email_templates(event_type, language);
 
--- Seed Data (Default Post-Sales Template)
+-- Seed Data (Default Post-Purchase Templates)
 INSERT INTO public.email_templates (event_type, language, name, subject, html_body)
-VALUES ('ORDER_COMPLETED', 'pt', 'Pedido Aprovado', 'Seu pedido #{{order_id}} foi aprovado!', '<div style="font-family: sans-serif; color: #333;">
-    <h1>Olá, {{customer_name}}!</h1>
-    <p>Parabéns pela sua compra.</p>
-    <p>Seu pedido <strong>#{{order_id}}</strong> foi confirmado com sucesso.</p>
-    <p>Você adquiriu: {{product_names}}</p>
-    <br/>
-    <p>Acesse seu conteúdo agora:</p>
-    <a href="{{members_area_url}}" style="background-color: #0070f3; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Acessar Área de Membros</a>
-    <br/><br/>
-    <p>Atenciosamente,<br/>Equipe Super Checkout</p>
-  </div>')
+VALUES
+('ORDER_COMPLETED', 'pt', 'Pedido Aprovado', 'Seu pedido {{order_id}} foi aprovado', $html$
+  <div style="background:#f3f4f6;padding:28px 12px;font-family:Arial,sans-serif;color:#111827;">
+    <div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;padding:32px;">
+      <h1 style="font-size:24px;line-height:1.25;margin:0 0 16px;">Compra aprovada</h1>
+      <p style="margin:0 0 12px;color:#374151;">Ola, {{customer_name}}.</p>
+      <p style="margin:0 0 12px;color:#374151;">Seu pagamento foi confirmado e o pedido <strong>{{order_id}}</strong> esta aprovado.</p>
+      <p style="margin:0 0 20px;color:#374151;">Itens da compra: <strong>{{product_names}}</strong>.</p>
+      <p style="margin:0;color:#6b7280;font-size:13px;">Atenciosamente,<br/>Equipe {{business_name}}</p>
+    </div>
+  </div>
+$html$),
+('ORDER_DIRECT_DELIVERY', 'pt', 'Entrega Direta', 'Seus materiais estao disponiveis', $html$
+  <div style="background:#f3f4f6;padding:28px 12px;font-family:Arial,sans-serif;color:#111827;">
+    <div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;padding:32px;">
+      <h1 style="font-size:24px;line-height:1.25;margin:0 0 16px;">Seus materiais estao disponiveis</h1>
+      <p style="margin:0 0 12px;color:#374151;">Ola, {{customer_name}}.</p>
+      <p style="margin:0 0 20px;color:#374151;">A compra do pedido <strong>{{order_id}}</strong> foi aprovada. Acesse seus materiais abaixo.</p>
+      {{deliverables_html}}
+      <p style="margin:28px 0 0;color:#6b7280;font-size:13px;">Atenciosamente,<br/>Equipe {{business_name}}</p>
+    </div>
+  </div>
+$html$),
+('ORDER_MEMBER_ACCESS', 'pt', 'Acesso a Area de Membros', 'Seu acesso foi liberado', $html$
+  <div style="background:#f3f4f6;padding:28px 12px;font-family:Arial,sans-serif;color:#111827;">
+    <div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;padding:32px;">
+      <h1 style="font-size:24px;line-height:1.25;margin:0 0 16px;">Seu acesso foi liberado</h1>
+      <p style="margin:0 0 12px;color:#374151;">Ola, {{customer_name}}.</p>
+      <p style="margin:0 0 20px;color:#374151;">A compra do pedido <strong>{{order_id}}</strong> foi aprovada. Entre na area liberada abaixo.</p>
+      {{deliverables_html}}
+      <p style="margin:28px 0 0;color:#6b7280;font-size:13px;">Atenciosamente,<br/>Equipe {{business_name}}</p>
+    </div>
+  </div>
+$html$)
 ON CONFLICT (event_type, language) DO NOTHING;
 
 -- ==========================================
@@ -1506,8 +1529,19 @@ INSERT INTO public.schema_migrations(version, description, success, execution_ti
 SELECT '1.0.9', 'Canonical schema includes profile permission flags', true, 0
 WHERE NOT EXISTS (SELECT 1 FROM public.schema_migrations WHERE version = '1.0.9');
 
+UPDATE public.schema_migrations
+SET success = true,
+    description = 'Canonical schema includes post-purchase business email templates',
+    error_log = NULL,
+    executed_at = timezone('utc'::text, now())
+WHERE version = '1.0.10';
+
+INSERT INTO public.schema_migrations(version, description, success, execution_time_ms)
+SELECT '1.0.10', 'Canonical schema includes post-purchase business email templates', true, 0
+WHERE NOT EXISTS (SELECT 1 FROM public.schema_migrations WHERE version = '1.0.10');
+
 UPDATE public.system_info
-SET db_version = '1.0.9',
+SET db_version = '1.0.10',
     last_update_at = timezone('utc'::text, now());
 
 NOTIFY pgrst, 'reload schema';
