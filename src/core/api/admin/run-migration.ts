@@ -66,6 +66,10 @@ function getMigrationFailureDetail(data: unknown, error: { message?: string; det
   );
 }
 
+function requiresAdminSqlSession(detail: string) {
+  return detail.toLowerCase().includes('only admins can execute system sql');
+}
+
 function parseBody(req: VercelRequest) {
   if (!req.body) return {};
   if (typeof req.body === 'string') {
@@ -188,15 +192,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: 'Migration version is not approved.' });
   }
 
-  const { data, error } = await supabase.rpc('exec_sql', { sql_query: approvedMigration.sql });
+  let executionMode: 'service' | 'admin_session' = 'service';
+  let { data, error } = await supabase.rpc('exec_sql', { sql_query: approvedMigration.sql });
+  let detail = getMigrationFailureDetail(data, error);
+
+  if ((error || !(data as any)?.success) && requiresAdminSqlSession(detail)) {
+    const adminSessionSupabase = createClient(supabaseUrl, anonKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+      global: {
+        headers: {
+          Authorization: `Bearer ${jwt}`
+        }
+      }
+    });
+
+    executionMode = 'admin_session';
+    const retry = await adminSessionSupabase.rpc('exec_sql', { sql_query: approvedMigration.sql });
+    data = retry.data;
+    error = retry.error;
+    detail = getMigrationFailureDetail(data, error);
+  }
 
   if (error || !(data as any)?.success) {
-    const detail = getMigrationFailureDetail(data, error);
     console.error('[run-migration] Approved migration failed:', {
       version,
       file: approvedMigration.file,
       sha256: approvedMigration.sha256,
       code: error?.code || null,
+      executionMode,
       detail: detail || null,
     });
     return res.status(500).json({
@@ -212,7 +235,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     migration: {
       version,
       file: approvedMigration.file,
-      sha256: approvedMigration.sha256
+      sha256: approvedMigration.sha256,
+      executionMode
     }
   });
 }
