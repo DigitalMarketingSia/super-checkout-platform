@@ -1,9 +1,12 @@
 -- v1.0.10 - Post-purchase business email templates.
 -- Separates purchase confirmation from direct delivery and member-area access.
 
+ALTER TABLE public.email_templates
+  ADD COLUMN IF NOT EXISTS language TEXT DEFAULT 'pt',
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
+
 INSERT INTO public.email_templates (event_type, language, name, subject, html_body, active)
-VALUES
-(
+SELECT
   'ORDER_DIRECT_DELIVERY',
   'pt',
   'Entrega Direta',
@@ -20,8 +23,15 @@ VALUES
   </div>
   $html$,
   true
-),
-(
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM public.email_templates
+  WHERE event_type = 'ORDER_DIRECT_DELIVERY'
+    AND COALESCE(language, 'pt') = 'pt'
+);
+
+INSERT INTO public.email_templates (event_type, language, name, subject, html_body, active)
+SELECT
   'ORDER_MEMBER_ACCESS',
   'pt',
   'Acesso a Area de Membros',
@@ -38,8 +48,12 @@ VALUES
   </div>
   $html$,
   true
-)
-ON CONFLICT (event_type, language) DO NOTHING;
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM public.email_templates
+  WHERE event_type = 'ORDER_MEMBER_ACCESS'
+    AND COALESCE(language, 'pt') = 'pt'
+);
 
 UPDATE public.email_templates
 SET subject = 'Seu pedido {{order_id}} foi aprovado',
