@@ -349,7 +349,7 @@ export const Notifications = () => {
         <div className="max-w-4xl px-6 py-4 rounded-2xl bg-primary/5 border border-primary/10 flex items-start gap-3">
           <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
           <p className="text-sm text-gray-300 leading-relaxed">
-            Compra aprovada confirma o pedido. Entrega direta e area de membros enviam apenas os acessos reais gerados no servidor.
+            Compra aprovada funciona como fallback quando nao existe um e-mail especifico de entrega. Entrega direta e area de membros substituem a confirmacao generica e enviam apenas os acessos reais gerados no servidor.
           </p>
         </div>
 

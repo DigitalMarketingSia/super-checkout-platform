@@ -27,7 +27,7 @@ export const POST_PURCHASE_EMAIL_TEMPLATES: PostPurchaseEmailTemplateDefinition[
   {
     eventType: 'ORDER_COMPLETED',
     name: 'Compra Aprovada',
-    purpose: 'Confirma pagamento e pedido sem assumir o tipo de entrega.',
+    purpose: 'Confirma o pagamento quando nao houver um e-mail especifico de entrega para enviar.',
     subject: 'Seu pedido {{order_id}} foi aprovado',
     variables: ['{{customer_name}}', '{{order_id}}', '{{product_names}}', '{{business_name}}'],
     htmlBody: emailFrame(`

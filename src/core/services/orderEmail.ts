@@ -149,13 +149,8 @@ function buildDeliveryMessages(params: {
   const actionable = params.deliverables.filter((deliverable) => deliverable.status === 'available' && deliverable.url);
   const directDeliverables = actionable.filter((deliverable) => deliverable.delivery_type === 'external_link');
   const memberDeliverables = actionable.filter((deliverable) => deliverable.delivery_type === 'member_area');
-
+  const hasSpecificDelivery = memberDeliverables.length > 0 || directDeliverables.length > 0;
   const messages: DeliveryEmailMessage[] = [];
-
-  messages.push(buildTemplateMessage({
-    kind: 'purchase_confirmation',
-    eventType: 'ORDER_COMPLETED',
-  }));
 
   if (memberDeliverables.length > 0) {
     messages.push(buildTemplateMessage({
@@ -173,18 +168,11 @@ function buildDeliveryMessages(params: {
     }));
   }
 
-  if (memberDeliverables.length === 0 && directDeliverables.length === 0) {
-    messages.push({
-      kind: 'processing',
-      subject: 'Pedido aprovado',
-      deliverables: [],
-      html: renderEmailShell({
-        title: 'Pedido aprovado',
-        greetingName: params.customerName,
-        intro: 'Seu pagamento foi aprovado. A entrega automatica ainda esta em processamento; caso precise de ajuda, responda este e-mail.',
-        businessName: params.businessName,
-      }),
-    });
+  if (!hasSpecificDelivery) {
+    messages.push(buildTemplateMessage({
+      kind: 'purchase_confirmation',
+      eventType: 'ORDER_COMPLETED',
+    }));
   }
 
   return messages;

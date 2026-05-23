@@ -211,7 +211,7 @@ export const EmailTemplateModal: React.FC<EmailTemplateModalProps> = ({ isOpen, 
                     {isPurchaseConfirmationTemplate && (
                         <div className="bg-white/5 border border-white/10 rounded-xl p-4">
                             <p className="text-xs text-gray-300 leading-relaxed">
-                                Este modelo confirma a compra aprovada. Ele nao envia links de acesso nem botoes de entrega.
+                                Este modelo confirma a compra aprovada apenas quando o pedido nao gerar um e-mail especifico de entrega. Ele nao envia links de acesso nem botoes de entrega.
                             </p>
                         </div>
                     )}
