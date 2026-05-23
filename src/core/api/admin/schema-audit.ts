@@ -1,5 +1,11 @@
-import { createClient } from '@supabase/supabase-js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import {
+  getLocalSupabasePublicConfig,
+  getLocalSupabaseServerKeyErrorMessage,
+  isLocalSupabaseServerKeyFailure,
+  resolveLocalSupabaseServerClient,
+  validateLocalUserWithPublicKey,
+} from '../_supabase-server.js';
 import {
   CURRENT_SCHEMA_VERSION,
   compareVersions,
@@ -22,19 +28,6 @@ const SCHEMA_CHECKS = [
   { table: 'system_updates_log', columns: ['action', 'status', 'files_affected'] }
 ];
 
-async function validateLocalUser(supabaseUrl: string, anonKey: string, jwt: string) {
-  const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
-    headers: {
-      apikey: anonKey,
-      Authorization: `Bearer ${jwt}`
-    }
-  });
-
-  if (!response.ok) return null;
-  const user = await response.json();
-  return user?.id ? user : null;
-}
-
 function detectMissingColumn(message: string, columns: string[]) {
   const normalized = message.toLowerCase();
   return columns.find(column => normalized.includes(`'${column.toLowerCase()}'`) || normalized.includes(` ${column.toLowerCase()} `));
@@ -44,11 +37,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'GET' && req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const serviceKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !anonKey || !serviceKey) {
+  const { supabaseUrl, publicKey } = getLocalSupabasePublicConfig();
+  if (!supabaseUrl || !publicKey) {
     return res.status(500).json({ error: 'Server configuration error' });
   }
 
@@ -56,18 +46,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const jwt = authHeader.startsWith('Bearer ') ? authHeader.replace('Bearer ', '') : '';
   if (!jwt) return res.status(401).json({ error: 'Missing authorization' });
 
-  const user = await validateLocalUser(supabaseUrl, anonKey, jwt);
+  const user = await validateLocalUserWithPublicKey(jwt);
   if (!user?.id) return res.status(401).json({ error: 'Invalid session' });
 
-  const supabase = createClient(supabaseUrl, serviceKey, {
-    auth: { autoRefreshToken: false, persistSession: false }
-  });
+  const { supabase, probeError } = await resolveLocalSupabaseServerClient();
+  if (!supabase) {
+    return res.status(500).json({ error: getLocalSupabaseServerKeyErrorMessage() });
+  }
 
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('role')
     .eq('id', user.id)
     .maybeSingle();
+
+  if (isLocalSupabaseServerKeyFailure(profileError || probeError)) {
+    return res.status(500).json({ error: getLocalSupabaseServerKeyErrorMessage() });
+  }
 
   if (profileError || !['admin', 'owner', 'master_admin'].includes(profile?.role)) {
     return res.status(403).json({ error: 'Admin access required' });
@@ -82,6 +77,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .limit(1);
 
     if (error) {
+      if (isLocalSupabaseServerKeyFailure(error)) {
+        return res.status(500).json({ error: getLocalSupabaseServerKeyErrorMessage() });
+      }
+
       const message = error.message || 'Schema check failed';
       const missingColumn = detectMissingColumn(message, check.columns);
       console.warn('[schema-audit] Drift detected:', {
@@ -105,6 +104,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     .from('schema_migrations')
     .select('version,success');
 
+  if (isLocalSupabaseServerKeyFailure(migrationState.error)) {
+    return res.status(500).json({ error: getLocalSupabaseServerKeyErrorMessage() });
+  }
+
   if (migrationState.error) {
     drifts.push({
       type: 'migration_state_unverified',
@@ -117,7 +120,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .filter((row) => row?.success)
         .map((row) => String(row.version || '').trim())
         .filter(Boolean)
-    )).sort(compareVersions);
+    )) as string[];
+    successfulVersions.sort(compareVersions);
 
     const latestCompletedMigration = successfulVersions[successfulVersions.length - 1] || null;
     if (!latestCompletedMigration) {
@@ -144,6 +148,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .select('db_version')
         .limit(1)
         .maybeSingle();
+
+      if (isLocalSupabaseServerKeyFailure(systemInfoState.error)) {
+        return res.status(500).json({ error: getLocalSupabaseServerKeyErrorMessage() });
+      }
 
       if (!systemInfoState.error && systemInfoState.data?.db_version && systemInfoState.data.db_version !== latestCompletedMigration) {
         drifts.push({

@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { getLocalSupabaseServerConfig } from './_supabase-server.js';
 
 export type ApiRole = 'owner' | 'admin' | 'master_admin' | 'member' | 'client';
 export type AuthzSeverity = 'INFO' | 'WARNING' | 'CRITICAL' | 'FATAL';
@@ -75,9 +76,11 @@ function sanitizeMetadata(metadata: Record<string, unknown> = {}) {
 }
 
 export function getSupabaseServerConfig() {
+  const { supabaseUrl, serverKey } = getLocalSupabaseServerConfig();
+
   return {
-    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || '',
-    serviceRoleKey: process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '',
+    supabaseUrl,
+    serviceRoleKey: serverKey,
   };
 }
 

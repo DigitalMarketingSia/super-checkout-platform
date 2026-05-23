@@ -119,11 +119,36 @@ export const SystemManager = {
 
         const json = await response.json().catch(() => ({}));
 
-        if (response.ok) {
-          if (json?.data) return json.data as SystemInfo;
-        }
-        console.warn('[SystemManager] Server system info failed:', json.error || response.statusText);
+      if (response.ok) {
+        if (json?.data) return json.data as SystemInfo;
       }
+
+      if (json?.error) {
+        console.warn('[SystemManager] Server system info failed:', json.error);
+
+        const { data, error } = await supabase
+          .from('system_info')
+          .select('*')
+          .single();
+
+        if (error) {
+          console.error('[SystemManager] Error fetching fallback system info:', error);
+          return null;
+        }
+
+        return {
+          ...(data as SystemInfo),
+          reported_db_version: data.db_version,
+          latest_completed_migration: null,
+          pending_migrations: [],
+          pending_migration_count: 0,
+          database_status: 'unverified',
+          system_info_present: true,
+        };
+      }
+
+      console.warn('[SystemManager] Server system info failed:', response.statusText);
+    }
 
       const { data, error } = await supabase
         .from('system_info')
@@ -609,7 +634,20 @@ export const SystemManager = {
         return json.data;
       }
 
-      console.warn('[SystemManager] Server schema audit failed:', json.error || response.statusText);
+      if (json?.error) {
+        console.warn('[SystemManager] Server schema audit failed:', json.error);
+        return {
+          is_healthy: false,
+          drifts: [{
+            type: 'server_configuration_error',
+            name: 'schema-audit',
+            message: json.error,
+          }],
+          checked_at: new Date().toISOString()
+        };
+      }
+
+      console.warn('[SystemManager] Server schema audit failed:', response.statusText);
     }
 
     const checks = [

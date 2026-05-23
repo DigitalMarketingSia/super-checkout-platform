@@ -1,6 +1,12 @@
-import { createClient } from '@supabase/supabase-js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { enforceApiRateLimit } from '../_rate-limit.js';
+import {
+  getLocalSupabasePublicConfig,
+  getLocalSupabaseServerKeyErrorMessage,
+  isLocalSupabaseServerKeyFailure,
+  resolveLocalSupabaseServerClient,
+  validateLocalUserWithPublicKey,
+} from '../_supabase-server.js';
 
 function parseBody(req: VercelRequest) {
   if (!req.body) return {};
@@ -12,19 +18,6 @@ function parseBody(req: VercelRequest) {
     }
   }
   return req.body;
-}
-
-async function validateLocalUser(supabaseUrl: string, anonKey: string, jwt: string) {
-  const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
-    headers: {
-      apikey: anonKey,
-      Authorization: `Bearer ${jwt}`
-    }
-  });
-
-  if (!response.ok) return null;
-  const user = await response.json();
-  return user?.id ? user : null;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -42,11 +35,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(429).json({ error: 'Too many requests' });
   }
 
-  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY;
-
-  if (!supabaseUrl || !anonKey || !serviceKey) {
+  const { supabaseUrl, publicKey } = getLocalSupabasePublicConfig();
+  if (!supabaseUrl || !publicKey) {
     return res.status(500).json({ error: 'Server configuration error' });
   }
 
@@ -54,18 +44,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const jwt = authHeader.startsWith('Bearer ') ? authHeader.replace('Bearer ', '') : '';
   if (!jwt) return res.status(401).json({ error: 'Missing authorization' });
 
-  const user = await validateLocalUser(supabaseUrl, anonKey, jwt);
+  const user = await validateLocalUserWithPublicKey(jwt);
   if (!user?.id) return res.status(401).json({ error: 'Invalid session' });
 
-  const supabase = createClient(supabaseUrl, serviceKey, {
-    auth: { autoRefreshToken: false, persistSession: false }
-  });
+  const { supabase, probeError } = await resolveLocalSupabaseServerClient();
+  if (!supabase) {
+    return res.status(500).json({ error: getLocalSupabaseServerKeyErrorMessage() });
+  }
 
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('role')
     .eq('id', user.id)
     .maybeSingle();
+
+  if (isLocalSupabaseServerKeyFailure(profileError || probeError)) {
+    return res.status(500).json({ error: getLocalSupabaseServerKeyErrorMessage() });
+  }
 
   if (profileError || !['admin', 'owner', 'master_admin'].includes(profile?.role)) {
     return res.status(403).json({ error: 'Admin access required' });

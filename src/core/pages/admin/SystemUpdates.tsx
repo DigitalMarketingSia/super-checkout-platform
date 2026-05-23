@@ -260,6 +260,7 @@ export const SystemUpdates = () => {
     const formatDrift = (drift: any) => {
         if (drift.type === 'table_missing') return `Tabela ausente: ${drift.name}`;
         if (drift.type === 'column_missing') return `Coluna ausente: ${drift.name}.${drift.column || '?'}`;
+        if (drift.type === 'server_configuration_error') return drift.message || 'A auditoria server-side falhou por configuracao.';
         if (drift.type === 'migration_pending') return drift.message || 'Migrations aprovadas pendentes.';
         if (drift.type === 'migration_state_unverified') return drift.message || 'Nao foi possivel comprovar o estado real do schema.';
         if (drift.type === 'db_version_mismatch') return `Versao registrada diverge do schema: ${drift.current_version || '?'} vs ${drift.expected_version || '?'}`;
