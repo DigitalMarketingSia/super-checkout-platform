@@ -3,6 +3,11 @@ import { createClient } from '@supabase/supabase-js';
 import healthHandler from '../src/core/api/health.js';
 import proxyHandler from '../src/core/api/proxy.js';
 import sendEmailHandler from '../src/core/api/send-email.js';
+import {
+    getLocalSupabasePublicConfig,
+    getLocalSupabaseServerKeyErrorMessage,
+    resolveLocalSupabaseServerClient,
+} from '../src/core/api/_supabase-server.js';
 import { sendOrderAccessEmail } from '../src/core/services/orderEmail.js';
 import { buildOrderDeliverables, stripSensitiveDeliverableFields } from '../src/core/services/orderDeliverables.js';
 import { verifySignature } from '../src/core/utils/cryptoUtils.js';
@@ -21,13 +26,6 @@ function getSupabaseAnonKey() {
     return process.env.SUPABASE_ANON_KEY ||
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
         process.env.VITE_SUPABASE_ANON_KEY;
-}
-
-function getSupabaseServiceKey() {
-    return process.env.SUPABASE_SECRET_KEY
-        || process.env.SUPABASE_SECRET_KEY_NEW
-        || process.env.SUPABASE_SERVICE_ROLE_KEY
-        || process.env.SUPABASE_SERVICE_ROLE_KEY_NEW;
 }
 
 function getAllowedOrigins() {
@@ -228,14 +226,12 @@ async function autoLoginHandler(req: VercelRequest, res: VercelResponse) {
     const verified = verifyLoginToken(token);
     if (!verified) return res.status(401).json({ error: 'Invalid or expired token' });
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-    const serviceKey = getSupabaseServiceKey() || process.env.CENTRAL_SERVICE_ROLE_KEY;
-    const authApiKey = getSupabaseAnonKey() || serviceKey;
-    if (!supabaseUrl || !serviceKey) {
-      return res.status(500).json({ error: 'Server configuration error' });
+    const { supabaseUrl, publicKey } = getLocalSupabasePublicConfig();
+    const { supabase: supabaseAdmin } = await resolveLocalSupabaseServerClient();
+    const authApiKey = publicKey || getSupabaseAnonKey();
+    if (!supabaseUrl || !supabaseAdmin || !authApiKey) {
+      return res.status(500).json({ error: getLocalSupabaseServerKeyErrorMessage() });
     }
-
-    const supabaseAdmin = createClient(supabaseUrl, serviceKey);
 
     // Generate magic link token server-side
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
@@ -304,12 +300,6 @@ async function resendOrderAccessHandler(req: VercelRequest, res: VercelResponse)
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-  const serviceKey = getSupabaseServiceKey();
-  if (!supabaseUrl || !serviceKey) {
-    return res.status(500).json({ error: 'Server configuration error' });
-  }
-
   const body = await readJsonBody(req);
   const orderId = String(body.orderId || '').trim();
   if (!UUID_REGEX.test(orderId)) {
@@ -331,7 +321,11 @@ async function resendOrderAccessHandler(req: VercelRequest, res: VercelResponse)
   if (!accessToken) return res.status(401).json({ error: 'Missing authorization token' });
 
   try {
-    const supabaseAdmin = createClient(supabaseUrl, serviceKey);
+    const { supabase: supabaseAdmin } = await resolveLocalSupabaseServerClient();
+    if (!supabaseAdmin) {
+      return res.status(500).json({ error: getLocalSupabaseServerKeyErrorMessage() });
+    }
+
     const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(accessToken);
     const user = userData?.user;
     if (userError || !user?.id) return res.status(401).json({ error: 'Invalid authorization token' });
@@ -409,14 +403,12 @@ async function orderDeliverablesHandler(req: VercelRequest, res: VercelResponse)
     return res.status(200).json({ status: 'pending', deliverables: [], authorized: false });
   }
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-  const serviceKey = getSupabaseServiceKey();
-  if (!supabaseUrl || !serviceKey) {
-    return res.status(500).json({ error: 'Server configuration error' });
-  }
-
   try {
-    const supabaseAdmin = createClient(supabaseUrl, serviceKey);
+    const { supabase: supabaseAdmin } = await resolveLocalSupabaseServerClient();
+    if (!supabaseAdmin) {
+      return res.status(500).json({ error: getLocalSupabaseServerKeyErrorMessage() });
+    }
+
     const { data: order, error: orderError } = await supabaseAdmin
       .from('orders')
       .select('id, status, customer_email, customer_name, items, metadata, checkout_id')
@@ -593,12 +585,6 @@ async function memberPasswordResetHandler(req: VercelRequest, res: VercelRespons
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-  const serviceKey = getSupabaseServiceKey();
-  if (!supabaseUrl || !serviceKey) {
-    return res.status(500).json({ error: 'Server configuration error' });
-  }
-
   const body = await readJsonBody(req);
   const email = String(body.email || '').trim().toLowerCase();
   const memberAreaSlug = String(body.member_area_slug || '').trim();
@@ -617,7 +603,11 @@ async function memberPasswordResetHandler(req: VercelRequest, res: VercelRespons
   }
 
   try {
-    const supabaseAdmin = createClient(supabaseUrl, serviceKey);
+    const { supabase: supabaseAdmin } = await resolveLocalSupabaseServerClient();
+    if (!supabaseAdmin) {
+      return res.status(500).json({ error: getLocalSupabaseServerKeyErrorMessage() });
+    }
+
     const origin = normalizeRequestOrigin(req);
     const { data: memberArea } = await supabaseAdmin
       .from('member_areas')
