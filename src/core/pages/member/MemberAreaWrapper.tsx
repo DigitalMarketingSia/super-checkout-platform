@@ -46,14 +46,18 @@ export const MemberAreaWrapper = ({ forcedSlug }: { forcedSlug?: string }) => {
                             window.location.replace(newUrl);
                             return;
                         }
+
+                        console.error('[Wrapper] Auto-login returned success without session tokens');
                     } else {
                         const err = await res.json().catch(() => ({}));
                         console.error('[Wrapper] Auto-login failed:', err);
-                    }
 
-                    params.delete('login_token');
-                    const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '') + window.location.hash;
-                    window.history.replaceState({}, document.title, newUrl);
+                        if (res.status === 401) {
+                            params.delete('login_token');
+                            const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '') + window.location.hash;
+                            window.history.replaceState({}, document.title, newUrl);
+                        }
+                    }
                 } catch (e) {
                     console.error('[Wrapper] Auto-login error:', e);
                 }
