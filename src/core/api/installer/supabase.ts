@@ -487,8 +487,10 @@ CREATE TABLE IF NOT EXISTS licenses (
   client_email TEXT NOT NULL,
   client_name TEXT,
   status TEXT DEFAULT 'active',
+  account_id UUID REFERENCES public.accounts(id),
   allowed_domain TEXT,
   plan TEXT DEFAULT 'lifetime',
+  max_instances INTEGER DEFAULT 1,
   activated_at TIMESTAMP WITH TIME ZONE,
   expires_at TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
@@ -496,9 +498,11 @@ CREATE TABLE IF NOT EXISTS licenses (
 
 DO $$
 BEGIN
+    ALTER TABLE licenses ADD COLUMN IF NOT EXISTS account_id UUID REFERENCES public.accounts(id);
     ALTER TABLE licenses ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP WITH TIME ZONE;
     ALTER TABLE licenses ADD COLUMN IF NOT EXISTS allowed_domain TEXT;
     ALTER TABLE licenses ADD COLUMN IF NOT EXISTS plan TEXT DEFAULT 'lifetime';
+    ALTER TABLE licenses ADD COLUMN IF NOT EXISTS max_instances INTEGER DEFAULT 1;
 END $$;
 
 CREATE TABLE IF NOT EXISTS validation_logs (
