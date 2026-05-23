@@ -57,6 +57,8 @@ export const EmailTemplateModal: React.FC<EmailTemplateModalProps> = ({ isOpen, 
 
     const availableVariables = EVENT_VARIABLES[template.event_type] ||
         (isSystem ? EVENT_VARIABLES['SYSTEM_ORDER_COMPLETED'] : EVENT_VARIABLES['ORDER_COMPLETED']);
+    const isDeliverablesTemplate = template.event_type === 'ORDER_DIRECT_DELIVERY' || template.event_type === 'ORDER_MEMBER_ACCESS';
+    const isPurchaseConfirmationTemplate = template.event_type === 'ORDER_COMPLETED';
 
     const insertVariable = (variable: string) => {
         if (viewMode === 'code') {
@@ -205,6 +207,22 @@ export const EmailTemplateModal: React.FC<EmailTemplateModalProps> = ({ isOpen, 
                             </div>
                         </div>
                     </div>
+
+                    {isPurchaseConfirmationTemplate && (
+                        <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                            <p className="text-xs text-gray-300 leading-relaxed">
+                                Este modelo confirma a compra aprovada. Ele nao envia links de acesso nem botoes de entrega.
+                            </p>
+                        </div>
+                    )}
+
+                    {isDeliverablesTemplate && (
+                        <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                            <p className="text-xs text-gray-300 leading-relaxed">
+                                Os botoes reais aparecem no envio atraves de <code className="text-primary">{'{{deliverables_html}}'}</code>. No envio ao cliente, o sistema injeta esse bloco no servidor com os links liberados para aquele pedido.
+                            </p>
+                        </div>
+                    )}
 
                     <div className="space-y-6">
                         {/* Subject */}
