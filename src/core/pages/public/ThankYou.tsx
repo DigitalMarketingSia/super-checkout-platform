@@ -15,8 +15,35 @@ interface OrderDeliverable {
   delivery_type: 'external_link' | 'member_area' | 'none';
   status: 'available' | 'not_configured';
   url: string | null;
+  visual_url?: string | null;
   label: string;
   instructions?: string | null;
+}
+
+function normalizeStoredDeliverables(value: unknown): OrderDeliverable[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .filter((item) => item && typeof item === 'object')
+    .map((item: any): OrderDeliverable => {
+      const deliveryType: OrderDeliverable['delivery_type'] =
+        item.delivery_type === 'member_area' || item.delivery_type === 'external_link'
+          ? item.delivery_type
+          : 'none';
+      const status: OrderDeliverable['status'] = item.status === 'available' ? 'available' : 'not_configured';
+
+      return {
+        id: String(item.id || ''),
+        title: String(item.title || 'Produto'),
+        delivery_type: deliveryType,
+        status,
+        url: item.url || item.visual_url || null,
+        visual_url: item.visual_url || null,
+        label: String(item.label || 'Acessar'),
+        instructions: item.instructions || null,
+      };
+    })
+    .filter((item) => Boolean(item.id));
 }
 
 const PurchaseTracker: React.FC<{ order: Order }> = ({ order }) => {
@@ -59,13 +86,22 @@ export const ThankYou = () => {
         if (orderError) throw orderError;
         setOrder(orderData);
 
+        const storedDeliverables = normalizeStoredDeliverables(orderData?.metadata?.order_deliverables);
+        if (storedDeliverables.length > 0) {
+          setDeliverables(storedDeliverables);
+        }
+
         if (orderData?.status === 'paid' || orderData?.status === 'approved') {
           const sig = new URLSearchParams(location.search).get('sig') || '';
           const deliveryResponse = await fetch(getApiUrl(`/api/system?action=order-deliverables&orderId=${encodeURIComponent(orderId)}&sig=${encodeURIComponent(sig)}`));
           if (deliveryResponse.ok) {
             const deliveryData = await deliveryResponse.json().catch(() => ({}));
             if (Array.isArray(deliveryData?.deliverables)) {
-              setDeliverables(deliveryData.deliverables);
+              if (deliveryData.deliverables.length > 0) {
+                setDeliverables(deliveryData.deliverables);
+              } else if (!sig && storedDeliverables.length > 0) {
+                setDeliverables(storedDeliverables);
+              }
             }
           }
         }
