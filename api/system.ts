@@ -48,6 +48,38 @@ function getAllowedOrigins() {
     return Array.from(new Set(origins.filter(Boolean) as string[]));
 }
 
+async function readJsonBody(req: VercelRequest) {
+    if (req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body)) {
+        return req.body as Record<string, any>;
+    }
+
+    const chunks: Buffer[] = [];
+    const preload = req.body;
+
+    if (typeof preload === 'string' && preload.trim()) {
+        chunks.push(Buffer.from(preload));
+    } else if (Buffer.isBuffer(preload) && preload.length > 0) {
+        chunks.push(preload);
+    } else if (!preload && typeof (req as any)[Symbol.asyncIterator] === 'function') {
+        for await (const chunk of req as any as AsyncIterable<Buffer | string>) {
+            if (typeof chunk === 'string') {
+                if (chunk) chunks.push(Buffer.from(chunk));
+                continue;
+            }
+
+            if (chunk?.length) chunks.push(Buffer.from(chunk));
+        }
+    }
+
+    if (chunks.length === 0) return {};
+
+    try {
+        return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    } catch {
+        return {};
+    }
+}
+
 function applyPublicCors(req: VercelRequest, res: VercelResponse) {
     const origin = req.headers.origin;
     const allowedOrigins = getAllowedOrigins();
@@ -171,38 +203,38 @@ async function publicGatewayHandler(req: VercelRequest, res: VercelResponse) {
 
 
 async function autoLoginHandler(req: VercelRequest, res: VercelResponse) {
-  const corsAllowed = applyMemberCors(req, res);
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (!corsAllowed) return res.status(403).json({ error: 'Origin not allowed' });
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-
-  const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
-  const { token } = body;
-  if (!token) return res.status(400).json({ error: 'Missing token' });
-
-  const rateLimit = enforceApiRateLimit(req, res, {
-    scope: 'system_auto_login',
-    identifiers: [String(token || '').slice(0, 64)],
-    limit: 10,
-    windowMs: 15 * 60 * 1000,
-  });
-  if (!rateLimit.allowed) {
-    return res.status(429).json({ error: 'Too many requests' });
-  }
-
-  const verified = verifyLoginToken(token);
-  if (!verified) return res.status(401).json({ error: 'Invalid or expired token' });
-
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-  const serviceKey = getSupabaseServiceKey() || process.env.CENTRAL_SERVICE_ROLE_KEY;
-  const authApiKey = getSupabaseAnonKey() || serviceKey;
-  if (!supabaseUrl || !serviceKey) {
-    return res.status(500).json({ error: 'Server configuration error' });
-  }
-
   try {
+    const corsAllowed = applyMemberCors(req, res);
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    if (req.method === 'OPTIONS') return res.status(200).end();
+    if (!corsAllowed) return res.status(403).json({ error: 'Origin not allowed' });
+    if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+    const body = await readJsonBody(req);
+    const token = String(body?.token || '').trim();
+    if (!token) return res.status(400).json({ error: 'Missing token' });
+
+    const rateLimit = enforceApiRateLimit(req, res, {
+      scope: 'system_auto_login',
+      identifiers: [token.slice(0, 64)],
+      limit: 10,
+      windowMs: 15 * 60 * 1000,
+    });
+    if (!rateLimit.allowed) {
+      return res.status(429).json({ error: 'Too many requests' });
+    }
+
+    const verified = verifyLoginToken(token);
+    if (!verified) return res.status(401).json({ error: 'Invalid or expired token' });
+
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+    const serviceKey = getSupabaseServiceKey() || process.env.CENTRAL_SERVICE_ROLE_KEY;
+    const authApiKey = getSupabaseAnonKey() || serviceKey;
+    if (!supabaseUrl || !serviceKey) {
+      return res.status(500).json({ error: 'Server configuration error' });
+    }
+
     const supabaseAdmin = createClient(supabaseUrl, serviceKey);
 
     // Generate magic link token server-side
@@ -258,7 +290,7 @@ async function autoLoginHandler(req: VercelRequest, res: VercelResponse) {
       refresh_token: successfulAttempt?.sessionData?.refresh_token,
     });
   } catch (err: any) {
-    console.error('[AutoLogin] Error:', err.message);
+    console.error('[AutoLogin] Error:', err?.message || err);
     return res.status(500).json({ error: 'Internal error' });
   }
 }
@@ -278,7 +310,7 @@ async function resendOrderAccessHandler(req: VercelRequest, res: VercelResponse)
     return res.status(500).json({ error: 'Server configuration error' });
   }
 
-  const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+  const body = await readJsonBody(req);
   const orderId = String(body.orderId || '').trim();
   if (!UUID_REGEX.test(orderId)) {
     return res.status(400).json({ error: 'Invalid orderId' });
@@ -567,7 +599,7 @@ async function memberPasswordResetHandler(req: VercelRequest, res: VercelRespons
     return res.status(500).json({ error: 'Server configuration error' });
   }
 
-  const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+  const body = await readJsonBody(req);
   const email = String(body.email || '').trim().toLowerCase();
   const memberAreaSlug = String(body.member_area_slug || '').trim();
   const rateLimit = enforceApiRateLimit(req, res, {
