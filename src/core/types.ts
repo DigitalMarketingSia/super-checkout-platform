@@ -408,10 +408,16 @@ export interface ActivityLog {
 
 export interface SystemInfo {
   id: string;
-  core_version: string;
+  core_version: string | null;
   db_version: string;
-  ui_version: string;
-  installed_at: string;
+  reported_db_version?: string | null;
+  latest_completed_migration?: string | null;
+  pending_migrations?: string[];
+  pending_migration_count?: number;
+  database_status?: 'current' | 'pending' | 'unverified';
+  system_info_present?: boolean;
+  ui_version: string | null;
+  installed_at: string | null;
   last_update_at?: string;
   license_key?: string;
   github_installation_id?: string; // New: GitHub App Integration

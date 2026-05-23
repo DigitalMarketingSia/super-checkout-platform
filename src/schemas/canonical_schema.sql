@@ -3,7 +3,7 @@
 -- ==========================================
 CREATE TABLE IF NOT EXISTS public.system_info(
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    db_version TEXT NOT NULL DEFAULT '1.0.11',
+    db_version TEXT NOT NULL DEFAULT '1.0.12',
     last_update_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
     github_installation_id TEXT,
     github_repository TEXT,
@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS public.system_info(
 );
 
 INSERT INTO public.system_info (db_version) 
-SELECT '1.0.11' WHERE NOT EXISTS (SELECT 1 FROM public.system_info);
+SELECT '1.0.12' WHERE NOT EXISTS (SELECT 1 FROM public.system_info);
 
 DO $$
 BEGIN
@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS public.system_updates_log(
 
 ALTER TABLE public.system_info ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_updates_log ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Authenticated users can manage system update logs" ON public.system_updates_log FOR ALL USING(auth.role() = 'authenticated') WITH CHECK(auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Authenticated users can manage system update logs" ON public.system_updates_log;
 
 CREATE TABLE IF NOT EXISTS public.system_email_templates(
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -1584,8 +1584,19 @@ INSERT INTO public.schema_migrations(version, description, success, execution_ti
 SELECT '1.0.11', 'Canonical schema includes approved migration executor hardening', true, 0
 WHERE NOT EXISTS (SELECT 1 FROM public.schema_migrations WHERE version = '1.0.11');
 
+UPDATE public.schema_migrations
+SET success = true,
+    description = 'Canonical schema keeps update history service-role only',
+    error_log = NULL,
+    executed_at = timezone('utc'::text, now())
+WHERE version = '1.0.12';
+
+INSERT INTO public.schema_migrations(version, description, success, execution_time_ms)
+SELECT '1.0.12', 'Canonical schema keeps update history service-role only', true, 0
+WHERE NOT EXISTS (SELECT 1 FROM public.schema_migrations WHERE version = '1.0.12');
+
 UPDATE public.system_info
-SET db_version = '1.0.11',
+SET db_version = '1.0.12',
     last_update_at = timezone('utc'::text, now());
 
 NOTIFY pgrst, 'reload schema';

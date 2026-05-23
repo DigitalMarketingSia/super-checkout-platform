@@ -67,40 +67,40 @@ export const SystemManager = {
   async logLocalUpdate(action: string, status: string, message: string, filesAffected: any = null): Promise<boolean> {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (session?.access_token) {
-        const response = await fetch('/api/admin/update-log', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${session.access_token}`
-          },
-          body: JSON.stringify({
-            action,
-            status,
-            message,
-            files_affected: filesAffected || {}
-          })
-        });
-
-        if (response.ok) return true;
-
-        const data = await response.json().catch(() => ({}));
-        console.warn('[SystemManager] Server update log failed:', data.error || response.statusText);
+      if (!session?.access_token) {
+        console.warn('[SystemManager] Could not write update log: missing admin session.');
+        return false;
       }
 
-      const { error } = await supabase.from('system_updates_log').insert({
-        action,
-        status,
-        message,
-        files_affected: filesAffected || {}
+      const response = await fetch('/api/admin/update-log', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          action,
+          status,
+          message,
+          files_affected: filesAffected || {}
+        })
       });
 
-      if (error) throw error;
-      return true;
+      if (response.ok) return true;
+
+      const data = await response.json().catch(() => ({}));
+      console.warn('[SystemManager] Server update log failed:', data.error || response.statusText);
+      return false;
     } catch (error) {
       console.warn('[SystemManager] Could not write update log:', error);
       return false;
     }
+  },
+
+  getPendingMigrationVersions(info: Pick<SystemInfo, 'pending_migrations'> | null | undefined): string[] {
+    return Array.isArray(info?.pending_migrations)
+      ? info.pending_migrations.filter((version) => typeof version === 'string' && version.trim().length > 0)
+      : [];
   },
 
   /**
@@ -117,10 +117,12 @@ export const SystemManager = {
           }
         });
 
+        const json = await response.json().catch(() => ({}));
+
         if (response.ok) {
-          const json = await response.json();
           if (json?.data) return json.data as SystemInfo;
         }
+        console.warn('[SystemManager] Server system info failed:', json.error || response.statusText);
       }
 
       const { data, error } = await supabase
@@ -260,10 +262,15 @@ export const SystemManager = {
   async syncSystemFiles(): Promise<{ success: boolean; message?: string; filesUpdated?: number; historyLogged?: boolean }> {
     try {
       const centralResult = await this.invokeCentralUpdateRunner('sync');
+      if ((centralResult.filesUpdated || 0) > 0 && !centralResult.backupBranch) {
+        throw new Error('A Central nao confirmou a branch de backup. Sincronizacao abortada.');
+      }
+
       const historyLogged = await this.logLocalUpdate('sync', 'success', centralResult.message || 'Sincronizacao concluida pela Central.', {
         commit_hash: centralResult.commitHash,
         backup_branch: centralResult.backupBranch,
-        files_updated: centralResult.filesUpdated
+        files_updated: centralResult.filesUpdated,
+        files_removed: centralResult.filesRemoved || 0
       });
 
       return {
@@ -274,6 +281,7 @@ export const SystemManager = {
       };
     } catch (err: any) {
       console.error('[SystemManager] Sync failed:', err);
+      await this.logLocalUpdate('sync', 'failed', err.message || 'Falha na sincronizacao de codigo.');
       return { success: false, message: err.message };
     }
   },
@@ -285,7 +293,8 @@ export const SystemManager = {
     try {
       const centralResult = await this.invokeCentralUpdateRunner('rollback', { backupBranch });
       await this.logLocalUpdate('rollback', 'success', centralResult.message || 'Rollback concluido pela Central.', {
-        backup_branch: backupBranch
+        backup_branch: backupBranch,
+        commit_hash: centralResult.commitHash || null
       });
 
       return {
@@ -294,6 +303,9 @@ export const SystemManager = {
       };
     } catch (err: any) {
       console.error('[SystemManager] Rollback failed:', err);
+      await this.logLocalUpdate('rollback', 'failed', err.message || 'Falha ao reverter codigo.', {
+        backup_branch: backupBranch
+      });
       return { success: false, message: err.message };
     }
   },
@@ -304,6 +316,11 @@ export const SystemManager = {
   async checkMigrationsRequired(): Promise<boolean> {
     const info = await this.getSystemInfo();
     if (!info) return false;
+
+    if (info.database_status === 'unverified') return true;
+
+    const pendingVersions = this.getPendingMigrationVersions(info);
+    if (pendingVersions.length > 0) return true;
 
     return this.compareVersions(info.db_version, SCHEMA_VERSION) < 0;
   },
@@ -416,9 +433,17 @@ export const SystemManager = {
     try {
       const info = await this.getSystemInfo();
       if (!info) return { success: false, applied: [], error: 'Could not fetch system info' };
+      if (info.database_status === 'unverified' && this.getPendingMigrationVersions(info).length === 0) {
+        return {
+          success: false,
+          applied: [],
+          error: 'Nao foi possivel comprovar o estado real do schema. Rode a auditoria do banco antes de aplicar novas migrations.'
+        };
+      }
 
       const currentDbVersion = info.db_version;
       const applied: string[] = [];
+      const explicitPendingVersions = new Set(this.getPendingMigrationVersions(info));
 
       // Get all migration files, extract version, and sort them
       const availableMigrations = Object.keys(migrations)
@@ -435,8 +460,12 @@ export const SystemManager = {
 
       // Filter pending migrations (v > currentDbVersion)
       const pending = availableMigrations.filter(m => 
-        this.compareVersions(m.version, currentDbVersion) > 0 && 
-        this.compareVersions(m.version, SCHEMA_VERSION) <= 0
+        explicitPendingVersions.size > 0
+          ? explicitPendingVersions.has(m.version)
+          : (
+            this.compareVersions(m.version, currentDbVersion) > 0
+            && this.compareVersions(m.version, SCHEMA_VERSION) <= 0
+          )
       );
 
       console.log(`[SystemManager] Found ${pending.length} pending migrations from v${currentDbVersion} to v${SCHEMA_VERSION}`);
@@ -446,7 +475,7 @@ export const SystemManager = {
         const result = await this.runMigration(
           migration.version,
           migration.sql,
-          `Auto-migration from codebase discover`
+          'Atualizacao aprovada aplicada pelo painel administrativo'
         );
 
         if (!result.success) {
@@ -472,35 +501,11 @@ export const SystemManager = {
    */
   async logMigration(version: string, description: string, success: boolean, timeMs: number, error?: string) {
     try {
-      const row = {
+      await this.logLocalUpdate('migration', success ? 'success' : 'failed', description, {
         version,
-        description,
-        success,
         execution_time_ms: timeMs,
-        error_log: error
-      };
-
-      const { error: upsertError } = await supabase
-        .from('schema_migrations')
-        .upsert(row, { onConflict: 'version' });
-
-      if (upsertError) {
-        const { error: insertError } = await supabase.from('schema_migrations').insert(row);
-        if (insertError) {
-          console.warn('[SystemManager] Could not write migration log:', insertError);
-        }
-      }
-
-      if (success) {
-        // Update the main system_info table
-        const { data: info } = await supabase.from('system_info').select('id').single();
-        if (info) {
-          await supabase.from('system_info').update({
-            db_version: version,
-            last_update_at: new Date().toISOString()
-          }).eq('id', info.id);
-        }
-      }
+        error: error || null
+      });
     } catch (err) {
       console.error('[SystemManager] Failed to log migration:', err);
     }
@@ -563,34 +568,22 @@ export const SystemManager = {
   async getUpdateHistory(): Promise<SystemUpdateLog[]> {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (session?.access_token) {
-        const response = await fetch('/api/admin/update-log', {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${session.access_token}`
-          }
-        });
-        const json = await response.json().catch(() => ({}));
+      if (!session?.access_token) return [];
 
-        if (response.ok) {
-          if (Array.isArray(json?.data)) return json.data as SystemUpdateLog[];
+      const response = await fetch('/api/admin/update-log', {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
         }
+      });
+      const json = await response.json().catch(() => ({}));
 
-        console.warn('[SystemManager] Server update history failed:', json.error || response.statusText);
+      if (response.ok) {
+        if (Array.isArray(json?.data)) return json.data as SystemUpdateLog[];
       }
 
-      const { data, error } = await supabase
-        .from('system_updates_log')
-        .select('*')
-        .order('executed_at', { ascending: false })
-        .limit(10);
-
-      if (error) {
-        console.error('[SystemManager] Error fetching update history:', error);
-        return [];
-      }
-
-      return (data || []) as SystemUpdateLog[];
+      console.warn('[SystemManager] Server update history failed:', json.error || response.statusText);
+      return [];
     } catch (err) {
       console.error('[SystemManager] Unexpected error fetching update history:', err);
       return [];
@@ -652,6 +645,23 @@ export const SystemManager = {
           message
         });
       }
+    }
+
+    const info = await this.getSystemInfo();
+    const pendingVersions = this.getPendingMigrationVersions(info);
+    if (info?.database_status === 'unverified') {
+      drifts.push({
+        type: 'migration_state_unverified',
+        name: 'schema_migrations',
+        message: 'Nao foi possivel comprovar o estado real do schema pelo browser.'
+      });
+    } else if (pendingVersions.length > 0) {
+      drifts.push({
+        type: 'migration_pending',
+        name: 'schema_migrations',
+        versions: pendingVersions,
+        message: `Migrations aprovadas pendentes: ${pendingVersions.join(', ')}`
+      });
     }
 
     return {

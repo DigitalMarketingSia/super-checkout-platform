@@ -69,7 +69,7 @@ export const SystemUpdates = () => {
             
             setSystemInfo(info);
             setUpdateHistory(history);
-            setUpdateAvailable(info ? SystemManager.compareVersions(info.db_version || '1.0.0', SCHEMA_VERSION) < 0 : false);
+            setUpdateAvailable(Boolean(info?.pending_migration_count && info.pending_migration_count > 0));
             
             if (info) {
                 setInstallationId(info.github_installation_id || '');
@@ -101,13 +101,25 @@ export const SystemUpdates = () => {
     const handleCheckUpdate = async () => {
         setCheckingUpdate(true);
         try {
-            const required = await SystemManager.checkMigrationsRequired();
+            const info = await SystemManager.getSystemInfo();
+            if (!info) {
+                toast.error('Nao foi possivel ler o estado do sistema.');
+                return;
+            }
+
+            const pendingVersions = SystemManager.getPendingMigrationVersions(info);
+            const required = pendingVersions.length > 0;
+            setSystemInfo(info);
             if (required) {
                 setUpdateAvailable(true);
                 setDatabaseUpdateError(null);
                 toast.info(`Atualizações de banco de dados (até v${SCHEMA_VERSION}) disponíveis.`);
             } else {
                 setUpdateAvailable(false);
+                if (info.database_status === 'unverified') {
+                    toast.error('Nao foi possivel comprovar o estado real do schema. Rode a auditoria e revise a instalacao antes de aplicar migrations.');
+                    return;
+                }
                 toast.success(`Banco de dados sincronizado com o schema v${SCHEMA_VERSION}.`);
             }
         } finally {
@@ -145,6 +157,7 @@ export const SystemUpdates = () => {
             const result = await SystemManager.syncSystemFiles();
             if (result.success) {
                 if ((result.filesUpdated || 0) > 0) {
+                    toast.info('Sincronizar Codigo nao altera o banco. Use Atualizar Banco separadamente.');
                     toast.success(`${result.filesUpdated} arquivos sincronizados. Aguarde o deploy da Vercel e recarregue a página.`);
                 } else {
                     toast.success(result.message || 'Nenhum arquivo novo encontrado no repositório oficial.');
@@ -239,11 +252,21 @@ export const SystemUpdates = () => {
         const value = log.files_updated ?? getLogMeta(log).files_updated;
         return typeof value === 'number' ? value : null;
     };
+    const getActionLabel = (log: SystemUpdateLog) => {
+        if (log.action === 'migration') return 'Banco';
+        if (log.action === 'rollback') return 'Rollback';
+        return 'Codigo';
+    };
     const formatDrift = (drift: any) => {
         if (drift.type === 'table_missing') return `Tabela ausente: ${drift.name}`;
         if (drift.type === 'column_missing') return `Coluna ausente: ${drift.name}.${drift.column || '?'}`;
+        if (drift.type === 'migration_pending') return drift.message || 'Migrations aprovadas pendentes.';
+        if (drift.type === 'migration_state_unverified') return drift.message || 'Nao foi possivel comprovar o estado real do schema.';
+        if (drift.type === 'db_version_mismatch') return `Versao registrada diverge do schema: ${drift.current_version || '?'} vs ${drift.expected_version || '?'}`;
         return drift.message || `Verificar ${drift.name || 'schema'}`;
     };
+    const pendingMigrations = SystemManager.getPendingMigrationVersions(systemInfo);
+    const isDatabaseUnverified = systemInfo?.database_status === 'unverified';
 
     if (loading) {
         return (
@@ -365,7 +388,7 @@ export const SystemUpdates = () => {
                     </div>
 
                     {/* Update Available Card */}
-                    <div className={`bg-[#0A0A15]/60 border rounded-[2rem] p-8 backdrop-blur-xl relative overflow-hidden group transition-all duration-500 ${updateAvailable ? 'border-blue-500/30 shadow-lg shadow-blue-500/5' : 'border-white/5'}`}>
+                    <div className={`bg-[#0A0A15]/60 border rounded-[2rem] p-8 backdrop-blur-xl relative overflow-hidden group transition-all duration-500 ${isDatabaseUnverified ? 'border-amber-500/30 shadow-lg shadow-amber-500/5' : updateAvailable ? 'border-blue-500/30 shadow-lg shadow-blue-500/5' : 'border-white/5'}`}>
                         <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
                             <Zap className="w-24 h-24 text-blue-500" />
                         </div>
@@ -373,20 +396,34 @@ export const SystemUpdates = () => {
                             <RefreshCw className="w-4 h-4 text-blue-500" /> Status do Banco
                         </h3>
                         <div className="space-y-4">
-                            <div className={`p-5 rounded-2xl border flex flex-col gap-4 ${updateAvailable ? 'bg-blue-500/10 border-blue-500/20 shadow-inner' : 'bg-white/5 border-white/5 opacity-70'}`}>
+                            <div className={`p-5 rounded-2xl border flex flex-col gap-4 ${isDatabaseUnverified ? 'bg-amber-500/10 border-amber-500/20 shadow-inner' : updateAvailable ? 'bg-blue-500/10 border-blue-500/20 shadow-inner' : 'bg-white/5 border-white/5 opacity-70'}`}>
                                 <div className="flex items-center gap-3">
-                                    {updateAvailable ? <AlertCircle className="w-5 h-5 text-blue-400 animate-pulse" /> : <CheckCircle2 className="w-5 h-5 text-gray-600" />}
+                                    {isDatabaseUnverified ? <AlertTriangle className="w-5 h-5 text-amber-400" /> : updateAvailable ? <AlertCircle className="w-5 h-5 text-blue-400 animate-pulse" /> : <CheckCircle2 className="w-5 h-5 text-gray-600" />}
                                     <div className="flex flex-col">
-                                        <span className={`text-xs font-black uppercase italic ${updateAvailable ? 'text-blue-400' : 'text-gray-400'}`}>
+                                        <span className={`text-xs font-black uppercase italic ${isDatabaseUnverified ? 'text-amber-400' : updateAvailable ? 'text-blue-400' : 'text-gray-400'}`}>
                                             {updateAvailable ? 'Atualização Disponível' : 'Banco Sincronizado'}
                                         </span>
                                         <span className="text-[9px] text-gray-500">Schema v{SCHEMA_VERSION} pronto</span>
                                     </div>
                                 </div>
+                                {isDatabaseUnverified && (
+                                    <p className="text-[10px] text-amber-100/80 font-medium leading-relaxed">
+                                        O sistema nao conseguiu comprovar o estado real do schema. Revise a auditoria antes de aplicar qualquer migration.
+                                    </p>
+                                )}
                                 {updateAvailable && (
                                     <p className="text-[10px] text-blue-100/70 font-medium leading-relaxed">
                                         Codigo e banco sao etapas separadas. Este botao aplica no Supabase as migrations aprovadas que faltam nesta instalacao.
                                     </p>
+                                )}
+                                {pendingMigrations.length > 0 && (
+                                    <div className="flex flex-wrap gap-2">
+                                        {pendingMigrations.map((version) => (
+                                            <span key={version} className="px-2 py-1 rounded-lg bg-blue-500/10 border border-blue-500/20 text-[9px] font-black uppercase tracking-widest text-blue-300">
+                                                v{version}
+                                            </span>
+                                        ))}
+                                    </div>
                                 )}
                                 {updateAvailable && (
                                     <button 
@@ -492,6 +529,9 @@ export const SystemUpdates = () => {
                                                             <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-tighter ${log.status === 'success' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
                                                                 {log.status === 'success' ? 'Sucesso' : 'Falha'}
                                                             </span>
+                                                            <span className="px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-tighter bg-white/5 text-gray-300">
+                                                                {getActionLabel(log)}
+                                                            </span>
                                                         </div>
                                                         <span className="text-sm font-black text-white tracking-tight mt-1 break-words">
                                                             {getBackupBranch(log) ? `Backup de código: ${getBackupBranch(log)}` : (log.message || 'Verificação registrada')}
@@ -540,9 +580,11 @@ export const SystemUpdates = () => {
                                     Atualização via GitHub
                                 </h3>
                                 {systemInfo?.github_installation_id ? (
+                                    <>
                                     <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-500/10 border border-green-500/20 rounded-full text-green-500 text-[10px] font-black uppercase tracking-widest italic animate-in fade-in zoom-in duration-700">
                                         <ShieldCheck className="w-3 h-3" /> GitHub Conectado
                                     </div>
+                                    </>
                                 ) : (
                                     <div className="inline-flex items-center gap-2 px-3 py-1 bg-primary/10 border border-primary/20 rounded-full text-primary text-[10px] font-black uppercase tracking-widest italic">
                                         <Unplug className="w-3 h-3" /> GitHub Não Conectado
@@ -552,6 +594,7 @@ export const SystemUpdates = () => {
 
                             <div className="space-y-6">
                                 {systemInfo?.github_installation_id ? (
+                                    <>
                                     <button 
                                         onClick={() => setShowSyncConfirm(true)}
                                         disabled={syncingFiles}
@@ -561,6 +604,10 @@ export const SystemUpdates = () => {
                                         <RefreshCw className={`w-4 h-4 ${syncingFiles ? 'animate-spin' : ''}`} />
                                         Sincronizar Código
                                     </button>
+                                    <p className="text-[10px] text-gray-500 leading-relaxed">
+                                        Sincronizar Codigo altera apenas os arquivos do repositorio. O banco so muda quando voce confirmar Atualizar Banco.
+                                    </p>
+                                    </>
                                 ) : (
                                     <div className="space-y-5">
                                         <p className="text-sm text-gray-500 font-medium leading-relaxed">

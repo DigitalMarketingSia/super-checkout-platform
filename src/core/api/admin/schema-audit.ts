@@ -1,5 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import {
+  CURRENT_SCHEMA_VERSION,
+  compareVersions,
+  getPendingApprovedMigrationVersions,
+} from './_migration-registry.js';
 
 const SCHEMA_CHECKS = [
   { table: 'system_info', columns: ['db_version', 'github_installation_id', 'github_repository'] },
@@ -93,6 +98,62 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         expected_columns: check.columns,
         message: missingColumn ? 'Expected column is missing' : 'Schema check failed'
       });
+    }
+  }
+
+  const migrationState = await supabase
+    .from('schema_migrations')
+    .select('version,success');
+
+  if (migrationState.error) {
+    drifts.push({
+      type: 'migration_state_unverified',
+      name: 'schema_migrations',
+      message: 'Nao foi possivel comprovar o historico de migrations aprovadas.'
+    });
+  } else {
+    const successfulVersions = Array.from(new Set(
+      (migrationState.data || [])
+        .filter((row) => row?.success)
+        .map((row) => String(row.version || '').trim())
+        .filter(Boolean)
+    )).sort(compareVersions);
+
+    const latestCompletedMigration = successfulVersions[successfulVersions.length - 1] || null;
+    if (!latestCompletedMigration) {
+      drifts.push({
+        type: 'migration_state_unverified',
+        name: 'schema_migrations',
+        message: 'Nenhuma migration aprovada confirmada no historico local.'
+      });
+    } else {
+      const pendingMigrations = getPendingApprovedMigrationVersions(latestCompletedMigration)
+        .filter((version) => compareVersions(version, CURRENT_SCHEMA_VERSION) <= 0);
+
+      if (pendingMigrations.length > 0) {
+        drifts.push({
+          type: 'migration_pending',
+          name: 'schema_migrations',
+          versions: pendingMigrations,
+          message: `Migrations aprovadas pendentes: ${pendingMigrations.join(', ')}`
+        });
+      }
+
+      const systemInfoState = await supabase
+        .from('system_info')
+        .select('db_version')
+        .limit(1)
+        .maybeSingle();
+
+      if (!systemInfoState.error && systemInfoState.data?.db_version && systemInfoState.data.db_version !== latestCompletedMigration) {
+        drifts.push({
+          type: 'db_version_mismatch',
+          name: 'system_info',
+          current_version: systemInfoState.data.db_version,
+          expected_version: latestCompletedMigration,
+          message: `system_info reporta v${systemInfoState.data.db_version}, mas schema_migrations confirma v${latestCompletedMigration}.`
+        });
+      }
     }
   }
 

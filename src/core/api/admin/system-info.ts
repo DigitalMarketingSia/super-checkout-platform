@@ -1,8 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { enforceApiRateLimit } from '../_rate-limit.js';
-
-const CURRENT_SCHEMA_VERSION = '1.0.11';
+import {
+  CURRENT_SCHEMA_VERSION,
+  UNKNOWN_SCHEMA_VERSION,
+  compareVersions,
+  getPendingApprovedMigrationVersions,
+} from './_migration-registry.js';
 
 function parseBody(req: VercelRequest) {
   if (!req.body) return {};
@@ -29,6 +33,62 @@ async function validateLocalUser(supabaseUrl: string, anonKey: string, jwt: stri
   return user?.id ? user : null;
 }
 
+async function resolveSchemaState(supabase: any, reportedDbVersion?: string | null) {
+  const { data, error } = await supabase
+    .from('schema_migrations')
+    .select('version,success');
+
+  if (error) {
+    console.warn('[system-info] schema_migrations read failed:', error.message || error);
+    const fallbackVersion = reportedDbVersion
+      && compareVersions(reportedDbVersion, CURRENT_SCHEMA_VERSION) <= 0
+      ? reportedDbVersion
+      : UNKNOWN_SCHEMA_VERSION;
+
+    return {
+      effectiveDbVersion: fallbackVersion,
+      latestCompletedMigration: null,
+      pendingMigrations: fallbackVersion === UNKNOWN_SCHEMA_VERSION
+        ? []
+        : getPendingApprovedMigrationVersions(fallbackVersion),
+      databaseStatus: 'unverified' as const,
+    };
+  }
+
+  const completedVersions = Array.from(new Set(
+    ((data || []) as Array<{ version?: string | null; success?: boolean | null }>)
+      .filter((row) => row?.success)
+      .map((row) => String(row.version || '').trim())
+      .filter(Boolean)
+  )).sort(compareVersions);
+
+  if (completedVersions.length === 0) {
+    const fallbackVersion = reportedDbVersion
+      && compareVersions(reportedDbVersion, CURRENT_SCHEMA_VERSION) <= 0
+      ? reportedDbVersion
+      : UNKNOWN_SCHEMA_VERSION;
+
+    return {
+      effectiveDbVersion: fallbackVersion,
+      latestCompletedMigration: null,
+      pendingMigrations: fallbackVersion === UNKNOWN_SCHEMA_VERSION
+        ? []
+        : getPendingApprovedMigrationVersions(fallbackVersion),
+      databaseStatus: 'unverified' as const,
+    };
+  }
+
+  const latestCompletedMigration = completedVersions[completedVersions.length - 1];
+  const pendingMigrations = getPendingApprovedMigrationVersions(latestCompletedMigration);
+
+  return {
+    effectiveDbVersion: latestCompletedMigration,
+    latestCompletedMigration,
+    pendingMigrations,
+    databaseStatus: pendingMigrations.length > 0 ? 'pending' as const : 'current' as const,
+  };
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST' && req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
@@ -46,7 +106,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY;
 
   if (!supabaseUrl || !anonKey || !serviceKey) {
     return res.status(500).json({ error: 'Server configuration error' });
@@ -69,7 +129,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     .eq('id', user.id)
     .maybeSingle();
 
-  if (profileError || !['admin', 'owner'].includes(profile?.role)) {
+  if (profileError || !['admin', 'owner', 'master_admin'].includes(profile?.role)) {
     return res.status(403).json({ error: 'Admin access required' });
   }
 
@@ -82,17 +142,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (infoError) throw infoError;
 
+    const schemaState = await resolveSchemaState(supabase, info?.db_version || null);
+    const responsePayload = {
+      id: info?.id || 'virtual-system-info',
+      core_version: info?.core_version || null,
+      db_version: schemaState.effectiveDbVersion,
+      reported_db_version: info?.db_version || null,
+      latest_completed_migration: schemaState.latestCompletedMigration,
+      pending_migrations: schemaState.pendingMigrations,
+      pending_migration_count: schemaState.pendingMigrations.length,
+      database_status: schemaState.databaseStatus,
+      system_info_present: Boolean(info),
+      ui_version: info?.ui_version || null,
+      installed_at: info?.installed_at || null,
+      last_update_at: info?.last_update_at || null,
+      license_key: info?.license_key || null,
+      github_installation_id: info?.github_installation_id || null,
+      github_repository: info?.github_repository || null,
+      metadata: info?.metadata || null,
+    };
+
     if (req.method === 'GET') {
-      if (info) return res.status(200).json({ success: true, data: info });
-
-      const created = await supabase
-        .from('system_info')
-        .insert({ db_version: CURRENT_SCHEMA_VERSION })
-        .select('*')
-        .single();
-
-      if (created.error) throw created.error;
-      return res.status(200).json({ success: true, data: created.data });
+      return res.status(200).json({ success: true, data: responsePayload });
     }
 
     const body = parsedBody;
@@ -108,6 +179,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const payload = {
+      db_version: responsePayload.db_version,
       github_installation_id: githubInstallationId,
       github_repository: githubRepository,
       last_update_at: new Date().toISOString()
@@ -115,7 +187,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const result = info?.id
       ? await supabase.from('system_info').update(payload).eq('id', info.id).select('*').single()
-      : await supabase.from('system_info').insert({ db_version: CURRENT_SCHEMA_VERSION, ...payload }).select('*').single();
+      : await supabase.from('system_info').insert(payload).select('*').single();
 
     if (result.error) throw result.error;
     return res.status(200).json({ success: true, data: result.data });
