@@ -35,8 +35,16 @@ export const MemberAreaWrapper = ({ forcedSlug }: { forcedSlug?: string }) => {
                         const { access_token, refresh_token } = await res.json();
                         if (access_token && refresh_token) {
                             const { supabase } = await import('../../services/supabase');
-                            await supabase.auth.setSession({ access_token, refresh_token });
+                            const { error: sessionError } = await supabase.auth.setSession({ access_token, refresh_token });
+                            if (sessionError) {
+                                throw sessionError;
+                            }
                             console.log('[Wrapper] Server-side auto-login successful');
+
+                            params.delete('login_token');
+                            const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '') + window.location.hash;
+                            window.location.replace(newUrl);
+                            return;
                         }
                     } else {
                         const err = await res.json().catch(() => ({}));

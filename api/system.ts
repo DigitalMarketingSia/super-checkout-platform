@@ -24,7 +24,10 @@ function getSupabaseAnonKey() {
 }
 
 function getSupabaseServiceKey() {
-    return process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+    return process.env.SUPABASE_SECRET_KEY
+        || process.env.SUPABASE_SECRET_KEY_NEW
+        || process.env.SUPABASE_SERVICE_ROLE_KEY
+        || process.env.SUPABASE_SERVICE_ROLE_KEY_NEW;
 }
 
 function getAllowedOrigins() {
@@ -194,6 +197,7 @@ async function autoLoginHandler(req: VercelRequest, res: VercelResponse) {
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
   const serviceKey = getSupabaseServiceKey() || process.env.CENTRAL_SERVICE_ROLE_KEY;
+  const authApiKey = getSupabaseAnonKey() || serviceKey;
   if (!supabaseUrl || !serviceKey) {
     return res.status(500).json({ error: 'Server configuration error' });
   }
@@ -212,33 +216,46 @@ async function autoLoginHandler(req: VercelRequest, res: VercelResponse) {
       return res.status(500).json({ error: 'Failed to generate session' });
     }
 
-    // Verify the token server-side via GoTrue API
-    const verifyRes = await fetch(`${supabaseUrl}/auth/v1/verify`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': serviceKey,
-      },
-      body: JSON.stringify({
-        token_hash: linkData.properties.hashed_token,
-        type: 'email',
-      }),
-    });
+    const tryVerify = async (type: 'magiclink' | 'email') => {
+      const verifyRes = await fetch(`${supabaseUrl}/auth/v1/verify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': authApiKey,
+          'Authorization': `Bearer ${authApiKey}`,
+        },
+        body: JSON.stringify({
+          token_hash: linkData.properties.hashed_token,
+          type,
+        }),
+      });
 
-    if (!verifyRes.ok) {
-      console.error('[AutoLogin] GoTrue verify failed:', { status: verifyRes.status });
+      const sessionData = await verifyRes.json().catch(() => ({}));
+      return {
+        ok: verifyRes.ok,
+        type,
+        status: verifyRes.status,
+        sessionData,
+      };
+    };
+
+    const magiclinkAttempt = await tryVerify('magiclink');
+    const emailAttempt = magiclinkAttempt.ok && magiclinkAttempt.sessionData?.access_token
+      ? null
+      : await tryVerify('email');
+    const successfulAttempt = [magiclinkAttempt, emailAttempt].find((attempt) => attempt?.ok && attempt.sessionData?.access_token);
+
+    if (!successfulAttempt) {
+      console.error('[AutoLogin] GoTrue verify failed:', {
+        magiclinkStatus: magiclinkAttempt.status,
+        emailStatus: emailAttempt?.status || null,
+      });
       return res.status(500).json({ error: 'Session verification failed' });
     }
 
-    const sessionData = await verifyRes.json();
-    if (!sessionData?.access_token) {
-      console.error('[AutoLogin] No access_token in verify response');
-      return res.status(500).json({ error: 'No session returned' });
-    }
-
     return res.status(200).json({
-      access_token: sessionData.access_token,
-      refresh_token: sessionData.refresh_token,
+      access_token: successfulAttempt?.sessionData?.access_token,
+      refresh_token: successfulAttempt?.sessionData?.refresh_token,
     });
   } catch (err: any) {
     console.error('[AutoLogin] Error:', err.message);
