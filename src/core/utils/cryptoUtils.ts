@@ -160,8 +160,8 @@ export function generateSignature(orderId: string): string {
  */
 export function verifySignature(orderId: string, signature: string): boolean {
   if (!orderId || !signature) return false;
-  const candidateKeys = [getSecretKey(), ...getPreviousSecretKeys()];
   try {
+    const candidateKeys = [getSecretKey(), ...getPreviousSecretKeys()];
     return candidateKeys.some((secretKey) => {
       const expectedSignature = crypto
         .createHmac('sha256', secretKey)
