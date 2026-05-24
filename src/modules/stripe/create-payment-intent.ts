@@ -1,6 +1,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { createClient } from '@supabase/supabase-js';
 import { decrypt, generateSignature } from '../../core/utils/cryptoUtils.js';
+import {
+    getLocalSupabaseServerKeyErrorMessage,
+    resolveLocalSupabaseServerClient,
+} from '../../core/api/_supabase-server.js';
 import { securityService } from '../../core/services/securityService.js';
 import { applyCors } from '../../core/api/_cors.js';
 import { fulfillOrder } from '../../core/services/fulfillment.js';
@@ -172,19 +175,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         // --- FETCH CHECKOUT, ORDER AND GATEWAY WITH SERVER-SIDE OWNERSHIP ---
-        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://vixlzrmhqsbzjhpgfwdn.supabase.co';
-        const serviceRoleKey =
-            process.env.SUPABASE_SECRET_KEY_NEW ||
-            process.env.SUPABASE_SECRET_KEY ||
-            process.env.SUPABASE_SERVICE_ROLE_KEY_NEW ||
-            process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-        if (!supabaseUrl || !serviceRoleKey) {
-            console.error('[CreatePaymentIntent] Missing Supabase credentials');
-            return res.status(500).json({ error: 'Server configuration error' });
+        const { supabase: supabaseAdmin, serverKeySource, probeError } = await resolveLocalSupabaseServerClient();
+        if (!supabaseAdmin) {
+            console.error('[CreatePaymentIntent] Missing or invalid Supabase server credentials:', probeError);
+            return res.status(500).json({
+                success: false,
+                error: getLocalSupabaseServerKeyErrorMessage(),
+                code: 'SUPABASE_SERVER_KEY_INVALID',
+            });
         }
-
-        const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
+        console.log('[CreatePaymentIntent] Using Supabase server key source:', serverKeySource || 'unknown');
         const checkout = await loadCheckoutForPayment(supabaseAdmin, checkoutId);
         const mainProduct = getMainProductForCheckout(checkout);
         const merchantUserId = resolveCheckoutMerchantUserId(checkout, mainProduct);

@@ -1,5 +1,8 @@
-import { createClient } from '@supabase/supabase-js';
 import { decrypt, generateSignature } from '../../core/utils/cryptoUtils.js';
+import {
+  getLocalSupabaseServerKeyErrorMessage,
+  resolveLocalSupabaseServerClient,
+} from '../../core/api/_supabase-server.js';
 import { securityService } from '../../core/services/securityService.js';
 import { fulfillOrder } from '../../core/services/fulfillment.js';
 import { sendOrderAccessEmail } from '../../core/services/orderEmail.js';
@@ -23,12 +26,7 @@ import {
  * com o ambiente Vercel e eliminar bugs latentes da biblioteca v2.
  */
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
-
-async function sendPaymentApprovedEmail(orderId: string, order: any, productName: string) {
+async function sendPaymentApprovedEmail(supabaseAdmin: any, orderId: string, order: any, productName: string) {
   try {
     const metadata = order?.metadata && typeof order.metadata === 'object' ? order.metadata : {};
     if (metadata.payment_email_sent_at) {
@@ -157,6 +155,12 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
   let body: any = {}; 
 
   try {
+    const { supabase: supabaseAdmin, probeError } = await resolveLocalSupabaseServerClient();
+    if (!supabaseAdmin) {
+      console.error('[MP-FETCH] Missing or invalid Supabase server credentials:', probeError);
+      throw new Error(`SUPABASE_SERVER_KEY_INVALID: ${getLocalSupabaseServerKeyErrorMessage()}`);
+    }
+
     // 1. Rate Limit
     const isLimited = await securityService.isRateLimited(ip);
     if (isLimited) throw new Error('TOO_MANY_REQUESTS: Excesso de tentativas.');
@@ -380,7 +384,7 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
       }
 
       if (!vercelEmailSent) {
-        await sendPaymentApprovedEmail(orderId, { ...checkout, ...updatedOrder, customer_email: customerEmail, customer_name: customerName, membersAreaUrl }, mainProduct.name);
+        await sendPaymentApprovedEmail(supabaseAdmin, orderId, { ...checkout, ...updatedOrder, customer_email: customerEmail, customer_name: customerName, membersAreaUrl }, mainProduct.name);
       }
     }
 
