@@ -5,6 +5,7 @@ import { securityService } from '../../core/services/securityService.js';
 import { applyCors } from '../../core/api/_cors.js';
 import { fulfillOrder } from '../../core/services/fulfillment.js';
 import { sendOrderAccessEmail } from '../../core/services/orderEmail.js';
+import { upsertCustomerPaymentProfile } from '../payments/customer-payment-profiles.js';
 import {
     PaymentSecurityError,
     assertCurrencyMatchesCheckout,
@@ -79,6 +80,32 @@ async function stripeRequest(secretKey: string, endpoint: string, method: string
     }
 
     return responseData;
+}
+
+async function findOrCreateStripeCustomer(secretKey: string, email?: string | null, name?: string | null) {
+    const normalizedEmail = String(email || '').trim().toLowerCase();
+    if (!normalizedEmail) return null;
+
+    const existing = await stripeRequest(
+        secretKey,
+        `/customers?email=${encodeURIComponent(normalizedEmail)}&limit=1`,
+        'GET'
+    );
+
+    if (Array.isArray(existing?.data) && existing.data[0]?.id) {
+        return existing.data[0];
+    }
+
+    return stripeRequest(secretKey, '/customers', 'POST', {
+        email: normalizedEmail,
+        name: name || undefined,
+    });
+}
+
+async function loadStripePaymentMethod(secretKey: string, paymentMethodId?: string | null) {
+    const normalized = String(paymentMethodId || '').trim();
+    if (!normalized) return null;
+    return stripeRequest(secretKey, `/payment_methods/${encodeURIComponent(normalized)}`, 'GET');
 }
 
 function maskEmail(email?: string | null) {
@@ -218,6 +245,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return_url: req.headers.origin || req.headers.referer || 'https://localhost',
         };
 
+        let stripeCustomer: any = null;
+        try {
+            stripeCustomer = await findOrCreateStripeCustomer(secretKey, customerEmail, customerName);
+            if (stripeCustomer?.id) {
+                paymentIntentData.customer = stripeCustomer.id;
+            }
+        } catch (customerError: any) {
+            console.warn('[CreatePaymentIntent] Failed to resolve Stripe customer:', customerError?.message || customerError);
+        }
+
         // Add metadata if provided
         if (requestMetadata && typeof requestMetadata === 'object') {
             for (const [key, value] of Object.entries(requestMetadata)) {
@@ -231,8 +268,55 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         console.log(`[CreatePaymentIntent] Creating PI: ${amountInCents} ${serverCurrency} for ${maskEmail(customerEmail)} (Key: ${idempotencyKey})`);
 
         const paymentIntent = await stripeRequest(secretKey, '/payment_intents', 'POST', paymentIntentData, idempotencyKey);
+        let stripePaymentMethod: any = null;
+        try {
+            stripePaymentMethod = await loadStripePaymentMethod(secretKey, paymentMethodId);
+        } catch (paymentMethodError: any) {
+            console.warn('[CreatePaymentIntent] Failed to inspect Stripe payment method:', paymentMethodError?.message || paymentMethodError);
+        }
 
         console.log(`[CreatePaymentIntent] PI created: ${paymentIntent.id} — Status: ${paymentIntent.status}`);
+
+        const stripeWalletType = stripePaymentMethod?.card?.wallet?.type === 'apple_pay' || stripePaymentMethod?.card?.wallet?.type === 'google_pay'
+            ? stripePaymentMethod.card.wallet.type
+            : null;
+
+        try {
+            const profileResult = await upsertCustomerPaymentProfile({
+                supabaseAdmin,
+                userId: checkout.user_id,
+                gatewayId: gateway.id,
+                gatewayName: gateway.name,
+                customerUserId: orderData?.customer_user_id || null,
+                customerEmail: orderData?.customer_email || customerEmail,
+                customerName: orderData?.customer_name || customerName,
+                paymentMethodType: stripeWalletType || orderData?.payment_method || 'credit_card',
+                gatewayCustomerId: stripeCustomer?.id || paymentIntent.customer || stripePaymentMethod?.customer || null,
+                gatewayPaymentMethodId: stripePaymentMethod?.id || paymentMethodId,
+                cardBrand: stripePaymentMethod?.card?.brand || null,
+                cardLast4: stripePaymentMethod?.card?.last4 || null,
+                cardExpMonth: stripePaymentMethod?.card?.exp_month || null,
+                cardExpYear: stripePaymentMethod?.card?.exp_year || null,
+                walletType: stripeWalletType,
+                reusable: false,
+                requiresReauthentication: true,
+                consentCapturedAt: new Date().toISOString(),
+                consentScope: 'post_purchase_upsell',
+                firstOrderId: orderId,
+                lastOrderId: orderId,
+                metadata: {
+                    source: 'stripe_create_payment_intent',
+                    payment_intent_id: paymentIntent.id,
+                    payment_intent_status: paymentIntent.status,
+                },
+            });
+
+            if (profileResult.ok === false) {
+                console.warn('[CreatePaymentIntent] Customer payment profile not persisted:', profileResult.reason, profileResult.error || '');
+            }
+        } catch (profileError: any) {
+            console.warn('[CreatePaymentIntent] Passive payment profile capture failed:', profileError?.message || profileError);
+        }
 
         // --- PERSIST PAYMENT/ORDER IN DATABASE (SERVER-SIDE) ---
         // Stripe can confirm synchronously. Persist the final status here so the

@@ -125,7 +125,7 @@ export const FUNNEL_TEMPLATES: FunnelTemplate[] = [
       { id: '1', type: 'funnelNode', position: { x: 100, y: 200 }, data: { label: 'Anúncios', type: 'facebook', category: 'Rede Social', volume: 1500, cpc: 0.5, color: 'bg-blue-600', status: 'ativo' } },
       { id: '2', type: 'funnelNode', position: { x: 400, y: 200 }, data: { label: 'Página de Vendas', type: 'landing', category: 'Página', color: 'bg-purple-600', status: 'ativo' } },
       { id: '3', type: 'funnelNode', position: { x: 700, y: 200 }, data: { label: 'Checkout + Bump', type: 'checkout', category: 'Página', color: 'bg-emerald-600', status: 'ativo' } },
-      { id: '4', type: 'funnelNode', position: { x: 1000, y: 200 }, data: { label: 'Upsell 1-Click', type: 'upsell', category: 'Página', color: 'bg-orange-500', status: 'ativo' } },
+      { id: '4', type: 'funnelNode', position: { x: 1000, y: 200 }, data: { label: 'Upsell pós-compra', type: 'upsell', category: 'Página', color: 'bg-orange-500', status: 'ativo' } },
       { id: '5', type: 'funnelNode', position: { x: 1300, y: 200 }, data: { label: 'Obrigado', type: 'thankyou', category: 'Página', color: 'bg-blue-500', status: 'ativo' } },
       { id: '6', type: 'funnelNode', position: { x: 700, y: 400 }, data: { label: 'Produto Principal', type: 'product_main', category: 'Produto', price: 97, color: 'bg-purple-500', status: 'ativo' } },
       { id: '7', type: 'funnelNode', position: { x: 1000, y: 400 }, data: { label: 'Upsell Oferta', type: 'product_upsell', category: 'Produto', price: 197, color: 'bg-orange-500', status: 'ativo' } },

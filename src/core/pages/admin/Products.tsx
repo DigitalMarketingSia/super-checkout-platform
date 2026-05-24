@@ -611,7 +611,7 @@ export const Products = () => {
                 {[
                   { id: 'active', label: t('products.active_label'), desc: t('products.active_desc'), icon: Check, color: 'text-emerald-500' },
                   { id: 'is_order_bump', label: 'Order Bump', desc: 'Permitir que este produto seja ofertado no checkout', icon: Layers, color: 'text-blue-400' },
-                  { id: 'is_upsell', label: 'One-Click Upsell', desc: 'Permitir que este produto seja ofertado após a compra', icon: ArrowRight, color: 'text-primary' }
+                  { id: 'is_upsell', label: 'Upsell pós-compra', desc: 'Permitir que este produto seja ofertado após a compra principal', icon: ArrowRight, color: 'text-primary' }
                 ].map(sw => (
                   <div key={sw.id} onClick={() => setFormData({ ...formData, [sw.id]: !(formData as any)[sw.id] })} className={`p-6 rounded-[2rem] border transition-all cursor-pointer flex items-center justify-between group ${ (formData as any)[sw.id] ? 'bg-white/5 border-white/20' : 'bg-black/20 border-white/5 opacity-50 hover:opacity-80'}`}>
                      <div className="flex items-center gap-4">

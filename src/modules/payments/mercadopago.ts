@@ -3,6 +3,7 @@ import { decrypt, generateSignature } from '../../core/utils/cryptoUtils.js';
 import { securityService } from '../../core/services/securityService.js';
 import { fulfillOrder } from '../../core/services/fulfillment.js';
 import { sendOrderAccessEmail } from '../../core/services/orderEmail.js';
+import { upsertCustomerPaymentProfile } from './customer-payment-profiles.js';
 import {
   PaymentSecurityError,
   getMainProductForCheckout,
@@ -269,6 +270,45 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
     }
 
     // 8. Sucesso e Persistência
+    if (paymentMethod === 'credit_card') {
+      try {
+        const profileResult = await upsertCustomerPaymentProfile({
+          supabaseAdmin,
+          userId: checkout.user_id,
+          gatewayId: gateway.id,
+          gatewayName: gateway.name,
+          customerUserId: null,
+          customerEmail,
+          customerName,
+          paymentMethodType: 'credit_card',
+          gatewayCustomerId: mpResult?.payer?.id ? String(mpResult.payer.id) : null,
+          gatewayPaymentMethodId: mpResult?.card?.id ? String(mpResult.card.id) : null,
+          cardBrand: mpResult?.payment_method_id || paymentMethodId || null,
+          cardLast4: mpResult?.card?.last_four_digits || null,
+          cardExpMonth: mpResult?.card?.expiration_month || null,
+          cardExpYear: mpResult?.card?.expiration_year || null,
+          issuerId: issuerId ? String(issuerId) : null,
+          reusable: false,
+          requiresReauthentication: true,
+          consentCapturedAt: new Date().toISOString(),
+          consentScope: 'post_purchase_upsell',
+          firstOrderId: orderId,
+          lastOrderId: orderId,
+          metadata: {
+            source: 'mercadopago_process_payment',
+            mp_payment_id: mpResult?.id ? String(mpResult.id) : null,
+            mp_status: mpResult?.status || null,
+          },
+        });
+
+        if (profileResult.ok === false) {
+          console.warn('[MP-FETCH] Customer payment profile not persisted:', profileResult.reason, profileResult.error || '');
+        }
+      } catch (profileError: any) {
+        console.warn('[MP-FETCH] Passive payment profile capture failed:', profileError?.message || profileError);
+      }
+    }
+
     const paidStatus = mpResult.status === 'approved';
     const updatedOrder = {
       status: (mpResult.status === 'approved') ? 'paid' : 'pending',

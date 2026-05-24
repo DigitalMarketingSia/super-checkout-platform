@@ -22,6 +22,7 @@ const SCHEMA_CHECKS = [
   { table: 'profiles', columns: ['role', 'status', 'last_login_at', 'is_blocked'] },
   { table: 'member_areas', columns: ['banner_description', 'sidebar_config', 'custom_links', 'faqs'] },
   { table: 'gateways', columns: ['provider', 'credentials', 'config', 'is_active'] },
+  { table: 'customer_payment_profiles', columns: ['gateway_id', 'gateway_name', 'gateway_customer_id', 'gateway_payment_method_id', 'reusable'] },
   { table: 'public_gateways', columns: ['id', 'provider', 'public_key', 'config'] },
   { table: 'email_templates', columns: ['event_type', 'language', 'html_body'] },
   { table: 'system_email_templates', columns: ['event_type', 'language', 'html_body'] },

@@ -25,6 +25,13 @@ export type UpsellExperienceMode =
   | 'repayment_explicit'
   | 'not_immediate';
 
+export type PaymentMethodType =
+  | 'credit_card'
+  | 'pix'
+  | 'boleto'
+  | 'apple_pay'
+  | 'google_pay';
+
 export enum OrderStatus {
   PENDING = 'pending',
   PAID = 'paid',
@@ -220,7 +227,7 @@ export interface Order {
   customer_cpf?: string;   // Added for CRM
   amount: number;
   status: OrderStatus;
-  payment_method: 'credit_card' | 'pix' | 'boleto' | 'apple_pay' | 'google_pay'; // Added for CRM
+  payment_method: PaymentMethodType; // Added for CRM
   items?: OrderItem[]; // Added for details
   metadata?: any;
   created_at: string;
@@ -236,6 +243,35 @@ export interface Payment {
   raw_response: string;
   created_at: string;
   user_id?: string; // Merchant ID for RLS
+}
+
+export interface CustomerPaymentProfile {
+  id: string;
+  user_id: string;
+  gateway_id: string;
+  gateway_name: GatewayProvider;
+  customer_user_id?: string | null;
+  customer_email: string;
+  customer_name?: string | null;
+  payment_method_type: PaymentMethodType;
+  gateway_customer_id: string;
+  gateway_payment_method_id: string;
+  card_brand?: string | null;
+  card_last4: string;
+  card_exp_month?: number | null;
+  card_exp_year?: number | null;
+  wallet_type?: 'apple_pay' | 'google_pay' | null;
+  issuer_id?: string | null;
+  reusable: boolean;
+  requires_reauthentication: boolean;
+  consent_scope: string;
+  consent_captured_at?: string | null;
+  first_order_id?: string | null;
+  last_order_id?: string | null;
+  last_seen_at: string;
+  metadata?: Record<string, any>;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface WebhookHeader {
