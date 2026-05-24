@@ -3,10 +3,44 @@ import {
   Product, Offer, Checkout, Gateway, Order, Payment, WebhookLog, Domain, WebhookConfig, Integration,
   Content, Module, Lesson, MemberArea, LessonProgress, Track, TrackItem, AccessGrant, Member
 } from '../types';
+import {
+  PRODUCT_DELIVERABLE_BUCKET,
+  getProductDeliverableExtension,
+  sanitizeProductDeliverableFileName,
+  validateProductDeliverableFile,
+} from '../config/productDeliverables';
 import { supabase } from './supabase';
 export { supabase };
 
 import { User } from '@supabase/supabase-js';
+
+function mapProductRecord(record: any, overrides: Partial<Product> = {}): Product {
+  return {
+    id: record.id,
+    name: record.name,
+    description: record.description,
+    active: record.active,
+    imageUrl: record.image_url,
+    price_real: record.price_real,
+    price_fake: record.price_fake,
+    sku: record.sku,
+    category: record.category,
+    redirect_link: record.redirect_link,
+    delivery_file_path: record.delivery_file_path ?? null,
+    delivery_file_name: record.delivery_file_name ?? null,
+    delivery_file_mime_type: record.delivery_file_mime_type ?? null,
+    delivery_file_size_bytes: record.delivery_file_size_bytes ?? null,
+    is_order_bump: record.is_order_bump,
+    is_upsell: record.is_upsell,
+    visible_in_member_area: record.visible_in_member_area,
+    for_sale: record.for_sale,
+    member_area_action: record.member_area_action,
+    member_area_checkout_id: record.member_area_checkout_id,
+    saas_plan_slug: record.saas_plan_slug,
+    member_area_id: record.member_area_id,
+    ...overrides,
+  };
+}
 
 /**
  * SERVICE LAYER - SUPABASE IMPLEMENTATION
@@ -81,26 +115,7 @@ class StorageService {
       return [];
     }
 
-    return (data || []).map((p: any) => ({
-      id: p.id,
-      name: p.name,
-      description: p.description,
-      active: p.active,
-      imageUrl: p.image_url,
-      price_real: p.price_real,
-      price_fake: p.price_fake,
-      sku: p.sku,
-      category: p.category,
-      redirect_link: p.redirect_link,
-      is_order_bump: p.is_order_bump,
-      is_upsell: p.is_upsell,
-      visible_in_member_area: p.visible_in_member_area,
-      for_sale: p.for_sale,
-      member_area_action: p.member_area_action,
-      member_area_checkout_id: p.member_area_checkout_id,
-      saas_plan_slug: p.saas_plan_slug,
-      member_area_id: p.member_area_id
-    }));
+    return (data || []).map((record: any) => mapProductRecord(record));
   }
 
   async getProductsByIds(ids: string[]): Promise<Product[]> {
@@ -117,28 +132,10 @@ class StorageService {
       return [];
     }
 
-    return (data || []).map((p: any) => ({
-      id: p.id,
-      name: p.name,
-      description: p.description,
-      active: p.active,
-      imageUrl: p.image_url,
-      price_real: p.price_real,
-      price_fake: p.price_fake,
-      sku: p.sku,
-      category: p.category,
-      redirect_link: p.redirect_link,
-      is_order_bump: p.is_order_bump,
-      is_upsell: p.is_upsell,
-      visible_in_member_area: p.visible_in_member_area,
-      for_sale: p.for_sale,
-      member_area_action: p.member_area_action,
-      member_area_checkout_id: p.member_area_checkout_id,
-      saas_plan_slug: p.saas_plan_slug,
-      // Helper to resolve redirect link dynamically if checkout is selected (matching getMemberAreaProducts logic)
-      checkout_url: (p.member_area_action === 'checkout' && p.checkouts)
-        ? (p.checkouts.domains?.domain ? `https://${p.checkouts.domains.domain}/${p.checkouts.custom_url_slug}` : `${typeof window !== 'undefined' ? window.location.origin : ''}/c/${p.checkouts.custom_url_slug}`)
-        : p.redirect_link
+    return (data || []).map((record: any) => mapProductRecord(record, {
+      checkout_url: (record.member_area_action === 'checkout' && record.checkouts)
+        ? (record.checkouts.domains?.domain ? `https://${record.checkouts.domains.domain}/${record.checkouts.custom_url_slug}` : `${typeof window !== 'undefined' ? window.location.origin : ''}/c/${record.checkouts.custom_url_slug}`)
+        : record.redirect_link,
     }));
   }
 
@@ -187,28 +184,10 @@ class StorageService {
       return [];
     }
 
-    return (data || []).map((p: any) => ({
-      id: p.id,
-      name: p.name,
-      description: p.description,
-      active: p.active,
-      imageUrl: p.image_url,
-      price_real: p.price_real,
-      price_fake: p.price_fake,
-      sku: p.sku,
-      category: p.category,
-
-      is_order_bump: p.is_order_bump,
-      is_upsell: p.is_upsell,
-      visible_in_member_area: p.visible_in_member_area,
-      for_sale: p.for_sale,
-      member_area_action: p.member_area_action,
-      member_area_checkout_id: p.member_area_checkout_id,
-      saas_plan_slug: p.saas_plan_slug,
-      // Helper to resolve redirect link dynamically if checkout is selected
-      redirect_link: (p.member_area_action === 'checkout' && p.checkouts)
-        ? (p.checkouts.domains?.domain ? `https://${p.checkouts.domains.domain}/${p.checkouts.custom_url_slug}` : `${typeof window !== 'undefined' ? window.location.origin : ''}/c/${p.checkouts.custom_url_slug}`)
-        : p.redirect_link
+    return (data || []).map((record: any) => mapProductRecord(record, {
+      redirect_link: (record.member_area_action === 'checkout' && record.checkouts)
+        ? (record.checkouts.domains?.domain ? `https://${record.checkouts.domains.domain}/${record.checkouts.custom_url_slug}` : `${typeof window !== 'undefined' ? window.location.origin : ''}/c/${record.checkouts.custom_url_slug}`)
+        : record.redirect_link,
     }));
   }
 
@@ -230,6 +209,10 @@ class StorageService {
       sku: product.sku,
       category: product.category,
       redirect_link: product.redirect_link,
+      delivery_file_path: product.delivery_file_path || null,
+      delivery_file_name: product.delivery_file_name || null,
+      delivery_file_mime_type: product.delivery_file_mime_type || null,
+      delivery_file_size_bytes: product.delivery_file_size_bytes || null,
       is_order_bump: product.is_order_bump,
       is_upsell: product.is_upsell,
       visible_in_member_area: product.visible_in_member_area,
@@ -268,6 +251,10 @@ class StorageService {
       sku: product.sku,
       category: product.category,
       redirect_link: product.redirect_link,
+      delivery_file_path: product.delivery_file_path || null,
+      delivery_file_name: product.delivery_file_name || null,
+      delivery_file_mime_type: product.delivery_file_mime_type || null,
+      delivery_file_size_bytes: product.delivery_file_size_bytes || null,
       is_order_bump: product.is_order_bump,
       is_upsell: product.is_upsell,
       visible_in_member_area: product.visible_in_member_area,
@@ -296,6 +283,13 @@ class StorageService {
   async deleteProduct(id: string) {
     const user = await this.getUser();
     if (!user) throw new Error('No user logged in');
+
+    const { data: productRecord } = await supabase
+      .from('products')
+      .select('delivery_file_path')
+      .eq('id', id)
+      .eq('user_id', user.id)
+      .maybeSingle();
 
     console.log('Tentando deletar arquivos da pasta:', id);
 
@@ -341,6 +335,16 @@ class StorageService {
         console.error('Erro ao remover arquivos (Provavel erro de RLS/Permissão):', removeError);
       } else {
         console.log('Arquivos removidos com sucesso');
+      }
+    }
+
+    if (productRecord?.delivery_file_path) {
+      const { error: removeDeliverableError } = await supabase.storage
+        .from(PRODUCT_DELIVERABLE_BUCKET)
+        .remove([productRecord.delivery_file_path]);
+
+      if (removeDeliverableError) {
+        console.error('Erro ao remover arquivo de entrega do produto:', removeDeliverableError.message);
       }
     }
 
@@ -395,6 +399,68 @@ class StorageService {
       .getPublicUrl(fileName);
 
     return data.publicUrl;
+  }
+
+  async uploadProductDeliverable(file: File, productId: string, previousPath?: string | null) {
+    const user = await this.getUser();
+    if (!user) throw new Error('No user logged in');
+
+    const validation = validateProductDeliverableFile(file);
+    if (!validation.ok) {
+      throw new Error(validation.error);
+    }
+
+    const extension = getProductDeliverableExtension(file.name) || 'bin';
+    const normalizedFileName = sanitizeProductDeliverableFileName(file.name);
+    const baseName = normalizedFileName.replace(/\.[^.]+$/, '') || 'deliverable';
+    const filePath = `${productId}/${Date.now()}-${baseName}.${extension}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from(PRODUCT_DELIVERABLE_BUCKET)
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: false,
+        contentType: file.type || undefined,
+      });
+
+    if (uploadError) {
+      console.error('Error uploading product deliverable:', uploadError.message);
+      throw uploadError;
+    }
+
+    if (previousPath && previousPath !== filePath) {
+      const { error: removePreviousError } = await supabase.storage
+        .from(PRODUCT_DELIVERABLE_BUCKET)
+        .remove([previousPath]);
+
+      if (removePreviousError) {
+        console.warn('Failed to remove previous product deliverable:', removePreviousError.message);
+      }
+    }
+
+    return {
+      path: filePath,
+      name: file.name,
+      mimeType: file.type || 'application/octet-stream',
+      sizeBytes: file.size,
+    };
+  }
+
+  async removeProductDeliverable(filePath: string) {
+    const user = await this.getUser();
+    if (!user) throw new Error('No user logged in');
+
+    const normalizedPath = String(filePath || '').trim();
+    if (!normalizedPath) return;
+
+    const { error } = await supabase.storage
+      .from(PRODUCT_DELIVERABLE_BUCKET)
+      .remove([normalizedPath]);
+
+    if (error) {
+      console.error('Error removing product deliverable:', error.message);
+      throw error;
+    }
   }
 
   async uploadCheckoutBanner(file: File, checkoutId: string): Promise<string> {
@@ -784,25 +850,7 @@ class StorageService {
       return null;
     }
 
-    return {
-      id: data.id,
-      name: data.name,
-      description: data.description,
-      active: data.active,
-      imageUrl: data.image_url,
-      price_real: data.price_real,
-      price_fake: data.price_fake,
-      sku: data.sku,
-      category: data.category,
-      redirect_link: data.redirect_link,
-      is_order_bump: data.is_order_bump,
-      is_upsell: data.is_upsell,
-      visible_in_member_area: data.visible_in_member_area,
-      for_sale: data.for_sale,
-      member_area_action: data.member_area_action,
-      member_area_checkout_id: data.member_area_checkout_id,
-      saas_plan_slug: data.saas_plan_slug
-    };
+    return mapProductRecord(data);
   }
 
   async getPublicSaaSProducts(): Promise<Product[]> {
@@ -846,26 +894,7 @@ class StorageService {
 
       console.log(`[Storage] SaaS Product "${p.name}" slug: ${p.saas_plan_slug} -> URL: ${checkout_url}`);
 
-      return {
-        id: p.id,
-        name: p.name,
-        description: p.description,
-        active: p.active,
-        imageUrl: p.image_url,
-        price_real: p.price_real,
-        price_fake: p.price_fake,
-        sku: p.sku,
-        category: p.category,
-        redirect_link: p.redirect_link,
-        is_order_bump: p.is_order_bump,
-        is_upsell: p.is_upsell,
-        visible_in_member_area: p.visible_in_member_area,
-        for_sale: p.for_sale,
-        member_area_action: p.member_area_action,
-        member_area_checkout_id: p.member_area_checkout_id,
-        saas_plan_slug: p.saas_plan_slug,
-        checkout_url
-      };
+      return mapProductRecord(p, { checkout_url });
     });
   }
 

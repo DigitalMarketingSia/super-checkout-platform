@@ -55,11 +55,15 @@ export interface Product {
   // New fields for UI Overhaul
   price_real?: number;    // Preço "Por"
   price_fake?: number;    // Preço "De"
-  member_area_action?: 'checkout' | 'sales_page'; // Ação ao clicar na área de membros
+  member_area_action?: 'checkout' | 'sales_page' | 'file'; // Ação ao clicar na área de membros
   member_area_checkout_id?: string; // Checkout específico para redirecionamento
   sku?: string;           // Código
   category?: string;
   redirect_link?: string;
+  delivery_file_path?: string | null;
+  delivery_file_name?: string | null;
+  delivery_file_mime_type?: string | null;
+  delivery_file_size_bytes?: number | null;
   is_order_bump?: boolean;
   is_upsell?: boolean;
   checkout_slug?: string;

@@ -1,4 +1,4 @@
-export const CURRENT_SCHEMA_VERSION = '1.0.12';
+export const CURRENT_SCHEMA_VERSION = '1.0.13';
 export const UNKNOWN_SCHEMA_VERSION = '0.0.0';
 
 export const APPROVED_MIGRATION_ALLOWLIST: Record<string, { file: string; sha256: string }> = {
@@ -49,6 +49,10 @@ export const APPROVED_MIGRATION_ALLOWLIST: Record<string, { file: string; sha256
   '1.0.12': {
     file: 'v1.0.12.sql',
     sha256: '4ca3d8dd9ee1c0332e6491a31520ec09bdedafeffa442c55f093bfd500c13fc8'
+  },
+  '1.0.13': {
+    file: 'v1.0.13.sql',
+    sha256: 'c2463d1e9161c2dd0f8047bd0d0d505753b7868d41a2e16ec27f74088471584d'
   }
 };
 

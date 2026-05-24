@@ -12,7 +12,7 @@ import { getApiUrl } from '../../utils/apiUtils';
 interface OrderDeliverable {
   id: string;
   title: string;
-  delivery_type: 'external_link' | 'member_area' | 'none';
+  delivery_type: 'external_link' | 'member_area' | 'file_download' | 'none';
   status: 'available' | 'not_configured';
   url: string | null;
   visual_url?: string | null;
@@ -27,7 +27,7 @@ function normalizeStoredDeliverables(value: unknown): OrderDeliverable[] {
     .filter((item) => item && typeof item === 'object')
     .map((item: any): OrderDeliverable => {
       const deliveryType: OrderDeliverable['delivery_type'] =
-        item.delivery_type === 'member_area' || item.delivery_type === 'external_link'
+        item.delivery_type === 'member_area' || item.delivery_type === 'external_link' || item.delivery_type === 'file_download'
           ? item.delivery_type
           : 'none';
       const status: OrderDeliverable['status'] = item.status === 'available' ? 'available' : 'not_configured';

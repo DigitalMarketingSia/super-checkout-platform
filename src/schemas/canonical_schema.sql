@@ -246,6 +246,10 @@ BEGIN
     ALTER TABLE products ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'BRL';
     ALTER TABLE products ADD COLUMN IF NOT EXISTS member_area_id UUID;
     ALTER TABLE products ADD COLUMN IF NOT EXISTS saas_plan_slug TEXT;
+    ALTER TABLE products ADD COLUMN IF NOT EXISTS delivery_file_path TEXT;
+    ALTER TABLE products ADD COLUMN IF NOT EXISTS delivery_file_name TEXT;
+    ALTER TABLE products ADD COLUMN IF NOT EXISTS delivery_file_mime_type TEXT;
+    ALTER TABLE products ADD COLUMN IF NOT EXISTS delivery_file_size_bytes BIGINT;
 END $$;
 
 -- 2.4 Gateways (Essential for checkout)
@@ -1117,6 +1121,8 @@ INSERT INTO storage.buckets(id, name, public) VALUES('checkouts', 'checkouts', t
 INSERT INTO storage.buckets(id, name, public) VALUES('contents', 'contents', true) ON CONFLICT(id) DO NOTHING;
 INSERT INTO storage.buckets(id, name, public) VALUES('avatars', 'avatars', true) ON CONFLICT(id) DO NOTHING;
 INSERT INTO storage.buckets(id, name, public) VALUES('member-areas', 'member-areas', true) ON CONFLICT(id) DO NOTHING;
+INSERT INTO storage.buckets(id, name, public) VALUES('product-deliverables', 'product-deliverables', false)
+ON CONFLICT(id) DO UPDATE SET name = EXCLUDED.name, public = EXCLUDED.public;
 
 -- ==========================================
 -- 6. RLS POLICIES (Security)
@@ -1395,6 +1401,10 @@ DROP POLICY IF EXISTS "Authenticated Read Products" ON storage.objects;
 DROP POLICY IF EXISTS "Authenticated Upload Products" ON storage.objects;
 DROP POLICY IF EXISTS "Authenticated Update Products" ON storage.objects;
 DROP POLICY IF EXISTS "Authenticated Delete Products" ON storage.objects;
+DROP POLICY IF EXISTS "Admin Read Product Deliverables" ON storage.objects;
+DROP POLICY IF EXISTS "Admin Upload Product Deliverables" ON storage.objects;
+DROP POLICY IF EXISTS "Admin Update Product Deliverables" ON storage.objects;
+DROP POLICY IF EXISTS "Admin Delete Product Deliverables" ON storage.objects;
 DROP POLICY IF EXISTS "Public Access Avatars" ON storage.objects;
 DROP POLICY IF EXISTS "Authenticated Read Avatars" ON storage.objects;
 DROP POLICY IF EXISTS "Authenticated Upload Avatars" ON storage.objects;
@@ -1424,6 +1434,39 @@ CREATE POLICY "Authenticated Read Products" ON storage.objects FOR SELECT TO aut
 CREATE POLICY "Authenticated Upload Products" ON storage.objects FOR INSERT WITH CHECK(bucket_id = 'products' AND auth.role() = 'authenticated');
 CREATE POLICY "Authenticated Update Products" ON storage.objects FOR UPDATE USING(bucket_id = 'products' AND auth.role() = 'authenticated');
 CREATE POLICY "Authenticated Delete Products" ON storage.objects FOR DELETE USING(bucket_id = 'products' AND auth.role() = 'authenticated');
+
+CREATE POLICY "Admin Read Product Deliverables" ON storage.objects FOR SELECT TO authenticated
+USING (
+  bucket_id = 'product-deliverables'
+  AND EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND role IN ('admin', 'owner', 'master_admin')
+  )
+);
+CREATE POLICY "Admin Upload Product Deliverables" ON storage.objects FOR INSERT TO authenticated
+WITH CHECK (
+  bucket_id = 'product-deliverables'
+  AND EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND role IN ('admin', 'owner', 'master_admin')
+  )
+);
+CREATE POLICY "Admin Update Product Deliverables" ON storage.objects FOR UPDATE TO authenticated
+USING (
+  bucket_id = 'product-deliverables'
+  AND EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND role IN ('admin', 'owner', 'master_admin')
+  )
+);
+CREATE POLICY "Admin Delete Product Deliverables" ON storage.objects FOR DELETE TO authenticated
+USING (
+  bucket_id = 'product-deliverables'
+  AND EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND role IN ('admin', 'owner', 'master_admin')
+  )
+);
 
 CREATE POLICY "Authenticated Read Avatars" ON storage.objects FOR SELECT TO authenticated USING(bucket_id = 'avatars');
 CREATE POLICY "Authenticated Upload Avatars" ON storage.objects FOR INSERT WITH CHECK(bucket_id = 'avatars' AND auth.role() = 'authenticated');

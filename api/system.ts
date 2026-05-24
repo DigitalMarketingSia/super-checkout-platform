@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import healthHandler from '../src/core/api/health.js';
 import proxyHandler from '../src/core/api/proxy.js';
 import sendEmailHandler from '../src/core/api/send-email.js';
+import { PRODUCT_DELIVERABLE_BUCKET } from '../src/core/config/productDeliverables.js';
 import {
     getLocalSupabasePublicConfig,
     getLocalSupabaseServerKeyErrorMessage,
@@ -364,6 +365,85 @@ async function resendOrderAccessHandler(req: VercelRequest, res: VercelResponse)
   } catch (err: any) {
     console.error('[System] resend-order-access failed:', err?.message || err);
     return res.status(500).json({ error: 'Failed to resend access email' });
+  }
+}
+
+async function deliverableFileHandler(req: VercelRequest, res: VercelResponse) {
+  const corsAllowed = applyMemberCors(req, res);
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (!corsAllowed) return res.status(403).json({ error: 'Origin not allowed' });
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+
+  const orderId = String(req.query.orderId || '').trim();
+  const productId = String(req.query.productId || '').trim();
+  const sig = String(req.query.sig || '').trim();
+
+  if (!UUID_REGEX.test(orderId) || !UUID_REGEX.test(productId) || !verifySignature(orderId, sig)) {
+    return res.status(404).json({ error: 'Deliverable not found' });
+  }
+
+  try {
+    const { supabase: supabaseAdmin } = await resolveLocalSupabaseServerClient();
+    if (!supabaseAdmin) {
+      return res.status(500).json({ error: getLocalSupabaseServerKeyErrorMessage() });
+    }
+
+    const { data: order, error: orderError } = await supabaseAdmin
+      .from('orders')
+      .select('id, status, items')
+      .eq('id', orderId)
+      .single();
+
+    if (orderError || !order) {
+      return res.status(404).json({ error: 'Deliverable not found' });
+    }
+
+    const status = String(order.status || '').toLowerCase();
+    if (status !== 'paid' && status !== 'approved') {
+      return res.status(404).json({ error: 'Deliverable not found' });
+    }
+
+    const purchasedProductIds = new Set(
+      (Array.isArray(order.items) ? order.items : [])
+        .map((item: any) => String(item?.product_id || item?.id || '').trim())
+        .filter(Boolean)
+    );
+
+    if (!purchasedProductIds.has(productId)) {
+      return res.status(404).json({ error: 'Deliverable not found' });
+    }
+
+    const { data: product, error: productError } = await supabaseAdmin
+      .from('products')
+      .select('id, name, member_area_action, delivery_file_path, delivery_file_name')
+      .eq('id', productId)
+      .maybeSingle();
+
+    const filePath = String(product?.delivery_file_path || '').trim();
+    if (productError || !product?.id || String(product.member_area_action || '') !== 'file' || !filePath) {
+      return res.status(404).json({ error: 'Deliverable not found' });
+    }
+
+    const signedUrlResult = await supabaseAdmin
+      .storage
+      .from(PRODUCT_DELIVERABLE_BUCKET)
+      .createSignedUrl(filePath, 60 * 15, {
+        download: String(product.delivery_file_name || product.name || 'arquivo'),
+      });
+
+    if (signedUrlResult.error || !signedUrlResult.data?.signedUrl) {
+      console.error('[System] deliverable-file signed URL failed:', signedUrlResult.error?.message || signedUrlResult.error);
+      return res.status(500).json({ error: 'Failed to open deliverable' });
+    }
+
+    res.setHeader('Cache-Control', 'no-store');
+    return res.redirect(302, signedUrlResult.data.signedUrl);
+  } catch (err: any) {
+    console.error('[System] deliverable-file failed:', err?.message || err);
+    return res.status(500).json({ error: 'Failed to open deliverable' });
   }
 }
 
@@ -737,6 +817,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return await autoLoginHandler(req, res);
             case 'resend-order-access':
                 return await resendOrderAccessHandler(req, res);
+            case 'deliverable-file':
+                return await deliverableFileHandler(req, res);
             case 'order-deliverables':
                 return await orderDeliverablesHandler(req, res);
             case 'member-password-reset':

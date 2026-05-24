@@ -147,7 +147,9 @@ function buildDeliveryMessages(params: {
   businessName: string;
 }): DeliveryEmailMessage[] {
   const actionable = params.deliverables.filter((deliverable) => deliverable.status === 'available' && deliverable.url);
-  const directDeliverables = actionable.filter((deliverable) => deliverable.delivery_type === 'external_link');
+  const directDeliverables = actionable.filter((deliverable) =>
+    deliverable.delivery_type === 'external_link' || deliverable.delivery_type === 'file_download'
+  );
   const memberDeliverables = actionable.filter((deliverable) => deliverable.delivery_type === 'member_area');
   const hasSpecificDelivery = memberDeliverables.length > 0 || directDeliverables.length > 0;
   const messages: DeliveryEmailMessage[] = [];

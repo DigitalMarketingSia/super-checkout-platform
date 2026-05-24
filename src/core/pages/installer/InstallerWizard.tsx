@@ -27,7 +27,14 @@ const generatePaymentEncryptionKey = () => {
 const safeInstallerErrorMessage = (error: any) =>
     String(error?.message || error || 'Erro inesperado').replace(/[A-Za-z0-9_\-]{32,}/g, '[redacted]');
 
-const INSTALLER_STORAGE_BUCKETS = ['products', 'contents', 'checkouts', 'member-areas', 'avatars'] as const;
+const INSTALLER_STORAGE_BUCKETS = [
+    { id: 'products', public: true },
+    { id: 'contents', public: true },
+    { id: 'checkouts', public: true },
+    { id: 'member-areas', public: true },
+    { id: 'avatars', public: true },
+    { id: 'product-deliverables', public: false },
+] as const;
 const DISTRIBUTION_REPOSITORY_URL = 'https://github.com/DigitalMarketingSia/super-checkout-platform';
 const BACKEND_VERIFY_ATTEMPTS = 12;
 const BACKEND_VERIFY_INTERVAL_MS = 5000;
@@ -935,19 +942,19 @@ export default function InstallerWizard() {
                                     for (const bucket of INSTALLER_STORAGE_BUCKETS) {
                                         const { error: bucketError } = await adminClient
                                             .storage
-                                            .createBucket(bucket, { public: true }); // Ensure public
+                                            .createBucket(bucket.id, { public: bucket.public });
 
                                         if (bucketError && !isAlreadyExistsError(bucketError)) {
-                                            console.warn(`Failed to create bucket ${bucket}:`, safeInstallerErrorMessage(bucketError));
+                                            console.warn(`Failed to create bucket ${bucket.id}:`, safeInstallerErrorMessage(bucketError));
                                             continue;
                                         }
 
                                         const { error: updateBucketError } = await adminClient
                                             .storage
-                                            .updateBucket(bucket, { public: true });
+                                            .updateBucket(bucket.id, { public: bucket.public });
 
                                         if (updateBucketError) {
-                                            console.warn(`Failed to ensure bucket ${bucket} is public:`, safeInstallerErrorMessage(updateBucketError));
+                                            console.warn(`Failed to ensure bucket ${bucket.id} visibility:`, safeInstallerErrorMessage(updateBucketError));
                                         }
                                     }
                                     console.log('✅ Storage buckets verified.');

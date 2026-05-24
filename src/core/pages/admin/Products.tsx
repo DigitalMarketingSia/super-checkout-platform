@@ -5,8 +5,8 @@ import { Product, Content, Checkout, MemberArea } from '../../types';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { ConfirmModal, AlertModal } from '../../components/ui/Modal';
-import { 
-  Plus, Edit2, Trash2, Image as ImageIcon, Search, Upload, ArrowLeft, Save, Layers, ArrowRight, Copy, Check, ChevronRight, Crown, Zap, Users 
+import {
+  Plus, Edit2, Trash2, Image as ImageIcon, Search, Upload, ArrowLeft, Save, Layers, ArrowRight, Copy, Check, ChevronRight, Crown, Zap, Users, FileText
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { BusinessSetupModal } from '../../components/admin/BusinessSetupModal';
@@ -14,6 +14,11 @@ import { useTranslation } from 'react-i18next';
 import { useFeatures } from '../../hooks/useFeatures';
 import { UpsellModal } from '../../components/ui/UpsellModal';
 import Aurora from '../../components/ui/Aurora';
+import {
+  PRODUCT_DELIVERABLE_INPUT_ACCEPT,
+  PRODUCT_DELIVERABLE_MAX_BYTES,
+  formatProductDeliverableSize,
+} from '../../config/productDeliverables';
 
 // Initial Form State
 const initialFormState = {
@@ -28,10 +33,14 @@ const initialFormState = {
   is_order_bump: false,
   is_upsell: false,
   active: true,
-  member_area_action: 'checkout' as 'checkout' | 'sales_page',
+  member_area_action: 'checkout' as 'checkout' | 'sales_page' | 'file',
   member_area_checkout_id: '',
   saas_plan_slug: '',
-  member_area_id: null as string | null
+  member_area_id: null as string | null,
+  delivery_file_path: null as string | null,
+  delivery_file_name: null as string | null,
+  delivery_file_mime_type: null as string | null,
+  delivery_file_size_bytes: null as number | null,
 };
 
 export const Products = () => {
@@ -53,8 +62,10 @@ export const Products = () => {
   const [currentProductId, setCurrentProductId] = useState<string | null>(null);
   const [formData, setFormData] = useState(initialFormState);
   const [uploading, setUploading] = useState(false);
+  const [uploadingDeliverable, setUploadingDeliverable] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const deliverableInputRef = useRef<HTMLInputElement>(null);
 
   const [availableContents, setAvailableContents] = useState<Content[]>([]);
   const [selectedContentIds, setSelectedContentIds] = useState<string[]>([]);
@@ -131,7 +142,7 @@ export const Products = () => {
 
     try {
       const sanitizedFormData = { ...formData };
-      if (sanitizedFormData.member_area_action === 'sales_page') {
+      if (String(sanitizedFormData.member_area_action) === 'sales_page') {
         const deliveryUrl = String(sanitizedFormData.redirect_link || '').trim();
         try {
           const normalizedUrl = !/^[a-z][a-z0-9+.-]*:\/\//i.test(deliveryUrl) && deliveryUrl.includes('.')
@@ -148,11 +159,16 @@ export const Products = () => {
         }
       }
 
+      if (String(sanitizedFormData.member_area_action) === 'file' && !sanitizedFormData.delivery_file_path) {
+        showAlert('Arquivo obrigatorio', 'Envie um arquivo antes de salvar um produto com entrega por arquivo/PDF.', 'error');
+        return;
+      }
+
       if (editingId) {
-        const productToUpdate: Product = { id: editingId, ...sanitizedFormData };
+        const productToUpdate = { id: editingId, ...sanitizedFormData } as Product;
         await storage.updateProduct(productToUpdate);
       } else {
-        await storage.createProduct({ id: currentProductId!, ...sanitizedFormData });
+        await storage.createProduct({ id: currentProductId!, ...sanitizedFormData } as Product);
       }
 
       if (currentProductId) {
@@ -207,6 +223,67 @@ export const Products = () => {
     }
   };
 
+  const handleDeliverableUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || !e.target.files[0]) return;
+
+    const file = e.target.files[0];
+    try {
+      setUploadingDeliverable(true);
+      if (!currentProductId) throw new Error('No product ID available');
+
+      const uploaded = await storage.uploadProductDeliverable(
+        file,
+        currentProductId,
+        formData.delivery_file_path,
+      );
+
+      setFormData((prev) => ({
+        ...prev,
+        member_area_action: 'file',
+        delivery_file_path: uploaded.path,
+        delivery_file_name: uploaded.name,
+        delivery_file_mime_type: uploaded.mimeType,
+        delivery_file_size_bytes: uploaded.sizeBytes,
+      }));
+
+      showAlert('Arquivo enviado', 'O arquivo de entrega foi enviado e sera liberado apos a compra.', 'success');
+    } catch (error) {
+      console.error('Error uploading product deliverable:', error);
+      const detailedError = error instanceof Error ? error.message : 'Nao foi possivel enviar o arquivo.';
+      showAlert('Erro no upload', detailedError, 'error');
+    } finally {
+      if (deliverableInputRef.current) {
+        deliverableInputRef.current.value = '';
+      }
+      setUploadingDeliverable(false);
+    }
+  };
+
+  const handleRemoveDeliverable = async () => {
+    if (!formData.delivery_file_path) return;
+
+    try {
+      setUploadingDeliverable(true);
+      await storage.removeProductDeliverable(formData.delivery_file_path);
+      setFormData((prev) => ({
+        ...prev,
+        delivery_file_path: null,
+        delivery_file_name: null,
+        delivery_file_mime_type: null,
+        delivery_file_size_bytes: null,
+      }));
+      showAlert('Arquivo removido', 'O arquivo privado de entrega foi removido do produto.', 'success');
+    } catch (error) {
+      console.error('Error removing product deliverable:', error);
+      showAlert('Erro ao remover', 'Nao foi possivel remover o arquivo de entrega.', 'error');
+    } finally {
+      if (deliverableInputRef.current) {
+        deliverableInputRef.current.value = '';
+      }
+      setUploadingDeliverable(false);
+    }
+  };
+
   const openEdit = (product?: Product) => {
     if (product) {
       setEditingId(product.id);
@@ -223,10 +300,14 @@ export const Products = () => {
         is_order_bump: product.is_order_bump || false,
         is_upsell: product.is_upsell || false,
         active: product.active,
-        member_area_action: product.member_area_action || 'checkout',
+        member_area_action: (product.member_area_action || 'checkout') as 'checkout' | 'sales_page' | 'file',
         member_area_checkout_id: product.member_area_checkout_id || '',
         saas_plan_slug: product.saas_plan_slug || '',
-        member_area_id: product.member_area_id || null
+        member_area_id: product.member_area_id || null,
+        delivery_file_path: product.delivery_file_path || null,
+        delivery_file_name: product.delivery_file_name || null,
+        delivery_file_mime_type: product.delivery_file_mime_type || null,
+        delivery_file_size_bytes: product.delivery_file_size_bytes || null,
       });
       storage.getProductContents(product.id).then(ids => setSelectedContentIds(ids));
     } else {
@@ -235,6 +316,9 @@ export const Products = () => {
       setCurrentProductId(newId);
       setFormData(initialFormState);
       setSelectedContentIds([]);
+    }
+    if (deliverableInputRef.current) {
+      deliverableInputRef.current.value = '';
     }
     setViewMode('edit');
   };
@@ -425,6 +509,13 @@ export const Products = () => {
               )}
             </div>
             <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
+            <input
+              type="file"
+              ref={deliverableInputRef}
+              className="hidden"
+              accept={PRODUCT_DELIVERABLE_INPUT_ACCEPT}
+              onChange={handleDeliverableUpload}
+            />
             
             <div className="space-y-4">
                <div>
@@ -553,15 +644,31 @@ export const Products = () => {
                 <div className="p-8 rounded-[2rem] bg-black/40 border border-white/5">
                    <label className="text-[10px] text-gray-600 font-black uppercase tracking-widest mb-4 block">Entrega do Produto apos Compra</label>
                    <div className="flex flex-col md:flex-row gap-4 mb-8">
-                      {['checkout', 'sales_page'].map(act => (
-                         <label key={act} className={`flex-1 flex items-center gap-4 p-5 rounded-[1.5rem] border transition-all cursor-pointer ${formData.member_area_action === act ? 'bg-primary/10 border-primary shadow-lg shadow-primary/10' : 'bg-black/40 border-white/5 hover:border-white/10'}`}>
-                            <input type="radio" className="hidden" checked={formData.member_area_action === act} onChange={() => setFormData({ ...formData, member_area_action: act as any })} />
-                            <div className={`w-5 h-5 rounded-full border border-gray-700 flex items-center justify-center ${formData.member_area_action === act ? 'border-primary' : ''}`}>
-                               {formData.member_area_action === act && <div className="w-2.5 h-2.5 rounded-full bg-primary" />}
+                      {[
+                        {
+                          id: 'checkout',
+                          title: 'Painel de Membros',
+                          description: 'Libera acesso na area de membros apos pagamento.',
+                        },
+                        {
+                          id: 'sales_page',
+                          title: 'Link Externo',
+                          description: 'Entrega um link externo na pagina de obrigado e no email.',
+                        },
+                        {
+                          id: 'file',
+                          title: 'Arquivo / PDF Privado',
+                          description: 'Entrega um arquivo com link assinado temporario.',
+                        },
+                      ].map((option) => (
+                         <label key={option.id} className={`flex-1 flex items-center gap-4 p-5 rounded-[1.5rem] border transition-all cursor-pointer ${formData.member_area_action === option.id ? 'bg-primary/10 border-primary shadow-lg shadow-primary/10' : 'bg-black/40 border-white/5 hover:border-white/10'}`}>
+                            <input type="radio" className="hidden" checked={formData.member_area_action === option.id} onChange={() => setFormData({ ...formData, member_area_action: option.id as any })} />
+                            <div className={`w-5 h-5 rounded-full border border-gray-700 flex items-center justify-center ${formData.member_area_action === option.id ? 'border-primary' : ''}`}>
+                               {formData.member_area_action === option.id && <div className="w-2.5 h-2.5 rounded-full bg-primary" />}
                             </div>
                             <div>
-                               <p className="text-sm font-bold text-white mb-0.5">{act === 'checkout' ? 'Painel de Membros' : 'Link Externo / PDF'}</p>
-                                <p className="text-[10px] text-gray-700 line-clamp-1">{act === 'checkout' ? 'Libera acesso na area de membros' : 'Entrega um link externo ou PDF'}</p>
+                               <p className="text-sm font-bold text-white mb-0.5">{option.title}</p>
+                                <p className="text-[10px] text-gray-700 line-clamp-2">{option.description}</p>
                             </div>
                          </label>
                       ))}
@@ -607,6 +714,64 @@ export const Products = () => {
                      <div className="animate-in fade-in slide-in-from-top-2 duration-300">
                          <label className="text-[10px] text-gray-600 font-black uppercase tracking-widest mb-3 block">Link de Entrega</label>
                         <input type="text" className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-4 text-white focus:border-white/20" placeholder="https://..." value={formData.redirect_link || ''} onChange={e => setFormData({ ...formData, redirect_link: e.target.value })} />
+                     </div>
+                   )}
+
+                   {formData.member_area_action === 'file' && (
+                     <div className="animate-in fade-in slide-in-from-top-2 duration-300 space-y-5">
+                        <div className="rounded-[1.5rem] border border-white/5 bg-black/30 p-5">
+                           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                              <div className="min-w-0">
+                                 <p className="text-[10px] text-gray-600 font-black uppercase tracking-widest mb-2">Arquivo Privado de Entrega</p>
+                                 <p className="text-sm text-white font-bold truncate">
+                                   {formData.delivery_file_name || 'Nenhum arquivo enviado'}
+                                 </p>
+                                 <p className="text-[11px] text-gray-500 mt-1">
+                                   Tipos aceitos: PDF, ZIP, DOCX, XLSX, PPTX, TXT, CSV, EPUB, RAR e 7Z. Limite de {formatProductDeliverableSize(PRODUCT_DELIVERABLE_MAX_BYTES)}.
+                                 </p>
+                                 {formData.delivery_file_path && (
+                                   <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-gray-400">
+                                      <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                                         <FileText className="h-3.5 w-3.5" />
+                                         {formData.delivery_file_name}
+                                      </span>
+                                      {formData.delivery_file_size_bytes ? (
+                                        <span>{formatProductDeliverableSize(formData.delivery_file_size_bytes)}</span>
+                                      ) : null}
+                                      {formData.delivery_file_mime_type ? (
+                                        <span className="uppercase">{formData.delivery_file_mime_type}</span>
+                                      ) : null}
+                                   </div>
+                                 )}
+                              </div>
+                              <div className="flex flex-wrap gap-3">
+                                 <Button
+                                   type="button"
+                                   variant="secondary"
+                                   className="px-5 py-3 rounded-2xl text-xs font-black uppercase tracking-widest"
+                                   onClick={() => deliverableInputRef.current?.click()}
+                                   isLoading={uploadingDeliverable}
+                                 >
+                                   <Upload className="w-4 h-4" />
+                                   {formData.delivery_file_path ? 'Trocar arquivo' : 'Enviar arquivo'}
+                                 </Button>
+                                 {formData.delivery_file_path ? (
+                                   <Button
+                                     type="button"
+                                     variant="ghost"
+                                     className="px-5 py-3 rounded-2xl text-xs font-black uppercase tracking-widest border border-red-500/20 text-red-300 hover:bg-red-500/10"
+                                     onClick={handleRemoveDeliverable}
+                                     disabled={uploadingDeliverable}
+                                   >
+                                     Remover arquivo
+                                   </Button>
+                                 ) : null}
+                              </div>
+                           </div>
+                        </div>
+                        <p className="text-[11px] text-gray-500">
+                          O comprador recebe um botao na pagina de obrigado e no email. O download final usa um link temporario assinado pelo servidor.
+                        </p>
                      </div>
                    )}
                 </div>

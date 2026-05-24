@@ -1,8 +1,10 @@
 import { createLoginToken } from '../utils/loginToken.js';
+import { generateSignature } from '../utils/cryptoUtils.js';
+import { isPdfProductDeliverable } from '../config/productDeliverables.js';
 
 type SupabaseAdmin = any;
 
-export type OrderDeliverableType = 'external_link' | 'member_area' | 'none';
+export type OrderDeliverableType = 'external_link' | 'member_area' | 'file_download' | 'none';
 export type OrderDeliverableStatus = 'available' | 'not_configured';
 
 export interface OrderDeliverable {
@@ -56,6 +58,17 @@ function normalizeDeliveryUrl(rawUrl: string | null | undefined, origin: string)
   } catch {
     return '';
   }
+}
+
+function buildProductFileAccessUrl(origin: string, orderId: string, productId: string) {
+  const query = new URLSearchParams({
+    action: 'deliverable-file',
+    orderId,
+    productId,
+    sig: generateSignature(orderId),
+  });
+
+  return `${normalizeOrigin(origin)}/api/system?${query.toString()}`;
 }
 
 function getAreaDomain(area: any): string {
@@ -126,7 +139,7 @@ export async function buildOrderDeliverables(
   if (productIds.length > 0) {
     const { data: products, error: productsError } = await supabaseAdmin
       .from('products')
-      .select('id, name, redirect_link, member_area_action, member_area_id, member_area_checkout_id')
+      .select('id, name, redirect_link, member_area_action, member_area_id, member_area_checkout_id, delivery_file_path, delivery_file_name, delivery_file_mime_type, delivery_file_size_bytes')
       .in('id', productIds);
 
     if (productsError) {
@@ -186,6 +199,8 @@ export async function buildOrderDeliverables(
     const directArea = product?.member_area_id ? areasById.get(product.member_area_id) : null;
     const contentArea = productId ? contentAreasByProductId.get(productId) : null;
     const memberArea = directArea || contentArea;
+    const deliveryFilePath = String(product?.delivery_file_path || '').trim();
+    const deliveryFileName = String(product?.delivery_file_name || '').trim() || `${title}.pdf`;
 
     if (action === 'sales_page' && externalUrl) {
       return {
@@ -202,6 +217,30 @@ export async function buildOrderDeliverables(
         instructions: 'Seu material esta disponivel para acesso imediato.',
         sort_order: index,
         source: 'products.redirect_link',
+      } satisfies OrderDeliverable;
+    }
+
+    if (action === 'file' && productId && deliveryFilePath) {
+      const fileUrl = buildProductFileAccessUrl(origin, orderId, productId);
+      const isPdf = isPdfProductDeliverable({
+        name: deliveryFileName,
+        type: String(product?.delivery_file_mime_type || ''),
+      });
+
+      return {
+        id: buildDeliverableId(orderId, productId, index),
+        order_id: orderId,
+        product_id: productId,
+        item_type: itemType,
+        title,
+        delivery_type: 'file_download',
+        status: 'available',
+        url: fileUrl,
+        visual_url: fileUrl,
+        label: isPdf ? 'Baixar PDF' : 'Baixar arquivo',
+        instructions: `Seu arquivo ${deliveryFileName} esta pronto para download.`,
+        sort_order: index,
+        source: 'products.delivery_file_path',
       } satisfies OrderDeliverable;
     }
 
