@@ -18,6 +18,7 @@ import './PublicCheckout.css';
 import { TrackingProvider, useTracking } from '../../context/TrackingContext';
 import { translatePaymentError } from '../../utils/errorTranslator';
 import { useTranslation } from 'react-i18next';
+import type { UpsellGatewayCapability } from '../../config/upsellCapabilities';
 
 // --- PREMIUM PAYMENT ICONS (INLINE SVG - EXTRAÍDOS DA TICTO) ---
 const PixIcon = ({ className }: { className?: string }) => (
@@ -73,7 +74,10 @@ const isLocalWalletSimulationHost = () => (
 
 const getUpsellOrderSessionKey = (orderId?: string) => `upsell-original-order:${orderId || 'unknown'}`;
 
-const persistUpsellOrderContext = (orderId: string | undefined, order: Partial<Order>) => {
+const persistUpsellOrderContext = (
+   orderId: string | undefined,
+   order: Partial<Order> & { upsell_capability_snapshot?: UpsellGatewayCapability | null },
+) => {
    if (!orderId || typeof window === 'undefined') return;
 
    try {
@@ -982,9 +986,24 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                         }
                      }
                   });
-               } else if (paymentMethod === 'boleto' && result.boletoData) {
+                } else if (paymentMethod === 'boleto' && result.boletoData) {
                   window.location.href = result.boletoData.url;
                 } else {
+                   persistUpsellOrderContext(result.orderId, {
+                      id: result.orderId,
+                      checkout_id: data.checkout.id,
+                      amount: totalAmount,
+                      customer_name: customer.name,
+                      customer_email: customer.email,
+                      customer_phone: customer.phone || '',
+                      customer_cpf: customer.cpf || '',
+                      payment_method: paymentMethod,
+                      status: OrderStatus.PENDING,
+                      items,
+                      customer_user_id: userId,
+                      created_at: new Date().toISOString(),
+                      upsell_capability_snapshot: result.upsellCapability || null,
+                   });
                    const signedQuery = result.statusSignature ? `?sig=${encodeURIComponent(result.statusSignature)}` : '';
                    if (data.checkout.config?.upsell?.active) {
                       navigate(`/upsell/${result.orderId}${signedQuery}`);
@@ -1909,7 +1928,8 @@ const WalletExpressButton = ({
                   status: OrderStatus.PENDING,
                   items,
                   customer_user_id: userId,
-                  created_at: new Date().toISOString()
+                  created_at: new Date().toISOString(),
+                  upsell_capability_snapshot: result.upsellCapability || null,
                });
                ev.complete('success');
                const signedQuery = result.statusSignature ? `?sig=${encodeURIComponent(result.statusSignature)}` : '';

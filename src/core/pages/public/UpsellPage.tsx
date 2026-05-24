@@ -95,6 +95,9 @@ export const UpsellPage = () => {
                 };
 
                 setOriginalOrder(mappedOrder);
+                if (order?.upsell_capability_snapshot) {
+                    setServerCapability(order.upsell_capability_snapshot);
+                }
 
                 // 2. Fetch Checkout Config
                 const chk = await storage.getPublicCheckout(order.checkout_id);

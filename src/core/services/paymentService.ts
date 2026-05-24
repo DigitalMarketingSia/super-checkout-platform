@@ -8,6 +8,7 @@ import { getApiUrl, getBaseUrl } from '../utils/apiUtils';
 import { translatePaymentError } from '../utils/errorTranslator';
 import i18n from '../i18n/config';
 import type { UpgradeIntentContext } from './licenseService';
+import type { UpsellGatewayCapability } from '../config/upsellCapabilities';
 
 // Helper for UUID generation
 const generateUUID = () => {
@@ -51,6 +52,7 @@ export interface ProcessPaymentResult {
   orderId?: string;
   gatewayStatus?: string;
   statusSignature?: string; // New: HMAC signature for secure polling (Fase 11F)
+  upsellCapability?: UpsellGatewayCapability | null;
   redirectUrl?: string; // Keep for backward compatibility or fallback
   message?: string;
   // Direct Response Data
@@ -584,13 +586,19 @@ class PaymentService {
         // For now, treat as pending
         return {
           success: true,
-          message: 'Payment requires additional authentication'
+          message: 'Payment requires additional authentication',
+          upsellCapability: result.upsellCapability || null,
         };
       }
 
       // Handle Response
       if (result.status === 'succeeded' || result.status === 'processing') {
-        return { success: true, gatewayStatus: result.status, statusSignature: result.statusSignature };
+        return {
+          success: true,
+          gatewayStatus: result.status,
+          statusSignature: result.statusSignature,
+          upsellCapability: result.upsellCapability || null,
+        };
       } else {
         return {
           success: false,

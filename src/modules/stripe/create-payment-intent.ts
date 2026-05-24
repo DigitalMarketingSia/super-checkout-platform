@@ -5,6 +5,7 @@ import { securityService } from '../../core/services/securityService.js';
 import { applyCors } from '../../core/api/_cors.js';
 import { fulfillOrder } from '../../core/services/fulfillment.js';
 import { sendOrderAccessEmail } from '../../core/services/orderEmail.js';
+import { resolveUpsellGatewayCapability } from '../../core/config/upsellCapabilities.js';
 import { upsertCustomerPaymentProfile } from '../payments/customer-payment-profiles.js';
 import {
     PaymentSecurityError,
@@ -280,6 +281,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const stripeWalletType = stripePaymentMethod?.card?.wallet?.type === 'apple_pay' || stripePaymentMethod?.card?.wallet?.type === 'google_pay'
             ? stripePaymentMethod.card.wallet.type
             : null;
+        const upsellCapability = resolveUpsellGatewayCapability({
+            gatewayName: gateway.name,
+            paymentMethod: stripeWalletType || orderData?.payment_method || 'credit_card',
+            hasSavedProfile: Boolean(stripePaymentMethod?.card?.last4),
+            reusableProfile: false,
+            requiresReauthentication: true,
+            savedProfile: stripePaymentMethod?.card?.last4
+                ? {
+                    brand: stripePaymentMethod?.card?.brand || null,
+                    last4: stripePaymentMethod?.card?.last4 || null,
+                    exp_month: stripePaymentMethod?.card?.exp_month || null,
+                    exp_year: stripePaymentMethod?.card?.exp_year || null,
+                    wallet_type: stripeWalletType,
+                }
+                : null,
+        });
 
         try {
             const profileResult = await upsertCustomerPaymentProfile({
@@ -399,6 +416,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             orderStatus: internalPaymentStatus,
             fulfillmentTriggered,
             statusSignature: generateSignature(orderId),
+            upsellCapability,
             // For 3D Secure: if status is 'requires_action', frontend needs client_secret
             requiresAction: paymentIntent.status === 'requires_action',
             lastPaymentError: paymentIntent.last_payment_error?.message || null
