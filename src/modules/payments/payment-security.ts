@@ -26,7 +26,7 @@ export async function loadCheckoutForPayment(supabaseAdmin: any, checkoutId: unk
   const safeCheckoutId = requireId(checkoutId, 'CHECKOUT_ID_REQUIRED');
   const baseQuery = supabaseAdmin
     .from('checkouts')
-    .select('*, product:products!product_id(*)')
+    .select('*')
     .eq('active', true);
 
   const query = UUID_PATTERN.test(safeCheckoutId)
@@ -44,6 +44,26 @@ export async function loadCheckoutForPayment(supabaseAdmin: any, checkoutId: unk
     throw new PaymentSecurityError('CHECKOUT_NOT_FOUND', 'Invalid checkout configuration.');
   }
 
+  if (!checkout.product_id) {
+    throw new PaymentSecurityError('CHECKOUT_PRODUCT_MISSING', 'Invalid checkout configuration.');
+  }
+
+  const { data: product, error: productError } = await supabaseAdmin
+    .from('products')
+    .select('*')
+    .eq('id', checkout.product_id)
+    .maybeSingle();
+
+  if (productError) {
+    console.error('[PaymentSecurity] Product lookup failed:', productError.message);
+    throw new PaymentSecurityError('CHECKOUT_PRODUCT_LOOKUP_FAILED', 'Invalid checkout configuration.');
+  }
+
+  if (!product) {
+    throw new PaymentSecurityError('CHECKOUT_PRODUCT_NOT_FOUND', 'Invalid checkout configuration.');
+  }
+
+  checkout.product = product;
   return checkout;
 }
 
