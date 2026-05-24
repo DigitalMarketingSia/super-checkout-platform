@@ -1,19 +1,10 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { createClient } from '@supabase/supabase-js';
-import healthHandler from '../src/core/api/health.js';
-import proxyHandler from '../src/core/api/proxy.js';
-import sendEmailHandler from '../src/core/api/send-email.js';
-import { PRODUCT_DELIVERABLE_BUCKET } from '../src/core/config/productDeliverables.js';
-import { resolveUpsellGatewayCapability } from '../src/core/config/upsellCapabilities.js';
 import {
     getLocalSupabasePublicConfig,
     getLocalSupabaseServerKeyErrorMessage,
     resolveLocalSupabaseServerClient,
 } from '../src/core/api/_supabase-server.js';
-import { sendOrderAccessEmail } from '../src/core/services/orderEmail.js';
-import { buildOrderDeliverables, stripSensitiveDeliverableFields } from '../src/core/services/orderDeliverables.js';
 import { verifySignature } from '../src/core/utils/cryptoUtils.js';
-import { verifyLoginToken } from '../src/core/utils/loginToken.js';
 import { enforceApiRateLimit } from '../src/core/api/_rate-limit.js';
 
 const DEFAULT_ALLOWED_ORIGIN = 'https://app.supercheckout.app';
@@ -225,6 +216,7 @@ async function autoLoginHandler(req: VercelRequest, res: VercelResponse) {
       return res.status(429).json({ error: 'Too many requests' });
     }
 
+    const { verifyLoginToken } = await import('../src/core/utils/loginToken.js');
     const verified = verifyLoginToken(token);
     if (!verified) return res.status(401).json({ error: 'Invalid or expired token' });
 
@@ -354,6 +346,7 @@ async function resendOrderAccessHandler(req: VercelRequest, res: VercelResponse)
     }
 
     const origin = normalizeRequestOrigin(req);
+    const { sendOrderAccessEmail } = await import('../src/core/services/orderEmail.js');
     const result = await sendOrderAccessEmail(supabaseAdmin, {
       orderId,
       origin,
@@ -427,6 +420,8 @@ async function deliverableFileHandler(req: VercelRequest, res: VercelResponse) {
     if (productError || !product?.id || String(product.member_area_action || '') !== 'file' || !filePath) {
       return res.status(404).json({ error: 'Deliverable not found' });
     }
+
+    const { PRODUCT_DELIVERABLE_BUCKET } = await import('../src/core/config/productDeliverables.js');
 
     const signedUrlResult = await supabaseAdmin
       .storage
@@ -506,6 +501,11 @@ async function orderDeliverablesHandler(req: VercelRequest, res: VercelResponse)
     }
 
     const origin = normalizeRequestOrigin(req);
+    const {
+      buildOrderDeliverables,
+      stripSensitiveDeliverableFields,
+    } = await import('../src/core/services/orderDeliverables.js');
+
     const deliverables = await buildOrderDeliverables(supabaseAdmin, {
       order,
       origin,
@@ -670,6 +670,7 @@ async function upsellEligibilityHandler(req: VercelRequest, res: VercelResponse)
       savedProfile = fallbackProfile;
     }
 
+    const { resolveUpsellGatewayCapability } = await import('../src/core/config/upsellCapabilities.js');
     const capability = resolveUpsellGatewayCapability({
       gatewayName: gateway?.name,
       paymentMethod: order.payment_method,
@@ -965,11 +966,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
             }
             case 'health':
-                return await healthHandler(req, res);
+                return await (await import('../src/core/api/health.js')).default(req, res);
             case 'proxy':
-                return await proxyHandler(req, res);
+                return await (await import('../src/core/api/proxy.js')).default(req, res);
             case 'send-email':
-                return await sendEmailHandler(req, res);
+                return await (await import('../src/core/api/send-email.js')).default(req, res);
             case 'public-gateway':
                 return await publicGatewayHandler(req, res);
             case 'auto-login':
