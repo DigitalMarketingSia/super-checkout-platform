@@ -3,13 +3,14 @@ import React, { useCallback, useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { storage } from '../../services/storageService';
 import { paymentService } from '../../services/paymentService';
-import { Order, Checkout, Product, CheckoutConfig } from '../../types';
+import { Order, Checkout, Product, CheckoutConfig, Gateway } from '../../types';
 import { Button } from '../../components/ui/Button';
 import { Loading } from '../../components/ui/Loading';
-import { CheckCircle, X, Play, Image as ImageIcon, CreditCard, Lock } from 'lucide-react';
+import { CheckCircle, X, Play, Image as ImageIcon, CreditCard, Lock, ShieldCheck } from 'lucide-react';
 
 import { supabase } from '../../services/supabase';
 import { useTranslation } from 'react-i18next';
+import { resolveUpsellGatewayCapability } from '../../config/upsellCapabilities';
 
 const getUpsellOrderSessionKey = (orderId?: string) => `upsell-original-order:${orderId || 'unknown'}`;
 
@@ -29,6 +30,7 @@ export const UpsellPage = () => {
     const [processing, setProcessing] = useState(false);
     const [originalOrder, setOriginalOrder] = useState<Order | null>(null);
     const [checkout, setCheckout] = useState<Checkout | null>(null);
+    const [gateway, setGateway] = useState<Gateway | null>(null);
     const [upsellProduct, setUpsellProduct] = useState<Product | null>(null);
     const [error, setError] = useState('');
 
@@ -100,6 +102,7 @@ export const UpsellPage = () => {
                     return;
                 }
                 setCheckout(chk);
+                setGateway(chk.gateway_id ? await storage.getPublicGateway(chk.gateway_id) : null);
 
                 // 3. Fetch Upsell Product
                 const prod = await storage.getPublicProduct(chk.config.upsell.product_id);
@@ -119,18 +122,47 @@ export const UpsellPage = () => {
         load();
     }, [orderId, navigate, t, appendOriginalSignature]);
 
+    const upsellCapability = resolveUpsellGatewayCapability({
+        gatewayName: gateway?.name,
+        paymentMethod: originalOrder?.payment_method,
+    });
+
+    const originalPaymentMethodLabel = originalOrder?.payment_method === 'pix'
+        ? t('upsell.method_pix', 'Pix')
+        : originalOrder?.payment_method === 'credit_card'
+            ? t('upsell.method_credit_card', 'Cartão de crédito')
+            : originalOrder?.payment_method === 'apple_pay'
+                ? t('upsell.method_apple_pay', 'Apple Pay')
+                : originalOrder?.payment_method === 'google_pay'
+                    ? t('upsell.method_google_pay', 'Google Pay')
+                    : originalOrder?.payment_method === 'boleto'
+                        ? t('upsell.method_boleto', 'Boleto')
+                        : t('upsell.method_unknown', 'Método não identificado');
+
+    const originalGatewayLabel = gateway?.name === 'stripe'
+        ? 'Stripe'
+        : gateway?.name === 'mercado_pago'
+            ? 'Mercado Pago'
+            : t('upsell.gateway_unknown', 'Gateway padrão');
+
+    const trustModeDescription = upsellCapability.original_payment_method === 'pix'
+        ? t('upsell.pix_mode_desc', 'Seu pedido principal já foi confirmado. Se você aceitar esta oferta, vamos gerar um novo Pix somente para o item adicional.')
+        : t('upsell.card_mode_desc', 'Seu pedido principal já foi confirmado. Para adicionar este item, confirme um novo pagamento somente do item adicional.');
+
+    const primaryUpsellCta = upsellCapability.original_payment_method === 'pix'
+        ? t('upsell.generate_pix_cta', 'Gerar Pix do item adicional')
+        : t('upsell.continue_card_cta', 'Continuar com pagamento adicional');
+
     const handleAccept = async () => {
         if (!originalOrder || !upsellProduct || !checkout) return;
 
         setProcessing(true);
         try {
-            // Determine Payment Method
-            // For now, default to same as original if Pix, or Card Form if Card
-            // If original was Boleto, maybe Pix?
-
-            // Logic:
-            // If Original = Pix -> Generate Pix immediately (One Click experience)
-            // If Original = Card -> Show Card Form (User types CVV etc) -> effectively Two click
+            if (upsellCapability.mode === 'not_immediate') {
+                alert(t('upsell.not_immediate_error', 'Este método de pagamento ainda não suporta oferta imediata com segurança.'));
+                setProcessing(false);
+                return;
+            }
 
             if (originalOrder.payment_method === 'pix') {
                 await processPurchase('pix');
@@ -279,6 +311,29 @@ export const UpsellPage = () => {
 
                 {/* CTA Card */}
                 <div className="w-full bg-[#111] border-2 border-primary/30 p-6 md:p-8 rounded-2xl flex flex-col items-center gap-6 shadow-[0_0_40px_rgba(138,43,226,0.1)]">
+                    <div className="w-full rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4 md:p-5 text-left">
+                        <div className="flex items-center gap-2 text-emerald-300 text-[10px] font-black uppercase tracking-[0.3em] mb-3">
+                            <ShieldCheck className="w-4 h-4" />
+                            {t('upsell.main_order_confirmed', 'Pedido principal confirmado')}
+                        </div>
+                        <p className="text-sm text-white leading-relaxed">
+                            {t('upsell.main_order_confirmed_desc', 'Sua compra anterior já está garantida. Esta oferta é opcional e não substitui o pedido que você acabou de pagar.')}
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+                            <div className="rounded-xl bg-black/20 border border-white/5 p-3">
+                                <p className="text-[10px] uppercase tracking-[0.2em] text-gray-400 font-black mb-1">{t('upsell.original_payment_method', 'Método original')}</p>
+                                <p className="text-sm font-bold text-white">{originalPaymentMethodLabel}</p>
+                            </div>
+                            <div className="rounded-xl bg-black/20 border border-white/5 p-3">
+                                <p className="text-[10px] uppercase tracking-[0.2em] text-gray-400 font-black mb-1">{t('upsell.gateway_label', 'Gateway')}</p>
+                                <p className="text-sm font-bold text-white">{originalGatewayLabel}</p>
+                            </div>
+                        </div>
+                        <p className="mt-4 text-xs text-gray-200 leading-relaxed">
+                            {trustModeDescription}
+                        </p>
+                    </div>
+
                     <div className="text-center">
                         <p className="text-sm text-gray-400 uppercase tracking-widest mb-2 font-bold">{t('upsell.order_summary', 'Resumo do pedido')}</p>
                         <h3 className="text-xl font-bold">{upsellProduct?.name}</h3>
@@ -294,7 +349,11 @@ export const UpsellPage = () => {
                                 disabled={processing}
                                 className="w-full md:w-auto px-8 py-4 bg-green-500 hover:bg-green-400 text-black font-black text-lg md:text-xl rounded-full shadow-lg hover:scale-105 transition-all flex items-center justify-center gap-2 animate-pulse"
                             >
-                                {processing ? t('upsell.processing', 'Processando...') : (config.button_text || t('upsell.accept_default', 'Sim, quero adicionar ao meu pedido'))}
+                                {processing
+                                    ? t('upsell.processing', 'Processando...')
+                                    : (upsellCapability.mode === 'one_click'
+                                        ? (config.button_text || t('upsell.accept_default', 'Sim, quero adicionar ao meu pedido'))
+                                        : primaryUpsellCta)}
                             </button>
 
                             {/* Decline */}
@@ -304,6 +363,9 @@ export const UpsellPage = () => {
                             >
                                 {t('upsell.decline', 'Não, obrigado. Vou perder essa oportunidade.')}
                             </button>
+                            <p className="text-[11px] text-gray-500 text-center max-w-md">
+                                {t('upsell.order_safe_notice', 'Seu pedido principal continuará confirmado mesmo se você recusar esta oferta.')}
+                            </p>
                         </>
                     ) : (
                         <div className="w-full max-w-sm space-y-4 animate-in fade-in slide-in-from-bottom-4">
@@ -311,6 +373,9 @@ export const UpsellPage = () => {
                                 <h4 className="font-bold mb-4 flex items-center gap-2">
                                     <CreditCard className="w-4 h-4 text-primary" /> {t('upsell.card_details', 'Dados do cartão')}
                                 </h4>
+                                <p className="text-xs text-gray-400 leading-relaxed mb-4">
+                                    {t('upsell.card_form_notice', 'Você está confirmando um pagamento adicional apenas para esta oferta. O pedido principal não será cobrado novamente.')}
+                                </p>
                                 <input
                                     className="w-full bg-black/30 border border-white/10 rounded mb-3 p-3 text-sm"
                                     placeholder={t('upsell.card_number', 'Número do cartão')}

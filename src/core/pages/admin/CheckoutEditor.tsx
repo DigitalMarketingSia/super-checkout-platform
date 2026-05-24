@@ -638,7 +638,10 @@ export const CheckoutEditor = () => {
                                     <span className="px-3 py-1 rounded-full bg-primary/20 text-primary text-[9px] font-black uppercase tracking-[0.2em] border border-primary/30">{t('checkout_editor.post_sale_logic')}</span>
                                  </div>
                                  <p className="text-xs text-gray-400 font-medium max-w-lg leading-relaxed italic">
-                                    {t('checkout_editor.upsell_desc')} <span className="text-white font-bold underline decoration-primary/50">One-Click</span>.
+                                    {t('checkout_editor.upsell_desc')}
+                                 </p>
+                                 <p className="text-[10px] text-primary/80 font-black uppercase tracking-[0.18em] mt-3">
+                                    {t('checkout_editor.upsell_capability_notice')}
                                  </p>
                               </div>
                            </div>

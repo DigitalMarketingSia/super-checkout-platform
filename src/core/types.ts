@@ -19,6 +19,12 @@ export enum GatewayProvider {
   PIX = 'pix',       // Native/Manual
 }
 
+export type UpsellExperienceMode =
+  | 'one_click'
+  | 'light_confirmation'
+  | 'repayment_explicit'
+  | 'not_immediate';
+
 export enum OrderStatus {
   PENDING = 'pending',
   PAID = 'paid',
