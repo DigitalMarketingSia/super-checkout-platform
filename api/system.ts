@@ -576,7 +576,7 @@ async function upsellEligibilityHandler(req: VercelRequest, res: VercelResponse)
 
     const { data: order, error: orderError } = await supabaseAdmin
       .from('orders')
-      .select('id, user_id, checkout_id, customer_email, payment_method')
+      .select('id, user_id, customer_user_id, checkout_id, customer_email, payment_method')
       .eq('id', orderId)
       .maybeSingle();
 
@@ -586,7 +586,7 @@ async function upsellEligibilityHandler(req: VercelRequest, res: VercelResponse)
 
     const { data: payment } = await supabaseAdmin
       .from('payments')
-      .select('gateway_id')
+      .select('gateway_id, user_id')
       .eq('order_id', order.id)
       .order('created_at', { ascending: false })
       .limit(1)
@@ -594,11 +594,13 @@ async function upsellEligibilityHandler(req: VercelRequest, res: VercelResponse)
 
     const { data: checkout } = await supabaseAdmin
       .from('checkouts')
-      .select('gateway_id')
+      .select('gateway_id, user_id')
       .eq('id', order.checkout_id)
       .maybeSingle();
 
     const effectiveGatewayId = String(payment?.gateway_id || checkout?.gateway_id || '').trim();
+    const effectiveMerchantUserId = String(checkout?.user_id || payment?.user_id || order.user_id || '').trim();
+    const normalizedCustomerEmail = String(order.customer_email || '').trim().toLowerCase();
 
     const { data: gateway } = effectiveGatewayId
       ? await supabaseAdmin
@@ -611,17 +613,38 @@ async function upsellEligibilityHandler(req: VercelRequest, res: VercelResponse)
     let savedProfile: any = null;
 
     if (effectiveGatewayId) {
-      const { data: exactProfile } = await supabaseAdmin
+      let exactProfileQuery = supabaseAdmin
         .from('customer_payment_profiles')
         .select('card_brand, card_last4, card_exp_month, card_exp_year, wallet_type, reusable, requires_reauthentication')
-        .eq('user_id', order.user_id)
         .eq('gateway_id', effectiveGatewayId)
         .eq('last_order_id', order.id)
         .order('updated_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .limit(1);
+
+      if (effectiveMerchantUserId) {
+        exactProfileQuery = exactProfileQuery.eq('user_id', effectiveMerchantUserId);
+      }
+
+      const { data: exactProfile } = await exactProfileQuery.maybeSingle();
 
       savedProfile = exactProfile;
+    }
+
+    if (!savedProfile && effectiveGatewayId && order.customer_user_id) {
+      let customerUserProfileQuery = supabaseAdmin
+        .from('customer_payment_profiles')
+        .select('card_brand, card_last4, card_exp_month, card_exp_year, wallet_type, reusable, requires_reauthentication')
+        .eq('gateway_id', effectiveGatewayId)
+        .eq('customer_user_id', order.customer_user_id)
+        .order('updated_at', { ascending: false })
+        .limit(1);
+
+      if (effectiveMerchantUserId) {
+        customerUserProfileQuery = customerUserProfileQuery.eq('user_id', effectiveMerchantUserId);
+      }
+
+      const { data: customerUserProfile } = await customerUserProfileQuery.maybeSingle();
+      savedProfile = customerUserProfile;
     }
 
     if (!savedProfile && effectiveGatewayId) {
@@ -629,16 +652,20 @@ async function upsellEligibilityHandler(req: VercelRequest, res: VercelResponse)
         ? ['credit_card', 'apple_pay', 'google_pay']
         : [order.payment_method];
 
-      const { data: fallbackProfile } = await supabaseAdmin
-          .from('customer_payment_profiles')
-          .select('card_brand, card_last4, card_exp_month, card_exp_year, wallet_type, reusable, requires_reauthentication')
-          .eq('user_id', order.user_id)
-          .eq('gateway_id', effectiveGatewayId)
-          .eq('customer_email', String(order.customer_email || '').trim().toLowerCase())
-          .in('payment_method_type', paymentMethodCandidates)
-          .order('updated_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
+      let fallbackProfileQuery = supabaseAdmin
+        .from('customer_payment_profiles')
+        .select('card_brand, card_last4, card_exp_month, card_exp_year, wallet_type, reusable, requires_reauthentication')
+        .eq('gateway_id', effectiveGatewayId)
+        .ilike('customer_email', normalizedCustomerEmail)
+        .in('payment_method_type', paymentMethodCandidates)
+        .order('updated_at', { ascending: false })
+        .limit(1);
+
+      if (effectiveMerchantUserId) {
+        fallbackProfileQuery = fallbackProfileQuery.eq('user_id', effectiveMerchantUserId);
+      }
+
+      const { data: fallbackProfile } = await fallbackProfileQuery.maybeSingle();
 
       savedProfile = fallbackProfile;
     }
