@@ -1414,10 +1414,25 @@ class StorageService {
       // Public Checkout: Fetch checkout to find merchant ID
       const { data: checkout } = await supabase
         .from('checkouts')
-        .select('user_id')
+        .select('user_id, product_id')
         .eq('id', order.checkout_id)
         .single();
-      if (checkout) merchantId = checkout.user_id;
+
+      if (checkout?.product_id) {
+        const { data: product } = await supabase
+          .from('products')
+          .select('user_id')
+          .eq('id', checkout.product_id)
+          .maybeSingle();
+
+        if (product?.user_id) {
+          merchantId = product.user_id;
+        }
+      }
+
+      if (!merchantId && checkout?.user_id) {
+        merchantId = checkout.user_id;
+      }
     }
 
     // Prepare record

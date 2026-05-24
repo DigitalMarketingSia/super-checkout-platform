@@ -51,11 +51,28 @@ export function getMainProductForCheckout(checkout: any) {
   const productsData = Array.isArray(checkout?.product) ? checkout.product : [checkout?.product];
   const mainProduct = productsData[0];
 
-  if (!mainProduct || mainProduct.user_id !== checkout.user_id) {
+  if (!mainProduct) {
     throw new PaymentSecurityError('CHECKOUT_PRODUCT_FORBIDDEN', 'Invalid checkout configuration.');
   }
 
   return mainProduct;
+}
+
+export function resolveCheckoutMerchantUserId(checkout: any, mainProduct: any) {
+  const productOwnerId = typeof mainProduct?.user_id === 'string' && mainProduct.user_id.trim()
+    ? mainProduct.user_id.trim()
+    : '';
+  const checkoutOwnerId = typeof checkout?.user_id === 'string' && checkout.user_id.trim()
+    ? checkout.user_id.trim()
+    : '';
+
+  const merchantUserId = productOwnerId || checkoutOwnerId;
+
+  if (!merchantUserId) {
+    throw new PaymentSecurityError('CHECKOUT_OWNER_NOT_FOUND', 'Invalid checkout configuration.');
+  }
+
+  return merchantUserId;
 }
 
 export function getServerCurrency(checkout: any, mainProduct: any) {
@@ -106,6 +123,7 @@ export function assertGatewayAllowedForCheckout(checkout: any, gatewayId: unknow
 
 export async function loadOwnedActiveGateway(
   supabaseAdmin: any,
+  merchantUserId: string,
   checkout: any,
   gatewayId: unknown,
   expectedProvider: string
@@ -115,7 +133,7 @@ export async function loadOwnedActiveGateway(
     .from('gateways')
     .select('*')
     .eq('id', safeGatewayId)
-    .eq('user_id', checkout.user_id)
+    .eq('user_id', merchantUserId)
     .maybeSingle();
 
   if (error) {
@@ -134,6 +152,15 @@ export async function loadOwnedActiveGateway(
 }
 
 export async function loadOwnedOrderForCheckout(supabaseAdmin: any, checkout: any, orderId: unknown) {
+  return loadOwnedOrderForCheckoutWithMerchant(supabaseAdmin, checkout, checkout?.user_id || null, orderId);
+}
+
+export async function loadOwnedOrderForCheckoutWithMerchant(
+  supabaseAdmin: any,
+  checkout: any,
+  merchantUserId: string | null,
+  orderId: unknown
+) {
   const safeOrderId = requireId(orderId, 'ORDER_ID_REQUIRED');
   const { data: order, error } = await supabaseAdmin
     .from('orders')
@@ -150,25 +177,34 @@ export async function loadOwnedOrderForCheckout(supabaseAdmin: any, checkout: an
     throw new PaymentSecurityError('PAYMENT_ORDER_FORBIDDEN');
   }
 
-  if (order.user_id && order.user_id !== checkout.user_id) {
+  const canonicalMerchantUserId = typeof merchantUserId === 'string' && merchantUserId.trim()
+    ? merchantUserId.trim()
+    : (typeof checkout?.user_id === 'string' ? checkout.user_id.trim() : '');
+
+  if (!canonicalMerchantUserId) {
     throw new PaymentSecurityError('PAYMENT_ORDER_FORBIDDEN');
   }
 
-  if (!order.user_id) {
+  if (!order.user_id || order.user_id !== canonicalMerchantUserId) {
     await supabaseAdmin
       .from('orders')
-      .update({ user_id: checkout.user_id })
+      .update({ user_id: canonicalMerchantUserId })
       .eq('id', safeOrderId)
       .eq('checkout_id', checkout.id);
   }
 
   return {
     ...order,
-    user_id: order.user_id || checkout.user_id
+    user_id: canonicalMerchantUserId
   };
 }
 
-export async function loadValidCheckoutBumps(supabaseAdmin: any, checkout: any, selectedBumpIds: unknown) {
+export async function loadValidCheckoutBumps(
+  supabaseAdmin: any,
+  checkout: any,
+  merchantUserId: string,
+  selectedBumpIds: unknown
+) {
   const allowedBumpIds = new Set(
     (Array.isArray(checkout?.order_bump_ids) ? checkout.order_bump_ids : [])
       .filter(Boolean)
@@ -188,7 +224,7 @@ export async function loadValidCheckoutBumps(supabaseAdmin: any, checkout: any, 
     .from('products')
     .select('*')
     .in('id', requestedBumpIds)
-    .eq('user_id', checkout.user_id)
+    .eq('user_id', merchantUserId)
     .eq('active', true);
 
   if (error) {

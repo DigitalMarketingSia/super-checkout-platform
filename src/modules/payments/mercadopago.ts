@@ -10,9 +10,10 @@ import {
   getServerCurrency,
   loadCheckoutForPayment,
   loadOwnedActiveGateway,
-  loadOwnedOrderForCheckout,
+  loadOwnedOrderForCheckoutWithMerchant,
   loadValidCheckoutBumps,
-  normalizeInstallmentsForGateway
+  normalizeInstallmentsForGateway,
+  resolveCheckoutMerchantUserId
 } from './payment-security.js';
 
 /**
@@ -162,9 +163,10 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
 
     const checkout = await loadCheckoutForPayment(supabaseAdmin, checkoutId);
     const mainProduct = getMainProductForCheckout(checkout);
-    await loadOwnedOrderForCheckout(supabaseAdmin, checkout, orderId);
+    const merchantUserId = resolveCheckoutMerchantUserId(checkout, mainProduct);
+    await loadOwnedOrderForCheckoutWithMerchant(supabaseAdmin, checkout, merchantUserId, orderId);
 
-    const gateway = await loadOwnedActiveGateway(supabaseAdmin, checkout, gatewayId, 'mercado_pago');
+    const gateway = await loadOwnedActiveGateway(supabaseAdmin, merchantUserId, checkout, gatewayId, 'mercado_pago');
     const serverCurrency = getServerCurrency(checkout, mainProduct);
     if (serverCurrency !== 'BRL') {
       throw new PaymentSecurityError('PAYMENT_CURRENCY_GATEWAY_FORBIDDEN', 'Invalid checkout configuration.');
@@ -185,7 +187,7 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
     const validBumps: any[] = [];
 
     if (selectedBumpIds.length > 0) {
-      const bumpsData = await loadValidCheckoutBumps(supabaseAdmin, checkout, selectedBumpIds);
+      const bumpsData = await loadValidCheckoutBumps(supabaseAdmin, checkout, merchantUserId, selectedBumpIds);
       bumpsData.forEach((bp: any) => {
         totalAmount += Number(bp.price_real || 0);
         validBumps.push({ id: bp.id, name: bp.name, price: bp.price_real });

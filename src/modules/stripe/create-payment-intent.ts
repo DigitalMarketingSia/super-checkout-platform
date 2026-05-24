@@ -12,8 +12,9 @@ import {
     getMainProductForCheckout,
     loadCheckoutForPayment,
     loadOwnedActiveGateway,
-    loadOwnedOrderForCheckout,
-    loadValidCheckoutBumps
+    loadOwnedOrderForCheckoutWithMerchant,
+    loadValidCheckoutBumps,
+    resolveCheckoutMerchantUserId
 } from '../payments/payment-security.js';
 
 // --- CONFIG ---
@@ -186,8 +187,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
         const checkout = await loadCheckoutForPayment(supabaseAdmin, checkoutId);
         const mainProduct = getMainProductForCheckout(checkout);
-        const orderData = await loadOwnedOrderForCheckout(supabaseAdmin, checkout, orderId);
-        const gateway = await loadOwnedActiveGateway(supabaseAdmin, checkout, gatewayId, 'stripe');
+        const merchantUserId = resolveCheckoutMerchantUserId(checkout, mainProduct);
+        const orderData = await loadOwnedOrderForCheckoutWithMerchant(supabaseAdmin, checkout, merchantUserId, orderId);
+        const gateway = await loadOwnedActiveGateway(supabaseAdmin, merchantUserId, checkout, gatewayId, 'stripe');
         const serverCurrency = assertCurrencyMatchesCheckout(checkout, mainProduct, currency);
 
         // The private key is encrypted in the database (Fase 11C), so we must decrypt it
@@ -206,7 +208,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         // 2. Add selected Bumps
         if (selectedBumpIds.length > 0) {
-            const bumpsData = await loadValidCheckoutBumps(supabaseAdmin, checkout, selectedBumpIds);
+            const bumpsData = await loadValidCheckoutBumps(supabaseAdmin, checkout, merchantUserId, selectedBumpIds);
             bumpsData.forEach((bp: any) => {
                 calculatedTotal += Number(bp.price_real || 0);
             });
