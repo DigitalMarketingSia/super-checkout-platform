@@ -10,7 +10,6 @@
         { "source": "/api/auth/register", "destination": "/api/auth?route=register" },
         { "source": "/api/auth/2fa", "destination": "/api/auth?route=2fa" },
         { "source": "/api/auth/security-event", "destination": "/api/auth?route=security-event" },
-        { "source": "/api/health", "destination": "/api/system?action=health" },
         { "source": "/api/proxy", "destination": "/api/system?action=proxy" },
         { "source": "/api/send-email", "destination": "/api/system?action=send-email" },
         { "source": "/api/config", "destination": "/api/installer?action=config" },

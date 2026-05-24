@@ -130,7 +130,7 @@ export const UpsellPage = () => {
 
             try {
                 const response = await fetch(
-                    getApiUrl(`/api/system?action=upsell-eligibility&orderId=${encodeURIComponent(orderId)}&sig=${encodeURIComponent(originalStatusSignature)}`)
+                    getApiUrl(`/api/upsell-eligibility?orderId=${encodeURIComponent(orderId)}&sig=${encodeURIComponent(originalStatusSignature)}`)
                 );
 
                 if (!response.ok) return;
