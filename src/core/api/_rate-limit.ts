@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { createHash } from 'node:crypto';
+import crypto from 'crypto';
 
 type Bucket = {
     count: number;
@@ -26,7 +26,7 @@ function getClientIp(req: VercelRequest) {
 }
 
 function hashIdentifier(value: string) {
-    return createHash('sha256').update(value).digest('hex').slice(0, 32);
+    return crypto.createHash('sha256').update(value).digest('hex').slice(0, 32);
 }
 
 function pruneExpired(now: number) {
