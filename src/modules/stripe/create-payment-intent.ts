@@ -5,7 +5,6 @@ import { securityService } from '../../core/services/securityService.js';
 import { applyCors } from '../../core/api/_cors.js';
 import { fulfillOrder } from '../../core/services/fulfillment.js';
 import { sendOrderAccessEmail } from '../../core/services/orderEmail.js';
-import { resolveUpsellGatewayCapability } from '../../core/config/upsellCapabilities.js';
 import { upsertCustomerPaymentProfile } from '../payments/customer-payment-profiles.js';
 import {
     PaymentSecurityError,
@@ -173,7 +172,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         // --- FETCH CHECKOUT, ORDER AND GATEWAY WITH SERVER-SIDE OWNERSHIP ---
         const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://vixlzrmhqsbzjhpgfwdn.supabase.co';
-        const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        const serviceRoleKey =
+            process.env.SUPABASE_SECRET_KEY_NEW ||
+            process.env.SUPABASE_SECRET_KEY ||
+            process.env.SUPABASE_SERVICE_ROLE_KEY_NEW ||
+            process.env.SUPABASE_SERVICE_ROLE_KEY;
 
         if (!supabaseUrl || !serviceRoleKey) {
             console.error('[CreatePaymentIntent] Missing Supabase credentials');
@@ -281,13 +284,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const stripeWalletType = stripePaymentMethod?.card?.wallet?.type === 'apple_pay' || stripePaymentMethod?.card?.wallet?.type === 'google_pay'
             ? stripePaymentMethod.card.wallet.type
             : null;
-        const upsellCapability = resolveUpsellGatewayCapability({
-            gatewayName: gateway.name,
-            paymentMethod: stripeWalletType || orderData?.payment_method || 'credit_card',
-            hasSavedProfile: Boolean(stripePaymentMethod?.card?.last4),
-            reusableProfile: false,
-            requiresReauthentication: true,
-            savedProfile: stripePaymentMethod?.card?.last4
+        const hasSavedProfile = Boolean(stripePaymentMethod?.card?.last4);
+        const upsellCapability = {
+            gateway: 'stripe',
+            original_payment_method: stripeWalletType || orderData?.payment_method || 'credit_card',
+            supports_saved_method: hasSavedProfile,
+            supports_off_session_charge: false,
+            requires_step_up: true,
+            supports_pix: false,
+            supports_wallet_reuse: stripeWalletType === 'apple_pay' || stripeWalletType === 'google_pay',
+            has_saved_profile: hasSavedProfile,
+            reusable_profile_available: false,
+            should_offer_immediately: true,
+            requires_payment_form: true,
+            strategy: hasSavedProfile ? 'saved_method_reconfirm' : 'new_card_capture',
+            saved_profile: hasSavedProfile
                 ? {
                     brand: stripePaymentMethod?.card?.brand || null,
                     last4: stripePaymentMethod?.card?.last4 || null,
@@ -296,7 +307,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     wallet_type: stripeWalletType,
                 }
                 : null,
-        });
+            mode: hasSavedProfile ? 'light_confirmation' : 'repayment_explicit',
+        };
 
         try {
             const profileResult = await upsertCustomerPaymentProfile({

@@ -1,7 +1,4 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import stripePaymentIntentHandler from '../src/modules/stripe/create-payment-intent.js';
-import { processMercadoPagoPayment } from '../src/modules/payments/mercadopago.js';
-import { securityService } from '../src/core/services/securityService.js';
 
 /**
  * PAYMENTS HUB (v4)
@@ -43,6 +40,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || 'unknown';
 
     try {
+        const { securityService } = await import('../src/core/services/securityService.js');
+
         // 1. Rate Limit Check (Pre-Action)
         const isLimited = await securityService.isRateLimited(ip);
         if (isLimited) {
@@ -54,10 +53,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         // 2. Routing
         if (action === 'create-payment-intent') {
+            const stripePaymentIntentHandler = (await import('../src/modules/stripe/create-payment-intent.js')).default;
             return await stripePaymentIntentHandler(req, res);
         }
 
         if (action === 'mercadopago') {
+            const { processMercadoPagoPayment } = await import('../src/modules/payments/mercadopago.js');
             console.log("[PaymentsHub] Action: mercadopago");
             
             // 2. Dynamic Host Resolution for Notifications (Fase 11 - Robustness)
