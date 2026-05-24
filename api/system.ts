@@ -4,6 +4,7 @@ import healthHandler from '../src/core/api/health.js';
 import proxyHandler from '../src/core/api/proxy.js';
 import sendEmailHandler from '../src/core/api/send-email.js';
 import { PRODUCT_DELIVERABLE_BUCKET } from '../src/core/config/productDeliverables.js';
+import { resolveUpsellGatewayCapability } from '../src/core/config/upsellCapabilities.js';
 import {
     getLocalSupabasePublicConfig,
     getLocalSupabaseServerKeyErrorMessage,
@@ -538,6 +539,105 @@ async function orderDeliverablesHandler(req: VercelRequest, res: VercelResponse)
   }
 }
 
+async function upsellEligibilityHandler(req: VercelRequest, res: VercelResponse) {
+  const corsAllowed = applyMemberCors(req, res);
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (!corsAllowed) return res.status(403).json({ error: 'Origin not allowed' });
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+
+  const orderId = String(req.query.orderId || '').trim();
+  const sig = String(req.query.sig || '').trim();
+  if (!UUID_REGEX.test(orderId)) {
+    return res.status(400).json({ error: 'Invalid orderId' });
+  }
+
+  const rateLimit = enforceApiRateLimit(req, res, {
+    scope: 'system_upsell_eligibility',
+    identifiers: [orderId],
+    limit: 80,
+    windowMs: 15 * 60 * 1000,
+  });
+  if (!rateLimit.allowed) {
+    return res.status(429).json({ error: 'Too many requests' });
+  }
+
+  if (!verifySignature(orderId, sig)) {
+    return res.status(200).json({ authorized: false, capability: null });
+  }
+
+  try {
+    const { supabase: supabaseAdmin } = await resolveLocalSupabaseServerClient();
+    if (!supabaseAdmin) {
+      return res.status(500).json({ error: getLocalSupabaseServerKeyErrorMessage() });
+    }
+
+    const { data: order, error: orderError } = await supabaseAdmin
+      .from('orders')
+      .select('id, user_id, checkout_id, customer_email, payment_method')
+      .eq('id', orderId)
+      .maybeSingle();
+
+    if (orderError || !order?.id) {
+      return res.status(200).json({ authorized: true, capability: null });
+    }
+
+    const { data: checkout } = await supabaseAdmin
+      .from('checkouts')
+      .select('gateway_id')
+      .eq('id', order.checkout_id)
+      .maybeSingle();
+
+    const { data: gateway } = checkout?.gateway_id
+      ? await supabaseAdmin
+          .from('gateways')
+          .select('id, name')
+          .eq('id', checkout.gateway_id)
+          .maybeSingle()
+      : { data: null };
+
+    const { data: savedProfile } = checkout?.gateway_id
+      ? await supabaseAdmin
+          .from('customer_payment_profiles')
+          .select('card_brand, card_last4, card_exp_month, card_exp_year, wallet_type, reusable, requires_reauthentication')
+          .eq('user_id', order.user_id)
+          .eq('gateway_id', checkout.gateway_id)
+          .eq('customer_email', String(order.customer_email || '').trim().toLowerCase())
+          .eq('payment_method_type', order.payment_method)
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      : { data: null };
+
+    const capability = resolveUpsellGatewayCapability({
+      gatewayName: gateway?.name,
+      paymentMethod: order.payment_method,
+      hasSavedProfile: Boolean(savedProfile),
+      reusableProfile: Boolean(savedProfile?.reusable),
+      requiresReauthentication: savedProfile?.requires_reauthentication ?? undefined,
+      savedProfile: savedProfile
+        ? {
+            brand: savedProfile.card_brand,
+            last4: savedProfile.card_last4,
+            exp_month: savedProfile.card_exp_month,
+            exp_year: savedProfile.card_exp_year,
+            wallet_type: savedProfile.wallet_type,
+          }
+        : null,
+    });
+
+    return res.status(200).json({
+      authorized: true,
+      capability,
+    });
+  } catch (err: any) {
+    console.error('[System] upsell-eligibility failed:', err?.message || err);
+    return res.status(500).json({ error: 'Failed to resolve upsell eligibility' });
+  }
+}
+
 function maskEmail(email?: string | null) {
   const [name, domain] = String(email || '').split('@');
   if (!name || !domain) return 'unknown';
@@ -821,6 +921,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return await deliverableFileHandler(req, res);
             case 'order-deliverables':
                 return await orderDeliverablesHandler(req, res);
+            case 'upsell-eligibility':
+                return await upsellEligibilityHandler(req, res);
             case 'member-password-reset':
                 return await memberPasswordResetHandler(req, res);
             default:

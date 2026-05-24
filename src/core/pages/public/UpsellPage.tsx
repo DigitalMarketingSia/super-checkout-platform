@@ -10,7 +10,8 @@ import { CheckCircle, X, Play, Image as ImageIcon, CreditCard, Lock, ShieldCheck
 
 import { supabase } from '../../services/supabase';
 import { useTranslation } from 'react-i18next';
-import { resolveUpsellGatewayCapability } from '../../config/upsellCapabilities';
+import { getApiUrl } from '../../utils/apiUtils';
+import { resolveUpsellGatewayCapability, type UpsellGatewayCapability } from '../../config/upsellCapabilities';
 
 const getUpsellOrderSessionKey = (orderId?: string) => `upsell-original-order:${orderId || 'unknown'}`;
 
@@ -31,6 +32,7 @@ export const UpsellPage = () => {
     const [originalOrder, setOriginalOrder] = useState<Order | null>(null);
     const [checkout, setCheckout] = useState<Checkout | null>(null);
     const [gateway, setGateway] = useState<Gateway | null>(null);
+    const [serverCapability, setServerCapability] = useState<UpsellGatewayCapability | null>(null);
     const [upsellProduct, setUpsellProduct] = useState<Product | null>(null);
     const [error, setError] = useState('');
 
@@ -122,10 +124,41 @@ export const UpsellPage = () => {
         load();
     }, [orderId, navigate, t, appendOriginalSignature]);
 
-    const upsellCapability = resolveUpsellGatewayCapability({
+    useEffect(() => {
+        const loadEligibility = async () => {
+            if (!orderId || !originalStatusSignature) return;
+
+            try {
+                const response = await fetch(
+                    getApiUrl(`/api/system?action=upsell-eligibility&orderId=${encodeURIComponent(orderId)}&sig=${encodeURIComponent(originalStatusSignature)}`)
+                );
+
+                if (!response.ok) return;
+                const payload = await response.json();
+                if (payload?.authorized && payload?.capability) {
+                    setServerCapability(payload.capability);
+                }
+            } catch (eligibilityError) {
+                console.warn('[UpsellPage] Failed to load upsell eligibility:', eligibilityError);
+            }
+        };
+
+        loadEligibility();
+    }, [orderId, originalStatusSignature]);
+
+    const fallbackCapability = resolveUpsellGatewayCapability({
         gatewayName: gateway?.name,
         paymentMethod: originalOrder?.payment_method,
     });
+    const upsellCapability = serverCapability || fallbackCapability;
+
+    const savedProfileLabel = upsellCapability.saved_profile?.wallet_type === 'apple_pay'
+        ? 'Apple Pay'
+        : upsellCapability.saved_profile?.wallet_type === 'google_pay'
+            ? 'Google Pay'
+            : upsellCapability.saved_profile?.brand && upsellCapability.saved_profile?.last4
+                ? `${String(upsellCapability.saved_profile.brand).toUpperCase()} •••• ${upsellCapability.saved_profile.last4}`
+                : null;
 
     const originalPaymentMethodLabel = originalOrder?.payment_method === 'pix'
         ? t('upsell.method_pix', 'Pix')
@@ -145,13 +178,27 @@ export const UpsellPage = () => {
             ? 'Mercado Pago'
             : t('upsell.gateway_unknown', 'Gateway padrão');
 
-    const trustModeDescription = upsellCapability.original_payment_method === 'pix'
-        ? t('upsell.pix_mode_desc', 'Seu pedido principal já foi confirmado. Se você aceitar esta oferta, vamos gerar um novo Pix somente para o item adicional.')
-        : t('upsell.card_mode_desc', 'Seu pedido principal já foi confirmado. Para adicionar este item, confirme um novo pagamento somente do item adicional.');
+    const trustModeDescription = upsellCapability.mode === 'not_immediate'
+        ? t('upsell.not_immediate_mode_desc', 'Este método não será oferecido imediatamente para evitar confusão ou dupla cobrança percebida após o pedido principal.')
+        : upsellCapability.mode === 'one_click'
+            ? t('upsell.one_click_mode_desc', 'Identificamos um método reutilizável elegível. Se você aceitar, o sistema tentará adicionar o item ao pedido com a menor fricção possível.')
+            : upsellCapability.mode === 'light_confirmation'
+                ? t(
+                    'upsell.saved_method_mode_desc',
+                    'Reconhecemos o método {{method}} usado no pedido principal. O gateway ainda pode solicitar uma confirmação adicional antes de concluir este item.',
+                    { method: savedProfileLabel || originalPaymentMethodLabel }
+                )
+                : upsellCapability.original_payment_method === 'pix'
+                    ? t('upsell.pix_mode_desc', 'Seu pedido principal já foi confirmado. Se você aceitar esta oferta, vamos gerar um novo Pix somente para o item adicional.')
+                    : t('upsell.card_mode_desc', 'Seu pedido principal já foi confirmado. Para adicionar este item, confirme um novo pagamento somente do item adicional.');
 
-    const primaryUpsellCta = upsellCapability.original_payment_method === 'pix'
-        ? t('upsell.generate_pix_cta', 'Gerar Pix do item adicional')
-        : t('upsell.continue_card_cta', 'Continuar com pagamento adicional');
+    const primaryUpsellCta = upsellCapability.mode === 'not_immediate'
+        ? t('upsell.not_immediate_cta', 'Oferta indisponível neste momento')
+        : upsellCapability.mode === 'light_confirmation'
+            ? t('upsell.review_saved_method_cta', 'Revisar pagamento adicional')
+            : upsellCapability.original_payment_method === 'pix'
+                ? t('upsell.generate_pix_cta', 'Gerar Pix do item adicional')
+                : t('upsell.continue_card_cta', 'Continuar com pagamento adicional');
 
     const handleAccept = async () => {
         if (!originalOrder || !upsellProduct || !checkout) return;
@@ -332,6 +379,14 @@ export const UpsellPage = () => {
                         <p className="mt-4 text-xs text-gray-200 leading-relaxed">
                             {trustModeDescription}
                         </p>
+                        {savedProfileLabel && (
+                            <div className="mt-4 rounded-xl bg-black/20 border border-white/5 p-3">
+                                <p className="text-[10px] uppercase tracking-[0.2em] text-gray-400 font-black mb-1">
+                                    {t('upsell.saved_method_label', 'Método detectado')}
+                                </p>
+                                <p className="text-sm font-bold text-white">{savedProfileLabel}</p>
+                            </div>
+                        )}
                     </div>
 
                     <div className="text-center">
