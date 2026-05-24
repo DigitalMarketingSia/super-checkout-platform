@@ -13,6 +13,21 @@ ALTER TABLE public.products
 ALTER TABLE public.products
   ADD COLUMN IF NOT EXISTS delivery_file_size_bytes BIGINT;
 
+UPDATE public.products
+SET member_area_action = 'none'
+WHERE member_area_action IS NOT NULL
+  AND member_area_action NOT IN ('none', 'checkout', 'sales_page', 'file');
+
+ALTER TABLE public.products
+  DROP CONSTRAINT IF EXISTS products_member_area_action_check;
+
+ALTER TABLE public.products
+  ADD CONSTRAINT products_member_area_action_check
+  CHECK (
+    member_area_action IS NULL
+    OR member_area_action IN ('none', 'checkout', 'sales_page', 'file')
+  );
+
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('product-deliverables', 'product-deliverables', false)
 ON CONFLICT (id) DO UPDATE
