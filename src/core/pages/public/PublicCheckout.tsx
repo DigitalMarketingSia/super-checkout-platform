@@ -90,6 +90,7 @@ const persistUpsellOrderContext = (
 async function confirmStripeClientAction(params: {
    stripe: any;
    clientSecret?: string | null;
+   paymentMethodId?: string | null;
    t: (key: string, defaultValue: string) => string;
 }) {
    if (!params.clientSecret) {
@@ -106,7 +107,10 @@ async function confirmStripeClientAction(params: {
       };
    }
 
-   const { error, paymentIntent } = await params.stripe.confirmCardPayment(params.clientSecret);
+   const { error, paymentIntent } = await params.stripe.confirmCardPayment(
+      params.clientSecret,
+      params.paymentMethodId ? { payment_method: params.paymentMethodId } : undefined,
+   );
    if (error) {
       return {
          ok: false,
@@ -975,6 +979,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                const actionResult = await confirmStripeClientAction({
                   stripe,
                   clientSecret: result.clientSecret,
+                  paymentMethodId: result.paymentMethodId,
                   t: (key, defaultValue) => t(key, defaultValue),
                });
                if (!actionResult.ok) {
@@ -1973,6 +1978,7 @@ const WalletExpressButton = ({
                   const actionResult = await confirmStripeClientAction({
                      stripe,
                      clientSecret: result.clientSecret,
+                     paymentMethodId: result.paymentMethodId,
                      t: (key, defaultValue) => t(key, defaultValue),
                   });
                   if (!actionResult.ok) {

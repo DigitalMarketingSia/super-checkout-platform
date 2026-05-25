@@ -166,7 +166,7 @@ export const UpsellPage = () => {
         setStripePromise(null);
     }, [gateway?.name, gateway?.public_key]);
 
-    const confirmStripeNextAction = useCallback(async (clientSecret?: string | null) => {
+    const confirmStripeNextAction = useCallback(async (clientSecret?: string | null, paymentMethodId?: string | null) => {
         if (!clientSecret) {
             setCardFormError(t('upsell.additional_auth_missing', 'O Stripe não retornou a confirmação necessária para concluir este pagamento.'));
             setShowCardForm(true);
@@ -185,7 +185,10 @@ export const UpsellPage = () => {
             return false;
         }
 
-        const { error: confirmationError, paymentIntent } = await stripe.confirmCardPayment(clientSecret);
+        const { error: confirmationError, paymentIntent } = await stripe.confirmCardPayment(
+            clientSecret,
+            paymentMethodId ? { payment_method: paymentMethodId } : undefined,
+        );
         if (confirmationError) {
             setCardFormError(translatePaymentError(confirmationError.code, confirmationError.decline_code, confirmationError.message || t('upsell.payment_error', 'Erro ao processar pagamento.')));
             setShowCardForm(true);
@@ -282,7 +285,7 @@ export const UpsellPage = () => {
                     setServerCapability(result.upsellCapability);
                 }
                 if (result.requiresAction) {
-                    const confirmed = await confirmStripeNextAction(result.clientSecret);
+                    const confirmed = await confirmStripeNextAction(result.clientSecret, result.paymentMethodId);
                     if (!confirmed) {
                         setProcessing(false);
                         return;

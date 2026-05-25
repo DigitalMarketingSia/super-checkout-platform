@@ -69,6 +69,7 @@ export interface ProcessPaymentResult {
   requiresPaymentForm?: boolean;
   requiresAction?: boolean;
   clientSecret?: string;
+  paymentMethodId?: string;
   code?: string;
 }
 
@@ -644,6 +645,7 @@ class PaymentService {
           statusSignature: result.statusSignature,
           requiresAction: true,
           clientSecret: result.clientSecret,
+          paymentMethodId: typeof result.paymentMethodId === 'string' ? result.paymentMethodId : undefined,
           upsellCapability: result.upsellCapability || null,
         };
       }

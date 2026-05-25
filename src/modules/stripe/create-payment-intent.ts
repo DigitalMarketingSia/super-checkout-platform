@@ -581,6 +581,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         paymentIntentId: authenticationIntent.id || '',
                         status: authenticationIntent.status || 'requires_action',
                         clientSecret: authenticationIntent.client_secret,
+                        paymentMethodId: resolvedPaymentMethodId || null,
                         serverPersisted: false,
                         orderStatus: 'pending',
                         fulfillmentTriggered: false,
