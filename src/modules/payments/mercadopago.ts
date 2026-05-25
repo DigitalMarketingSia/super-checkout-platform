@@ -6,7 +6,6 @@ import {
 import { securityService } from '../../core/services/securityService.js';
 import { fulfillOrder } from '../../core/services/fulfillment.js';
 import { sendOrderAccessEmail } from '../../core/services/orderEmail.js';
-import { resolveUpsellGatewayCapability } from '../../core/config/upsellCapabilities.js';
 import { upsertCustomerPaymentProfile } from './customer-payment-profiles.js';
 import {
   PaymentSecurityError,
@@ -336,6 +335,40 @@ async function saveMercadoPagoCardToCustomer(params: {
   });
 }
 
+function buildMercadoPagoUpsellCapability(params: {
+  hasReusableReference: boolean;
+  brand?: string | null;
+  last4?: string | null;
+  expMonth?: number | null;
+  expYear?: number | null;
+  gatewayPaymentMethodId?: string | null;
+}) {
+  return {
+    gateway: 'mercado_pago',
+    original_payment_method: 'credit_card',
+    supports_saved_method: params.hasReusableReference,
+    supports_off_session_charge: false,
+    requires_step_up: params.hasReusableReference,
+    supports_pix: false,
+    supports_wallet_reuse: false,
+    has_saved_profile: params.hasReusableReference,
+    reusable_profile_available: params.hasReusableReference,
+    should_offer_immediately: true,
+    requires_payment_form: !params.hasReusableReference,
+    strategy: params.hasReusableReference ? 'saved_method_reconfirm' : 'new_card_capture',
+    saved_profile: params.hasReusableReference
+      ? {
+          brand: params.brand || null,
+          last4: params.last4 || null,
+          exp_month: params.expMonth || null,
+          exp_year: params.expYear || null,
+          gateway_payment_method_id: params.gatewayPaymentMethodId || null,
+        }
+      : null,
+    mode: params.hasReusableReference ? 'light_confirmation' : 'repayment_explicit',
+  };
+}
+
 export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
   const { 
     checkoutId, orderId, gatewayId, paymentMethod, paymentMethodId, issuerId,
@@ -582,21 +615,13 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
         }
 
         const hasReusableReference = Boolean(savedCustomerId && savedCardId);
-        upsellCapability = resolveUpsellGatewayCapability({
-          gatewayName: gateway.name,
-          paymentMethod: 'credit_card',
-          hasSavedProfile: hasReusableReference,
-          reusableProfile: hasReusableReference && reusable,
-          requiresReauthentication: hasReusableReference,
-          savedProfile: hasReusableReference
-            ? {
-                brand: cardBrand,
-                last4: cardLast4,
-                exp_month: cardExpMonth,
-                exp_year: cardExpYear,
-                gateway_payment_method_id: savedCardId,
-              }
-            : null,
+        upsellCapability = buildMercadoPagoUpsellCapability({
+          hasReusableReference: hasReusableReference && reusable,
+          brand: cardBrand,
+          last4: cardLast4,
+          expMonth: cardExpMonth,
+          expYear: cardExpYear,
+          gatewayPaymentMethodId: savedCardId,
         });
       } catch (profileError: any) {
         console.warn('[MP-FETCH] Passive payment profile capture failed:', profileError?.message || profileError);
