@@ -155,7 +155,7 @@ function mapMercadoPagoApiErrorMessage(message: string) {
   const normalized = String(message || '').toLowerCase();
 
   if (normalized.includes('invalid users involved')) {
-    return 'No sandbox do Mercado Pago, use credenciais TEST do vendedor e o e-mail exato test@testuser.com no comprador.';
+    return 'No sandbox legado do Mercado Pago, use credenciais TEST do vendedor e um e-mail valido de comprador diferente do e-mail da conta Mercado Pago do vendedor.';
   }
 
   if (normalized.includes('payment_method_id')) {

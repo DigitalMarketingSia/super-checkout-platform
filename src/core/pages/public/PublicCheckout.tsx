@@ -72,7 +72,7 @@ const isMercadoPagoSandboxGateway = (gateway?: Gateway | null) =>
    Boolean(gateway?.name === GatewayProvider.MERCADO_PAGO && String(gateway.public_key || '').trim().toUpperCase().startsWith('TEST-'));
 
 const isMercadoPagoSandboxBuyerEmail = (email: string) =>
-   String(email || '').trim().toLowerCase() === 'test@testuser.com';
+   validateEmail(String(email || '').trim());
 
 const isLocalWalletSimulationHost = () => (
    typeof window !== 'undefined' &&
@@ -924,13 +924,13 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
             setTouched(prev => ({ ...prev, email: true }));
             setErrors(prev => ({
                ...prev,
-               email: 'Use um e-mail de conta teste do Mercado Pago (@testuser.com) para o sandbox.',
+               email: 'Use um e-mail valido de comprador diferente do e-mail da conta Mercado Pago do vendedor.',
             }));
             emailInput?.scrollIntoView({ behavior: 'smooth', block: 'center' });
             emailInput?.focus();
             showAlert(
                t('checkout.error_title', 'Erro'),
-               'No sandbox do Mercado Pago, use o e-mail exato test@testuser.com no comprador de teste.',
+               'No sandbox legado do Mercado Pago, use um e-mail valido de comprador diferente do e-mail da conta do vendedor.',
                'error'
             );
             return;
