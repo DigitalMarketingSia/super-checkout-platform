@@ -1,6 +1,11 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createSupabaseAdminClient, logAuthzEvent } from '../_authz.js';
 import { enforceApiRateLimit } from '../_rate-limit.js';
+import {
+  getLocalSupabaseServerKeyErrorMessage,
+  isLocalSupabaseServerKeyFailure,
+  resolveLocalSupabaseServerClient,
+} from '../_supabase-server.js';
 
 function getBearerToken(req: VercelRequest): string {
   const authHeader = Array.isArray(req.headers.authorization)
@@ -97,8 +102,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 
-  const supabaseAdmin = createSupabaseAdminClient();
-  if (!supabaseAdmin) {
+  const fallbackSupabaseAdmin = createSupabaseAdminClient();
+  if (!fallbackSupabaseAdmin) {
     return res.status(200).json({
       success: true,
       role: null,
@@ -106,9 +111,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 
-  const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(token);
-  if (userError || !userData?.user?.id) {
-    return res.status(401).json({ error: 'Unauthorized' });
+  const { supabase: supabaseAdmin, probeError } = await resolveLocalSupabaseServerClient();
+  if (!supabaseAdmin) {
+    return res.status(500).json({ error: getLocalSupabaseServerKeyErrorMessage() });
   }
 
   const { data: profile, error: profileError } = await supabaseAdmin
@@ -116,6 +121,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     .select('id,email,role,status')
     .eq('id', user.id)
     .maybeSingle();
+
+  if (isLocalSupabaseServerKeyFailure(profileError || probeError)) {
+    return res.status(500).json({ error: getLocalSupabaseServerKeyErrorMessage() });
+  }
 
   if (profileError || !profile?.id || isInactiveStatus(profile.status)) {
     await logAuthzEvent({

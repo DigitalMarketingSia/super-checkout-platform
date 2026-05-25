@@ -1,6 +1,13 @@
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { getLocalSupabaseServerConfig } from './_supabase-server.js';
+import {
+  getLocalSupabasePublicConfig,
+  getLocalSupabaseServerKeyErrorMessage,
+  isLocalSupabaseServerKeyFailure,
+  resolveLocalSupabaseServerClient,
+  validateLocalUserWithPublicKey,
+} from './_supabase-server.js';
 
 export type ApiRole = 'owner' | 'admin' | 'master_admin' | 'member' | 'client';
 export type AuthzSeverity = 'INFO' | 'WARNING' | 'CRITICAL' | 'FATAL';
@@ -135,11 +142,18 @@ export async function requireApiAuth(
   res: VercelResponse,
   options: ApiAuthOptions,
 ): Promise<ApiAuthContext | null> {
-  const supabaseAdmin = createSupabaseAdminClient();
+  const fallbackSupabaseAdmin = createSupabaseAdminClient();
   const allowedRoles = options.allowedRoles || DEFAULT_ADMIN_ROLES;
 
-  if (!supabaseAdmin) {
+  if (!fallbackSupabaseAdmin) {
     console.error(`[${options.source}] Missing SUPABASE url/service role configuration.`);
+    res.status(500).json({ error: 'Internal Server Error' });
+    return null;
+  }
+
+  const { supabaseUrl, publicKey } = getLocalSupabasePublicConfig();
+  if (!supabaseUrl || !publicKey) {
+    console.error(`[${options.source}] Missing Supabase public configuration.`);
     res.status(500).json({ error: 'Internal Server Error' });
     return null;
   }
@@ -147,7 +161,7 @@ export async function requireApiAuth(
   const token = getBearerToken(req);
   if (!token) {
     await logAuthzEvent({
-      supabaseAdmin,
+      supabaseAdmin: fallbackSupabaseAdmin,
       req,
       source: options.source,
       eventType: 'api_authz_rejected',
@@ -158,12 +172,10 @@ export async function requireApiAuth(
     return null;
   }
 
-  const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(token);
-  const user = userData?.user;
-
-  if (userError || !user?.id) {
+  const validatedUser = await validateLocalUserWithPublicKey(token);
+  if (!validatedUser?.id) {
     await logAuthzEvent({
-      supabaseAdmin,
+      supabaseAdmin: fallbackSupabaseAdmin,
       req,
       source: options.source,
       eventType: 'api_authz_rejected',
@@ -174,11 +186,24 @@ export async function requireApiAuth(
     return null;
   }
 
+  const { supabase: supabaseAdmin, probeError } = await resolveLocalSupabaseServerClient();
+  if (!supabaseAdmin) {
+    console.error(`[${options.source}] Missing valid Supabase server key.`, probeError?.message || probeError || '');
+    res.status(500).json({ error: getLocalSupabaseServerKeyErrorMessage() });
+    return null;
+  }
+
   const { data: profile, error: profileError } = await supabaseAdmin
     .from('profiles')
     .select('id,email,role,status,installation_id')
-    .eq('id', user.id)
+    .eq('id', validatedUser.id)
     .maybeSingle();
+
+  if (isLocalSupabaseServerKeyFailure(profileError || probeError)) {
+    console.error(`[${options.source}] Supabase server key failure while resolving profile:`, profileError?.message || probeError?.message || '');
+    res.status(500).json({ error: getLocalSupabaseServerKeyErrorMessage() });
+    return null;
+  }
 
   if (profileError || !profile?.id) {
     await logAuthzEvent({
@@ -187,7 +212,7 @@ export async function requireApiAuth(
       source: options.source,
       eventType: 'api_authz_rejected',
       severity: 'WARNING',
-      userId: user.id,
+      userId: validatedUser.id,
       metadata: { reason: 'profile_missing' },
     });
     res.status(403).json({ error: 'Access denied' });
@@ -202,7 +227,7 @@ export async function requireApiAuth(
       source: options.source,
       eventType: 'api_authz_rejected',
       severity: 'WARNING',
-      userId: user.id,
+      userId: validatedUser.id,
       metadata: { reason: 'insufficient_role', role },
     });
     res.status(403).json({ error: 'Access denied' });
@@ -216,7 +241,7 @@ export async function requireApiAuth(
       source: options.source,
       eventType: 'api_authz_rejected',
       severity: 'CRITICAL',
-      userId: user.id,
+      userId: validatedUser.id,
       metadata: { reason: 'inactive_profile', role, status: profile.status || null },
     });
     res.status(403).json({ error: 'Access denied' });
@@ -225,7 +250,7 @@ export async function requireApiAuth(
 
   return {
     token,
-    user,
+    user: validatedUser as User,
     profile: profile as ApiProfile,
     role,
     supabaseAdmin,
