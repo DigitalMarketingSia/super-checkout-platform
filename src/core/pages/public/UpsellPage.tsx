@@ -288,6 +288,7 @@ export const UpsellPage = () => {
     }, [orderId, originalStatusSignature]);
 
     const upsellCapability = serverCapability || resolveUpsellGatewayCapability({ gatewayName: gateway?.name, paymentMethod: originalOrder?.payment_method });
+    const configuredUpsellButtonText = checkout?.config?.upsell?.button_text?.trim();
     const savedProfileLabel = upsellCapability.saved_profile?.wallet_type === 'apple_pay'
         ? 'Apple Pay'
         : upsellCapability.saved_profile?.wallet_type === 'google_pay'
@@ -323,6 +324,9 @@ export const UpsellPage = () => {
             : upsellCapability.original_payment_method === 'pix'
                 ? t('upsell.generate_pix_cta', 'Gerar Pix do item adicional')
                 : t('upsell.continue_card_cta', 'Continuar com pagamento adicional');
+    const displayTrustModeDescription = upsellCapability.original_payment_method === 'pix' || upsellCapability.mode === 'not_immediate'
+        ? trustModeDescription
+        : t('upsell.card_mode_reconfirm_desc', 'Seu pedido principal jÃ¡ foi confirmado. Se vocÃª aceitar esta oferta, vamos abrir a confirmaÃ§Ã£o segura apenas do item adicional.');
     const canAttemptSavedStripeCharge = gateway?.name === 'stripe' && originalOrder?.payment_method === 'credit_card' && upsellCapability.reusable_profile_available && upsellCapability.supports_off_session_charge;
 
     const processPurchase = async (method: 'credit_card' | 'pix', cardDetails?: typeof cardData, options?: { stripePaymentMethodId?: string; useSavedPaymentMethod?: boolean }) => {
@@ -408,6 +412,10 @@ export const UpsellPage = () => {
             } else if (canAttemptSavedStripeCharge) {
                 await processPurchase('credit_card', undefined, { useSavedPaymentMethod: true });
             } else {
+                setCardData((current) => ({
+                    ...current,
+                    holderName: current.holderName || originalOrder.customer_name || '',
+                }));
                 setShowCardForm(true);
                 setProcessing(false);
             }
@@ -461,7 +469,7 @@ export const UpsellPage = () => {
                             <div className="rounded-xl bg-black/20 border border-white/5 p-3"><p className="text-[10px] uppercase tracking-[0.2em] text-gray-400 font-black mb-1">{t('upsell.original_payment_method', 'Método original')}</p><p className="text-sm font-bold text-white">{originalPaymentMethodLabel}</p></div>
                             <div className="rounded-xl bg-black/20 border border-white/5 p-3"><p className="text-[10px] uppercase tracking-[0.2em] text-gray-400 font-black mb-1">{t('upsell.gateway_label', 'Gateway')}</p><p className="text-sm font-bold text-white">{originalGatewayLabel}</p></div>
                         </div>
-                        <p className="mt-4 text-xs text-gray-200 leading-relaxed">{trustModeDescription}</p>
+                        <p className="mt-4 text-xs text-gray-200 leading-relaxed">{displayTrustModeDescription}</p>
                         {savedProfileLabel && <div className="mt-4 rounded-xl bg-black/20 border border-white/5 p-3"><p className="text-[10px] uppercase tracking-[0.2em] text-gray-400 font-black mb-1">{t('upsell.saved_method_label', 'Método detectado')}</p><p className="text-sm font-bold text-white">{savedProfileLabel}</p></div>}
                     </div>
                     <div className="text-center">
@@ -472,7 +480,7 @@ export const UpsellPage = () => {
                     {!showCardForm ? (
                         <>
                             <button onClick={handleAccept} disabled={processing} className="w-full md:w-auto px-8 py-4 bg-green-500 hover:bg-green-400 text-black font-black text-lg md:text-xl rounded-full shadow-lg hover:scale-105 transition-all flex items-center justify-center gap-2 animate-pulse">
-                                {processing ? t('upsell.processing', 'Processando...') : (upsellCapability.mode === 'one_click' ? (config.button_text || t('upsell.accept_default', 'Sim, quero adicionar ao meu pedido')) : primaryUpsellCta)}
+                                {processing ? t('upsell.processing', 'Processando...') : (upsellCapability.original_payment_method === 'pix' || upsellCapability.mode === 'not_immediate' ? primaryUpsellCta : (configuredUpsellButtonText || t('upsell.accept_default', 'Sim, quero adicionar ao meu pedido')))}
                             </button>
                             <button onClick={() => navigate(appendOriginalSignature(`/thank-you/${orderId}`))} className="text-sm text-gray-500 hover:text-white underline decoration-gray-700 underline-offset-4 transition-colors">{t('upsell.decline', 'Não, obrigado. Vou perder essa oportunidade.')}</button>
                             <p className="text-[11px] text-gray-500 text-center max-w-md">{t('upsell.order_safe_notice', 'Seu pedido principal continuará confirmado mesmo se você recusar esta oferta.')}</p>
