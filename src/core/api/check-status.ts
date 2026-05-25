@@ -60,6 +60,30 @@ function buildSafeStripeRawResponse(stripeData: any) {
     });
 }
 
+function buildOrderUpdateUrl(supabaseUrl: string, safeOrderId: string, checkoutId?: string | null) {
+    const filters = [`id=eq.${safeOrderId}`];
+    const normalizedCheckoutId = String(checkoutId || '').trim();
+    if (normalizedCheckoutId) {
+        filters.push(`checkout_id=eq.${encodeURIComponent(normalizedCheckoutId)}`);
+    }
+    return `${supabaseUrl}/rest/v1/orders?${filters.join('&')}`;
+}
+
+function resolveMerchantUserId(input: {
+    productUserId?: string | null;
+    checkoutUserId?: string | null;
+    paymentUserId?: string | null;
+    orderUserId?: string | null;
+}) {
+    return String(
+        input.productUserId
+        || input.checkoutUserId
+        || input.paymentUserId
+        || input.orderUserId
+        || '',
+    ).trim();
+}
+
 async function processPaidSideEffects(params: {
     supabaseUrl: string;
     serviceRoleKey?: string;
@@ -212,6 +236,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const order: Order = orders[0];
+    const orderUpdateUrl = buildOrderUpdateUrl(supabaseUrl, safeOrderId, order.checkout_id);
 
     // If already paid, return immediately (Case-insensitive check)
     const status = (order.status || '').toLowerCase();
@@ -256,7 +281,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         rawPaymentStatus === 'authorized'
     ) {
         if (status !== 'paid' && status !== 'approved') {
-            await fetch(`${supabaseUrl}/rest/v1/orders?id=eq.${safeOrderId}&user_id=eq.${encodeURIComponent((order as any).user_id || '')}`, {
+            await fetch(orderUpdateUrl, {
                 method: 'PATCH',
                 headers: {
                     ...headers,
@@ -282,7 +307,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let checkout: any = null;
     
     if (order.checkout_id) {
-        const checkoutRes = await fetch(`${supabaseUrl}/rest/v1/checkouts?id=eq.${encodeURIComponent(order.checkout_id)}&select=id,user_id,gateway_id,backup_gateway_id`, {
+        const checkoutRes = await fetch(`${supabaseUrl}/rest/v1/checkouts?id=eq.${encodeURIComponent(order.checkout_id)}&select=id,user_id,gateway_id,backup_gateway_id,product_id`, {
             headers
         });
         const checkouts = await checkoutRes.json();
@@ -291,11 +316,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (!gatewayId) return res.status(200).json({ status: order.status || 'pending' });
-
-    if (!checkout || checkout.user_id !== (order as any).user_id) {
-        console.warn('[CheckStatus] Checkout ownership mismatch.');
-        return res.status(200).json({ status: order.status || 'pending' });
-    }
+    if (!checkout) return res.status(200).json({ status: order.status || 'pending' });
 
     const allowedGatewayIds = [checkout.gateway_id, checkout.backup_gateway_id].filter(Boolean).map(String);
     if (!allowedGatewayIds.includes(String(gatewayId))) {
@@ -303,7 +324,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).json({ status: order.status || 'pending' });
     }
 
-    const gatewayRes = await fetch(`${supabaseUrl}/rest/v1/gateways?id=eq.${encodeURIComponent(String(gatewayId))}&user_id=eq.${encodeURIComponent((order as any).user_id || '')}&select=id,user_id,name,private_key`, {
+    let productOwnerId = '';
+    if (checkout?.product_id) {
+        const productRes = await fetch(`${supabaseUrl}/rest/v1/products?id=eq.${encodeURIComponent(String(checkout.product_id))}&select=user_id&limit=1`, {
+            headers,
+        });
+        const products = await productRes.json().catch(() => []);
+        productOwnerId = String(products?.[0]?.user_id || '').trim();
+    }
+
+    const merchantUserId = resolveMerchantUserId({
+        productUserId: productOwnerId,
+        checkoutUserId: checkout?.user_id,
+        paymentUserId: payment?.user_id,
+        orderUserId: (order as any).user_id,
+    });
+    if (!merchantUserId) {
+        console.warn('[CheckStatus] Could not resolve merchant owner for order.');
+        return res.status(200).json({ status: order.status || 'pending' });
+    }
+
+    const gatewayRes = await fetch(`${supabaseUrl}/rest/v1/gateways?id=eq.${encodeURIComponent(String(gatewayId))}&user_id=eq.${encodeURIComponent(merchantUserId)}&select=id,user_id,name,private_key`, {
         headers
     });
     const gateways = await gatewayRes.json();
@@ -347,7 +388,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (newStatus !== currentStatusNorm) {
             console.log(`[CheckStatus] Updating Stripe Order ${maskIdentifier(orderId)}: ${currentStatusNorm} -> ${newStatus}`);
-            await fetch(`${supabaseUrl}/rest/v1/orders?id=eq.${safeOrderId}&user_id=eq.${encodeURIComponent((order as any).user_id || '')}`, {
+            await fetch(orderUpdateUrl, {
                 method: 'PATCH',
                 headers: {
                     ...headers,
@@ -450,7 +491,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     console.log(`[CheckStatus] Healing orphan payment. Found TX: ${maskIdentifier(foundTxId)}`);
                     
                     // Persist change to Supabase immediately using Service Role
-                    const updateRes = await fetch(`${supabaseUrl}/rest/v1/orders?id=eq.${safeOrderId}&user_id=eq.${encodeURIComponent((order as any).user_id || '')}`, {
+                    const updateRes = await fetch(orderUpdateUrl, {
                         method: 'PATCH',
                         headers: {
                             ...headers,
@@ -505,7 +546,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         console.log(`[CheckStatus] Updating Order ${maskIdentifier(orderId)}: ${currentStatusNorm} -> ${newStatus}`);
 
         // Update Order
-        await fetch(`${supabaseUrl}/rest/v1/orders?id=eq.${safeOrderId}&user_id=eq.${encodeURIComponent((order as any).user_id || '')}`, {
+        await fetch(orderUpdateUrl, {
             method: 'PATCH',
             headers: {
                 ...headers,
@@ -546,7 +587,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         status: newStatus,
                         transaction_id: mpData.id.toString(),
                         raw_response: buildSafeMercadoPagoRawResponse(mpData),
-                        user_id: (order as any).user_id
+                        user_id: merchantUserId || payment?.user_id || (order as any).user_id
                     })
                 });
             }
