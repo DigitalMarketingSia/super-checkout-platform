@@ -4,8 +4,10 @@ import {
     getLocalSupabaseServerKeyErrorMessage,
     resolveLocalSupabaseServerClient,
 } from '../src/core/api/_supabase-server.js';
-import { verifySignature } from '../src/core/utils/cryptoUtils.js';
+import { decrypt, verifySignature } from '../src/core/utils/cryptoUtils.js';
 import { enforceApiRateLimit } from '../src/core/api/_rate-limit.js';
+import { fulfillOrder } from '../src/core/services/fulfillment.js';
+import { sendOrderAccessEmail } from '../src/core/services/orderEmail.js';
 
 const DEFAULT_ALLOWED_ORIGIN = 'https://app.supercheckout.app';
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -724,6 +726,182 @@ function applyMemberCors(req: VercelRequest, res: VercelResponse) {
   return isSameHostOrigin(req);
 }
 
+async function finalizeStripePaymentHandler(req: VercelRequest, res: VercelResponse) {
+  const corsAllowed = applyMemberCors(req, res);
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (!corsAllowed) return res.status(403).json({ error: 'Origin not allowed' });
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  const body = await readJsonBody(req);
+  const orderId = String(body.orderId || '').trim();
+  const sig = String(body.sig || '').trim();
+  const paymentIntentId = String(body.paymentIntentId || '').trim();
+
+  if (!UUID_REGEX.test(orderId)) {
+    return res.status(400).json({ error: 'Invalid orderId' });
+  }
+
+  const rateLimit = enforceApiRateLimit(req, res, {
+    scope: 'system_finalize_stripe_payment',
+    identifiers: [orderId],
+    limit: 30,
+    windowMs: 15 * 60 * 1000,
+  });
+  if (!rateLimit.allowed) {
+    return res.status(429).json({ error: 'Too many requests' });
+  }
+
+  if (!verifySignature(orderId, sig)) {
+    return res.status(200).json({ status: 'pending', authorized: false });
+  }
+
+  try {
+    const { supabase: supabaseAdmin } = await resolveLocalSupabaseServerClient();
+    if (!supabaseAdmin) {
+      return res.status(500).json({ error: getLocalSupabaseServerKeyErrorMessage() });
+    }
+
+    const { data: order } = await supabaseAdmin
+      .from('orders')
+      .select('id, status, user_id, checkout_id, payment_id, customer_email, customer_name')
+      .eq('id', orderId)
+      .maybeSingle();
+
+    if (!order?.id || !order.checkout_id) {
+      return res.status(200).json({ status: 'pending', authorized: true });
+    }
+
+    const { data: payment } = await supabaseAdmin
+      .from('payments')
+      .select('id, transaction_id, gateway_id, user_id')
+      .eq('order_id', orderId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const { data: checkout } = await supabaseAdmin
+      .from('checkouts')
+      .select('id, user_id, gateway_id, backup_gateway_id')
+      .eq('id', order.checkout_id)
+      .maybeSingle();
+
+    const gatewayId = String(payment?.gateway_id || checkout?.gateway_id || '').trim();
+    const effectivePaymentIntentId = paymentIntentId || String(payment?.transaction_id || order.payment_id || '').trim();
+    const merchantUserId = String(checkout?.user_id || payment?.user_id || order.user_id || '').trim();
+
+    if (!gatewayId || !effectivePaymentIntentId || !merchantUserId) {
+      return res.status(200).json({ status: 'pending', authorized: true });
+    }
+
+    const { data: gateway } = await supabaseAdmin
+      .from('gateways')
+      .select('id, user_id, name, private_key')
+      .eq('id', gatewayId)
+      .eq('user_id', merchantUserId)
+      .maybeSingle();
+
+    if (!gateway?.id || String(gateway.name || '').toLowerCase() !== 'stripe') {
+      return res.status(200).json({ status: 'pending', authorized: true });
+    }
+
+    const secretKey = decrypt(gateway.private_key || '').replace(/\s/g, '');
+    if (!secretKey) {
+      return res.status(200).json({ status: 'pending', authorized: true });
+    }
+
+    const stripeRes = await fetch(`https://api.stripe.com/v1/payment_intents/${encodeURIComponent(effectivePaymentIntentId)}`, {
+      headers: {
+        Authorization: `Bearer ${secretKey}`,
+      },
+    });
+
+    if (!stripeRes.ok) {
+      const errorText = await stripeRes.text().catch(() => '');
+      console.error('[System] finalize-stripe-payment failed to fetch PI:', { status: stripeRes.status, errorText });
+      return res.status(200).json({ status: 'pending', authorized: true });
+    }
+
+    const stripeIntent = await stripeRes.json();
+    const stripeStatus = String(stripeIntent?.status || '').toLowerCase();
+    const internalStatus =
+      stripeStatus === 'succeeded' ? 'paid'
+        : stripeStatus === 'processing' ? 'pending'
+          : stripeStatus === 'canceled' || stripeStatus === 'requires_payment_method' ? 'failed'
+            : 'pending';
+
+    const paymentData = {
+      order_id: orderId,
+      transaction_id: effectivePaymentIntentId,
+      gateway_id: gateway.id,
+      status: internalStatus,
+      user_id: merchantUserId,
+      raw_response: {
+        redacted: true,
+        provider: 'stripe',
+        id: stripeIntent?.id || effectivePaymentIntentId,
+        status: stripeIntent?.status || 'unknown',
+        amount: stripeIntent?.amount || null,
+        currency: stripeIntent?.currency || null,
+        payment_method: stripeIntent?.payment_method || null,
+        captured_at: new Date().toISOString(),
+      },
+    };
+
+    if (payment?.id) {
+      await supabaseAdmin.from('payments').update(paymentData).eq('id', payment.id);
+    } else {
+      await supabaseAdmin.from('payments').upsert(paymentData, {
+        onConflict: 'transaction_id',
+        ignoreDuplicates: false,
+      });
+    }
+
+    await supabaseAdmin
+      .from('orders')
+      .update({
+        status: internalStatus,
+        payment_id: effectivePaymentIntentId,
+      })
+      .eq('id', orderId)
+      .eq('checkout_id', order.checkout_id);
+
+    const previousOrderStatus = String(order.status || '').toLowerCase();
+
+    if (internalStatus === 'paid' && previousOrderStatus !== 'paid') {
+      const origin = normalizeRequestOrigin(req);
+      try {
+        await fulfillOrder(supabaseAdmin, {
+          orderId,
+          email: order.customer_email,
+          name: order.customer_name,
+        });
+        if (order.customer_email) {
+          await sendOrderAccessEmail(supabaseAdmin, {
+            orderId,
+            origin,
+            email: order.customer_email,
+            name: order.customer_name,
+          });
+        }
+      } catch (finalizeError: any) {
+        console.error('[System] finalize-stripe-payment side effects failed:', finalizeError?.message || finalizeError);
+      }
+    }
+
+    return res.status(200).json({
+      status: internalStatus,
+      authorized: true,
+      paymentIntentId: effectivePaymentIntentId,
+    });
+  } catch (err: any) {
+    console.error('[System] finalize-stripe-payment failed:', err?.message || err);
+    return res.status(500).json({ error: 'Failed to finalize Stripe payment' });
+  }
+}
+
 async function getActiveResendIntegration(supabaseAdmin: any, ownerId?: string | null) {
   if (ownerId) {
     const { data } = await supabaseAdmin
@@ -981,6 +1159,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return await deliverableFileHandler(req, res);
             case 'order-deliverables':
                 return await orderDeliverablesHandler(req, res);
+            case 'finalize-stripe-payment':
+                return await finalizeStripePaymentHandler(req, res);
             case 'upsell-eligibility':
                 return await upsellEligibilityHandler(req, res);
             case 'member-password-reset':

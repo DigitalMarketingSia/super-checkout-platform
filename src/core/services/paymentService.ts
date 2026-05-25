@@ -640,6 +640,7 @@ class PaymentService {
         // For now, treat as pending
         return {
           success: true,
+          orderId: result.orderId,
           message: 'Payment requires additional authentication',
           gatewayStatus: result.status,
           statusSignature: result.statusSignature,
@@ -654,6 +655,7 @@ class PaymentService {
       if (result.status === 'succeeded' || result.status === 'processing') {
         return {
           success: true,
+          orderId: result.orderId,
           gatewayStatus: result.status,
           statusSignature: result.statusSignature,
           upsellCapability: result.upsellCapability || null,

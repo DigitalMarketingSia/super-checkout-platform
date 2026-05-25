@@ -19,6 +19,7 @@ import { TrackingProvider, useTracking } from '../../context/TrackingContext';
 import { translatePaymentError } from '../../utils/errorTranslator';
 import { useTranslation } from 'react-i18next';
 import type { UpsellGatewayCapability } from '../../config/upsellCapabilities';
+import { getApiUrl } from '../../utils/apiUtils';
 
 // --- PREMIUM PAYMENT ICONS (INLINE SVG - EXTRAÍDOS DA TICTO) ---
 const PixIcon = ({ className }: { className?: string }) => (
@@ -91,8 +92,67 @@ async function confirmStripeClientAction(params: {
    stripe: any;
    clientSecret?: string | null;
    paymentMethodId?: string | null;
+   orderId?: string | null;
+   statusSignature?: string | null;
    t: (key: string, defaultValue: string) => string;
 }) {
+   const finalizeStripePayment = async (paymentIntentId?: string | null) => {
+      if (!params.orderId || !params.statusSignature || !paymentIntentId) {
+         return {
+            ok: false,
+            message: params.t('checkout.payment_finalization_missing', 'O pagamento foi autenticado, mas faltam dados para concluir a liberação. Tente novamente.'),
+         };
+      }
+
+      for (let attempt = 1; attempt <= 3; attempt += 1) {
+         let payload: any = null;
+
+         try {
+            const response = await fetch(getApiUrl('/api/system?action=finalize-stripe-payment'), {
+               method: 'POST',
+               headers: { 'Content-Type': 'application/json' },
+               body: JSON.stringify({
+                  orderId: params.orderId,
+                  sig: params.statusSignature,
+                  paymentIntentId,
+               }),
+            });
+
+            payload = await response.json().catch(() => null);
+            if (response.ok && payload?.status === 'paid') {
+               return { ok: true };
+            }
+
+            if (response.ok && payload?.status === 'failed') {
+               return {
+                  ok: false,
+                  message: params.t('checkout.payment_failed_after_auth', 'O pagamento foi recusado depois da autenticação adicional.'),
+               };
+            }
+         } catch (finalizeError) {
+            console.error('[PublicCheckout] Failed to finalize Stripe payment:', finalizeError);
+         }
+
+         if (attempt < 3) {
+            await new Promise((resolve) => window.setTimeout(resolve, attempt * 1200));
+            continue;
+         }
+
+         return {
+            ok: false,
+            message:
+               payload?.authorized === false
+                  ? params.t('checkout.payment_finalization_denied', 'A confirmação final do pagamento foi bloqueada. Recarregue a página e tente novamente.')
+                  : params.t('checkout.payment_finalization_pending', 'O pagamento foi autenticado, mas a confirmação final ainda não chegou. Aguarde alguns segundos e tente novamente.'),
+         };
+      }
+
+      return {
+         ok: false,
+         message: params.t('checkout.payment_finalization_pending', 'O pagamento foi autenticado, mas a confirmação final ainda não chegou. Aguarde alguns segundos e tente novamente.'),
+      };
+   };
+
    if (!params.clientSecret) {
       return {
          ok: false,
@@ -123,6 +183,11 @@ async function confirmStripeClientAction(params: {
          ok: false,
          message: params.t('checkout.payment_not_confirmed', 'O banco não confirmou o pagamento. Revise os dados e tente novamente.'),
       };
+   }
+
+   const finalizationResult = await finalizeStripePayment(paymentIntent?.id);
+   if (!finalizationResult.ok) {
+      return finalizationResult;
    }
 
    return { ok: true };
@@ -980,6 +1045,8 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                   stripe,
                   clientSecret: result.clientSecret,
                   paymentMethodId: result.paymentMethodId,
+                  orderId: result.orderId,
+                  statusSignature: result.statusSignature,
                   t: (key, defaultValue) => t(key, defaultValue),
                });
                if (!actionResult.ok) {
@@ -1979,6 +2046,8 @@ const WalletExpressButton = ({
                      stripe,
                      clientSecret: result.clientSecret,
                      paymentMethodId: result.paymentMethodId,
+                     orderId: result.orderId,
+                     statusSignature: result.statusSignature,
                      t: (key, defaultValue) => t(key, defaultValue),
                   });
                   if (!actionResult.ok) {

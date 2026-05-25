@@ -166,7 +166,69 @@ export const UpsellPage = () => {
         setStripePromise(null);
     }, [gateway?.name, gateway?.public_key]);
 
-    const confirmStripeNextAction = useCallback(async (clientSecret?: string | null, paymentMethodId?: string | null) => {
+    const confirmStripeNextAction = useCallback(async (
+        clientSecret?: string | null,
+        paymentMethodId?: string | null,
+        paymentOrderId?: string | null,
+        paymentSignature?: string | null,
+    ) => {
+        const finalizeStripePayment = async (paymentIntentId?: string | null) => {
+            if (!paymentOrderId || !paymentSignature || !paymentIntentId) {
+                return {
+                    ok: false,
+                    message: t('upsell.payment_finalization_missing', 'O pagamento foi autenticado, mas faltam dados para concluir a liberação. Tente novamente.'),
+                };
+            }
+
+            for (let attempt = 1; attempt <= 3; attempt += 1) {
+                let payload: any = null;
+
+                try {
+                    const response = await fetch(getApiUrl('/api/system?action=finalize-stripe-payment'), {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            orderId: paymentOrderId,
+                            sig: paymentSignature,
+                            paymentIntentId,
+                        }),
+                    });
+
+                    payload = await response.json().catch(() => null);
+                    if (response.ok && payload?.status === 'paid') {
+                        return { ok: true };
+                    }
+
+                    if (response.ok && payload?.status === 'failed') {
+                        return {
+                            ok: false,
+                            message: t('upsell.payment_failed_after_auth', 'O pagamento adicional foi recusado depois da autenticação.'),
+                        };
+                    }
+                } catch (finalizeError) {
+                    console.error('[UpsellPage] Failed to finalize Stripe payment:', finalizeError);
+                }
+
+                if (attempt < 3) {
+                    await new Promise((resolve) => window.setTimeout(resolve, attempt * 1200));
+                    continue;
+                }
+
+                return {
+                    ok: false,
+                    message:
+                        payload?.authorized === false
+                            ? t('upsell.payment_finalization_denied', 'A confirmação final do pagamento foi bloqueada. Recarregue a página e tente novamente.')
+                            : t('upsell.payment_finalization_pending', 'O pagamento foi autenticado, mas a confirmação final ainda não chegou. Aguarde alguns segundos e tente novamente.'),
+                };
+            }
+
+            return {
+                ok: false,
+                message: t('upsell.payment_finalization_pending', 'O pagamento foi autenticado, mas a confirmação final ainda não chegou. Aguarde alguns segundos e tente novamente.'),
+            };
+        };
+
         if (!clientSecret) {
             setCardFormError(t('upsell.additional_auth_missing', 'O Stripe não retornou a confirmação necessária para concluir este pagamento.'));
             setShowCardForm(true);
@@ -198,6 +260,12 @@ export const UpsellPage = () => {
         if (paymentIntent?.status !== 'succeeded' && paymentIntent?.status !== 'processing') {
             setCardFormError(t('upsell.payment_not_confirmed', 'O banco não confirmou este pagamento adicional. Revise os dados e tente novamente.'));
             setShowCardForm(true);
+            return false;
+        }
+
+        const finalizationResult = await finalizeStripePayment(paymentIntent?.id);
+        if (!finalizationResult.ok) {
+            setCardFormError(finalizationResult.message || t('upsell.payment_finalization_pending', 'O pagamento foi autenticado, mas a confirmação final ainda não chegou. Aguarde alguns segundos e tente novamente.'));
             return false;
         }
 
@@ -285,7 +353,12 @@ export const UpsellPage = () => {
                     setServerCapability(result.upsellCapability);
                 }
                 if (result.requiresAction) {
-                    const confirmed = await confirmStripeNextAction(result.clientSecret, result.paymentMethodId);
+                    const confirmed = await confirmStripeNextAction(
+                        result.clientSecret,
+                        result.paymentMethodId,
+                        result.orderId,
+                        result.statusSignature,
+                    );
                     if (!confirmed) {
                         setProcessing(false);
                         return;
