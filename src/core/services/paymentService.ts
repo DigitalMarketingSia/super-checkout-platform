@@ -550,6 +550,7 @@ class PaymentService {
           success: true,
           gatewayStatus: paymentResponse.status,
           statusSignature: result.statusSignature,
+          upsellCapability: result.upsellCapability || null,
           pixData: {
             qr_code: paymentResponse.point_of_interaction?.transaction_data?.qr_code || '',
             qr_code_base64: paymentResponse.point_of_interaction?.transaction_data?.qr_code_base64 || ''

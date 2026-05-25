@@ -414,6 +414,29 @@ export const UpsellPage = () => {
         loadEligibility();
     }, [orderId, originalStatusSignature]);
 
+    const refreshUpsellCapability = useCallback(async () => {
+        if (!orderId || !originalStatusSignature) {
+            return serverCapability;
+        }
+
+        try {
+            const response = await fetch(getApiUrl(`/api/upsell-eligibility?orderId=${encodeURIComponent(orderId)}&sig=${encodeURIComponent(originalStatusSignature)}`));
+            if (!response.ok) {
+                return serverCapability;
+            }
+
+            const payload = await response.json().catch(() => null);
+            if (payload?.authorized && payload?.capability) {
+                setServerCapability(payload.capability);
+                return payload.capability as UpsellGatewayCapability;
+            }
+        } catch (eligibilityError) {
+            console.warn('[UpsellPage] Failed to refresh upsell eligibility:', eligibilityError);
+        }
+
+        return serverCapability;
+    }, [orderId, originalStatusSignature, serverCapability]);
+
     const upsellCapability = serverCapability || resolveUpsellGatewayCapability({ gatewayName: gateway?.name, paymentMethod: originalOrder?.payment_method });
     const configuredUpsellButtonText = checkout?.config?.upsell?.button_text?.trim();
     const savedProfileLabel = upsellCapability.saved_profile?.wallet_type === 'apple_pay'
@@ -539,7 +562,21 @@ export const UpsellPage = () => {
         if (!originalOrder || !upsellProduct || !checkout) return;
         setProcessing(true);
         try {
-            if (upsellCapability.mode === 'not_immediate') {
+            let effectiveCapability = serverCapability || upsellCapability;
+            if (originalOrder.payment_method === 'credit_card' && gateway?.name === 'mercado_pago' && !effectiveCapability.reusable_profile_available) {
+                effectiveCapability = (await refreshUpsellCapability()) || effectiveCapability;
+            }
+
+            const shouldAttemptSavedStripeCharge = gateway?.name === 'stripe'
+                && originalOrder.payment_method === 'credit_card'
+                && effectiveCapability.reusable_profile_available
+                && effectiveCapability.supports_off_session_charge;
+            const shouldAttemptSavedMercadoPagoCharge = gateway?.name === 'mercado_pago'
+                && originalOrder.payment_method === 'credit_card'
+                && effectiveCapability.reusable_profile_available
+                && Boolean(effectiveCapability.saved_profile?.gateway_payment_method_id);
+
+            if (effectiveCapability.mode === 'not_immediate') {
                 alert(t('upsell.not_immediate_error', 'Este método de pagamento ainda não suporta oferta imediata com segurança.'));
                 setProcessing(false);
                 return;
@@ -549,9 +586,9 @@ export const UpsellPage = () => {
             setUseManualMercadoPagoForm(false);
             if (originalOrder.payment_method === 'pix') {
                 await processPurchase('pix');
-            } else if (canAttemptSavedStripeCharge) {
+            } else if (shouldAttemptSavedStripeCharge) {
                 await processPurchase('credit_card', undefined, { useSavedPaymentMethod: true });
-            } else if (canAttemptSavedMercadoPagoCharge) {
+            } else if (shouldAttemptSavedMercadoPagoCharge) {
                 setCardFormNotice(t('upsell.saved_card_cvv_notice', 'Confirme apenas o CVC para adicionar este item. O pedido principal não será cobrado novamente.'));
                 setShowCardForm(true);
                 setProcessing(false);

@@ -6,6 +6,7 @@ import {
 import { securityService } from '../../core/services/securityService.js';
 import { fulfillOrder } from '../../core/services/fulfillment.js';
 import { sendOrderAccessEmail } from '../../core/services/orderEmail.js';
+import { resolveUpsellGatewayCapability } from '../../core/config/upsellCapabilities.js';
 import { upsertCustomerPaymentProfile } from './customer-payment-profiles.js';
 import {
   PaymentSecurityError,
@@ -500,6 +501,8 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
 
     const paidStatus = mpResult.status === 'approved';
 
+    let upsellCapability = null;
+
     // 8. Sucesso e Persistência
     if (paymentMethod === 'credit_card') {
       try {
@@ -510,7 +513,7 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
         let cardExpMonth = mpResult?.card?.expiration_month || reusableProfile?.card_exp_month || null;
         let cardExpYear = mpResult?.card?.expiration_year || reusableProfile?.card_exp_year || null;
         let effectiveIssuerId = issuerId ? String(issuerId) : (reusableProfile?.issuer_id || null);
-        let reusable = Boolean(reusableProfile?.reusable);
+        let reusable = Boolean(reusableProfile?.reusable || (savedCustomerId && savedCardId));
 
         if (!useSavedPaymentMethod && saveCardToken && paidStatus) {
           try {
@@ -577,6 +580,24 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
         if (profileResult.ok === false) {
           console.warn('[MP-FETCH] Customer payment profile not persisted:', profileResult.reason, profileResult.error || '');
         }
+
+        const hasReusableReference = Boolean(savedCustomerId && savedCardId);
+        upsellCapability = resolveUpsellGatewayCapability({
+          gatewayName: gateway.name,
+          paymentMethod: 'credit_card',
+          hasSavedProfile: hasReusableReference,
+          reusableProfile: hasReusableReference && reusable,
+          requiresReauthentication: hasReusableReference,
+          savedProfile: hasReusableReference
+            ? {
+                brand: cardBrand,
+                last4: cardLast4,
+                exp_month: cardExpMonth,
+                exp_year: cardExpYear,
+                gateway_payment_method_id: savedCardId,
+              }
+            : null,
+        });
       } catch (profileError: any) {
         console.warn('[MP-FETCH] Passive payment profile capture failed:', profileError?.message || profileError);
       }
@@ -660,7 +681,8 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
       status: mpResult.status,
       data: mpResult,
       amount: totalAmount,
-      statusSignature: generateSignature(orderId)
+      statusSignature: generateSignature(orderId),
+      upsellCapability,
     };
 
   } catch (error: any) {
