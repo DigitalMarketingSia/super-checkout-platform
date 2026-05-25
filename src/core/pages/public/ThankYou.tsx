@@ -20,6 +20,13 @@ interface OrderDeliverable {
   instructions?: string | null;
 }
 
+interface SignedOrderSnapshot {
+  status: string;
+  authorized: boolean;
+  order: Order | null;
+  deliverables: OrderDeliverable[];
+}
+
 function mergeDeliverables(...groups: Array<OrderDeliverable[] | null | undefined>) {
   const deduped = new Map<string, OrderDeliverable>();
 
@@ -63,6 +70,42 @@ function normalizeStoredDeliverables(value: unknown): OrderDeliverable[] {
     .filter((item) => Boolean(item.id));
 }
 
+function isPaidStatus(status: unknown) {
+  const normalized = String(status || '').toLowerCase();
+  return normalized === 'paid' || normalized === 'approved';
+}
+
+function normalizeSignedOrder(value: any): Order | null {
+  if (!value || typeof value !== 'object') return null;
+
+  const metadata = value.metadata && typeof value.metadata === 'object' ? value.metadata : {};
+  return {
+    id: String(value.id || ''),
+    offer_id: String(value.offer_id || ''),
+    checkout_id: String(value.checkout_id || ''),
+    customer_name: String(value.customer_name || ''),
+    customer_email: String(value.customer_email || ''),
+    customer_phone: String(value.customer_phone || ''),
+    customer_cpf: String(value.customer_cpf || ''),
+    amount: Number(value.amount ?? value.total ?? 0) || 0,
+    status: String(value.status || 'pending') as Order['status'],
+    payment_method: String(value.payment_method || 'credit_card') as Order['payment_method'],
+    items: Array.isArray(value.items) ? value.items : [],
+    metadata,
+    created_at: String(value.created_at || ''),
+    customer_user_id: value.customer_user_id || undefined,
+  };
+}
+
+function resolveOriginalOrderId(order: Order | null) {
+  const metadata = order?.metadata && typeof order.metadata === 'object' ? order.metadata : {};
+  const direct = typeof metadata.original_order_id === 'string' ? metadata.original_order_id.trim() : '';
+  if (direct) return direct;
+
+  const postPurchase = metadata.post_purchase && typeof metadata.post_purchase === 'object' ? metadata.post_purchase : {};
+  return typeof postPurchase.original_order_id === 'string' ? postPurchase.original_order_id.trim() : '';
+}
+
 const PurchaseTracker: React.FC<{ order: Order }> = ({ order }) => {
   const { trackPurchase, isInitialized } = useTracking();
   useEffect(() => {
@@ -89,40 +132,53 @@ export const ThankYou = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const waitForPaidStatus = async (targetOrderId: string, signature: string) => {
-      if (!targetOrderId || !signature) return false;
+    const fetchSignedOrderSnapshot = async (targetOrderId: string, signature: string): Promise<SignedOrderSnapshot | null> => {
+      if (!targetOrderId || !signature) return null;
 
+      try {
+        const response = await fetch(getApiUrl(`/api/system?action=order-deliverables&orderId=${encodeURIComponent(targetOrderId)}&sig=${encodeURIComponent(signature)}&t=${Date.now()}`));
+        if (!response.ok) return null;
+
+        const payload = await response.json().catch(() => ({}));
+        return {
+          status: String(payload?.status || 'pending'),
+          authorized: payload?.authorized !== false,
+          order: normalizeSignedOrder(payload?.order),
+          deliverables: Array.isArray(payload?.deliverables) ? payload.deliverables : [],
+        };
+      } catch (snapshotError) {
+        console.warn('[ThankYou] Failed to load signed order snapshot:', snapshotError);
+        return null;
+      }
+    };
+
+    const waitForOrderSnapshot = async (targetOrderId: string, signature: string) => {
+      if (!targetOrderId || !signature) return null;
+
+      let latestSnapshot: SignedOrderSnapshot | null = null;
       for (let attempt = 0; attempt < 8; attempt += 1) {
-        try {
-          const response = await fetch(getApiUrl(`/api/check-status?orderId=${encodeURIComponent(targetOrderId)}&sig=${encodeURIComponent(signature)}&t=${Date.now()}`));
-          if (!response.ok) {
-            await new Promise((resolve) => setTimeout(resolve, 1200));
-            continue;
+        const snapshot = await fetchSignedOrderSnapshot(targetOrderId, signature);
+        if (snapshot) {
+          latestSnapshot = snapshot;
+          if (isPaidStatus(snapshot.status)) {
+            return snapshot;
           }
-
-          const payload = await response.json().catch(() => ({}));
-          const normalizedStatus = String(payload?.status || '').toLowerCase();
-          if (normalizedStatus === 'paid' || normalizedStatus === 'approved') {
-            return true;
-          }
-        } catch (statusError) {
-          console.warn('[ThankYou] Failed to confirm paid status:', statusError);
         }
 
         await new Promise((resolve) => setTimeout(resolve, 1200));
       }
 
-      return false;
+      return latestSnapshot;
     };
 
-    const fetchOrderById = async (targetOrderId: string) => {
+    const fetchPublicOrderById = async (targetOrderId: string) => {
       const { data, error } = await supabase
         .from('orders')
         .select('*')
         .eq('id', targetOrderId)
         .maybeSingle();
 
-      if (error) throw error;
+        if (error) throw error;
       return data as Order | null;
     };
 
@@ -134,68 +190,29 @@ export const ThankYou = () => {
         setOriginalOrder(null);
         const sig = new URLSearchParams(location.search).get('sig') || '';
         const originalSig = new URLSearchParams(location.search).get('origSig') || '';
-        // Fetch order
-        let orderData = await fetchOrderById(orderId);
+        let currentSnapshot = sig ? await waitForOrderSnapshot(orderId, sig) : null;
+        let orderData = currentSnapshot?.order || await fetchPublicOrderById(orderId);
 
         if (!orderData) throw new Error('Order not found');
-
-        if (!['paid', 'approved'].includes(String(orderData.status || '').toLowerCase()) && sig) {
-          const currentOrderPaid = await waitForPaidStatus(orderId, sig);
-          if (currentOrderPaid) {
-            orderData = await fetchOrderById(orderId) || orderData;
-          }
-        }
         setOrder(orderData);
 
         const storedDeliverables = normalizeStoredDeliverables(orderData?.metadata?.order_deliverables);
-        const originalOrderId = typeof orderData?.metadata?.original_order_id === 'string'
-          ? orderData.metadata.original_order_id.trim()
-          : '';
-        let currentDeliverables = storedDeliverables;
+        const originalOrderId = resolveOriginalOrderId(orderData);
+        let currentDeliverables = currentSnapshot?.deliverables?.length
+          ? currentSnapshot.deliverables
+          : storedDeliverables;
         let originalOrderData: Order | null = null;
         let originalStoredDeliverables: OrderDeliverable[] = [];
 
         if (originalOrderId && originalOrderId !== orderData.id) {
-          originalOrderData = await fetchOrderById(originalOrderId);
-
-          if (originalOrderData && !['paid', 'approved'].includes(String(originalOrderData.status || '').toLowerCase()) && originalSig) {
-            const originalPaid = await waitForPaidStatus(originalOrderId, originalSig);
-            if (originalPaid) {
-              originalOrderData = await fetchOrderById(originalOrderId) || originalOrderData;
-            }
-          }
+          const originalSnapshot = originalSig ? await waitForOrderSnapshot(originalOrderId, originalSig) : null;
+          originalOrderData = originalSnapshot?.order || await fetchPublicOrderById(originalOrderId);
 
           if (originalOrderData) {
-            originalStoredDeliverables = normalizeStoredDeliverables(originalOrderData?.metadata?.order_deliverables);
+            originalStoredDeliverables = originalSnapshot?.deliverables?.length
+              ? originalSnapshot.deliverables
+              : normalizeStoredDeliverables(originalOrderData?.metadata?.order_deliverables);
             setOriginalOrder(originalOrderData);
-          }
-        }
-
-        if (storedDeliverables.length > 0 || originalStoredDeliverables.length > 0) {
-          setDeliverables(mergeDeliverables(originalStoredDeliverables, storedDeliverables));
-        }
-
-        if (['paid', 'approved'].includes(String(orderData?.status || '').toLowerCase())) {
-          const deliveryResponse = await fetch(getApiUrl(`/api/system?action=order-deliverables&orderId=${encodeURIComponent(orderId)}&sig=${encodeURIComponent(sig)}`));
-          if (deliveryResponse.ok) {
-            const deliveryData = await deliveryResponse.json().catch(() => ({}));
-            if (Array.isArray(deliveryData?.deliverables)) {
-              if (deliveryData.deliverables.length > 0) {
-                currentDeliverables = deliveryData.deliverables;
-              } else if (!sig && storedDeliverables.length > 0) {
-                currentDeliverables = storedDeliverables;
-              }
-            }
-          }
-        }
-
-        if (originalOrderData && ['paid', 'approved'].includes(String(originalOrderData.status || '').toLowerCase()) && originalSig) {
-          const originalDeliveryResponse = await fetch(getApiUrl(`/api/system?action=order-deliverables&orderId=${encodeURIComponent(originalOrderData.id)}&sig=${encodeURIComponent(originalSig)}`));
-          if (originalDeliveryResponse.ok) {
-            const originalDeliveryData = await originalDeliveryResponse.json().catch(() => ({}));
-            if (Array.isArray(originalDeliveryData?.deliverables) && originalDeliveryData.deliverables.length > 0) {
-              originalStoredDeliverables = originalDeliveryData.deliverables;
-            }
           }
         }
 

@@ -489,7 +489,7 @@ async function orderDeliverablesHandler(req: VercelRequest, res: VercelResponse)
 
     const { data: order, error: orderError } = await supabaseAdmin
       .from('orders')
-      .select('id, status, customer_email, customer_name, items, metadata, checkout_id')
+      .select('id, status, customer_email, customer_name, customer_phone, customer_cpf, payment_method, customer_user_id, items, metadata, checkout_id, created_at, total')
       .eq('id', orderId)
       .single();
 
@@ -497,9 +497,16 @@ async function orderDeliverablesHandler(req: VercelRequest, res: VercelResponse)
       return res.status(200).json({ status: 'pending', deliverables: [], authorized: true });
     }
 
+    const publicOrder = buildPublicOrderSummary(order);
+
     const status = String(order.status || '').toLowerCase();
     if (status !== 'paid' && status !== 'approved') {
-      return res.status(200).json({ status: order.status || 'pending', deliverables: [], authorized: true });
+      return res.status(200).json({
+        status: order.status || 'pending',
+        authorized: true,
+        order: publicOrder,
+        deliverables: [],
+      });
     }
 
     const origin = normalizeRequestOrigin(req);
@@ -533,6 +540,7 @@ async function orderDeliverablesHandler(req: VercelRequest, res: VercelResponse)
     return res.status(200).json({
       status: order.status,
       authorized: true,
+      order: publicOrder,
       deliverables,
     });
   } catch (err: any) {
@@ -724,6 +732,45 @@ function applyMemberCors(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', origin || DEFAULT_ALLOWED_ORIGIN);
   res.setHeader('Vary', 'Origin');
   return isSameHostOrigin(req);
+}
+
+function buildPublicOrderMetadata(metadata: any) {
+  const safeMetadata = metadata && typeof metadata === 'object' ? metadata : {};
+  const postPurchase = safeMetadata.post_purchase && typeof safeMetadata.post_purchase === 'object'
+    ? {
+        original_order_id: String(safeMetadata.post_purchase.original_order_id || '').trim() || null,
+      }
+    : null;
+
+  return {
+    original_order_id: String(safeMetadata.original_order_id || '').trim() || null,
+    post_purchase: postPurchase,
+    order_deliverables: Array.isArray(safeMetadata.order_deliverables) ? safeMetadata.order_deliverables : [],
+    order_deliverables_generated_at: safeMetadata.order_deliverables_generated_at || null,
+    order_deliverables_source: safeMetadata.order_deliverables_source || null,
+  };
+}
+
+function buildPublicOrderSummary(order: any) {
+  if (!order || typeof order !== 'object') return null;
+
+  const amount = Number(order.total ?? order.amount ?? 0) || 0;
+  return {
+    id: String(order.id || ''),
+    status: String(order.status || 'pending'),
+    checkout_id: String(order.checkout_id || ''),
+    customer_name: String(order.customer_name || ''),
+    customer_email: String(order.customer_email || ''),
+    customer_phone: String(order.customer_phone || ''),
+    customer_cpf: String(order.customer_cpf || ''),
+    payment_method: String(order.payment_method || ''),
+    created_at: order.created_at || null,
+    customer_user_id: order.customer_user_id || null,
+    amount,
+    total: amount,
+    items: Array.isArray(order.items) ? order.items : [],
+    metadata: buildPublicOrderMetadata(order.metadata),
+  };
 }
 
 async function finalizeStripePaymentHandler(req: VercelRequest, res: VercelResponse) {
