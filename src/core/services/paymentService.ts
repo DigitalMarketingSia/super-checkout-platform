@@ -449,7 +449,7 @@ class PaymentService {
         }, gateway.public_key);
 
         token = mpToken;
-        mpPaymentMethodId = mpBrand;
+        mpPaymentMethodId = mpBrand || this.detectCardBrand(request.cardData.number);
         mpIssuer = issuerId;
 
         console.log('[PaymentService] Card tokenized. Brand:', mpPaymentMethodId, 'Issuer:', mpIssuer);
