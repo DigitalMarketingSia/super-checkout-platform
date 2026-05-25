@@ -47,6 +47,19 @@ function buildSafeMercadoPagoRawResponse(mpData: any) {
     });
 }
 
+function buildSafeStripeRawResponse(stripeData: any) {
+    return JSON.stringify({
+        redacted: true,
+        provider: 'stripe',
+        id: safeString(stripeData?.id),
+        status: safeString(stripeData?.status),
+        amount: typeof stripeData?.amount === 'number' ? stripeData.amount : undefined,
+        currency: safeString(stripeData?.currency),
+        payment_method: safeString(stripeData?.payment_method),
+        captured_at: new Date().toISOString(),
+    });
+}
+
 async function processPaidSideEffects(params: {
     supabaseUrl: string;
     serviceRoleKey?: string;
@@ -302,6 +315,77 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const gateway = gateways[0];
     // Normalize and check gateway name
     const gatewayName = (gateway.name || '').toLowerCase().replace(/[\s_]/g, '');
+    if (gatewayName === 'stripe') {
+        const secretKey = decrypt(gateway.private_key || '').replace(/\s/g, '');
+        const paymentIntentId = payment?.transaction_id || (order as any).payment_id;
+
+        if (!secretKey || !paymentIntentId || !String(paymentIntentId).startsWith('pi_')) {
+            return res.status(200).json({ status: order.status || 'pending' });
+        }
+
+        const stripeRes = await fetch(`https://api.stripe.com/v1/payment_intents/${encodeURIComponent(String(paymentIntentId))}`, {
+            headers: {
+                'Authorization': `Bearer ${secretKey}`
+            }
+        });
+
+        if (!stripeRes.ok) {
+            console.error('[CheckStatus] Stripe status polling failed:', { status: stripeRes.status, paymentIntentId: maskIdentifier(String(paymentIntentId)) });
+            return res.status(200).json({ status: order.status || 'pending' });
+        }
+
+        const stripeData = await stripeRes.json();
+        const stripeStatus = String(stripeData?.status || '').toLowerCase();
+
+        let newStatus = 'pending';
+        if (stripeStatus === 'succeeded') newStatus = 'paid';
+        else if (stripeStatus === 'processing') newStatus = 'pending';
+        else if (stripeStatus === 'canceled' || stripeStatus === 'requires_payment_method') newStatus = 'failed';
+        else if (stripeStatus === 'requires_action' || stripeStatus === 'requires_confirmation') newStatus = 'pending';
+
+        const currentStatusNorm = (order.status || 'pending').toLowerCase();
+
+        if (newStatus !== currentStatusNorm) {
+            console.log(`[CheckStatus] Updating Stripe Order ${maskIdentifier(orderId)}: ${currentStatusNorm} -> ${newStatus}`);
+            await fetch(`${supabaseUrl}/rest/v1/orders?id=eq.${safeOrderId}&user_id=eq.${encodeURIComponent((order as any).user_id || '')}`, {
+                method: 'PATCH',
+                headers: {
+                    ...headers,
+                    'Content-Type': 'application/json',
+                    'Prefer': 'return=minimal'
+                },
+                body: JSON.stringify({ status: newStatus })
+            });
+        }
+
+        if (payment?.id) {
+            await fetch(`${supabaseUrl}/rest/v1/payments?id=eq.${encodeURIComponent(String(payment.id))}`, {
+                method: 'PATCH',
+                headers: {
+                    ...headers,
+                    'Content-Type': 'application/json',
+                    'Prefer': 'return=minimal'
+                },
+                body: JSON.stringify({
+                    status: newStatus,
+                    raw_response: buildSafeStripeRawResponse(stripeData),
+                })
+            });
+        }
+
+        if (newStatus === 'paid') {
+            await processPaidSideEffects({
+                supabaseUrl,
+                serviceRoleKey,
+                orderId: orderId as string,
+                knownOrder: { ...order, status: 'paid' },
+                origin: requestOrigin,
+            });
+        }
+
+        return res.status(200).json({ status: newStatus });
+    }
+
     if (gatewayName !== 'mercadopago') {
         return res.status(200).json({ status: order.status });
     }

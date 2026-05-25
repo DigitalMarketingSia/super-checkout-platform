@@ -89,42 +89,85 @@ export const ThankYou = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const waitForPaidStatus = async (targetOrderId: string, signature: string) => {
+      if (!targetOrderId || !signature) return false;
+
+      for (let attempt = 0; attempt < 8; attempt += 1) {
+        try {
+          const response = await fetch(getApiUrl(`/api/check-status?orderId=${encodeURIComponent(targetOrderId)}&sig=${encodeURIComponent(signature)}&t=${Date.now()}`));
+          if (!response.ok) {
+            await new Promise((resolve) => setTimeout(resolve, 1200));
+            continue;
+          }
+
+          const payload = await response.json().catch(() => ({}));
+          const normalizedStatus = String(payload?.status || '').toLowerCase();
+          if (normalizedStatus === 'paid' || normalizedStatus === 'approved') {
+            return true;
+          }
+        } catch (statusError) {
+          console.warn('[ThankYou] Failed to confirm paid status:', statusError);
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+      }
+
+      return false;
+    };
+
+    const fetchOrderById = async (targetOrderId: string) => {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('id', targetOrderId)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data as Order | null;
+    };
+
     const fetchOrder = async () => {
       if (!orderId) return;
 
       try {
         setDeliverables([]);
         setOriginalOrder(null);
+        const sig = new URLSearchParams(location.search).get('sig') || '';
+        const originalSig = new URLSearchParams(location.search).get('origSig') || '';
         // Fetch order
-        const { data: orderData, error: orderError } = await supabase
-          .from('orders')
-          .select('*')
-          .eq('id', orderId)
-          .single();
+        let orderData = await fetchOrderById(orderId);
 
-        if (orderError) throw orderError;
+        if (!orderData) throw new Error('Order not found');
+
+        if (!['paid', 'approved'].includes(String(orderData.status || '').toLowerCase()) && sig) {
+          const currentOrderPaid = await waitForPaidStatus(orderId, sig);
+          if (currentOrderPaid) {
+            orderData = await fetchOrderById(orderId) || orderData;
+          }
+        }
         setOrder(orderData);
 
         const storedDeliverables = normalizeStoredDeliverables(orderData?.metadata?.order_deliverables);
         const originalOrderId = typeof orderData?.metadata?.original_order_id === 'string'
           ? orderData.metadata.original_order_id.trim()
           : '';
-        const originalSig = new URLSearchParams(location.search).get('origSig') || '';
         let currentDeliverables = storedDeliverables;
         let originalOrderData: Order | null = null;
         let originalStoredDeliverables: OrderDeliverable[] = [];
 
         if (originalOrderId && originalOrderId !== orderData.id) {
-          const { data: fetchedOriginalOrder, error: originalOrderError } = await supabase
-            .from('orders')
-            .select('*')
-            .eq('id', originalOrderId)
-            .maybeSingle();
+          originalOrderData = await fetchOrderById(originalOrderId);
 
-          if (!originalOrderError && fetchedOriginalOrder) {
-            originalOrderData = fetchedOriginalOrder;
-            originalStoredDeliverables = normalizeStoredDeliverables(fetchedOriginalOrder?.metadata?.order_deliverables);
-            setOriginalOrder(fetchedOriginalOrder);
+          if (originalOrderData && !['paid', 'approved'].includes(String(originalOrderData.status || '').toLowerCase()) && originalSig) {
+            const originalPaid = await waitForPaidStatus(originalOrderId, originalSig);
+            if (originalPaid) {
+              originalOrderData = await fetchOrderById(originalOrderId) || originalOrderData;
+            }
+          }
+
+          if (originalOrderData) {
+            originalStoredDeliverables = normalizeStoredDeliverables(originalOrderData?.metadata?.order_deliverables);
+            setOriginalOrder(originalOrderData);
           }
         }
 
@@ -132,8 +175,7 @@ export const ThankYou = () => {
           setDeliverables(mergeDeliverables(originalStoredDeliverables, storedDeliverables));
         }
 
-        if (orderData?.status === 'paid' || orderData?.status === 'approved') {
-          const sig = new URLSearchParams(location.search).get('sig') || '';
+        if (['paid', 'approved'].includes(String(orderData?.status || '').toLowerCase())) {
           const deliveryResponse = await fetch(getApiUrl(`/api/system?action=order-deliverables&orderId=${encodeURIComponent(orderId)}&sig=${encodeURIComponent(sig)}`));
           if (deliveryResponse.ok) {
             const deliveryData = await deliveryResponse.json().catch(() => ({}));
