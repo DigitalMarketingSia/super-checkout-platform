@@ -16,6 +16,7 @@ export interface UpsellSavedProfileSummary {
   exp_month?: number | null;
   exp_year?: number | null;
   wallet_type?: 'apple_pay' | 'google_pay' | null;
+  gateway_payment_method_id?: string | null;
 }
 
 export interface UpsellGatewayCapability {

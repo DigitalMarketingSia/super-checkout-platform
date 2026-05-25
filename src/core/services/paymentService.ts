@@ -42,8 +42,10 @@ export interface ProcessPaymentRequest {
     cvc: string;
   };
   stripePaymentMethodId?: string; // New: For Apple/Google Pay express checkout
+  mercadoPagoCardToken?: string;
   originalOrderId?: string;
   useSavedPaymentMethod?: boolean;
+  saveCardForUpsell?: boolean;
   installments?: number; // New: Number of installments
   upgradeIntentToken?: string;
   upgradeIntentContext?: UpgradeIntentContext;
@@ -415,44 +417,62 @@ class PaymentService {
     });
 
     try {
-      let token = undefined;
+      let token = request.mercadoPagoCardToken;
+      let saveCardToken = undefined;
       let mpPaymentMethodId = undefined;
       let mpIssuer = undefined;
 
       // 1. Prepare Token for Credit Card (Tokenization still happens on client via proxy)
       if (request.paymentMethod === 'credit_card') {
-          if (!request.cardData) {
-          throw new Error(i18n.t('card_data_required'));
-        }
-
         const payerDocument = String(request.customerCpf || '').replace(/\D/g, '');
         if (payerDocument.length !== 11 && payerDocument.length !== 14) {
           throw new Error('Mercado Pago requires a valid CPF or CNPJ for credit card payments.');
         }
 
-        const rawYear = request.cardData.expiryYear.toString().trim();
-        const expiration_year = rawYear.length === 2 ? `20${rawYear}` : rawYear;
+        if (!token) {
+          if (!request.cardData) {
+            throw new Error(i18n.t('card_data_required'));
+          }
 
-        // Fiel ao Ponto 2: Capturar token, paymentMethodId e issuerId
-        const { token: mpToken, paymentMethodId: mpBrand, issuerId } = await mpAdapter.createCardToken({
-          card_number: request.cardData.number.replace(/\s/g, ''),
-          expiration_month: request.cardData.expiryMonth.padStart(2, '0'),
-          expiration_year: expiration_year,
-          security_code: request.cardData.cvc,
-          cardholder: {
-            name: request.cardData.holderName,
-            identification: {
-              type: payerDocument.length === 14 ? 'CNPJ' : 'CPF',
-              number: payerDocument,
+          const rawYear = request.cardData.expiryYear.toString().trim();
+          const expiration_year = rawYear.length === 2 ? `20${rawYear}` : rawYear;
+          const tokenizationPayload = {
+            card_number: request.cardData.number.replace(/\s/g, ''),
+            expiration_month: request.cardData.expiryMonth.padStart(2, '0'),
+            expiration_year: expiration_year,
+            security_code: request.cardData.cvc,
+            cardholder: {
+              name: request.cardData.holderName,
+              identification: {
+                type: payerDocument.length === 14 ? 'CNPJ' : 'CPF',
+                number: payerDocument,
+              }
+            }
+          };
+
+          // Fiel ao Ponto 2: Capturar token, paymentMethodId e issuerId
+          const { token: mpToken, paymentMethodId: mpBrand, issuerId } = await mpAdapter.createCardToken(
+            tokenizationPayload,
+            gateway.public_key,
+          );
+
+          token = mpToken;
+          mpPaymentMethodId = mpBrand || this.detectCardBrand(request.cardData.number);
+          mpIssuer = issuerId;
+
+          if (!request.useSavedPaymentMethod && request.saveCardForUpsell) {
+            try {
+              const vaultTokenResponse = await mpAdapter.createCardToken(tokenizationPayload, gateway.public_key);
+              saveCardToken = vaultTokenResponse.token;
+            } catch (vaultTokenError) {
+              console.warn('[PaymentService] Failed to generate Mercado Pago vault token for upsell reuse:', vaultTokenError);
             }
           }
-        }, gateway.public_key);
 
-        token = mpToken;
-        mpPaymentMethodId = mpBrand || this.detectCardBrand(request.cardData.number);
-        mpIssuer = issuerId;
-
-        console.log('[PaymentService] Card tokenized. Brand:', mpPaymentMethodId, 'Issuer:', mpIssuer);
+          console.log('[PaymentService] Card tokenized. Brand:', mpPaymentMethodId, 'Issuer:', mpIssuer);
+        } else if (!request.useSavedPaymentMethod && request.cardData) {
+          mpPaymentMethodId = this.detectCardBrand(request.cardData.number);
+        }
       }
 
       // 2. Delegate Payment Creation to Backend Hub (v4 Protection)
@@ -476,12 +496,25 @@ class PaymentService {
             customerPhone: order.customer_phone,
             customerCpf: order.customer_cpf,
             cardToken: token,
+            saveCardToken,
+            originalOrderId: request.originalOrderId,
+            useSavedPaymentMethod: request.useSavedPaymentMethod === true,
             installments: request.installments || 1,
             total: order.amount || 0
           })
         });
 
       const result = await response.json();
+
+      if ((!response.ok || !result.success) && result.code === 'UPSELL_REQUIRES_PAYMENT_FORM') {
+        return {
+          success: false,
+          message: result.error || result.message || 'A confirmação adicional do cartão é necessária para concluir este item.',
+          code: result.code,
+          requiresPaymentForm: true,
+          upsellCapability: result.upsellCapability || null,
+        };
+      }
 
       if (!response.ok || !result.success) {
         console.error('[PaymentService] Backend result failed:', result);

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { loadStripe, type Stripe, type StripeCardNumberElement } from '@stripe/stripe-js';
 import { Elements, CardCvcElement, CardExpiryElement, CardNumberElement, useElements, useStripe } from '@stripe/react-stripe-js';
@@ -88,6 +88,132 @@ function StripeUpsellForm(props: {
     );
 }
 
+function MercadoPagoSavedCardUpsellForm(props: {
+    processing: boolean;
+    publicKey: string;
+    cardId: string;
+    brand?: string | null;
+    last4?: string | null;
+    expMonth?: number | null;
+    expYear?: number | null;
+    errorMessage: string;
+    onError: (message: string) => void;
+    onUseAnotherCard: () => void;
+    onSubmit: (cardToken: string) => Promise<void>;
+}) {
+    const { t } = useTranslation('public');
+    const containerIdRef = useRef(`mp-upsell-security-code-${Math.random().toString(36).slice(2, 10)}`);
+    const mpRef = useRef<any>(null);
+    const securityFieldRef = useRef<any>(null);
+    const [ready, setReady] = useState(false);
+
+    useEffect(() => {
+        props.onError('');
+        setReady(false);
+
+        if (!props.publicKey || !props.cardId) {
+            props.onError(t('upsell.gateway_init_error', 'O gateway ainda está carregando. Tente novamente em alguns segundos.'));
+            return;
+        }
+
+        const MercadoPagoGlobal = (window as any).MercadoPago;
+        if (!MercadoPagoGlobal) {
+            props.onError(t('upsell.gateway_init_error', 'O gateway ainda está carregando. Tente novamente em alguns segundos.'));
+            return;
+        }
+
+        try {
+            const mp = new MercadoPagoGlobal(props.publicKey, { locale: 'pt-BR' });
+            const securityField = mp.fields.create('securityCode', {
+                placeholder: 'CVC',
+                style: {
+                    fontSize: '14px',
+                    color: '#FFFFFF',
+                },
+            });
+
+            securityField.mount(containerIdRef.current);
+            mpRef.current = mp;
+            securityFieldRef.current = securityField;
+            setReady(true);
+        } catch (sdkError) {
+            console.error('[UpsellPage] Failed to initialize Mercado Pago saved card field:', sdkError);
+            props.onError(t('upsell.gateway_init_error', 'O gateway ainda está carregando. Tente novamente em alguns segundos.'));
+        }
+
+        return () => {
+            try {
+                securityFieldRef.current?.unmount?.();
+                securityFieldRef.current?.destroy?.();
+            } catch (cleanupError) {
+                console.warn('[UpsellPage] Failed to cleanup Mercado Pago security field:', cleanupError);
+            } finally {
+                securityFieldRef.current = null;
+                mpRef.current = null;
+            }
+        };
+    }, [props.cardId, props.onError, props.publicKey, t]);
+
+    const submit = async () => {
+        props.onError('');
+        if (!ready || !mpRef.current?.fields?.createCardToken) {
+            props.onError(t('upsell.gateway_init_error', 'O gateway ainda está carregando. Tente novamente em alguns segundos.'));
+            return;
+        }
+
+        try {
+            const tokenResponse = await mpRef.current.fields.createCardToken({
+                cardId: props.cardId,
+            });
+
+            if (!tokenResponse?.id) {
+                const sdkError = tokenResponse?.error?.message || tokenResponse?.message || t('upsell.payment_error', 'Erro ao processar pagamento.');
+                props.onError(sdkError);
+                return;
+            }
+
+            await props.onSubmit(tokenResponse.id);
+        } catch (sdkError: any) {
+            console.error('[UpsellPage] Failed to tokenize Mercado Pago saved card:', sdkError);
+            props.onError(sdkError?.message || t('upsell.payment_error', 'Erro ao processar pagamento.'));
+        }
+    };
+
+    const savedCardLabel = props.brand && props.last4
+        ? `${String(props.brand).toUpperCase()} •••• ${props.last4}`
+        : t('upsell.saved_method_label', 'Cartão salvo');
+    const expirationLabel = props.expMonth && props.expYear
+        ? `${String(props.expMonth).padStart(2, '0')}/${String(props.expYear).slice(-2)}`
+        : null;
+
+    return (
+        <div className="w-full max-w-sm space-y-4">
+            <div className="bg-white/5 p-4 rounded-xl border border-white/10">
+                <h4 className="font-bold mb-4 flex items-center gap-2">
+                    <CreditCard className="w-4 h-4 text-primary" /> {t('upsell.saved_method_label', 'Cartão salvo')}
+                </h4>
+                <p className="text-xs text-gray-400 leading-relaxed mb-4">
+                    {t('upsell.saved_card_cvv_notice', 'Confirme apenas o CVC para adicionar este item. O pedido principal não será cobrado novamente.')}
+                </p>
+                <div className="rounded-xl bg-black/20 border border-white/5 p-3 mb-3">
+                    <p className="text-sm font-bold text-white">{savedCardLabel}</p>
+                    {expirationLabel && <p className="text-xs text-gray-400 mt-1">{t('upsell.saved_card_expires', 'Validade {{expiry}}', { expiry: expirationLabel })}</p>}
+                </div>
+                <div className="w-full bg-black/30 border border-white/10 rounded p-3 min-h-[48px] flex items-center">
+                    <div id={containerIdRef.current} className="w-full" />
+                </div>
+                {props.errorMessage && <p className="text-sm text-amber-300 leading-relaxed mt-3">{props.errorMessage}</p>}
+            </div>
+            <Button onClick={submit} className="w-full bg-green-500 hover:bg-green-400 text-black font-bold h-12" disabled={props.processing || !ready}>
+                {props.processing ? t('upsell.finalizing', 'Finalizando...') : t('upsell.confirm_payment', 'Confirmar pagamento')}
+            </Button>
+            <button onClick={props.onUseAnotherCard} type="button" className="w-full text-sm text-gray-500 hover:text-white underline decoration-gray-700 underline-offset-4 transition-colors">
+                {t('upsell.use_another_card', 'Usar outro cartão')}
+            </button>
+        </div>
+    );
+}
+
 export const UpsellPage = () => {
     const { orderId } = useParams<{ orderId: string }>();
     const navigate = useNavigate();
@@ -110,6 +236,7 @@ export const UpsellPage = () => {
     const [showCardForm, setShowCardForm] = useState(false);
     const [cardFormError, setCardFormError] = useState('');
     const [cardFormNotice, setCardFormNotice] = useState('');
+    const [useManualMercadoPagoForm, setUseManualMercadoPagoForm] = useState(false);
     const [stripePromise, setStripePromise] = useState<Promise<Stripe | null> | null>(null);
     const [error, setError] = useState('');
     const [cardData, setCardData] = useState({ number: '', holderName: '', expiryMonth: '', expiryYear: '', cvc: '' });
@@ -328,8 +455,16 @@ export const UpsellPage = () => {
         ? trustModeDescription
         : t('upsell.card_mode_reconfirm_desc', 'Seu pedido principal jÃ¡ foi confirmado. Se vocÃª aceitar esta oferta, vamos abrir a confirmaÃ§Ã£o segura apenas do item adicional.');
     const canAttemptSavedStripeCharge = gateway?.name === 'stripe' && originalOrder?.payment_method === 'credit_card' && upsellCapability.reusable_profile_available && upsellCapability.supports_off_session_charge;
+    const canAttemptSavedMercadoPagoCharge = gateway?.name === 'mercado_pago'
+        && originalOrder?.payment_method === 'credit_card'
+        && upsellCapability.reusable_profile_available
+        && Boolean(upsellCapability.saved_profile?.gateway_payment_method_id);
 
-    const processPurchase = async (method: 'credit_card' | 'pix', cardDetails?: typeof cardData, options?: { stripePaymentMethodId?: string; useSavedPaymentMethod?: boolean }) => {
+    const processPurchase = async (
+        method: 'credit_card' | 'pix',
+        cardDetails?: typeof cardData,
+        options?: { stripePaymentMethodId?: string; useSavedPaymentMethod?: boolean; mercadoPagoCardToken?: string }
+    ) => {
         if (!originalOrder || !upsellProduct || !checkout) return;
         setProcessing(true);
         setCardFormError('');
@@ -349,6 +484,7 @@ export const UpsellPage = () => {
                 customerUserId: originalOrder.customer_user_id,
                 cardData: cardDetails,
                 stripePaymentMethodId: options?.stripePaymentMethodId,
+                mercadoPagoCardToken: options?.mercadoPagoCardToken,
                 originalOrderId: originalOrder.id,
                 useSavedPaymentMethod: options?.useSavedPaymentMethod,
             });
@@ -382,6 +518,9 @@ export const UpsellPage = () => {
                 if (result.upsellCapability) {
                     setServerCapability(result.upsellCapability);
                 }
+                if (gateway?.name === 'mercado_pago') {
+                    setUseManualMercadoPagoForm(true);
+                }
                 setCardFormNotice(result.message || t('upsell.saved_method_fallback_notice', 'O banco pediu uma confirmação adicional. Revise o cartão abaixo para concluir apenas este item adicional.'));
                 setShowCardForm(true);
                 setProcessing(false);
@@ -407,10 +546,15 @@ export const UpsellPage = () => {
             }
             setCardFormError('');
             setCardFormNotice('');
+            setUseManualMercadoPagoForm(false);
             if (originalOrder.payment_method === 'pix') {
                 await processPurchase('pix');
             } else if (canAttemptSavedStripeCharge) {
                 await processPurchase('credit_card', undefined, { useSavedPaymentMethod: true });
+            } else if (canAttemptSavedMercadoPagoCharge) {
+                setCardFormNotice(t('upsell.saved_card_cvv_notice', 'Confirme apenas o CVC para adicionar este item. O pedido principal não será cobrado novamente.'));
+                setShowCardForm(true);
+                setProcessing(false);
             } else {
                 setCardData((current) => ({
                     ...current,
@@ -503,6 +647,24 @@ export const UpsellPage = () => {
                                         />
                                     </Elements>
                                 ) : <Loading label={t('upsell.loading_gateway', 'Carregando formulário seguro')} />
+                            ) : gateway?.name === 'mercado_pago' && canAttemptSavedMercadoPagoCharge && !useManualMercadoPagoForm && gateway.public_key && upsellCapability.saved_profile?.gateway_payment_method_id ? (
+                                <MercadoPagoSavedCardUpsellForm
+                                    processing={processing}
+                                    publicKey={gateway.public_key}
+                                    cardId={upsellCapability.saved_profile.gateway_payment_method_id}
+                                    brand={upsellCapability.saved_profile.brand}
+                                    last4={upsellCapability.saved_profile.last4}
+                                    expMonth={upsellCapability.saved_profile.exp_month}
+                                    expYear={upsellCapability.saved_profile.exp_year}
+                                    errorMessage={cardFormError}
+                                    onError={setCardFormError}
+                                    onUseAnotherCard={() => {
+                                        setUseManualMercadoPagoForm(true);
+                                        setCardFormError('');
+                                        setCardFormNotice(t('upsell.card_form_notice', 'Você está confirmando um pagamento adicional apenas para esta oferta. O pedido principal não será cobrado novamente.'));
+                                    }}
+                                    onSubmit={async (mercadoPagoCardToken) => processPurchase('credit_card', undefined, { useSavedPaymentMethod: true, mercadoPagoCardToken })}
+                                />
                             ) : (
                                 <div className="w-full max-w-sm space-y-4">
                                     <div className="bg-white/5 p-4 rounded-xl border border-white/10">

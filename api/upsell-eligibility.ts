@@ -33,6 +33,7 @@ type UpsellGatewayCapability = {
     exp_month?: number | null;
     exp_year?: number | null;
     wallet_type?: 'apple_pay' | 'google_pay' | null;
+    gateway_payment_method_id?: string | null;
   } | null;
   mode: UpsellExperienceMode;
 };
@@ -322,7 +323,7 @@ function buildProfilePath(params: {
   paymentMethodCandidates?: string[];
 }) {
   const query = new URLSearchParams({
-    select: 'card_brand,card_last4,card_exp_month,card_exp_year,wallet_type,reusable,requires_reauthentication',
+    select: 'card_brand,card_last4,card_exp_month,card_exp_year,wallet_type,gateway_payment_method_id,reusable,requires_reauthentication',
     gateway_id: `eq.${params.gatewayId}`,
     order: 'updated_at.desc',
     limit: '1',
@@ -444,6 +445,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             exp_month: savedProfile.card_exp_month,
             exp_year: savedProfile.card_exp_year,
             wallet_type: savedProfile.wallet_type,
+            gateway_payment_method_id: savedProfile.gateway_payment_method_id,
           }
         : null,
     });

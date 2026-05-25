@@ -625,7 +625,7 @@ async function upsellEligibilityHandler(req: VercelRequest, res: VercelResponse)
     if (effectiveGatewayId) {
       let exactProfileQuery = supabaseAdmin
         .from('customer_payment_profiles')
-        .select('card_brand, card_last4, card_exp_month, card_exp_year, wallet_type, reusable, requires_reauthentication')
+        .select('card_brand, card_last4, card_exp_month, card_exp_year, wallet_type, gateway_payment_method_id, reusable, requires_reauthentication')
         .eq('gateway_id', effectiveGatewayId)
         .eq('last_order_id', order.id)
         .order('updated_at', { ascending: false })
@@ -643,7 +643,7 @@ async function upsellEligibilityHandler(req: VercelRequest, res: VercelResponse)
     if (!savedProfile && effectiveGatewayId && order.customer_user_id) {
       let customerUserProfileQuery = supabaseAdmin
         .from('customer_payment_profiles')
-        .select('card_brand, card_last4, card_exp_month, card_exp_year, wallet_type, reusable, requires_reauthentication')
+        .select('card_brand, card_last4, card_exp_month, card_exp_year, wallet_type, gateway_payment_method_id, reusable, requires_reauthentication')
         .eq('gateway_id', effectiveGatewayId)
         .eq('customer_user_id', order.customer_user_id)
         .order('updated_at', { ascending: false })
@@ -664,7 +664,7 @@ async function upsellEligibilityHandler(req: VercelRequest, res: VercelResponse)
 
       let fallbackProfileQuery = supabaseAdmin
         .from('customer_payment_profiles')
-        .select('card_brand, card_last4, card_exp_month, card_exp_year, wallet_type, reusable, requires_reauthentication')
+        .select('card_brand, card_last4, card_exp_month, card_exp_year, wallet_type, gateway_payment_method_id, reusable, requires_reauthentication')
         .eq('gateway_id', effectiveGatewayId)
         .ilike('customer_email', normalizedCustomerEmail)
         .in('payment_method_type', paymentMethodCandidates)
@@ -694,6 +694,7 @@ async function upsellEligibilityHandler(req: VercelRequest, res: VercelResponse)
             exp_month: savedProfile.card_exp_month,
             exp_year: savedProfile.card_exp_year,
             wallet_type: savedProfile.wallet_type,
+            gateway_payment_method_id: savedProfile.gateway_payment_method_id,
           }
         : null,
     });

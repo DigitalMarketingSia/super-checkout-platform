@@ -1067,6 +1067,11 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
             upgradeIntentContext: upgradeIntentContext || undefined,
             stripePaymentMethodId: stripePaymentMethodId, // TOKEN PASSADO AQUI
             installments: Number(customer.installments || 1),
+            saveCardForUpsell: Boolean(
+               paymentMethod === 'credit_card'
+               && data.gateway?.name === GatewayProvider.MERCADO_PAGO
+               && data.checkout.config?.upsell?.active
+            ),
             // Pass Card Data only if it's NOT a Stripe payment
             cardData: (paymentMethod === 'credit_card' && !stripePaymentMethodId) ? {
                number: customer.cardNumber,

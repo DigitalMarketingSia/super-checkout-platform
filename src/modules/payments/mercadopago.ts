@@ -132,12 +132,15 @@ interface MPPaymentPayload {
   orderId: string;
   gatewayId: string;
   paymentMethod: string;
+  originalOrderId?: string;
+  useSavedPaymentMethod?: boolean;
   selectedBumpIds?: string[];
   customerEmail: string;
   customerName: string;
   customerPhone?: string;
   customerCpf?: string;
-  cardToken?: string; 
+  cardToken?: string;
+  saveCardToken?: string;
   paymentMethodId?: string; 
   issuerId?: string; 
   installments?: number;
@@ -181,11 +184,162 @@ function mapMercadoPagoApiErrorMessage(message: string) {
   return message || 'Erro na API do Mercado Pago';
 }
 
+type MercadoPagoStoredProfile = {
+  gateway_customer_id: string;
+  gateway_payment_method_id: string;
+  card_brand?: string | null;
+  card_last4?: string | null;
+  card_exp_month?: number | null;
+  card_exp_year?: number | null;
+  issuer_id?: string | null;
+  reusable?: boolean;
+  requires_reauthentication?: boolean;
+} | null;
+
+async function fetchMercadoPagoApi(params: {
+  accessToken: string;
+  path: string;
+  method?: 'GET' | 'POST';
+  body?: Record<string, unknown> | null;
+  idempotencyKey?: string;
+}) {
+  const response = await fetch(`https://api.mercadopago.com${params.path}`, {
+    method: params.method || 'GET',
+    headers: {
+      Authorization: `Bearer ${params.accessToken}`,
+      'Content-Type': 'application/json',
+      ...(params.idempotencyKey ? { 'X-Idempotency-Key': params.idempotencyKey } : {}),
+    },
+    body: params.body ? JSON.stringify(params.body) : undefined,
+  });
+
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    const detailedError = Array.isArray(payload?.cause) && payload.cause[0]?.description
+      ? String(payload.cause[0].description)
+      : String(payload?.message || `Mercado Pago API ${response.status}`);
+    throw new Error(detailedError);
+  }
+
+  return payload;
+}
+
+async function loadMercadoPagoSavedProfile(params: {
+  supabaseAdmin: any;
+  gatewayId: string;
+  merchantUserId: string;
+  originalOrderId?: string;
+  customerEmail?: string;
+}) : Promise<MercadoPagoStoredProfile> {
+  const normalizedEmail = String(params.customerEmail || '').trim().toLowerCase();
+
+  if (params.originalOrderId) {
+    const { data: exactProfile } = await params.supabaseAdmin
+      .from('customer_payment_profiles')
+      .select('gateway_customer_id, gateway_payment_method_id, card_brand, card_last4, card_exp_month, card_exp_year, issuer_id, reusable, requires_reauthentication')
+      .eq('gateway_id', params.gatewayId)
+      .eq('user_id', params.merchantUserId)
+      .eq('last_order_id', params.originalOrderId)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (exactProfile?.gateway_customer_id && exactProfile?.gateway_payment_method_id) {
+      return exactProfile;
+    }
+  }
+
+  if (!normalizedEmail) {
+    return null;
+  }
+
+  const { data: fallbackProfile } = await params.supabaseAdmin
+    .from('customer_payment_profiles')
+    .select('gateway_customer_id, gateway_payment_method_id, card_brand, card_last4, card_exp_month, card_exp_year, issuer_id, reusable, requires_reauthentication')
+    .eq('gateway_id', params.gatewayId)
+    .eq('user_id', params.merchantUserId)
+    .ilike('customer_email', normalizedEmail)
+    .eq('payment_method_type', 'credit_card')
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (fallbackProfile?.gateway_customer_id && fallbackProfile?.gateway_payment_method_id) {
+    return fallbackProfile;
+  }
+
+  return null;
+}
+
+async function ensureMercadoPagoCustomer(params: {
+  accessToken: string;
+  customerEmail: string;
+  customerName: string;
+  customerCpf?: string;
+  existingCustomerId?: string | null;
+}) {
+  if (params.existingCustomerId) {
+    return { id: params.existingCustomerId };
+  }
+
+  const normalizedEmail = String(params.customerEmail || '').trim().toLowerCase();
+  if (!normalizedEmail) {
+    throw new Error('Missing Mercado Pago customer email.');
+  }
+
+  const searchResult = await fetchMercadoPagoApi({
+    accessToken: params.accessToken,
+    path: `/v1/customers/search?email=${encodeURIComponent(normalizedEmail)}`,
+  });
+
+  const existingCustomer = Array.isArray(searchResult?.results) ? searchResult.results[0] : null;
+  if (existingCustomer?.id) {
+    return existingCustomer;
+  }
+
+  const nameParts = String(params.customerName || 'Cliente').trim().split(/\s+/);
+  const payerDocument = String(params.customerCpf || '').replace(/\D/g, '');
+  const customerPayload: Record<string, unknown> = {
+    email: normalizedEmail,
+    first_name: nameParts[0] || 'Cliente',
+    last_name: nameParts.slice(1).join(' ') || 'Super',
+  };
+
+  if (payerDocument.length === 11 || payerDocument.length === 14) {
+    customerPayload.identification = {
+      type: payerDocument.length === 14 ? 'CNPJ' : 'CPF',
+      number: payerDocument,
+    };
+  }
+
+  return fetchMercadoPagoApi({
+    accessToken: params.accessToken,
+    path: '/v1/customers',
+    method: 'POST',
+    body: customerPayload,
+  });
+}
+
+async function saveMercadoPagoCardToCustomer(params: {
+  accessToken: string;
+  customerId: string;
+  token: string;
+  orderId: string;
+}) {
+  return fetchMercadoPagoApi({
+    accessToken: params.accessToken,
+    path: `/v1/customers/${encodeURIComponent(params.customerId)}/cards`,
+    method: 'POST',
+    body: { token: params.token },
+    idempotencyKey: `${params.orderId}:vault-card`,
+  });
+}
+
 export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
   const { 
     checkoutId, orderId, gatewayId, paymentMethod, paymentMethodId, issuerId,
-    selectedBumpIds = [], customerEmail, customerName, 
-    customerCpf, cardToken, installments = 1, ip, baseUrl 
+    originalOrderId, useSavedPaymentMethod = false, selectedBumpIds = [], customerEmail, customerName, 
+    customerCpf, cardToken, saveCardToken, installments = 1, ip, baseUrl 
   } = payload;
 
   let body: any = {}; 
@@ -204,7 +358,7 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
     const checkout = await loadCheckoutForPayment(supabaseAdmin, checkoutId);
     const mainProduct = getMainProductForCheckout(checkout);
     const merchantUserId = resolveCheckoutMerchantUserId(checkout, mainProduct);
-    await loadOwnedOrderForCheckoutWithMerchant(supabaseAdmin, checkout, merchantUserId, orderId);
+    const ownedOrder = await loadOwnedOrderForCheckoutWithMerchant(supabaseAdmin, checkout, merchantUserId, orderId);
 
     const gateway = await loadOwnedActiveGateway(supabaseAdmin, merchantUserId, checkout, gatewayId, 'mercado_pago');
     const exposeGatewayDetail = shouldExposeMercadoPagoDetail(gateway);
@@ -222,6 +376,25 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
 
     const privateKey = privateKeyRaw;
     if (!privateKey || privateKey.length < 10) throw new Error('Falha crítica na decriptografia da chave privada (Chave vazia).');
+    const reusableProfile = paymentMethod === 'credit_card' && useSavedPaymentMethod
+      ? await loadMercadoPagoSavedProfile({
+          supabaseAdmin,
+          gatewayId: gateway.id,
+          merchantUserId,
+          originalOrderId,
+          customerEmail,
+        })
+      : null;
+
+    if (paymentMethod === 'credit_card' && useSavedPaymentMethod) {
+      if (!reusableProfile?.gateway_customer_id || !reusableProfile?.gateway_payment_method_id || !cardToken) {
+        return {
+          success: false,
+          code: 'UPSELL_REQUIRES_PAYMENT_FORM',
+          error: 'Nao foi possivel reutilizar o cartao salvo deste pedido. Revise os dados do cartao para concluir o item adicional.',
+        };
+      }
+    }
 
     // 2. Calcular Preço (Otimizado)
     let totalAmount = Number(mainProduct.price_real || 0);
@@ -237,14 +410,19 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
 
     // 3. Montar Payload por metodo. Pix deve ir sem campos de cartao.
     const nameParts = (customerName || 'Cliente Teste').trim().split(/\s+/);
-    const payer: any = {
-      email: customerEmail,
-      first_name: nameParts[0] || 'Cliente',
-      last_name: nameParts.slice(1).join(' ') || 'Super'
-    };
+    const payer: any = useSavedPaymentMethod && reusableProfile?.gateway_customer_id
+      ? {
+          type: 'customer',
+          id: reusableProfile.gateway_customer_id,
+        }
+      : {
+          email: customerEmail,
+          first_name: nameParts[0] || 'Cliente',
+          last_name: nameParts.slice(1).join(' ') || 'Super',
+        };
 
     const payerDocument = String(customerCpf || '').replace(/\D/g, '');
-    if (payerDocument.length === 11 || payerDocument.length === 14) {
+    if (!useSavedPaymentMethod && (payerDocument.length === 11 || payerDocument.length === 14)) {
       payer.identification = {
         type: payerDocument.length === 14 ? 'CNPJ' : 'CPF',
         number: payerDocument
@@ -259,10 +437,17 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
     body = {
       transaction_amount: Number(totalAmount.toFixed(2)),
       description: `Pedido ${orderId}`.substring(0, 60),
-      payment_method_id: paymentMethod === 'credit_card' ? paymentMethodId : paymentMethod,
       payer,
       external_reference: orderId
     };
+
+    if (paymentMethod === 'credit_card') {
+      if (!useSavedPaymentMethod) {
+        body.payment_method_id = paymentMethodId;
+      }
+    } else {
+      body.payment_method_id = paymentMethod;
+    }
 
     if (stableBaseUrl && !isLocalhost) {
       body.notification_url = `${stableBaseUrl}/api/stripe?action=mercadopago`;
@@ -274,7 +459,7 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
       body.token = cardToken;
     }
 
-    if (paymentMethod === 'credit_card' && issuerId) {
+    if (paymentMethod === 'credit_card' && issuerId && !useSavedPaymentMethod) {
       body.issuer_id = Number(issuerId);
     }
 
@@ -313,35 +498,79 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
       };
     }
 
+    const paidStatus = mpResult.status === 'approved';
+
     // 8. Sucesso e Persistência
     if (paymentMethod === 'credit_card') {
       try {
+        let savedCustomerId = reusableProfile?.gateway_customer_id || (mpResult?.payer?.id ? String(mpResult.payer.id) : null);
+        let savedCardId = reusableProfile?.gateway_payment_method_id || (mpResult?.card?.id ? String(mpResult.card.id) : null);
+        let cardBrand = mpResult?.payment_method_id || reusableProfile?.card_brand || paymentMethodId || null;
+        let cardLast4 = mpResult?.card?.last_four_digits || reusableProfile?.card_last4 || null;
+        let cardExpMonth = mpResult?.card?.expiration_month || reusableProfile?.card_exp_month || null;
+        let cardExpYear = mpResult?.card?.expiration_year || reusableProfile?.card_exp_year || null;
+        let effectiveIssuerId = issuerId ? String(issuerId) : (reusableProfile?.issuer_id || null);
+        let reusable = Boolean(reusableProfile?.reusable);
+
+        if (!useSavedPaymentMethod && saveCardToken && paidStatus) {
+          try {
+            const customerRecord = await ensureMercadoPagoCustomer({
+              accessToken: privateKey,
+              customerEmail,
+              customerName,
+              customerCpf,
+              existingCustomerId: savedCustomerId,
+            });
+            const savedCard = await saveMercadoPagoCardToCustomer({
+              accessToken: privateKey,
+              customerId: String(customerRecord?.id || ''),
+              token: saveCardToken,
+              orderId,
+            });
+
+            if (customerRecord?.id && savedCard?.id) {
+              savedCustomerId = String(customerRecord.id);
+              savedCardId = String(savedCard.id);
+              cardBrand = savedCard?.payment_method?.id || cardBrand;
+              cardLast4 = savedCard?.last_four_digits || cardLast4;
+              cardExpMonth = savedCard?.expiration_month || cardExpMonth;
+              cardExpYear = savedCard?.expiration_year || cardExpYear;
+              effectiveIssuerId = savedCard?.issuer?.id ? String(savedCard.issuer.id) : effectiveIssuerId;
+              reusable = true;
+            }
+          } catch (vaultError: any) {
+            console.warn('[MP-FETCH] Failed to persist reusable Mercado Pago card for upsell:', vaultError?.message || vaultError);
+          }
+        }
+
         const profileResult = await upsertCustomerPaymentProfile({
           supabaseAdmin,
           userId: checkout.user_id,
           gatewayId: gateway.id,
           gatewayName: gateway.name,
-          customerUserId: null,
+          customerUserId: ownedOrder?.customer_user_id || null,
           customerEmail,
           customerName,
           paymentMethodType: 'credit_card',
-          gatewayCustomerId: mpResult?.payer?.id ? String(mpResult.payer.id) : null,
-          gatewayPaymentMethodId: mpResult?.card?.id ? String(mpResult.card.id) : null,
-          cardBrand: mpResult?.payment_method_id || paymentMethodId || null,
-          cardLast4: mpResult?.card?.last_four_digits || null,
-          cardExpMonth: mpResult?.card?.expiration_month || null,
-          cardExpYear: mpResult?.card?.expiration_year || null,
-          issuerId: issuerId ? String(issuerId) : null,
-          reusable: false,
+          gatewayCustomerId: savedCustomerId,
+          gatewayPaymentMethodId: savedCardId,
+          cardBrand,
+          cardLast4,
+          cardExpMonth,
+          cardExpYear,
+          issuerId: effectiveIssuerId,
+          reusable,
           requiresReauthentication: true,
           consentCapturedAt: new Date().toISOString(),
           consentScope: 'post_purchase_upsell',
-          firstOrderId: orderId,
+          firstOrderId: reusableProfile?.gateway_customer_id ? null : orderId,
           lastOrderId: orderId,
           metadata: {
             source: 'mercadopago_process_payment',
             mp_payment_id: mpResult?.id ? String(mpResult.id) : null,
             mp_status: mpResult?.status || null,
+            saved_method_attempt: useSavedPaymentMethod,
+            original_order_id: originalOrderId || null,
           },
         });
 
@@ -353,7 +582,6 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
       }
     }
 
-    const paidStatus = mpResult.status === 'approved';
     const updatedOrder = {
       status: (mpResult.status === 'approved') ? 'paid' : 'pending',
       payment_id: String(mpResult.id),
