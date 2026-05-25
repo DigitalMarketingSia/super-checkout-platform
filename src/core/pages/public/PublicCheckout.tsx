@@ -87,6 +87,43 @@ const persistUpsellOrderContext = (
    }
 };
 
+async function confirmStripeClientAction(params: {
+   stripe: any;
+   clientSecret?: string | null;
+   t: (key: string, defaultValue: string) => string;
+}) {
+   if (!params.clientSecret) {
+      return {
+         ok: false,
+         message: params.t('checkout.additional_auth_missing', 'O Stripe não retornou a confirmação necessária para concluir este pagamento.'),
+      };
+   }
+
+   if (!params.stripe || typeof params.stripe.confirmCardPayment !== 'function') {
+      return {
+         ok: false,
+         message: params.t('checkout.gateway_init_error', 'O Stripe ainda está carregando. Tente novamente em alguns segundos.'),
+      };
+   }
+
+   const { error, paymentIntent } = await params.stripe.confirmCardPayment(params.clientSecret);
+   if (error) {
+      return {
+         ok: false,
+         message: translatePaymentError(error.code, error.decline_code, error.message || params.t('checkout.payment_error_retry', 'Erro ao processar pagamento. Verifique seus dados e tente novamente.')),
+      };
+   }
+
+   if (paymentIntent?.status !== 'succeeded' && paymentIntent?.status !== 'processing') {
+      return {
+         ok: false,
+         message: params.t('checkout.payment_not_confirmed', 'O banco não confirmou o pagamento. Revise os dados e tente novamente.'),
+      };
+   }
+
+   return { ok: true };
+}
+
 // --- PROCESSING MODAL (UX ESTILO TICTO) ---
 const ProcessingModal = ({
    isOpen,
@@ -934,6 +971,20 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
          console.log('[PublicCheckout] processPayment returned:', result);
 
          if (result.success) {
+            if (result.requiresAction) {
+               const actionResult = await confirmStripeClientAction({
+                  stripe,
+                  clientSecret: result.clientSecret,
+                  t: (key, defaultValue) => t(key, defaultValue),
+               });
+               if (!actionResult.ok) {
+                  setProcessState('error');
+                  setProcessError(actionResult.message || t('checkout.payment_error_retry', 'Erro ao processar pagamento. Verifique seus dados e tente novamente.'));
+                  setIsProcessing(false);
+                  return;
+               }
+            }
+
             console.log('[PublicCheckout] Payment success. Method:', paymentMethod);
             persistUpsellOrderContext(result.orderId, {
                id: result.orderId,
@@ -1917,6 +1968,21 @@ const WalletExpressButton = ({
             });
 
             if (result.success) {
+               if (result.requiresAction) {
+                  ev.complete('success');
+                  const actionResult = await confirmStripeClientAction({
+                     stripe,
+                     clientSecret: result.clientSecret,
+                     t: (key, defaultValue) => t(key, defaultValue),
+                  });
+                  if (!actionResult.ok) {
+                     showAlert(t('checkout.error_title', 'Erro'), actionResult.message || t('checkout.wallet_payment_failed', 'Falha no pagamento via carteira.'), 'error');
+                     return;
+                  }
+               } else {
+                  ev.complete('success');
+               }
+
                persistUpsellOrderContext(result.orderId, {
                   id: result.orderId,
                   checkout_id: data.checkout.id,
@@ -1931,7 +1997,6 @@ const WalletExpressButton = ({
                   created_at: new Date().toISOString(),
                   upsell_capability_snapshot: result.upsellCapability || null,
                });
-               ev.complete('success');
                const signedQuery = result.statusSignature ? `?sig=${encodeURIComponent(result.statusSignature)}` : '';
                if (data.checkout.config?.upsell?.active) {
                   navigate(`/upsell/${result.orderId}${signedQuery}`);

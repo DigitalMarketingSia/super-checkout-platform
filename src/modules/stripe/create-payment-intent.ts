@@ -112,6 +112,171 @@ async function loadStripePaymentMethod(secretKey: string, paymentMethodId?: stri
     return stripeRequest(secretKey, `/payment_methods/${encodeURIComponent(normalized)}`, 'GET');
 }
 
+interface StripeSavedProfileRecord {
+    gateway_customer_id: string;
+    gateway_payment_method_id: string;
+    card_brand?: string | null;
+    card_last4?: string | null;
+    card_exp_month?: number | null;
+    card_exp_year?: number | null;
+    wallet_type?: 'apple_pay' | 'google_pay' | null;
+    reusable?: boolean | null;
+    requires_reauthentication?: boolean | null;
+}
+
+function buildStripeSavedProfileSummary(profile?: Partial<StripeSavedProfileRecord> | null) {
+    if (!profile) return null;
+    if (!profile.card_last4 && !profile.wallet_type) return null;
+
+    return {
+        brand: profile.card_brand || null,
+        last4: profile.card_last4 || null,
+        exp_month: profile.card_exp_month || null,
+        exp_year: profile.card_exp_year || null,
+        wallet_type: profile.wallet_type || null,
+    };
+}
+
+function buildStripeUpsellCapability(params: {
+    originalPaymentMethod?: string | null;
+    savedProfile?: ReturnType<typeof buildStripeSavedProfileSummary>;
+    reusableProfileAvailable?: boolean;
+    requiresPaymentForm?: boolean;
+    requiresStepUp?: boolean;
+}) {
+    const originalPaymentMethod = params.originalPaymentMethod || 'credit_card';
+    const savedProfile = params.savedProfile || null;
+    const reusableProfileAvailable = Boolean(params.reusableProfileAvailable);
+    const requiresStepUp = params.requiresStepUp ?? false;
+    const supportsWalletReuse = savedProfile?.wallet_type === 'apple_pay' || savedProfile?.wallet_type === 'google_pay';
+    const hasSavedProfile = Boolean(savedProfile);
+
+    return {
+        gateway: 'stripe',
+        original_payment_method: originalPaymentMethod,
+        supports_saved_method: hasSavedProfile,
+        supports_off_session_charge: reusableProfileAvailable,
+        requires_step_up: requiresStepUp,
+        supports_pix: false,
+        supports_wallet_reuse: supportsWalletReuse,
+        has_saved_profile: hasSavedProfile,
+        reusable_profile_available: reusableProfileAvailable,
+        should_offer_immediately: true,
+        requires_payment_form: params.requiresPaymentForm ?? !reusableProfileAvailable,
+        strategy: reusableProfileAvailable
+            ? (requiresStepUp ? 'saved_method_reconfirm' : 'one_click_charge')
+            : (hasSavedProfile ? 'saved_method_reconfirm' : 'new_card_capture'),
+        saved_profile: savedProfile,
+        mode: reusableProfileAvailable
+            ? (requiresStepUp ? 'light_confirmation' : 'one_click')
+            : (hasSavedProfile ? 'light_confirmation' : 'repayment_explicit'),
+    };
+}
+
+function parseStripeError(error: unknown) {
+    const fallback = {
+        message: 'Payment processing failed',
+        code: 'unknown',
+        decline_code: undefined as string | undefined,
+    };
+
+    if (!error || typeof error !== 'object') {
+        return fallback;
+    }
+
+    const rawMessage = typeof (error as { message?: unknown }).message === 'string'
+        ? (error as { message: string }).message
+        : '';
+
+    if (!rawMessage) {
+        return fallback;
+    }
+
+    try {
+        const parsed = JSON.parse(rawMessage);
+        return {
+            message: typeof parsed?.message === 'string' ? parsed.message : fallback.message,
+            code: typeof parsed?.code === 'string' ? parsed.code : fallback.code,
+            decline_code: typeof parsed?.decline_code === 'string' ? parsed.decline_code : undefined,
+        };
+    } catch {
+        return {
+            message: rawMessage,
+            code: fallback.code,
+            decline_code: undefined,
+        };
+    }
+}
+
+function shouldFallbackToManualStripeConfirmation(error: unknown) {
+    const parsed = parseStripeError(error);
+    const code = String(parsed.decline_code || parsed.code || '').trim().toLowerCase();
+
+    return code === 'authentication_required'
+        || code === 'payment_intent_authentication_failure'
+        || code === 'authentication_not_handled'
+        || code === 'approval_required';
+}
+
+async function loadReusableStripeProfile(params: {
+    supabaseAdmin: any;
+    merchantUserId: string;
+    gatewayId: string;
+    customerEmail?: string | null;
+    originalOrderId?: string | null;
+}) {
+    const normalizedEmail = String(params.customerEmail || '').trim().toLowerCase();
+    if (!normalizedEmail) return null;
+
+    const selectFields = 'gateway_customer_id,gateway_payment_method_id,card_brand,card_last4,card_exp_month,card_exp_year,wallet_type,reusable,requires_reauthentication,updated_at,last_order_id';
+
+    if (params.originalOrderId) {
+        const { data: directMatch, error: directError } = await params.supabaseAdmin
+            .from('customer_payment_profiles')
+            .select(selectFields)
+            .eq('user_id', params.merchantUserId)
+            .eq('gateway_id', params.gatewayId)
+            .eq('gateway_name', 'stripe')
+            .eq('customer_email', normalizedEmail)
+            .eq('payment_method_type', 'credit_card')
+            .eq('reusable', true)
+            .eq('last_order_id', params.originalOrderId)
+            .order('updated_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        if (directError) {
+            console.warn('[CreatePaymentIntent] Failed to load reusable Stripe profile for original order:', directError.message);
+        } else if (directMatch?.gateway_customer_id && directMatch?.gateway_payment_method_id) {
+            return directMatch as StripeSavedProfileRecord;
+        }
+    }
+
+    const { data: fallbackProfiles, error: fallbackError } = await params.supabaseAdmin
+        .from('customer_payment_profiles')
+        .select(selectFields)
+        .eq('user_id', params.merchantUserId)
+        .eq('gateway_id', params.gatewayId)
+        .eq('gateway_name', 'stripe')
+        .eq('customer_email', normalizedEmail)
+        .eq('payment_method_type', 'credit_card')
+        .eq('reusable', true)
+        .order('updated_at', { ascending: false })
+        .limit(1);
+
+    if (fallbackError) {
+        console.warn('[CreatePaymentIntent] Failed to load fallback reusable Stripe profile:', fallbackError.message);
+        return null;
+    }
+
+    const profile = Array.isArray(fallbackProfiles) ? fallbackProfiles[0] : null;
+    if (!profile?.gateway_customer_id || !profile?.gateway_payment_method_id) {
+        return null;
+    }
+
+    return profile as StripeSavedProfileRecord;
+}
+
 function maskEmail(email?: string | null) {
     const [name, domain] = String(email || '').split('@');
     if (!name || !domain) return 'unknown';
@@ -149,13 +314,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             gatewayId,
             checkoutId,
             selectedBumpIds = [],
-            metadata
+            metadata,
+            originalOrderId: requestOriginalOrderId,
+            useSavedPaymentMethod: rawUseSavedPaymentMethod,
         } = req.body;
+        const useSavedPaymentMethod = rawUseSavedPaymentMethod === true || rawUseSavedPaymentMethod === 'true';
         const requestMetadata = metadata && typeof metadata === 'object' ? metadata : {};
         const orderId = typeof requestMetadata.order_id === 'string' ? requestMetadata.order_id : '';
+        const originalOrderId = typeof requestOriginalOrderId === 'string' && requestOriginalOrderId.trim()
+            ? requestOriginalOrderId.trim()
+            : (typeof requestMetadata.original_order_id === 'string' ? requestMetadata.original_order_id.trim() : '');
+        const originalCustomerUserId = typeof requestMetadata.customer_user_id === 'string' && requestMetadata.customer_user_id.trim()
+            ? requestMetadata.customer_user_id.trim()
+            : null;
 
         // --- INPUT VALIDATION ---
-        if (!paymentMethodId) {
+        if (!paymentMethodId && !useSavedPaymentMethod) {
             return res.status(400).json({ error: 'paymentMethodId is required' });
         }
         if (!amount || amount <= 0) {
@@ -203,15 +377,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         
         // --- NEW: SERVER-SIDE PRICE VERIFICATION (Fase 13.1) ---
         const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || 'unknown';
-        
-        let calculatedTotal = Number(mainProduct.price_real || 0);
 
-        // 2. Add selected Bumps
-        if (selectedBumpIds.length > 0) {
-            const bumpsData = await loadValidCheckoutBumps(supabaseAdmin, checkout, merchantUserId, selectedBumpIds);
-            bumpsData.forEach((bp: any) => {
-                calculatedTotal += Number(bp.price_real || 0);
-            });
+        const isUpsellAttempt = Boolean(originalOrderId);
+        let calculatedTotal = 0;
+
+        if (isUpsellAttempt) {
+            const upsellProductId = checkout?.config?.upsell?.product_id;
+            if (!upsellProductId) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Invalid checkout configuration.',
+                    code: 'UPSELL_PRODUCT_NOT_CONFIGURED',
+                });
+            }
+
+            const { data: upsellProduct, error: upsellProductError } = await supabaseAdmin
+                .from('products')
+                .select('id, user_id, price_real')
+                .eq('id', upsellProductId)
+                .eq('user_id', merchantUserId)
+                .maybeSingle();
+
+            if (upsellProductError) {
+                console.error('[CreatePaymentIntent] Upsell product lookup failed:', upsellProductError.message);
+                throw new PaymentSecurityError('UPSELL_PRODUCT_LOOKUP_FAILED', 'Invalid checkout configuration.');
+            }
+
+            if (!upsellProduct) {
+                throw new PaymentSecurityError('UPSELL_PRODUCT_FORBIDDEN', 'Invalid checkout configuration.');
+            }
+
+            calculatedTotal = Number(upsellProduct.price_real || 0);
+        } else {
+            calculatedTotal = Number(mainProduct.price_real || 0);
+
+            // 2. Add selected Bumps
+            if (selectedBumpIds.length > 0) {
+                const bumpsData = await loadValidCheckoutBumps(supabaseAdmin, checkout, merchantUserId, selectedBumpIds);
+                bumpsData.forEach((bp: any) => {
+                    calculatedTotal += Number(bp.price_real || 0);
+                });
+            }
         }
 
         // 3. Round to 2 decimals
@@ -243,22 +449,89 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const paymentIntentData: Record<string, any> = {
             amount: amountInCents,
             currency: serverCurrency.toLowerCase(),
-            payment_method: paymentMethodId,
             confirm: 'true',
             description: description || 'Payment',
             receipt_email: customerEmail,
-            // return_url is required for 3D Secure cards
-            return_url: req.headers.origin || req.headers.referer || 'https://localhost',
         };
 
         let stripeCustomer: any = null;
-        try {
-            stripeCustomer = await findOrCreateStripeCustomer(secretKey, customerEmail, customerName);
-            if (stripeCustomer?.id) {
-                paymentIntentData.customer = stripeCustomer.id;
+        let stripePaymentMethod: any = null;
+        let stripeWalletType: 'apple_pay' | 'google_pay' | null = null;
+        let paymentMethodType = 'credit_card';
+        let reusableProfileAvailable = false;
+        let savedProfileSummary: ReturnType<typeof buildStripeSavedProfileSummary> = null;
+        let gatewayCustomerId = '';
+        let resolvedPaymentMethodId = typeof paymentMethodId === 'string' ? paymentMethodId.trim() : '';
+
+        if (useSavedPaymentMethod) {
+            const reusableProfile = await loadReusableStripeProfile({
+                supabaseAdmin,
+                merchantUserId,
+                gatewayId: gateway.id,
+                customerEmail,
+                originalOrderId,
+            });
+
+            savedProfileSummary = buildStripeSavedProfileSummary(reusableProfile);
+            const savedMethodFallbackCapability = buildStripeUpsellCapability({
+                originalPaymentMethod: 'credit_card',
+                savedProfile: savedProfileSummary,
+                reusableProfileAvailable: Boolean(reusableProfile),
+                requiresPaymentForm: true,
+                requiresStepUp: true,
+            });
+
+            if (!reusableProfile?.gateway_customer_id || !reusableProfile?.gateway_payment_method_id) {
+                return res.status(200).json({
+                    success: false,
+                    error: 'O banco pediu uma confirmação adicional para concluir este item.',
+                    code: 'UPSELL_REQUIRES_PAYMENT_FORM',
+                    upsellCapability: savedMethodFallbackCapability,
+                });
             }
-        } catch (customerError: any) {
-            console.warn('[CreatePaymentIntent] Failed to resolve Stripe customer:', customerError?.message || customerError);
+
+            reusableProfileAvailable = true;
+            gatewayCustomerId = reusableProfile.gateway_customer_id;
+            resolvedPaymentMethodId = reusableProfile.gateway_payment_method_id;
+            paymentIntentData.customer = gatewayCustomerId;
+            paymentIntentData.payment_method = resolvedPaymentMethodId;
+            paymentIntentData.off_session = 'true';
+        } else {
+            try {
+                stripeCustomer = await findOrCreateStripeCustomer(secretKey, customerEmail, customerName);
+                if (stripeCustomer?.id) {
+                    paymentIntentData.customer = stripeCustomer.id;
+                    gatewayCustomerId = stripeCustomer.id;
+                }
+            } catch (customerError: any) {
+                console.warn('[CreatePaymentIntent] Failed to resolve Stripe customer:', customerError?.message || customerError);
+            }
+
+            try {
+                stripePaymentMethod = await loadStripePaymentMethod(secretKey, paymentMethodId);
+            } catch (paymentMethodError: any) {
+                console.warn('[CreatePaymentIntent] Failed to inspect Stripe payment method:', paymentMethodError?.message || paymentMethodError);
+            }
+
+            stripeWalletType = stripePaymentMethod?.card?.wallet?.type === 'apple_pay' || stripePaymentMethod?.card?.wallet?.type === 'google_pay'
+                ? stripePaymentMethod.card.wallet.type
+                : null;
+            paymentMethodType = stripeWalletType || 'credit_card';
+            savedProfileSummary = buildStripeSavedProfileSummary({
+                card_brand: stripePaymentMethod?.card?.brand || null,
+                card_last4: stripePaymentMethod?.card?.last4 || null,
+                card_exp_month: stripePaymentMethod?.card?.exp_month || null,
+                card_exp_year: stripePaymentMethod?.card?.exp_year || null,
+                wallet_type: stripeWalletType,
+            });
+
+            reusableProfileAvailable = Boolean(stripePaymentMethod?.card?.last4) && !stripeWalletType && Boolean(gatewayCustomerId) && Boolean(resolvedPaymentMethodId);
+            paymentIntentData.payment_method = resolvedPaymentMethodId;
+            if (reusableProfileAvailable) {
+                paymentIntentData.setup_future_usage = 'off_session';
+            }
+            // return_url is required for cards that trigger authentication on-session.
+            paymentIntentData.return_url = req.headers.origin || req.headers.referer || 'https://localhost';
         }
 
         // Add metadata if provided
@@ -273,64 +546,59 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const idempotencyKey = orderId;
         console.log(`[CreatePaymentIntent] Creating PI: ${amountInCents} ${serverCurrency} for ${maskEmail(customerEmail)} (Key: ${idempotencyKey})`);
 
-        const paymentIntent = await stripeRequest(secretKey, '/payment_intents', 'POST', paymentIntentData, idempotencyKey);
-        let stripePaymentMethod: any = null;
+        let paymentIntent: any;
         try {
-            stripePaymentMethod = await loadStripePaymentMethod(secretKey, paymentMethodId);
-        } catch (paymentMethodError: any) {
-            console.warn('[CreatePaymentIntent] Failed to inspect Stripe payment method:', paymentMethodError?.message || paymentMethodError);
+            paymentIntent = await stripeRequest(secretKey, '/payment_intents', 'POST', paymentIntentData, idempotencyKey);
+        } catch (stripeError: any) {
+            if (useSavedPaymentMethod && shouldFallbackToManualStripeConfirmation(stripeError)) {
+                return res.status(200).json({
+                    success: false,
+                    error: 'O banco pediu uma confirmação adicional para concluir este item.',
+                    code: 'UPSELL_REQUIRES_PAYMENT_FORM',
+                    upsellCapability: buildStripeUpsellCapability({
+                        originalPaymentMethod: 'credit_card',
+                        savedProfile: savedProfileSummary,
+                        reusableProfileAvailable: true,
+                        requiresPaymentForm: true,
+                        requiresStepUp: true,
+                    }),
+                });
+            }
+
+            throw stripeError;
         }
 
         console.log(`[CreatePaymentIntent] PI created: ${paymentIntent.id} — Status: ${paymentIntent.status}`);
 
-        const stripeWalletType = stripePaymentMethod?.card?.wallet?.type === 'apple_pay' || stripePaymentMethod?.card?.wallet?.type === 'google_pay'
-            ? stripePaymentMethod.card.wallet.type
-            : null;
-        const hasSavedProfile = Boolean(stripePaymentMethod?.card?.last4);
-        const upsellCapability = {
-            gateway: 'stripe',
-            original_payment_method: stripeWalletType || orderData?.payment_method || 'credit_card',
-            supports_saved_method: hasSavedProfile,
-            supports_off_session_charge: false,
-            requires_step_up: true,
-            supports_pix: false,
-            supports_wallet_reuse: stripeWalletType === 'apple_pay' || stripeWalletType === 'google_pay',
-            has_saved_profile: hasSavedProfile,
-            reusable_profile_available: false,
-            should_offer_immediately: true,
-            requires_payment_form: true,
-            strategy: hasSavedProfile ? 'saved_method_reconfirm' : 'new_card_capture',
-            saved_profile: hasSavedProfile
-                ? {
-                    brand: stripePaymentMethod?.card?.brand || null,
-                    last4: stripePaymentMethod?.card?.last4 || null,
-                    exp_month: stripePaymentMethod?.card?.exp_month || null,
-                    exp_year: stripePaymentMethod?.card?.exp_year || null,
-                    wallet_type: stripeWalletType,
-                }
-                : null,
-            mode: hasSavedProfile ? 'light_confirmation' : 'repayment_explicit',
-        };
+        gatewayCustomerId = gatewayCustomerId || paymentIntent.customer || '';
+
+        const upsellCapability = buildStripeUpsellCapability({
+            originalPaymentMethod: paymentMethodType,
+            savedProfile: savedProfileSummary,
+            reusableProfileAvailable,
+            requiresPaymentForm: !reusableProfileAvailable,
+            requiresStepUp: reusableProfileAvailable || Boolean(savedProfileSummary),
+        });
 
         try {
             const profileResult = await upsertCustomerPaymentProfile({
                 supabaseAdmin,
-                userId: checkout.user_id,
+                userId: merchantUserId,
                 gatewayId: gateway.id,
                 gatewayName: gateway.name,
-                customerUserId: orderData?.customer_user_id || null,
-                customerEmail: orderData?.customer_email || customerEmail,
-                customerName: orderData?.customer_name || customerName,
-                paymentMethodType: stripeWalletType || orderData?.payment_method || 'credit_card',
-                gatewayCustomerId: stripeCustomer?.id || paymentIntent.customer || stripePaymentMethod?.customer || null,
-                gatewayPaymentMethodId: stripePaymentMethod?.id || paymentMethodId,
-                cardBrand: stripePaymentMethod?.card?.brand || null,
-                cardLast4: stripePaymentMethod?.card?.last4 || null,
-                cardExpMonth: stripePaymentMethod?.card?.exp_month || null,
-                cardExpYear: stripePaymentMethod?.card?.exp_year || null,
-                walletType: stripeWalletType,
-                reusable: false,
-                requiresReauthentication: true,
+                customerUserId: originalCustomerUserId,
+                customerEmail: customerEmail,
+                customerName: customerName,
+                paymentMethodType: paymentMethodType as any,
+                gatewayCustomerId: gatewayCustomerId || null,
+                gatewayPaymentMethodId: resolvedPaymentMethodId || null,
+                cardBrand: savedProfileSummary?.brand || null,
+                cardLast4: savedProfileSummary?.last4 || null,
+                cardExpMonth: savedProfileSummary?.exp_month || null,
+                cardExpYear: savedProfileSummary?.exp_year || null,
+                walletType: savedProfileSummary?.wallet_type || null,
+                reusable: reusableProfileAvailable,
+                requiresReauthentication: reusableProfileAvailable,
                 consentCapturedAt: new Date().toISOString(),
                 consentScope: 'post_purchase_upsell',
                 firstOrderId: orderId,
@@ -339,6 +607,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     source: 'stripe_create_payment_intent',
                     payment_intent_id: paymentIntent.id,
                     payment_intent_status: paymentIntent.status,
+                    original_order_id: originalOrderId || null,
+                    saved_method_attempt: useSavedPaymentMethod,
                 },
             });
 

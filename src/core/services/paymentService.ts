@@ -42,6 +42,8 @@ export interface ProcessPaymentRequest {
     cvc: string;
   };
   stripePaymentMethodId?: string; // New: For Apple/Google Pay express checkout
+  originalOrderId?: string;
+  useSavedPaymentMethod?: boolean;
   installments?: number; // New: Number of installments
   upgradeIntentToken?: string;
   upgradeIntentContext?: UpgradeIntentContext;
@@ -64,6 +66,10 @@ export interface ProcessPaymentResult {
     barcode: string;
     url: string;
   };
+  requiresPaymentForm?: boolean;
+  requiresAction?: boolean;
+  clientSecret?: string;
+  code?: string;
 }
 
 /**
@@ -83,6 +89,14 @@ class PaymentService {
   private buildOrderMetadata(request: ProcessPaymentRequest) {
     const token = request.upgradeIntentToken?.trim();
     const context = request.upgradeIntentContext;
+    const originalOrderId = request.originalOrderId?.trim();
+    const postPurchaseContext = originalOrderId
+      ? {
+          original_order_id: originalOrderId,
+          source_surface: request.offerId === 'upsell' ? 'upsell' : 'post_purchase',
+          use_saved_payment_method: Boolean(request.useSavedPaymentMethod),
+        }
+      : null;
 
     const payerSnapshot = {
       name: request.customerName || null,
@@ -93,6 +107,8 @@ class PaymentService {
 
     if (!token) {
       return {
+        ...(originalOrderId ? { original_order_id: originalOrderId } : {}),
+        ...(postPurchaseContext ? { post_purchase: postPurchaseContext } : {}),
         payer_snapshot: payerSnapshot,
         reconciliation: {
           status: 'not_required',
@@ -103,6 +119,8 @@ class PaymentService {
 
     return {
       upgrade_intent_token: token,
+      ...(originalOrderId ? { original_order_id: originalOrderId } : {}),
+      ...(postPurchaseContext ? { post_purchase: postPurchaseContext } : {}),
       upgrade_intent: {
         token,
         status: context?.status || null,
@@ -138,6 +156,10 @@ class PaymentService {
     return {
       order_id: order.id,
       customer_user_id: order.customer_user_id || '',
+      original_order_id: metadata.original_order_id
+        || (metadata.post_purchase && typeof metadata.post_purchase === 'object'
+          ? metadata.post_purchase.original_order_id || ''
+          : ''),
       upgrade_intent_token: metadata.upgrade_intent_token || '',
       upgrade_target_license_key: upgradeIntent.target_license_key || metadata.upgrade_target_license_key || '',
       upgrade_target_plan_slug: upgradeIntent.target_plan_slug || metadata.upgrade_target_plan_slug || '',
@@ -322,6 +344,19 @@ class PaymentService {
               success: true,
               orderId: currentOrder.id,
               ...gatewayResponse
+            };
+          } else if (gatewayResponse.requiresPaymentForm) {
+            console.warn(`[PaymentService] Payment requires additional confirmation with gateway ${gatewayId}.`);
+            if (currentOrder?.id) {
+              try {
+                await this.updateOrderStatus(currentOrder.id, OrderStatus.FAILED);
+              } catch (statusError) {
+                console.warn('[PaymentService] Failed to mark preliminary order as failed:', statusError);
+              }
+            }
+            return {
+              orderId: currentOrder?.id,
+              ...gatewayResponse,
             };
           } else {
             console.warn(`[PaymentService] Payment FAILED with gateway ${gatewayId}: ${gatewayResponse.message}`);
@@ -510,11 +545,17 @@ class PaymentService {
     // The secret_key never leaves the server
 
     try {
-      if (request.paymentMethod !== 'credit_card' && !request.stripePaymentMethodId) {
+      const useSavedPaymentMethod = request.useSavedPaymentMethod === true;
+
+      if (useSavedPaymentMethod && request.paymentMethod !== 'credit_card') {
+        throw new Error('Stripe saved method reuse currently only supports credit cards.');
+      }
+
+      if (request.paymentMethod !== 'credit_card' && !request.stripePaymentMethodId && !useSavedPaymentMethod) {
         throw new Error('Stripe integration currently only supports credit cards or wallets.');
       }
 
-      if (!request.stripePaymentMethodId) {
+      if (!request.stripePaymentMethodId && !useSavedPaymentMethod) {
         throw new Error('Stripe payment requires a paymentMethodId from Stripe Elements. Raw card data is not accepted.');
       }
 
@@ -524,6 +565,8 @@ class PaymentService {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           paymentMethodId: request.stripePaymentMethodId,
+          useSavedPaymentMethod,
+          originalOrderId: request.originalOrderId,
           amount: order.amount,
           currency: request.currency,
           description: `Pedido #${order.id}`,
@@ -547,6 +590,16 @@ class PaymentService {
       } catch (e) {
         console.error('[PaymentService] Failed to parse Stripe response:', responseText);
         throw new Error(`Invalid response from server (Status ${response.status}). Please ensure the backend is running.`);
+      }
+
+      if ((!response.ok || !result.success) && result.code === 'UPSELL_REQUIRES_PAYMENT_FORM') {
+        return {
+          success: false,
+          message: result.error || result.message || 'A confirmação adicional do cartão é necessária para concluir este item.',
+          code: result.code,
+          requiresPaymentForm: true,
+          upsellCapability: result.upsellCapability || null,
+        };
       }
 
       if (!response.ok || !result.success) {
@@ -587,6 +640,10 @@ class PaymentService {
         return {
           success: true,
           message: 'Payment requires additional authentication',
+          gatewayStatus: result.status,
+          statusSignature: result.statusSignature,
+          requiresAction: true,
+          clientSecret: result.clientSecret,
           upsellCapability: result.upsellCapability || null,
         };
       }
