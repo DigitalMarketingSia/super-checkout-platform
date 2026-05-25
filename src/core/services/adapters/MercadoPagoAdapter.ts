@@ -55,6 +55,38 @@ interface MercadoPagoPaymentResponse {
     };
 }
 
+function extractMercadoPagoErrorMessage(error: unknown): string {
+    if (!error) return 'Mercado Pago returned an empty error.';
+    if (typeof error === 'string') return error;
+    if (error instanceof Error) return error.message;
+
+    if (typeof error === 'object') {
+        const candidate = error as Record<string, any>;
+
+        if (typeof candidate.message === 'string' && candidate.message.trim()) {
+            return candidate.message.trim();
+        }
+
+        if (candidate.error && typeof candidate.error.message === 'string') {
+            return candidate.error.message;
+        }
+
+        if (Array.isArray(candidate.error) && candidate.error[0]?.message) {
+            return String(candidate.error[0].message);
+        }
+
+        if (Array.isArray(candidate.errors) && candidate.errors[0]?.message) {
+            return String(candidate.errors[0].message);
+        }
+
+        if (Array.isArray(candidate.cause) && candidate.cause[0]?.description) {
+            return String(candidate.cause[0].description);
+        }
+    }
+
+    return 'Unknown Mercado Pago error.';
+}
+
 /**
  * MERCADO PAGO ADAPTER (CORE API)
  *
@@ -107,18 +139,28 @@ export class MercadoPagoAdapter {
             console.log('[MercadoPagoAdapter] Initializing MP SDK v2...');
             const mp = new (window as any).MercadoPago(key, { locale: 'pt-BR' });
 
-            const bin = cardData.card_number.replace(/\s/g, '').substring(0, 6);
+            const bin = cardData.card_number.replace(/\s/g, '').substring(0, 8);
             let identifiedMethodId = '';
             let identifiedIssuerId = '';
 
             // IDENTIFICAR BANDEIRA E EMISSOR (Obrigatório para evitar internal_error na v2)
             try {
                 const methods = await mp.getPaymentMethods({ bin });
-                identifiedMethodId = methods.results?.[0]?.id || '';
+                const paymentMethods = Array.isArray(methods)
+                    ? methods
+                    : Array.isArray(methods?.results)
+                        ? methods.results
+                        : [];
+                identifiedMethodId = paymentMethods[0]?.id || '';
                 
                 if (identifiedMethodId) {
                     const issuers = await mp.getIssuers({ paymentMethodId: identifiedMethodId, bin });
-                    identifiedIssuerId = issuers[0]?.id || '';
+                    const issuerOptions = Array.isArray(issuers)
+                        ? issuers
+                        : Array.isArray((issuers as any)?.results)
+                            ? (issuers as any).results
+                            : [];
+                    identifiedIssuerId = issuerOptions[0]?.id ? String(issuerOptions[0].id) : '';
                 }
                 
                 console.log('[MercadoPagoAdapter] Identification:', { brand: identifiedMethodId, issuer: identifiedIssuerId });
@@ -137,20 +179,28 @@ export class MercadoPagoAdapter {
                 identificationNumber: cardData.cardholder.identification?.number
             });
 
-            if (tokenResponse.error) {
-                throw new Error(`MP SDK Token Error: ${JSON.stringify(tokenResponse.error)}`);
+            if (!tokenResponse) {
+                throw new Error('Mercado Pago nao retornou token do cartao.');
             }
 
-            console.log('[MercadoPagoAdapter] Tokenized successfully via SDK v2:', tokenResponse.id);
+            if ((tokenResponse as any).error || (tokenResponse as any).errors) {
+                throw new Error(extractMercadoPagoErrorMessage((tokenResponse as any).error || (tokenResponse as any).errors));
+            }
+
+            if (!(tokenResponse as any).id) {
+                throw new Error('Mercado Pago nao retornou um token valido do cartao.');
+            }
+
+            console.log('[MercadoPagoAdapter] Tokenized successfully via SDK v2:', (tokenResponse as any).id);
 
             return { 
-                token: tokenResponse.id, 
+                token: (tokenResponse as any).id, 
                 paymentMethodId: identifiedMethodId,
                 issuerId: identifiedIssuerId // Enviamos o emissor identificado
             };
         } catch (error: any) {
             console.error('[MercadoPagoAdapter] Tokenization error:', error);
-            throw new Error(`Failed to tokenize card: ${error.message}`);
+            throw new Error(`Failed to tokenize card: ${extractMercadoPagoErrorMessage(error)}`);
         }
     }
 
@@ -186,7 +236,7 @@ export class MercadoPagoAdapter {
                     })
                     .map((cost: any) => {
                         const isInterestFree = cost.installment_rate === 0;
-                        let label = cost.recommended_message;
+                        let label = cost.recommended_message || '';
                         
                         if (label.includes('soma')) label = label.replace('soma', 'Total');
 
@@ -258,7 +308,7 @@ export class MercadoPagoAdapter {
 
         } catch (error: any) {
             console.error('[MercadoPagoAdapter] Create payment error:', error);
-            throw new Error(`Failed to process payment: ${error.message}`);
+            throw new Error(`Failed to process payment: ${extractMercadoPagoErrorMessage(error)}`);
         }
     }
 

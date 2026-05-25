@@ -429,7 +429,7 @@ class PaymentService {
         const expiration_year = rawYear.length === 2 ? `20${rawYear}` : rawYear;
 
         // Fiel ao Ponto 2: Capturar token, paymentMethodId e issuerId
-        const { token: mpToken, paymentMethodId: mpBrand, issuerId: mpIssuer } = await mpAdapter.createCardToken({
+        const { token: mpToken, paymentMethodId: mpBrand, issuerId } = await mpAdapter.createCardToken({
           card_number: request.cardData.number.replace(/\s/g, ''),
           expiration_month: request.cardData.expiryMonth.padStart(2, '0'),
           expiration_year: expiration_year,
@@ -441,6 +441,7 @@ class PaymentService {
 
         token = mpToken;
         mpPaymentMethodId = mpBrand;
+        mpIssuer = issuerId;
 
         console.log('[PaymentService] Card tokenized. Brand:', mpPaymentMethodId, 'Issuer:', mpIssuer);
       }
