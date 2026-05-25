@@ -11,6 +11,7 @@ import { BusinessSetupModal } from '../../components/admin/BusinessSetupModal';
 import { useTranslation } from 'react-i18next';
 import { sanitizeTranslationHtml } from '../../utils/sanitize';
 import Aurora from '../../components/ui/Aurora';
+import { supabase } from '../../services/supabase';
 
 export const Gateways = () => {
   const { t } = useTranslation(['admin', 'common']);
@@ -104,12 +105,21 @@ export const Gateways = () => {
       };
 
       const index = gateways.findIndex(g => g.name === provider);
+      const { data: authData, error: authError } = await supabase.auth.getSession();
+      if (authError) {
+        throw new Error('Não foi possível validar sua sessão. Faça login novamente.');
+      }
+
+      const accessToken = authData.session?.access_token || session?.access_token;
+      if (!accessToken) {
+        throw new Error('Sua sessão expirou. Faça login novamente para salvar o gateway.');
+      }
       
       const saveResponse = await fetch(`/api/admin?action=save-gateway`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {})
+          Authorization: `Bearer ${accessToken}`
         },
         body: JSON.stringify({
           id: index >= 0 ? gateways[index].id : undefined,
@@ -120,10 +130,14 @@ export const Gateways = () => {
         })
       });
 
-      const saveResult = await saveResponse.json();
+      const saveResult = await saveResponse.json().catch(() => null);
 
-      if (!saveResponse.ok || !saveResult.success) {
-        throw new Error(saveResult.error || 'Erro ao salvar gateway via API segura.');
+      if (saveResponse.status === 401) {
+        throw new Error('Sua sessão expirou. Faça login novamente para salvar o gateway.');
+      }
+
+      if (!saveResponse.ok || !saveResult?.success) {
+        throw new Error(saveResult?.error || 'Erro ao salvar gateway via API segura.');
       }
 
       const updatedGateways = await storage.getGateways();
