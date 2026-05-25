@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { CheckCircle, Package, Mail, ArrowRight, ShoppingBag, ExternalLink, LockKeyhole } from 'lucide-react';
+import { CheckCircle, Package, Mail, ArrowRight, ExternalLink, LockKeyhole } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Loading } from '../../components/ui/Loading';
 import { supabase } from '../../services/supabase';
+import { storage } from '../../services/storageService';
 import { Order } from '../../types';
 import { TrackingProvider, useTracking } from '../../context/TrackingContext';
 import { useTranslation } from 'react-i18next';
@@ -129,6 +130,7 @@ export const ThankYou = () => {
   const [originalOrder, setOriginalOrder] = useState<Order | null>(null);
   const [checkout, setCheckout] = useState<any>(null);
   const [deliverables, setDeliverables] = useState<OrderDeliverable[]>([]);
+  const [businessName, setBusinessName] = useState('Super Checkout');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -228,6 +230,20 @@ export const ThankYou = () => {
 
           if (!checkoutError && checkoutData) {
             setCheckout(checkoutData);
+          }
+
+          try {
+            const settings = await storage.getBusinessSettingsByCheckoutId(orderData.checkout_id);
+            if (settings?.business_name) {
+              setBusinessName(settings.business_name);
+            } else if (typeof window !== 'undefined') {
+              const hostnameSettings = await storage.getBusinessSettingsByHostname(window.location.hostname);
+              if (hostnameSettings?.business_name) {
+                setBusinessName(hostnameSettings.business_name);
+              }
+            }
+          } catch (settingsError) {
+            console.warn('[ThankYou] Failed to load business settings:', settingsError);
           }
         }
       } catch (error) {
@@ -358,19 +374,12 @@ export const ThankYou = () => {
             )}
 
             {/* Next Steps */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg mx-auto">
+            <div className="grid grid-cols-1 max-w-lg mx-auto">
               <div className="p-4 rounded-xl border border-gray-100 bg-blue-50/50 flex items-start gap-3 text-left">
                 <Mail className="w-5 h-5 text-blue-600 mt-0.5" />
                 <div>
                   <h3 className="font-bold text-sm text-gray-900">{t('thank_you.check_email_title', 'Verifique seu e-mail')}</h3>
                   <p className="text-xs text-gray-500 mt-1">{t('thank_you.check_email_desc', 'Enviamos o link de acesso e a nota fiscal para {{email}}.', { email: order?.customer_email })}</p>
-                </div>
-              </div>
-              <div className="p-4 rounded-xl border border-gray-100 bg-purple-50/50 flex items-start gap-3 text-left">
-                <ShoppingBag className="w-5 h-5 text-purple-600 mt-0.5" />
-                <div>
-                  <h3 className="font-bold text-sm text-gray-900">{t('thank_you.track_order_title', 'Acompanhe o pedido')}</h3>
-                  <p className="text-xs text-gray-500 mt-1">{t('thank_you.track_order_desc', 'Você pode ver o status da sua compra a qualquer momento.')}</p>
                 </div>
               </div>
             </div>
@@ -403,7 +412,7 @@ export const ThankYou = () => {
           </div>
 
           <p className="text-center text-gray-400 text-sm mt-8">
-            Super Checkout &copy; {new Date().getFullYear()}
+            {businessName} &copy; {new Date().getFullYear()}
           </p>
         </main>
       </TrackingProvider>
