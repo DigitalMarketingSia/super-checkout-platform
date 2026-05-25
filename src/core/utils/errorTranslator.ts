@@ -9,6 +9,9 @@ export const translatePaymentError = (errorCode?: string, declineCode?: string, 
       )) {
          return 'Nao foi possivel validar os dados do cartao com o Mercado Pago. Revise os dados e tente novamente.';
       }
+      if (defaultMessage && defaultMessage.includes('valid CPF or CNPJ')) {
+         return 'Informe um CPF ou CNPJ valido para pagar com cartao no Mercado Pago.';
+      }
 
       return defaultMessage || 'Nao foi possivel processar seu pagamento. Verifique os dados do cartao e tente novamente.';
    }
@@ -66,6 +69,9 @@ export const translatePaymentError = (errorCode?: string, declineCode?: string, 
             || defaultMessage.includes('empty error')
          )) {
             return 'Nao foi possivel validar os dados do cartao com o Mercado Pago. Revise os dados e tente novamente.';
+         }
+         if (defaultMessage && defaultMessage.includes('valid CPF or CNPJ')) {
+            return 'Informe um CPF ou CNPJ valido para pagar com cartao no Mercado Pago.';
          }
          return defaultMessage || 'Nao foi possivel processar seu pagamento. Verifique os dados e tente novamente.';
    }

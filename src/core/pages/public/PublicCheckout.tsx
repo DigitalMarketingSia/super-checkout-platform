@@ -913,6 +913,23 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
       let stripePaymentMethodId: string | undefined = undefined;
 
       if (paymentMethod === 'credit_card') {
+         if (data.gateway.name === GatewayProvider.MERCADO_PAGO && !validateCPF(customer.cpf)) {
+            const cpfInput = document.getElementById('input-cpf');
+            setTouched(prev => ({ ...prev, cpf: true }));
+            setErrors(prev => ({
+               ...prev,
+               cpf: prev.cpf || t('checkout.validation.cpf', 'CPF invalido'),
+            }));
+            cpfInput?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            cpfInput?.focus();
+            showAlert(
+               t('checkout.error_title', 'Erro'),
+               'O Mercado Pago exige um CPF valido para pagamentos com cartao.',
+               'error'
+            );
+            return;
+         }
+
          if (data.gateway.name === GatewayProvider.STRIPE) {
             // ✅ STRIPE ELEMENTS FLOW (PCI-DSS COMPLIANT)
             if (!stripe || !elements) {

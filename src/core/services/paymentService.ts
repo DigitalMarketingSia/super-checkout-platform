@@ -425,6 +425,11 @@ class PaymentService {
           throw new Error(i18n.t('card_data_required'));
         }
 
+        const payerDocument = String(request.customerCpf || '').replace(/\D/g, '');
+        if (payerDocument.length !== 11 && payerDocument.length !== 14) {
+          throw new Error('Mercado Pago requires a valid CPF or CNPJ for credit card payments.');
+        }
+
         const rawYear = request.cardData.expiryYear.toString().trim();
         const expiration_year = rawYear.length === 2 ? `20${rawYear}` : rawYear;
 
@@ -435,7 +440,11 @@ class PaymentService {
           expiration_year: expiration_year,
           security_code: request.cardData.cvc,
           cardholder: {
-            name: request.cardData.holderName
+            name: request.cardData.holderName,
+            identification: {
+              type: payerDocument.length === 14 ? 'CNPJ' : 'CPF',
+              number: payerDocument,
+            }
           }
         }, gateway.public_key);
 
