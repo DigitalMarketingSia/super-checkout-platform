@@ -68,6 +68,12 @@ type PaymentMethod = 'credit_card' | 'pix' | 'boleto' | 'apple_pay' | 'google_pa
 type ProcessState = 'idle' | 'processing' | 'error' | 'success';
 type WalletAvailability = { applePay?: boolean; googlePay?: boolean; link?: boolean; simulated?: boolean };
 
+const isMercadoPagoSandboxGateway = (gateway?: Gateway | null) =>
+   Boolean(gateway?.name === GatewayProvider.MERCADO_PAGO && String(gateway.public_key || '').trim().toUpperCase().startsWith('TEST-'));
+
+const isMercadoPagoSandboxBuyerEmail = (email: string) =>
+   /@testuser\.com$/i.test(String(email || '').trim());
+
 const isLocalWalletSimulationHost = () => (
    typeof window !== 'undefined' &&
    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
@@ -913,6 +919,23 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
       let stripePaymentMethodId: string | undefined = undefined;
 
       if (paymentMethod === 'credit_card') {
+         if (isMercadoPagoSandboxGateway(data.gateway) && !isMercadoPagoSandboxBuyerEmail(customer.email)) {
+            const emailInput = document.getElementById('input-email');
+            setTouched(prev => ({ ...prev, email: true }));
+            setErrors(prev => ({
+               ...prev,
+               email: 'Use um e-mail de conta teste do Mercado Pago (@testuser.com) para o sandbox.',
+            }));
+            emailInput?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            emailInput?.focus();
+            showAlert(
+               t('checkout.error_title', 'Erro'),
+               'No sandbox do Mercado Pago, use um comprador de teste com e-mail @testuser.com, diferente da conta vendedora.',
+               'error'
+            );
+            return;
+         }
+
          if (data.gateway.name === GatewayProvider.MERCADO_PAGO && !validateCPF(customer.cpf)) {
             const cpfInput = document.getElementById('input-cpf');
             setTouched(prev => ({ ...prev, cpf: true }));
