@@ -20,6 +20,23 @@ interface OrderDeliverable {
   instructions?: string | null;
 }
 
+function mergeDeliverables(...groups: Array<OrderDeliverable[] | null | undefined>) {
+  const deduped = new Map<string, OrderDeliverable>();
+
+  for (const group of groups) {
+    for (const deliverable of group || []) {
+      const key = deliverable.id || `${deliverable.title}:${deliverable.url || deliverable.visual_url || ''}`;
+      const existing = deduped.get(key);
+
+      if (!existing || (existing.status !== 'available' && deliverable.status === 'available')) {
+        deduped.set(key, deliverable);
+      }
+    }
+  }
+
+  return Array.from(deduped.values());
+}
+
 function normalizeStoredDeliverables(value: unknown): OrderDeliverable[] {
   if (!Array.isArray(value)) return [];
 
@@ -66,6 +83,7 @@ export const ThankYou = () => {
   const location = useLocation();
   const { t } = useTranslation('public');
   const [order, setOrder] = useState<Order | null>(null);
+  const [originalOrder, setOriginalOrder] = useState<Order | null>(null);
   const [checkout, setCheckout] = useState<any>(null);
   const [deliverables, setDeliverables] = useState<OrderDeliverable[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,6 +94,7 @@ export const ThankYou = () => {
 
       try {
         setDeliverables([]);
+        setOriginalOrder(null);
         // Fetch order
         const { data: orderData, error: orderError } = await supabase
           .from('orders')
@@ -87,8 +106,30 @@ export const ThankYou = () => {
         setOrder(orderData);
 
         const storedDeliverables = normalizeStoredDeliverables(orderData?.metadata?.order_deliverables);
-        if (storedDeliverables.length > 0) {
-          setDeliverables(storedDeliverables);
+        const originalOrderId = typeof orderData?.metadata?.original_order_id === 'string'
+          ? orderData.metadata.original_order_id.trim()
+          : '';
+        const originalSig = new URLSearchParams(location.search).get('origSig') || '';
+        let currentDeliverables = storedDeliverables;
+        let originalOrderData: Order | null = null;
+        let originalStoredDeliverables: OrderDeliverable[] = [];
+
+        if (originalOrderId && originalOrderId !== orderData.id) {
+          const { data: fetchedOriginalOrder, error: originalOrderError } = await supabase
+            .from('orders')
+            .select('*')
+            .eq('id', originalOrderId)
+            .maybeSingle();
+
+          if (!originalOrderError && fetchedOriginalOrder) {
+            originalOrderData = fetchedOriginalOrder;
+            originalStoredDeliverables = normalizeStoredDeliverables(fetchedOriginalOrder?.metadata?.order_deliverables);
+            setOriginalOrder(fetchedOriginalOrder);
+          }
+        }
+
+        if (storedDeliverables.length > 0 || originalStoredDeliverables.length > 0) {
+          setDeliverables(mergeDeliverables(originalStoredDeliverables, storedDeliverables));
         }
 
         if (orderData?.status === 'paid' || orderData?.status === 'approved') {
@@ -98,13 +139,25 @@ export const ThankYou = () => {
             const deliveryData = await deliveryResponse.json().catch(() => ({}));
             if (Array.isArray(deliveryData?.deliverables)) {
               if (deliveryData.deliverables.length > 0) {
-                setDeliverables(deliveryData.deliverables);
+                currentDeliverables = deliveryData.deliverables;
               } else if (!sig && storedDeliverables.length > 0) {
-                setDeliverables(storedDeliverables);
+                currentDeliverables = storedDeliverables;
               }
             }
           }
         }
+
+        if (originalOrderData && ['paid', 'approved'].includes(String(originalOrderData.status || '').toLowerCase()) && originalSig) {
+          const originalDeliveryResponse = await fetch(getApiUrl(`/api/system?action=order-deliverables&orderId=${encodeURIComponent(originalOrderData.id)}&sig=${encodeURIComponent(originalSig)}`));
+          if (originalDeliveryResponse.ok) {
+            const originalDeliveryData = await originalDeliveryResponse.json().catch(() => ({}));
+            if (Array.isArray(originalDeliveryData?.deliverables) && originalDeliveryData.deliverables.length > 0) {
+              originalStoredDeliverables = originalDeliveryData.deliverables;
+            }
+          }
+        }
+
+        setDeliverables(mergeDeliverables(originalStoredDeliverables, currentDeliverables));
 
         // Fetch checkout
         if (orderData?.checkout_id) {
@@ -134,6 +187,11 @@ export const ThankYou = () => {
 
   // Ensure config exists
   const config = checkout?.config || {};
+  const displayedOrders = [originalOrder, order].filter((entry): entry is Order => Boolean(entry));
+  const effectiveOrders = displayedOrders.length > 0 ? displayedOrders : (order ? [order] : []);
+  const combinedItems = effectiveOrders.flatMap((entry) => Array.isArray(entry.items) ? entry.items : []);
+  const paidTotal = effectiveOrders.reduce((sum, entry) => sum + Number(entry.total || entry.amount || 0), 0);
+  const orderTimestamp = originalOrder?.created_at || order?.created_at || null;
   const actionableDeliverables = deliverables.filter((deliverable) => deliverable.status === 'available' && deliverable.url);
   const missingDeliverables = deliverables.filter((deliverable) => deliverable.status !== 'available' || !deliverable.url);
 
@@ -165,7 +223,7 @@ export const ThankYou = () => {
                 <div>
                   <p className="text-xs text-gray-500 uppercase font-bold tracking-wider">{t('thank_you.order', 'Pedido #{{id}}', { id: orderId?.slice(0, 8) })}</p>
                   <p className="text-sm font-medium text-gray-900">
-                    {new Date().toLocaleDateString('pt-BR', {
+                    {new Date(orderTimestamp || Date.now()).toLocaleDateString('pt-BR', {
                       day: '2-digit', month: 'long', year: 'numeric',
                       hour: '2-digit', minute: '2-digit'
                     })}
@@ -174,7 +232,7 @@ export const ThankYou = () => {
               </div>
 
               <div className="space-y-3">
-                {order?.items?.map((item: any, idx: number) => (
+                {combinedItems.map((item: any, idx: number) => (
                   <div key={idx} className="flex justify-between text-sm">
                     <span className="text-gray-600">{item.name}</span>
                     <span className="font-medium">R$ {item.price?.toFixed(2)}</span>
@@ -184,7 +242,7 @@ export const ThankYou = () => {
                 <div className="pt-3 mt-3 border-t border-gray-200 flex justify-between items-center">
                   <span className="font-bold text-gray-900">{t('thank_you.total_paid', 'Total pago')}</span>
                   <span className="font-bold text-green-600 text-lg">
-                    R$ {order?.total?.toFixed(2) || order?.amount?.toFixed(2)}
+                    R$ {paidTotal.toFixed(2)}
                   </span>
                 </div>
               </div>

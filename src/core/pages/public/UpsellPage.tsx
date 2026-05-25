@@ -293,7 +293,8 @@ export const UpsellPage = () => {
                     setProcessing(false);
                 } else {
                     const signedQuery = result.statusSignature ? `&sig=${encodeURIComponent(result.statusSignature)}` : '';
-                    navigate(`/thank-you/${result.orderId}?upsell=true${signedQuery}`);
+                    const originalSignatureQuery = originalStatusSignature ? `&origSig=${encodeURIComponent(originalStatusSignature)}` : '';
+                    navigate(`/thank-you/${result.orderId}?upsell=true${signedQuery}${originalSignatureQuery}`);
                 }
                 return;
             }

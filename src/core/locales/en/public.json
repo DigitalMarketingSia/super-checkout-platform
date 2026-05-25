@@ -78,7 +78,7 @@
     "processing": "Processing...",
     "accept_default": "Yes, add this to my order",
     "generate_pix_cta": "Generate Pix for the additional item",
-    "review_saved_method_cta": "Review additional payment",
+    "review_saved_method_cta": "Yes, add this to my order",
     "not_immediate_cta": "Offer unavailable right now",
     "continue_card_cta": "Continue with additional payment",
     "decline": "No, thanks. I will miss this opportunity.",

@@ -79,8 +79,20 @@ async function stripeRequest(secretKey: string, endpoint: string, method: string
         const errorMessage = responseData.error?.message || 'Unknown Stripe error';
         const errorCode = responseData.error?.code || 'unknown';
         const declineCode = responseData.error?.decline_code;
+        const paymentIntent = responseData.error?.payment_intent && typeof responseData.error.payment_intent === 'object'
+            ? {
+                id: responseData.error.payment_intent.id || '',
+                status: responseData.error.payment_intent.status || '',
+                client_secret: responseData.error.payment_intent.client_secret || null,
+            }
+            : null;
         console.error(`[Stripe API] ${endpoint} failed:`, responseData.error);
-        throw new Error(JSON.stringify({ message: errorMessage, code: errorCode, decline_code: declineCode }));
+        throw new Error(JSON.stringify({
+            message: errorMessage,
+            code: errorCode,
+            decline_code: declineCode,
+            payment_intent: paymentIntent,
+        }));
     }
 
     return responseData;
@@ -178,6 +190,7 @@ function parseStripeError(error: unknown) {
         message: 'Payment processing failed',
         code: 'unknown',
         decline_code: undefined as string | undefined,
+        payment_intent: null as { id?: string; status?: string; client_secret?: string | null } | null,
     };
 
     if (!error || typeof error !== 'object') {
@@ -198,12 +211,20 @@ function parseStripeError(error: unknown) {
             message: typeof parsed?.message === 'string' ? parsed.message : fallback.message,
             code: typeof parsed?.code === 'string' ? parsed.code : fallback.code,
             decline_code: typeof parsed?.decline_code === 'string' ? parsed.decline_code : undefined,
+            payment_intent: parsed?.payment_intent && typeof parsed.payment_intent === 'object'
+                ? {
+                    id: typeof parsed.payment_intent.id === 'string' ? parsed.payment_intent.id : undefined,
+                    status: typeof parsed.payment_intent.status === 'string' ? parsed.payment_intent.status : undefined,
+                    client_secret: typeof parsed.payment_intent.client_secret === 'string' ? parsed.payment_intent.client_secret : null,
+                }
+                : null,
         };
     } catch {
         return {
             message: rawMessage,
             code: fallback.code,
             decline_code: undefined,
+            payment_intent: null,
         };
     }
 }
@@ -551,6 +572,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             paymentIntent = await stripeRequest(secretKey, '/payment_intents', 'POST', paymentIntentData, idempotencyKey);
         } catch (stripeError: any) {
             if (useSavedPaymentMethod && shouldFallbackToManualStripeConfirmation(stripeError)) {
+                const parsedStripeError = parseStripeError(stripeError);
+                const authenticationIntent = parsedStripeError.payment_intent;
+
+                if (authenticationIntent?.client_secret) {
+                    return res.status(200).json({
+                        success: true,
+                        paymentIntentId: authenticationIntent.id || '',
+                        status: authenticationIntent.status || 'requires_action',
+                        clientSecret: authenticationIntent.client_secret,
+                        serverPersisted: false,
+                        orderStatus: 'pending',
+                        fulfillmentTriggered: false,
+                        statusSignature: generateSignature(orderId),
+                        upsellCapability: buildStripeUpsellCapability({
+                            originalPaymentMethod: 'credit_card',
+                            savedProfile: savedProfileSummary,
+                            reusableProfileAvailable: true,
+                            requiresPaymentForm: false,
+                            requiresStepUp: true,
+                        }),
+                        requiresAction: true,
+                        lastPaymentError: parsedStripeError.message || null,
+                    });
+                }
+
                 return res.status(200).json({
                     success: false,
                     error: 'O banco pediu uma confirmação adicional para concluir este item.',
@@ -577,7 +623,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             savedProfile: savedProfileSummary,
             reusableProfileAvailable,
             requiresPaymentForm: !reusableProfileAvailable,
-            requiresStepUp: reusableProfileAvailable || Boolean(savedProfileSummary),
+            requiresStepUp: false,
         });
 
         try {
@@ -598,7 +644,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 cardExpYear: savedProfileSummary?.exp_year || null,
                 walletType: savedProfileSummary?.wallet_type || null,
                 reusable: reusableProfileAvailable,
-                requiresReauthentication: reusableProfileAvailable,
+                requiresReauthentication: false,
                 consentCapturedAt: new Date().toISOString(),
                 consentScope: 'post_purchase_upsell',
                 firstOrderId: orderId,
