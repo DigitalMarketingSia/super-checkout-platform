@@ -74,6 +74,9 @@ const isMercadoPagoSandboxGateway = (gateway?: Gateway | null) =>
 const isMercadoPagoSandboxBuyerEmail = (email: string) =>
    validateEmail(String(email || '').trim());
 
+const isMercadoPagoSandboxSavedCardBuyerEmail = (email: string) =>
+   /^test_payer_\d{1,10}@testuser\.com$/i.test(String(email || '').trim());
+
 const isLocalWalletSimulationHost = () => (
    typeof window !== 'undefined' &&
    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
@@ -931,6 +934,27 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
             showAlert(
                t('checkout.error_title', 'Erro'),
                'No sandbox legado do Mercado Pago, use um e-mail valido de comprador diferente do e-mail da conta do vendedor.',
+               'error'
+            );
+            return;
+         }
+
+         if (
+            isMercadoPagoSandboxGateway(data.gateway)
+            && data.checkout.config?.upsell?.active
+            && !isMercadoPagoSandboxSavedCardBuyerEmail(customer.email)
+         ) {
+            const emailInput = document.getElementById('input-email');
+            setTouched(prev => ({ ...prev, email: true }));
+            setErrors(prev => ({
+               ...prev,
+               email: 'Para testar o upsell com cartão salvo no sandbox do Mercado Pago, use o e-mail exato de um comprador de teste no formato test_payer_123@testuser.com.',
+            }));
+            emailInput?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            emailInput?.focus();
+            showAlert(
+               t('checkout.error_title', 'Erro'),
+               'No sandbox do Mercado Pago, o fluxo de cartão salvo do upsell exige um comprador de teste com e-mail no formato test_payer_123@testuser.com.',
                'error'
             );
             return;
