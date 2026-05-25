@@ -263,7 +263,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const supabaseKey =
+        process.env.SUPABASE_SECRET_KEY_NEW ||
+        process.env.SUPABASE_SECRET_KEY ||
+        process.env.SUPABASE_SERVICE_ROLE_KEY_NEW ||
+        process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseUrl || !supabaseKey) {
         console.error('[Webhooks Hub] FATAL: Missing SUPABASE_URL or SERVICE_ROLE_KEY');
@@ -524,7 +528,11 @@ async function handleMercadoPago(req: VercelRequest, res: VercelResponse, rawBod
             await Promise.all(updates);
 
             const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-            const supabaseKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+            const supabaseKey =
+                process.env.SUPABASE_SECRET_KEY_NEW ||
+                process.env.SUPABASE_SECRET_KEY ||
+                process.env.SUPABASE_SERVICE_ROLE_KEY_NEW ||
+                process.env.SUPABASE_SERVICE_ROLE_KEY;
             if (!supabaseUrl || !supabaseKey) {
                 throw new Error('Missing Supabase runtime config for fulfill-order.');
             }

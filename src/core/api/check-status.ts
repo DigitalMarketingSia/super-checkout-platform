@@ -190,7 +190,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         'https://vixlzrmhqsbzjhpgfwdn.supabase.co';
     
     // Status healing mutates orders/payments, so this endpoint must use service role.
-    const serviceRoleKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const serviceRoleKey =
+        process.env.SUPABASE_SECRET_KEY_NEW ||
+        process.env.SUPABASE_SECRET_KEY ||
+        process.env.SUPABASE_SERVICE_ROLE_KEY_NEW ||
+        process.env.SUPABASE_SERVICE_ROLE_KEY;
     const supabaseKey = serviceRoleKey;
 
     if (!supabaseKey) {
