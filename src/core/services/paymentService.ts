@@ -342,9 +342,9 @@ class PaymentService {
             // Post-payment side effects must stay server-side. The Vercel payment
             // handlers/webhooks fulfill the order and send the tokenized access email.
             return {
+              ...gatewayResponse,
               success: true,
-              orderId: currentOrder.id,
-              ...gatewayResponse
+              orderId: gatewayResponse.orderId || currentOrder.id,
             };
           } else if (gatewayResponse.requiresPaymentForm) {
             console.warn(`[PaymentService] Payment requires additional confirmation with gateway ${gatewayId}.`);
@@ -356,8 +356,8 @@ class PaymentService {
               }
             }
             return {
-              orderId: currentOrder?.id,
               ...gatewayResponse,
+              orderId: gatewayResponse.orderId || currentOrder?.id,
             };
           } else {
             console.warn(`[PaymentService] Payment FAILED with gateway ${gatewayId}: ${gatewayResponse.message}`);
