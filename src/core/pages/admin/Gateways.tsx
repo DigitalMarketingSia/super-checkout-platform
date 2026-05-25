@@ -85,6 +85,29 @@ export const Gateways = () => {
     load();
   }, []);
 
+  const resolveAccessToken = async () => {
+    const { data: authData, error: authError } = await supabase.auth.getSession();
+    if (authError) {
+      console.warn('[Gateways] getSession failed before save:', authError);
+    }
+
+    let accessToken = authData.session?.access_token || session?.access_token || '';
+    if (accessToken) return accessToken;
+
+    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+    if (refreshError) {
+      console.warn('[Gateways] refreshSession failed before save:', refreshError);
+      throw new Error('Sua sessão expirou. Faça login novamente para salvar o gateway.');
+    }
+
+    accessToken = refreshData.session?.access_token || '';
+    if (!accessToken) {
+      throw new Error('Sua sessão expirou. Faça login novamente para salvar o gateway.');
+    }
+
+    return accessToken;
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -105,17 +128,7 @@ export const Gateways = () => {
       };
 
       const index = gateways.findIndex(g => g.name === provider);
-      const { data: authData, error: authError } = await supabase.auth.getSession();
-      if (authError) {
-        throw new Error('Não foi possível validar sua sessão. Faça login novamente.');
-      }
-
-      const accessToken = authData.session?.access_token || session?.access_token;
-      if (!accessToken) {
-        throw new Error('Sua sessão expirou. Faça login novamente para salvar o gateway.');
-      }
-      
-      const saveResponse = await fetch(`/api/admin?action=save-gateway`, {
+      const submitGatewaySave = (accessToken: string) => fetch(`/api/admin?action=save-gateway`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -129,6 +142,19 @@ export const Gateways = () => {
           user_id: user?.id
         })
       });
+
+      let accessToken = await resolveAccessToken();
+      let saveResponse = await submitGatewaySave(accessToken);
+
+      if (saveResponse.status === 401) {
+        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError || !refreshData.session?.access_token) {
+          throw new Error('Sua sessão expirou. Faça login novamente para salvar o gateway.');
+        }
+
+        accessToken = refreshData.session.access_token;
+        saveResponse = await submitGatewaySave(accessToken);
+      }
 
       const saveResult = await saveResponse.json().catch(() => null);
 
