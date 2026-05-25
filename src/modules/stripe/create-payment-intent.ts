@@ -576,14 +576,62 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const authenticationIntent = parsedStripeError.payment_intent;
 
                 if (authenticationIntent?.client_secret) {
+                    let serverPersisted = false;
+                    const pendingStripeStatus = translateStripeIntentStatus(authenticationIntent.status || 'requires_action');
+
+                    try {
+                        const pendingPaymentData = {
+                            order_id: orderId,
+                            transaction_id: authenticationIntent.id || '',
+                            gateway_id: gateway.id,
+                            status: pendingStripeStatus,
+                            user_id: checkout.user_id,
+                            raw_response: authenticationIntent,
+                        };
+
+                        if (pendingPaymentData.transaction_id) {
+                            const { data: existingPendingPayment } = await supabaseAdmin
+                                .from('payments')
+                                .select('id')
+                                .eq('transaction_id', pendingPaymentData.transaction_id)
+                                .maybeSingle();
+
+                            const pendingPaymentWrite = existingPendingPayment?.id
+                                ? supabaseAdmin.from('payments').update(pendingPaymentData).eq('id', existingPendingPayment.id)
+                                : supabaseAdmin.from('payments').insert(pendingPaymentData);
+
+                            const { error: pendingPaymentError } = await pendingPaymentWrite;
+                            if (pendingPaymentError) {
+                                console.error('[CreatePaymentIntent] Pending payment persistence error:', pendingPaymentError.message);
+                            } else {
+                                serverPersisted = true;
+                            }
+                        }
+
+                        const { error: pendingOrderError } = await supabaseAdmin
+                            .from('orders')
+                            .update({
+                                payment_id: authenticationIntent.id || null,
+                                status: pendingStripeStatus,
+                            })
+                            .eq('id', orderId)
+                            .eq('checkout_id', checkout.id);
+
+                        if (pendingOrderError) {
+                            console.error('[CreatePaymentIntent] Pending order update error:', pendingOrderError.message);
+                        }
+                    } catch (pendingPersistenceError: any) {
+                        console.error('[CreatePaymentIntent] Failed to persist pending Stripe authentication intent:', pendingPersistenceError?.message || pendingPersistenceError);
+                    }
+
                     return res.status(200).json({
                         success: true,
                         paymentIntentId: authenticationIntent.id || '',
                         status: authenticationIntent.status || 'requires_action',
                         clientSecret: authenticationIntent.client_secret,
                         paymentMethodId: resolvedPaymentMethodId || null,
-                        serverPersisted: false,
-                        orderStatus: 'pending',
+                        serverPersisted,
+                        orderStatus: pendingStripeStatus,
                         fulfillmentTriggered: false,
                         statusSignature: generateSignature(orderId),
                         upsellCapability: buildStripeUpsellCapability({
