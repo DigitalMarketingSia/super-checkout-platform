@@ -108,6 +108,25 @@ export class MercadoPagoAdapter {
         this.baseUrl = customBaseUrl || '/mp-api';
     }
 
+    private async tokenizeViaProxy(cardData: MercadoPagoCardTokenRequest, publicKey: string) {
+        const response = await fetch(`${this.baseUrl}/v1/card_tokens?public_key=${publicKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(cardData)
+        });
+
+        const payload = await response.json().catch(() => null);
+        if (!response.ok || !payload?.id) {
+            throw new Error(extractMercadoPagoErrorMessage(payload) || `Fallback v1 failed: ${response.status}`);
+        }
+
+        return {
+            token: payload.id,
+            paymentMethodId: payload.payment_method_id || '',
+            issuerId: payload.issuer?.id ? String(payload.issuer.id) : undefined,
+        };
+    }
+
     /**
      * Tokeniza os dados do cartão via SDK v2 (Modo PCI Compliant)
      */
@@ -124,15 +143,7 @@ export class MercadoPagoAdapter {
                 console.error('[MercadoPagoAdapter] MercadoPago SDK v2 not loaded. Falling back to v1 (unsafe)');
                 
                 // FALLBACK LEGADO V1 (Apenas para evitar quebra total caso o script falhe)
-                const response = await fetch(`${this.baseUrl}/v1/card_tokens?public_key=${key}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(cardData)
-                });
-
-                if (!response.ok) throw new Error(`Fallback v1 failed: ${response.status}`);
-                const data = await response.json();
-                return { token: data.id, paymentMethodId: data.payment_method_id };
+                return await this.tokenizeViaProxy(cardData, key);
             }
 
             // INICIALIZAR SDK V2
@@ -200,7 +211,13 @@ export class MercadoPagoAdapter {
             };
         } catch (error: any) {
             console.error('[MercadoPagoAdapter] Tokenization error:', error);
-            throw new Error(`Failed to tokenize card: ${extractMercadoPagoErrorMessage(error)}`);
+            try {
+                console.warn('[MercadoPagoAdapter] Retrying tokenization via proxy fallback...');
+                return await this.tokenizeViaProxy(cardData, publicKey || process.env.MERCADO_PAGO_PUBLIC_KEY || '');
+            } catch (fallbackError: any) {
+                console.error('[MercadoPagoAdapter] Proxy fallback tokenization error:', fallbackError);
+                throw new Error(`Failed to tokenize card: ${extractMercadoPagoErrorMessage(fallbackError || error)}`);
+            }
         }
     }
 
