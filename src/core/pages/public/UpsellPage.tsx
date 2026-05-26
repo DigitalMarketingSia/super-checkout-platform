@@ -3,7 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { loadStripe, type Stripe, type StripeCardNumberElement } from '@stripe/stripe-js';
 import { Elements, CardCvcElement, CardExpiryElement, CardNumberElement, useElements, useStripe } from '@stripe/react-stripe-js';
 import { useTranslation } from 'react-i18next';
-import { CheckCircle, CreditCard, Lock, ShieldCheck } from 'lucide-react';
+import { Check, CheckCircle, Clock, Copy, CreditCard, Loader2, Lock, QrCode, ShieldCheck } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Loading } from '../../components/ui/Loading';
 import { resolveUpsellGatewayCapability, type UpsellGatewayCapability } from '../../config/upsellCapabilities';
@@ -15,6 +15,11 @@ import { getApiUrl } from '../../utils/apiUtils';
 import { translatePaymentError } from '../../utils/errorTranslator';
 
 const getUpsellOrderSessionKey = (orderId?: string) => `upsell-original-order:${orderId || 'unknown'}`;
+const getUpsellPixSessionKey = (orderId?: string) => `upsell-pix-context:${orderId || 'unknown'}`;
+const toPixQrImageSrc = (value?: string | null) => {
+    if (!value) return '';
+    return value.startsWith('data:image') ? value : `data:image/png;base64,${value}`;
+};
 
 const stripeElementOptions = {
     style: {
@@ -233,6 +238,12 @@ export const UpsellPage = () => {
     const [upsellProduct, setUpsellProduct] = useState<Product | null>(null);
     const [serverCapability, setServerCapability] = useState<UpsellGatewayCapability | null>(null);
     const [pixCode, setPixCode] = useState('');
+    const [pixQrImageSrc, setPixQrImageSrc] = useState('');
+    const [pixOrderId, setPixOrderId] = useState('');
+    const [pixStatusSignature, setPixStatusSignature] = useState('');
+    const [pixRedirectTarget, setPixRedirectTarget] = useState('');
+    const [pixCopied, setPixCopied] = useState(false);
+    const [pixPaymentConfirmed, setPixPaymentConfirmed] = useState(false);
     const [showCardForm, setShowCardForm] = useState(false);
     const [cardFormError, setCardFormError] = useState('');
     const [cardFormNotice, setCardFormNotice] = useState('');
@@ -240,6 +251,48 @@ export const UpsellPage = () => {
     const [stripePromise, setStripePromise] = useState<Promise<Stripe | null> | null>(null);
     const [error, setError] = useState('');
     const [cardData, setCardData] = useState({ number: '', holderName: '', expiryMonth: '', expiryYear: '', cvc: '' });
+    const pixRedirectedRef = useRef(false);
+    const buildUpsellThankYouTarget = useCallback((targetOrderId?: string | null, targetSignature?: string | null) => {
+        if (!targetOrderId) {
+            return appendOriginalSignature(`/thank-you/${orderId}`);
+        }
+
+        const signedQuery = targetSignature ? `&sig=${encodeURIComponent(targetSignature)}` : '';
+        const originalSignatureQuery = originalStatusSignature ? `&origSig=${encodeURIComponent(originalStatusSignature)}` : '';
+        return `/thank-you/${targetOrderId}?upsell=true${signedQuery}${originalSignatureQuery}`;
+    }, [appendOriginalSignature, orderId, originalStatusSignature]);
+
+    useEffect(() => {
+        if (!orderId) return;
+
+        try {
+            const cached = sessionStorage.getItem(getUpsellPixSessionKey(orderId));
+            if (!cached) return;
+
+            const parsed = JSON.parse(cached);
+            if (parsed?.pixCode) setPixCode(parsed.pixCode);
+            if (parsed?.pixQrImageSrc) setPixQrImageSrc(parsed.pixQrImageSrc);
+            if (parsed?.pixOrderId) setPixOrderId(parsed.pixOrderId);
+            if (parsed?.pixStatusSignature) setPixStatusSignature(parsed.pixStatusSignature);
+        } catch (storageError) {
+            console.warn('[UpsellPage] Failed to restore Pix upsell context:', storageError);
+        }
+    }, [orderId]);
+
+    useEffect(() => {
+        if (!orderId || !pixCode || !pixOrderId) return;
+
+        try {
+            sessionStorage.setItem(getUpsellPixSessionKey(orderId), JSON.stringify({
+                pixCode,
+                pixQrImageSrc,
+                pixOrderId,
+                pixStatusSignature,
+            }));
+        } catch (storageError) {
+            console.warn('[UpsellPage] Failed to persist Pix upsell context:', storageError);
+        }
+    }, [orderId, pixCode, pixOrderId, pixQrImageSrc, pixStatusSignature]);
 
     useEffect(() => {
         const load = async () => {
@@ -263,7 +316,7 @@ export const UpsellPage = () => {
 
                 const chk = await storage.getPublicCheckout(order.checkout_id);
                 if (!chk || !chk.config.upsell?.active) {
-                    navigate(appendOriginalSignature(`/thank-you/${orderId}`));
+                    navigate(buildUpsellThankYouTarget(orderId, null));
                     return;
                 }
                 setCheckout(chk);
@@ -271,7 +324,7 @@ export const UpsellPage = () => {
 
                 const prod = await storage.getPublicProduct(chk.config.upsell.product_id);
                 if (!prod) {
-                    navigate(appendOriginalSignature(`/thank-you/${orderId}`));
+                    navigate(buildUpsellThankYouTarget(orderId, null));
                     return;
                 }
                 setUpsellProduct(prod);
@@ -283,7 +336,7 @@ export const UpsellPage = () => {
             }
         };
         load();
-    }, [orderId, navigate, t, appendOriginalSignature]);
+    }, [orderId, navigate, t, buildUpsellThankYouTarget]);
 
     useEffect(() => {
         if (gateway?.name === 'stripe' && gateway.public_key) {
@@ -437,6 +490,124 @@ export const UpsellPage = () => {
         return serverCapability;
     }, [orderId, originalStatusSignature, serverCapability]);
 
+    const checkPixUpsellStatus = useCallback(async () => {
+        if (!pixOrderId || pixRedirectedRef.current || pixRedirectTarget) {
+            return;
+        }
+
+        try {
+            let isPaid = false;
+
+            if (pixStatusSignature) {
+                const response = await fetch(getApiUrl(`/api/check-status?orderId=${encodeURIComponent(pixOrderId)}&sig=${encodeURIComponent(pixStatusSignature)}&t=${Date.now()}`));
+                const contentType = response.headers.get('content-type');
+                if (response.ok && contentType && contentType.includes('application/json')) {
+                    const payload = await response.json().catch(() => null);
+                    const nextStatus = String(payload?.status || '').toLowerCase();
+                    if (nextStatus === 'paid' || nextStatus === 'approved') {
+                        isPaid = true;
+                    }
+                }
+            }
+
+            if (!isPaid) {
+                const { data } = await supabase.from('orders').select('status').eq('id', pixOrderId).single();
+                const nextStatus = String(data?.status || '').toLowerCase();
+                if (nextStatus === 'paid' || nextStatus === 'approved') {
+                    isPaid = true;
+                }
+            }
+
+            if (isPaid) {
+                setPixPaymentConfirmed(true);
+                setPixRedirectTarget(buildUpsellThankYouTarget(pixOrderId, pixStatusSignature));
+            }
+        } catch (statusError) {
+            console.error('[UpsellPage] Failed to verify Pix upsell status:', statusError);
+        }
+    }, [buildUpsellThankYouTarget, pixOrderId, pixRedirectTarget, pixStatusSignature]);
+
+    useEffect(() => {
+        if (!pixCode || !pixOrderId) return;
+
+        void checkPixUpsellStatus();
+        const interval = window.setInterval(() => {
+            void checkPixUpsellStatus();
+        }, 3000);
+
+        const handleVisibilityResume = () => {
+            if (document.visibilityState === 'visible') {
+                void checkPixUpsellStatus();
+            }
+        };
+
+        window.addEventListener('focus', handleVisibilityResume);
+        document.addEventListener('visibilitychange', handleVisibilityResume);
+
+        return () => {
+            window.clearInterval(interval);
+            window.removeEventListener('focus', handleVisibilityResume);
+            document.removeEventListener('visibilitychange', handleVisibilityResume);
+        };
+    }, [checkPixUpsellStatus, pixCode, pixOrderId]);
+
+    useEffect(() => {
+        if (!pixCode || !pixOrderId || pixRedirectTarget) return;
+
+        const channel = supabase
+            .channel(`upsell-pix-order-status-${pixOrderId}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'orders',
+                    filter: `id=eq.${pixOrderId}`,
+                },
+                (payload) => {
+                    const nextStatus = String(payload.new?.status || '').toLowerCase();
+                    if (nextStatus === 'paid' || nextStatus === 'approved') {
+                        setPixPaymentConfirmed(true);
+                        setPixRedirectTarget(buildUpsellThankYouTarget(pixOrderId, pixStatusSignature));
+                    }
+                },
+            )
+            .subscribe();
+
+        return () => {
+            void supabase.removeChannel(channel);
+        };
+    }, [buildUpsellThankYouTarget, pixCode, pixOrderId, pixRedirectTarget, pixStatusSignature]);
+
+    useEffect(() => {
+        if (!pixRedirectTarget || pixRedirectedRef.current) return;
+
+        pixRedirectedRef.current = true;
+        if (orderId) {
+            try {
+                sessionStorage.removeItem(getUpsellPixSessionKey(orderId));
+            } catch (storageError) {
+                console.warn('[UpsellPage] Failed to clear Pix upsell context:', storageError);
+            }
+        }
+
+        const absoluteTarget = new URL(pixRedirectTarget, window.location.origin).toString();
+        const firstAttempt = window.setTimeout(() => {
+            window.location.assign(absoluteTarget);
+        }, 150);
+
+        const secondAttempt = window.setTimeout(() => {
+            if (window.location.pathname.includes(`/upsell/${orderId}`)) {
+                window.location.replace(absoluteTarget);
+            }
+        }, 1600);
+
+        return () => {
+            window.clearTimeout(firstAttempt);
+            window.clearTimeout(secondAttempt);
+        };
+    }, [orderId, pixRedirectTarget]);
+
     const upsellCapability = serverCapability || resolveUpsellGatewayCapability({ gatewayName: gateway?.name, paymentMethod: originalOrder?.payment_method });
     const configuredUpsellButtonText = checkout?.config?.upsell?.button_text?.trim();
     const savedProfileLabel = upsellCapability.saved_profile?.wallet_type === 'apple_pay'
@@ -529,11 +700,16 @@ export const UpsellPage = () => {
                 }
                 if (result.pixData) {
                     setPixCode(result.pixData.qr_code);
+                    setPixQrImageSrc(toPixQrImageSrc(result.pixData.qr_code_base64));
+                    setPixOrderId(result.orderId || '');
+                    setPixStatusSignature(result.statusSignature || '');
+                    setPixCopied(false);
+                    setPixPaymentConfirmed(false);
+                    setPixRedirectTarget('');
+                    pixRedirectedRef.current = false;
                     setProcessing(false);
                 } else {
-                    const signedQuery = result.statusSignature ? `&sig=${encodeURIComponent(result.statusSignature)}` : '';
-                    const originalSignatureQuery = originalStatusSignature ? `&origSig=${encodeURIComponent(originalStatusSignature)}` : '';
-                    navigate(`/thank-you/${result.orderId}?upsell=true${signedQuery}${originalSignatureQuery}`);
+                    navigate(buildUpsellThankYouTarget(result.orderId, result.statusSignature || null));
                 }
                 return;
             }
@@ -606,6 +782,65 @@ export const UpsellPage = () => {
             setProcessing(false);
         }
     };
+
+    const handleCopyPixCode = () => {
+        navigator.clipboard.writeText(pixCode);
+        setPixCopied(true);
+        window.setTimeout(() => setPixCopied(false), 2000);
+    };
+
+    if (loading) return <Loading label={t('upsell.loading', 'Carregando oferta')} />;
+    if (error) return <div className="min-h-screen bg-black flex items-center justify-center text-white">{error}</div>;
+    if (pixCode) {
+        return (
+            <div className="min-h-screen bg-[#05050A] text-white flex flex-col items-center justify-center p-4">
+                <div className="bg-[#111] p-6 md:p-8 rounded-2xl border border-white/10 max-w-md w-full text-center space-y-6 shadow-[0_0_40px_rgba(0,0,0,0.25)]">
+                    <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto ${pixPaymentConfirmed ? 'bg-green-500/20' : 'bg-primary/20'}`}>
+                        {pixPaymentConfirmed ? <CheckCircle className="w-8 h-8 text-green-500" /> : <QrCode className="w-8 h-8 text-primary" />}
+                    </div>
+                    <div>
+                        <h2 className="text-2xl font-bold mb-2">{t('upsell.reserved_title', 'Oferta reservada!')}</h2>
+                        <p className="text-gray-300 leading-relaxed">{t('upsell.reserved_desc', 'Seu pedido principal já foi confirmado. Escaneie o QR Code abaixo apenas para concluir o pagamento do item adicional.')}</p>
+                    </div>
+                    <div className={`rounded-xl border p-4 text-left ${pixPaymentConfirmed ? 'border-green-400/20 bg-green-400/10' : 'border-primary/20 bg-primary/10'}`}>
+                        <div className="flex items-center gap-2 text-sm font-semibold">
+                            {pixPaymentConfirmed ? <CheckCircle className="w-4 h-4 text-green-400" /> : <Clock className="w-4 h-4 text-primary" />}
+                            {pixPaymentConfirmed ? t('pix.payment_confirmed', 'Pagamento confirmado') : t('pix.waiting_confirmation', 'Aguardando confirmação automática')}
+                        </div>
+                        <p className="mt-2 text-xs text-gray-300 leading-relaxed">
+                            {pixPaymentConfirmed
+                                ? t('upsell.pix_redirecting_notice', 'Pagamento detectado. Estamos liberando seus acessos e redirecionando automaticamente.')
+                                : t('upsell.pix_auto_redirect_notice', 'Assim que o Pix for aprovado, esta página vai seguir sozinha para o resumo final com todos os acessos.')}
+                        </p>
+                    </div>
+                    <div className="bg-white p-4 rounded-xl mx-auto w-64 h-64 flex items-center justify-center">
+                        <img src={pixQrImageSrc || `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(pixCode)}`} className="w-full h-full" />
+                    </div>
+                    <div className="text-left space-y-3">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-gray-400">{t('pix.copy_and_paste', 'Pix copia e cola')}</p>
+                        <div className="relative">
+                            <textarea readOnly value={pixCode} className="w-full bg-black/50 border border-white/10 rounded-lg p-3 pr-28 text-xs text-gray-300 h-28 resize-none" />
+                            <button
+                                type="button"
+                                onClick={handleCopyPixCode}
+                                className={`absolute right-2 top-2 px-3 h-9 rounded-md text-xs font-bold transition-all flex items-center gap-2 ${pixCopied ? 'bg-green-500 text-black' : 'bg-primary text-white hover:brightness-110'}`}
+                            >
+                                {pixCopied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                                {pixCopied ? t('pix.copied', 'Copiado!') : t('pix.copy', 'Copiar')}
+                            </button>
+                        </div>
+                    </div>
+                    <div className="space-y-3">
+                        <div className="flex items-center justify-center gap-2 text-xs text-gray-400">
+                            <Loader2 className={`w-4 h-4 ${pixPaymentConfirmed ? '' : 'animate-spin'}`} />
+                            <span>{t('upsell.pix_monitoring_notice', 'Estamos acompanhando o pagamento em tempo real. Você não precisa clicar em nenhum botão.')}</span>
+                        </div>
+                        <Button onClick={() => void checkPixUpsellStatus()} className="w-full" variant="secondary">{t('upsell.verify_payment_now', 'Verificar pagamento agora')}</Button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     if (loading) return <Loading label={t('upsell.loading', 'Carregando oferta')} />;
     if (error) return <div className="min-h-screen bg-black flex items-center justify-center text-white">{error}</div>;
