@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
+import { resolveLocalSupabaseServerClient } from './_supabase-server.js';
 import { decrypt, verifySignature } from '../utils/cryptoUtils.js';
 import { applyCors } from './_cors.js';
 import { fulfillOrder } from '../services/fulfillment.js';
@@ -85,6 +86,7 @@ function resolveMerchantUserId(input: {
 }
 
 async function processPaidSideEffects(params: {
+    supabaseAdmin?: any;
     supabaseUrl: string;
     serviceRoleKey?: string;
     orderId: string;
@@ -92,13 +94,18 @@ async function processPaidSideEffects(params: {
     origin?: string;
 }) {
     const { supabaseUrl, serviceRoleKey, orderId, knownOrder, origin } = params;
-    if (!serviceRoleKey) {
+    if (!params.supabaseAdmin && !serviceRoleKey) {
         console.warn(`[CheckStatus] Missing service role key; cannot run paid side effects for ${orderId}.`);
         return;
     }
 
     try {
-        const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
+        const supabaseAdmin = params.supabaseAdmin || createClient(supabaseUrl, serviceRoleKey!, {
+            auth: {
+                autoRefreshToken: false,
+                persistSession: false,
+            },
+        });
         const order = knownOrder?.customer_email
             ? knownOrder
             : (await supabaseAdmin
@@ -207,135 +214,119 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.log(`[CheckStatus] Checking order: ${maskIdentifier(orderId)}`);
 
     try {
-        // 1. Fetch Order with standardized headers
-        const headers = { 
-            'apikey': supabaseKey as string, 
-            'Authorization': `Bearer ${supabaseKey}` 
-        };
-
-    const orderSelect = [
-        'id',
-        'status',
-        'payment_method',
-        'checkout_id',
-        'user_id',
-        'payment_id',
-        'amount',
-        'customer_email',
-        'customer_name',
-        'customer_user_id',
-        'items',
-        'metadata'
-    ].join(',');
-    const orderRes = await fetch(`${supabaseUrl}/rest/v1/orders?id=eq.${safeOrderId}&select=${orderSelect}`, {
-        headers
-    });
-
-    if (!orderRes.ok) throw new Error('Failed to fetch order');
-
-    const orders = await orderRes.json();
-    if (!orders || orders.length === 0) {
-        console.warn(`[CheckStatus] Signed status lookup found no order: ${maskIdentifier(orderId)}.`);
-        return res.status(200).json({ status: 'pending' });
-    }
-
-    const order: Order = orders[0];
-    const orderUpdateUrl = buildOrderUpdateUrl(supabaseUrl, safeOrderId, order.checkout_id);
-
-    // If already paid, return immediately (Case-insensitive check)
-    const status = (order.status || '').toLowerCase();
-    if (status === 'paid' || status === 'approved') {
-        await processPaidSideEffects({
-            supabaseUrl,
-            serviceRoleKey,
-            orderId: orderId as string,
-            knownOrder: order,
-            origin: requestOrigin,
-        });
-        return res.status(200).json({ status: 'paid' });
-    }
-
-    // 2. Fetch Payment Record
-    const paymentSelect = 'id,gateway_id,order_id,status,transaction_id,raw_response,created_at,user_id';
-    const paymentRes = await fetch(`${supabaseUrl}/rest/v1/payments?order_id=eq.${safeOrderId}&select=${paymentSelect}`, {
-        headers
-    });
-
-    let payments = await paymentRes.json();
-    let payment = payments && payments.length > 0 
-        ? payments.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]
-        : null;
-
-    const persistedPaymentStatus = String(payment?.status || '').toLowerCase();
-    const rawPaymentStatus = (() => {
-        try {
-            const raw = typeof payment?.raw_response === 'string'
-                ? JSON.parse(payment.raw_response)
-                : payment?.raw_response;
-            return String(raw?.status || '').toLowerCase();
-        } catch {
-            return '';
+        const { supabase: supabaseAdmin } = await resolveLocalSupabaseServerClient();
+        if (!supabaseAdmin) {
+            throw new Error('Failed to initialize Supabase server client.');
         }
-    })();
 
-    if (
-        persistedPaymentStatus === 'paid' ||
-        persistedPaymentStatus === 'approved' ||
-        rawPaymentStatus === 'approved' ||
-        rawPaymentStatus === 'authorized'
-    ) {
-        if (status !== 'paid' && status !== 'approved') {
-            await fetch(orderUpdateUrl, {
-                method: 'PATCH',
-                headers: {
-                    ...headers,
-                    'Content-Type': 'application/json',
-                    'Prefer': 'return=minimal'
-                },
-                body: JSON.stringify({ status: 'paid' })
+        const { data: order, error: orderError } = await supabaseAdmin
+            .from('orders')
+            .select('id,status,payment_method,checkout_id,user_id,payment_id,amount,customer_email,customer_name,customer_user_id,items,metadata')
+            .eq('id', orderId)
+            .maybeSingle();
+
+        if (orderError) throw orderError;
+        if (!order?.id) {
+            console.warn(`[CheckStatus] Signed status lookup found no order: ${maskIdentifier(orderId)}.`);
+            return res.status(200).json({ status: 'pending' });
+        }
+
+        const status = (order.status || '').toLowerCase();
+        if (status === 'paid' || status === 'approved') {
+            await processPaidSideEffects({
+                supabaseAdmin,
+                supabaseUrl,
+                serviceRoleKey,
+                orderId: orderId as string,
+                knownOrder: order,
+                origin: requestOrigin,
             });
+            return res.status(200).json({ status: 'paid' });
         }
-        await processPaidSideEffects({
-            supabaseUrl,
-            serviceRoleKey,
-            orderId: orderId as string,
-            knownOrder: { ...order, status: 'paid' },
-            origin: requestOrigin,
-        });
-        return res.status(200).json({ status: 'paid' });
-    }
 
-    // 3. Fetch Gateway Credentials
-    // If payment exists, use its gateway_id. If not, use the order's checkout_id to find the gateway.
-    let gatewayId = payment?.gateway_id;
-    let checkout: any = null;
+        const { data: payments, error: paymentError } = await supabaseAdmin
+            .from('payments')
+            .select('id,gateway_id,order_id,status,transaction_id,raw_response,created_at,user_id')
+            .eq('order_id', orderId)
+            .order('created_at', { ascending: false });
+        if (paymentError) throw paymentError;
+
+        let payment = payments && payments.length > 0
+            ? payments[0]
+            : null;
+
+        const persistedPaymentStatus = String(payment?.status || '').toLowerCase();
+        const rawPaymentStatus = (() => {
+            try {
+                const raw = typeof payment?.raw_response === 'string'
+                    ? JSON.parse(payment.raw_response)
+                    : payment?.raw_response;
+                return String(raw?.status || '').toLowerCase();
+            } catch {
+                return '';
+            }
+        })();
+
+        if (
+            persistedPaymentStatus === 'paid' ||
+            persistedPaymentStatus === 'approved' ||
+            rawPaymentStatus === 'approved' ||
+            rawPaymentStatus === 'authorized'
+        ) {
+            if (status !== 'paid' && status !== 'approved') {
+                const { error: paidOrderUpdateError } = await supabaseAdmin
+                    .from('orders')
+                    .update({ status: 'paid' })
+                    .eq('id', orderId)
+                    .eq('checkout_id', order.checkout_id);
+                if (paidOrderUpdateError) throw paidOrderUpdateError;
+            }
+            await processPaidSideEffects({
+                supabaseAdmin,
+                supabaseUrl,
+                serviceRoleKey,
+                orderId: orderId as string,
+                knownOrder: { ...order, status: 'paid' },
+                origin: requestOrigin,
+            });
+            return res.status(200).json({ status: 'paid' });
+        }
+
+        // 3. Fetch Gateway Credentials
+        // If payment exists, use its gateway_id. If not, use the order's checkout_id to find the gateway.
+        let gatewayId = payment?.gateway_id;
+        let checkout: any = null;
     
-    if (order.checkout_id) {
-        const checkoutRes = await fetch(`${supabaseUrl}/rest/v1/checkouts?id=eq.${encodeURIComponent(order.checkout_id)}&select=id,user_id,gateway_id,backup_gateway_id,product_id`, {
-            headers
-        });
-        const checkouts = await checkoutRes.json();
-        checkout = checkouts?.[0] || null;
-        if (!gatewayId && checkout) gatewayId = checkout.gateway_id;
-    }
+        if (order.checkout_id) {
+            const { data: checkoutData, error: checkoutError } = await supabaseAdmin
+                .from('checkouts')
+                .select('id,user_id,gateway_id,backup_gateway_id,product_id')
+                .eq('id', order.checkout_id)
+                .maybeSingle();
+            if (checkoutError) throw checkoutError;
+            checkout = checkoutData || null;
+            if (!gatewayId && checkout) gatewayId = checkout.gateway_id;
+        }
 
-    if (!gatewayId) return res.status(200).json({ status: order.status || 'pending' });
-    if (!checkout) return res.status(200).json({ status: order.status || 'pending' });
+        if (!gatewayId) return res.status(200).json({ status: order.status || 'pending' });
+        if (!checkout) return res.status(200).json({ status: order.status || 'pending' });
 
-    const allowedGatewayIds = [checkout.gateway_id, checkout.backup_gateway_id].filter(Boolean).map(String);
-    if (!allowedGatewayIds.includes(String(gatewayId))) {
-        console.warn('[CheckStatus] Gateway is not attached to checkout.');
-        return res.status(200).json({ status: order.status || 'pending' });
-    }
+        const allowedGatewayIds = [checkout.gateway_id, checkout.backup_gateway_id].filter(Boolean).map(String);
+        if (!allowedGatewayIds.includes(String(gatewayId))) {
+            console.warn('[CheckStatus] Gateway is not attached to checkout.');
+            return res.status(200).json({ status: order.status || 'pending' });
+        }
 
-    let productOwnerId = '';
-    if (checkout?.product_id) {
-        const productRes = await fetch(`${supabaseUrl}/rest/v1/products?id=eq.${encodeURIComponent(String(checkout.product_id))}&select=user_id&limit=1`, {
-            headers,
-        });
-        const products = await productRes.json().catch(() => []);
-        productOwnerId = String(products?.[0]?.user_id || '').trim();
-    }
+        let productOwnerId = '';
+        if (checkout?.product_id) {
+            const { data: product, error: productError } = await supabaseAdmin
+                .from('products')
+                .select('user_id')
+                .eq('id', String(checkout.product_id))
+                .maybeSingle();
+            if (productError) throw productError;
+            productOwnerId = String(product?.user_id || '').trim();
+        }
 
     const merchantUserId = resolveMerchantUserId({
         productUserId: productOwnerId,
@@ -348,16 +339,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).json({ status: order.status || 'pending' });
     }
 
-    const gatewayRes = await fetch(`${supabaseUrl}/rest/v1/gateways?id=eq.${encodeURIComponent(String(gatewayId))}&user_id=eq.${encodeURIComponent(merchantUserId)}&select=id,user_id,name,private_key`, {
-        headers
-    });
-    const gateways = await gatewayRes.json();
-
-    if (!gateways || gateways.length === 0) {
-        return res.status(200).json({ status: order.status });
-    }
-
-    const gateway = gateways[0];
+        const { data: gateway, error: gatewayError } = await supabaseAdmin
+            .from('gateways')
+            .select('id,user_id,name,private_key')
+            .eq('id', String(gatewayId))
+            .eq('user_id', merchantUserId)
+            .maybeSingle();
+        if (gatewayError) throw gatewayError;
+        if (!gateway) {
+            return res.status(200).json({ status: order.status });
+        }
     // Normalize and check gateway name
     const gatewayName = (gateway.name || '').toLowerCase().replace(/[\s_]/g, '');
     if (gatewayName === 'stripe') {
@@ -392,34 +383,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (newStatus !== currentStatusNorm) {
             console.log(`[CheckStatus] Updating Stripe Order ${maskIdentifier(orderId)}: ${currentStatusNorm} -> ${newStatus}`);
-            await fetch(orderUpdateUrl, {
-                method: 'PATCH',
-                headers: {
-                    ...headers,
-                    'Content-Type': 'application/json',
-                    'Prefer': 'return=minimal'
-                },
-                body: JSON.stringify({ status: newStatus })
-            });
+            const { error: stripeOrderUpdateError } = await supabaseAdmin
+                .from('orders')
+                .update({ status: newStatus })
+                .eq('id', orderId)
+                .eq('checkout_id', order.checkout_id);
+            if (stripeOrderUpdateError) throw stripeOrderUpdateError;
         }
 
         if (payment?.id) {
-            await fetch(`${supabaseUrl}/rest/v1/payments?id=eq.${encodeURIComponent(String(payment.id))}`, {
-                method: 'PATCH',
-                headers: {
-                    ...headers,
-                    'Content-Type': 'application/json',
-                    'Prefer': 'return=minimal'
-                },
-                body: JSON.stringify({
+            const { error: stripePaymentUpdateError } = await supabaseAdmin
+                .from('payments')
+                .update({
                     status: newStatus,
                     raw_response: buildSafeStripeRawResponse(stripeData),
                 })
-            });
+                .eq('id', String(payment.id));
+            if (stripePaymentUpdateError) throw stripePaymentUpdateError;
         }
 
         if (newStatus === 'paid') {
             await processPaidSideEffects({
+                supabaseAdmin,
                 supabaseUrl,
                 serviceRoleKey,
                 orderId: orderId as string,
@@ -494,31 +479,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     
                     console.log(`[CheckStatus] Healing orphan payment. Found TX: ${maskIdentifier(foundTxId)}`);
                     
-                    // Persist change to Supabase immediately using Service Role
-                    const updateRes = await fetch(orderUpdateUrl, {
-                        method: 'PATCH',
-                        headers: {
-                            ...headers,
-                            'Content-Type': 'application/json',
-                            'Prefer': 'return=minimal'
-                        },
-                        body: JSON.stringify({ status: 'paid' })
-                    });
+                    const { error: mpOrderHealError } = await supabaseAdmin
+                        .from('orders')
+                        .update({ status: 'paid' })
+                        .eq('id', orderId)
+                        .eq('checkout_id', order.checkout_id);
 
-                    if (updateRes.ok) {
+                    if (!mpOrderHealError) {
                         console.log(`[CheckStatus] Order ${maskIdentifier(orderId)} successfully updated to PAID via self-healing`);
                         
                         // Also update/create payment record to avoid repeating this search
                         if (foundTxId) {
-                            await fetch(`${supabaseUrl}/rest/v1/payments?order_id=eq.${safeOrderId}`, {
-                                method: 'PATCH',
-                                headers: { ...headers, 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ status: 'paid', transaction_id: foundTxId })
-                            });
+                            if (payment?.id) {
+                                const { error: paymentHealUpdateError } = await supabaseAdmin
+                                    .from('payments')
+                                    .update({ status: 'paid', transaction_id: foundTxId })
+                                    .eq('id', String(payment.id));
+                                if (paymentHealUpdateError) throw paymentHealUpdateError;
+                            } else {
+                                const { error: paymentHealInsertError } = await supabaseAdmin
+                                    .from('payments')
+                                    .insert({
+                                        id: crypto.randomUUID(),
+                                        order_id: orderId,
+                                        gateway_id: gatewayId,
+                                        status: 'paid',
+                                        transaction_id: foundTxId,
+                                        raw_response: buildSafeMercadoPagoRawResponse(mpData),
+                                        user_id: merchantUserId || payment?.user_id || (order as any).user_id,
+                                        created_at: new Date().toISOString(),
+                                    });
+                                if (paymentHealInsertError) throw paymentHealInsertError;
+                            }
                         }
                     } else {
-                        const errText = await updateRes.text();
-                        console.error(`[CheckStatus] FAILED to update order ${maskIdentifier(orderId)}:`, errText);
+                        console.error(`[CheckStatus] FAILED to update order ${maskIdentifier(orderId)}:`, mpOrderHealError.message);
                     }
                 }
             }
@@ -549,69 +544,60 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (newStatus !== currentStatusNorm) {
         console.log(`[CheckStatus] Updating Order ${maskIdentifier(orderId)}: ${currentStatusNorm} -> ${newStatus}`);
 
-        // Update Order
-        await fetch(orderUpdateUrl, {
-            method: 'PATCH',
-            headers: {
-                ...headers,
-                'Content-Type': 'application/json',
-                'Prefer': 'return=minimal'
-            },
-            body: JSON.stringify({ status: newStatus })
-        });
+        const { error: mpOrderUpdateError } = await supabaseAdmin
+            .from('orders')
+            .update({ status: newStatus })
+            .eq('id', orderId)
+            .eq('checkout_id', order.checkout_id);
+        if (mpOrderUpdateError) throw mpOrderUpdateError;
 
         // Update or Create Payment record
         if (payment?.id) {
-            await fetch(`${supabaseUrl}/rest/v1/payments?id=eq.${encodeURIComponent(String(payment.id))}&order_id=eq.${safeOrderId}`, {
-                method: 'PATCH',
-                headers: {
-                        ...headers,
-                        'Content-Type': 'application/json',
-                        'Prefer': 'return=minimal'
-                    },
-                    body: JSON.stringify({
-                        status: newStatus,
-                        raw_response: buildSafeMercadoPagoRawResponse(mpData)
-                    })
+            const { error: mpPaymentUpdateError } = await supabaseAdmin
+                .from('payments')
+                .update({
+                    status: newStatus,
+                    raw_response: buildSafeMercadoPagoRawResponse(mpData),
+                })
+                .eq('id', String(payment.id))
+                .eq('order_id', orderId);
+            if (mpPaymentUpdateError) throw mpPaymentUpdateError;
+        } else {
+            console.log(`[CheckStatus] Self-Healing: Creating missing payment record for Order ${maskIdentifier(orderId)}`);
+            const { error: mpPaymentInsertError } = await supabaseAdmin
+                .from('payments')
+                .insert({
+                    id: crypto.randomUUID(),
+                    order_id: orderId,
+                    gateway_id: gatewayId,
+                    status: newStatus,
+                    transaction_id: mpData.id.toString(),
+                    raw_response: buildSafeMercadoPagoRawResponse(mpData),
+                    user_id: merchantUserId || payment?.user_id || (order as any).user_id,
+                    created_at: new Date().toISOString(),
                 });
-            } else {
-                // Self-Healing: Create missing payment record
-                console.log(`[CheckStatus] Self-Healing: Creating missing payment record for Order ${maskIdentifier(orderId)}`);
-                await fetch(`${supabaseUrl}/rest/v1/payments`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'apikey': supabaseKey,
-                        'Authorization': `Bearer ${supabaseKey}`,
-                        'Prefer': 'return=minimal'
-                    },
-                    body: JSON.stringify({
-                        order_id: orderId,
-                        gateway_id: gatewayId,
-                        status: newStatus,
-                        transaction_id: mpData.id.toString(),
-                        raw_response: buildSafeMercadoPagoRawResponse(mpData),
-                        user_id: merchantUserId || payment?.user_id || (order as any).user_id
-                    })
-                });
-            }
+            if (mpPaymentInsertError) throw mpPaymentInsertError;
+        }
 
-            // Run Vercel side effects directly. This endpoint already verified the
-            // Mercado Pago payment with gateway credentials, while webhook replay
-            // from here would fail MP signature validation.
-            if (newStatus === 'paid' && currentStatusNorm === 'pending') {
-                console.log(`[CheckStatus] Status changed to paid, running Vercel side effects for ${maskIdentifier(orderId)}`);
-                await processPaidSideEffects({
-                    supabaseUrl,
-                    serviceRoleKey,
-                    orderId: orderId as string,
-                    knownOrder: { ...order, status: 'paid' },
-                    origin: requestOrigin,
-                });
-            }
+        // Run Vercel side effects directly. This endpoint already verified the
+        // Mercado Pago payment with gateway credentials, while webhook replay
+        // from here would fail MP signature validation.
+        if (newStatus === 'paid' && currentStatusNorm === 'pending') {
+            console.log(`[CheckStatus] Status changed to paid, running Vercel side effects for ${maskIdentifier(orderId)}`);
+            await processPaidSideEffects({
+                supabaseAdmin,
+                supabaseUrl,
+                serviceRoleKey,
+                orderId: orderId as string,
+                knownOrder: { ...order, status: 'paid' },
+                origin: requestOrigin,
+            });
         }
 
         return res.status(200).json({ status: newStatus });
+    }
+
+    return res.status(200).json({ status: currentStatusNorm });
 
 
     } catch (error: any) {
