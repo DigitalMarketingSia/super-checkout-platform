@@ -431,15 +431,34 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
     }
 
     // 2. Calcular Preço (Otimizado)
-    let totalAmount = Number(mainProduct.price_real || 0);
+    const existingOrderItems = Array.isArray((ownedOrder as any)?.items) ? (ownedOrder as any).items : [];
+    const fallbackMainItem = { id: mainProduct.id, product_id: mainProduct.id, name: mainProduct.name, price: mainProduct.price_real, type: 'main' };
+    let totalAmount = Number(ownedOrder?.total || 0);
     const validBumps: any[] = [];
 
     if (selectedBumpIds.length > 0) {
       const bumpsData = await loadValidCheckoutBumps(supabaseAdmin, checkout, merchantUserId, selectedBumpIds);
       bumpsData.forEach((bp: any) => {
-        totalAmount += Number(bp.price_real || 0);
         validBumps.push({ id: bp.id, name: bp.name, price: bp.price_real });
       });
+    }
+
+    const fallbackOrderItems = [
+      fallbackMainItem,
+      ...validBumps.map((b) => ({ ...b, product_id: b.id, type: 'bump' })),
+    ];
+    const resolvedOrderItems = existingOrderItems.length > 0 ? existingOrderItems : fallbackOrderItems;
+
+    if (!(Number.isFinite(totalAmount) && totalAmount > 0)) {
+      totalAmount = resolvedOrderItems.reduce((sum: number, item: any) => {
+        const unitPrice = Number(item?.price ?? item?.unit_price ?? 0);
+        const quantity = Math.max(1, Number(item?.quantity || 1));
+        return sum + (Number.isFinite(unitPrice) ? unitPrice * quantity : 0);
+      }, 0);
+    }
+
+    if (!(Number.isFinite(totalAmount) && totalAmount > 0)) {
+      totalAmount = Number(mainProduct.price_real || 0) + validBumps.reduce((sum: number, bump: any) => sum + Number(bump.price || 0), 0);
     }
 
     // 3. Montar Payload por metodo. Pix deve ir sem campos de cartao.
@@ -631,11 +650,8 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
     const updatedOrder = {
       status: (mpResult.status === 'approved') ? 'paid' : 'pending',
       payment_id: String(mpResult.id),
-      total: totalAmount,
-      items: [
-        { id: mainProduct.id, name: mainProduct.name, price: mainProduct.price_real, type: 'main' },
-        ...validBumps.map(b => ({ ...b, type: 'bump' }))
-      ]
+      total: Number(totalAmount.toFixed(2)),
+      items: resolvedOrderItems,
     };
 
     await supabaseAdmin
@@ -648,10 +664,13 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
       // Resolve member area URL dynamically
       const baseUrl = process.env.VITE_SITE_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://app.supercheckout.app');
       let membersAreaUrl = `${baseUrl}/login`;
+      const primaryPurchasedItem = resolvedOrderItems[0] || null;
+      const primaryProductId = String(primaryPurchasedItem?.product_id || primaryPurchasedItem?.id || mainProduct.id || '').trim();
+      const primaryProductName = String(primaryPurchasedItem?.name || mainProduct.name || 'Produto').trim() || 'Produto';
       const { data: links } = await supabaseAdmin
           .from('product_contents')
           .select('content:contents(member_area_id, member_areas(slug, domains(domain)))')
-          .eq('product_id', mainProduct.id)
+          .eq('product_id', primaryProductId)
           .limit(1);
 
       const rawContent = (links?.[0] as any)?.content;
@@ -696,7 +715,7 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
       }
 
       if (!vercelEmailSent) {
-        await sendPaymentApprovedEmail(supabaseAdmin, orderId, { ...checkout, ...updatedOrder, customer_email: customerEmail, customer_name: customerName, membersAreaUrl }, mainProduct.name);
+        await sendPaymentApprovedEmail(supabaseAdmin, orderId, { ...checkout, ...updatedOrder, customer_email: customerEmail, customer_name: customerName, membersAreaUrl }, primaryProductName);
       }
     }
 

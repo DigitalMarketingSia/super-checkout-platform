@@ -184,7 +184,7 @@ export async function loadOwnedOrderForCheckoutWithMerchant(
   const safeOrderId = requireId(orderId, 'ORDER_ID_REQUIRED');
   const { data: order, error } = await supabaseAdmin
     .from('orders')
-    .select('id, checkout_id, user_id, customer_user_id, status, customer_email, customer_name, total, metadata')
+    .select('id, checkout_id, user_id, customer_user_id, status, customer_email, customer_name, total, items, metadata')
     .eq('id', safeOrderId)
     .maybeSingle();
 
