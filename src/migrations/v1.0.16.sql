@@ -78,7 +78,15 @@ SET visitor_key = COALESCE(NULLIF(BTRIM(visitor_key), ''), CONCAT('legacy-', id:
     analytics = COALESCE(analytics, false),
     marketing = COALESCE(marketing, false),
     created_at = COALESCE(created_at, timezone('utc'::text, now())),
-    updated_at = COALESCE(updated_at, timezone('utc'::text, now()));
+    updated_at = COALESCE(updated_at, timezone('utc'::text, now()))
+WHERE COALESCE(NULLIF(BTRIM(visitor_key), ''), '') = ''
+   OR COALESCE(NULLIF(BTRIM(source_surface), ''), '') = ''
+   OR COALESCE(NULLIF(BTRIM(consent_version), ''), '') = ''
+   OR necessary IS NULL
+   OR analytics IS NULL
+   OR marketing IS NULL
+   OR created_at IS NULL
+   OR updated_at IS NULL;
 
 ALTER TABLE public.consent_preferences ALTER COLUMN checkout_id SET NOT NULL;
 ALTER TABLE public.consent_preferences ALTER COLUMN visitor_key SET NOT NULL;
