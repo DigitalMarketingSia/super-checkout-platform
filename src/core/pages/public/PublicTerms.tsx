@@ -96,6 +96,7 @@ export const PublicTerms = () => {
                         <p><span className="font-semibold text-white">Versao vigente:</span> {termsDocument.version}</p>
                         <p><span className="font-semibold text-white">Publicado em:</span> {formatUpdatedAt(termsDocument.publishedAt)}</p>
                         <p><span className="font-semibold text-white">Ultima atualizacao cadastrada:</span> {formatUpdatedAt(settings?.updated_at)}</p>
+                        <p><span className="font-semibold text-white">Checkout hospedado:</span> opera por padrao apenas com recursos tecnicos necessarios para pagamento, seguranca e entrega; tecnologias opcionais de analytics e marketing nao sao iniciadas automaticamente nesta superficie.</p>
                     </div>
 
                     <div className="relative z-10 prose prose-invert prose-purple max-w-none">

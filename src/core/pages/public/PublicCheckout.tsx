@@ -16,10 +16,6 @@ import { Loading } from '../../components/ui/Loading';
 import './PublicCheckout.css';
 
 import { TrackingProvider, useTracking } from '../../context/TrackingContext';
-import { ConsentProvider } from '../../context/ConsentContext';
-import { ConsentBanner } from '../../components/public/ConsentBanner';
-import { ConsentPreferencesModal } from '../../components/public/ConsentPreferencesModal';
-import { ConsentPreferencesButton } from '../../components/public/ConsentPreferencesButton';
 import { translatePaymentError } from '../../utils/errorTranslator';
 import { useTranslation } from 'react-i18next';
 import type { UpsellGatewayCapability } from '../../config/upsellCapabilities';
@@ -1943,9 +1939,9 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                           <p className="text-[10px] text-gray-400 leading-relaxed max-w-md mx-auto">
                             Versoes vigentes: Termos {termsDocumentInfo.version} e Privacidade {privacyDocumentInfo.version}.
                           </p>
-                          <ConsentPreferencesButton className="mx-auto inline-flex text-[10px] font-semibold text-gray-500 hover:text-gray-700 hover:underline transition-colors">
-                            Gerenciar preferencias de privacidade
-                          </ConsentPreferencesButton>
+                          <p className="text-[10px] text-gray-400 leading-relaxed max-w-md mx-auto">
+                            Este checkout hospedado opera apenas com recursos tecnicos necessarios por padrao. Eventual mensuracao comercial do vendedor deve ocorrer nas paginas externas sob sua propria base legal e politica de privacidade.
+                          </p>
 
                           <div className="pt-4">
                             <p className="text-[10px] text-gray-400 font-medium">
@@ -1974,8 +1970,6 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                message={alertState.message}
                variant={alertState.variant}
             />
-            <ConsentPreferencesModal />
-            <ConsentBanner />
          </div>
       </TrackingProvider>
    );
@@ -2264,13 +2258,11 @@ const PublicCheckoutContent = ({ checkoutId }: { checkoutId?: string }) => {
    if (loading) return <Loading label={t('checkout.loading', 'Carregando checkout')} />;
 
    return (
-      <ConsentProvider checkoutId={id || checkoutId || 'public-checkout'} sourceSurface="public_checkout">
-         <StripeHooksBridge gatewayName={gatewayName}>
-            {(stripe, elements) => (
-               <PublicCheckoutUI checkoutId={checkoutId} stripe={stripe} elements={elements} />
-            )}
-         </StripeHooksBridge>
-      </ConsentProvider>
+      <StripeHooksBridge gatewayName={gatewayName}>
+         {(stripe, elements) => (
+            <PublicCheckoutUI checkoutId={checkoutId} stripe={stripe} elements={elements} />
+         )}
+      </StripeHooksBridge>
    );
 };
 

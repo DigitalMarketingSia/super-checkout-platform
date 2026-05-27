@@ -7,10 +7,6 @@ import { supabase } from '../../services/supabase';
 import { storage } from '../../services/storageService';
 import { Order } from '../../types';
 import { TrackingProvider, useTracking } from '../../context/TrackingContext';
-import { ConsentProvider } from '../../context/ConsentContext';
-import { ConsentBanner } from '../../components/public/ConsentBanner';
-import { ConsentPreferencesModal } from '../../components/public/ConsentPreferencesModal';
-import { ConsentPreferencesButton } from '../../components/public/ConsentPreferencesButton';
 import { useTranslation } from 'react-i18next';
 import { getApiUrl } from '../../utils/apiUtils';
 
@@ -273,14 +269,11 @@ export const ThankYou = () => {
   const orderTimestamp = originalOrder?.created_at || order?.created_at || null;
   const actionableDeliverables = deliverables.filter((deliverable) => deliverable.status === 'available' && deliverable.url);
   const missingDeliverables = deliverables.filter((deliverable) => deliverable.status !== 'available' || !deliverable.url);
-  const consentCheckoutId = checkout?.id || order?.checkout_id || originalOrder?.checkout_id || '';
-
   return (
-    <ConsentProvider checkoutId={consentCheckoutId || 'thank-you'} sourceSurface="thank_you">
-      <div className="min-h-screen bg-gray-50 font-sans text-gray-900">
-        <TrackingProvider config={config}>
-          {order && <PurchaseTracker order={order} />}
-          <main className="max-w-3xl mx-auto px-4 py-12 sm:py-20">
+    <div className="min-h-screen bg-gray-50 font-sans text-gray-900">
+      <TrackingProvider config={config}>
+        {order && <PurchaseTracker order={order} />}
+        <main className="max-w-3xl mx-auto px-4 py-12 sm:py-20">
 
           {/* Success Card */}
           <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden text-center p-8 sm:p-12">
@@ -417,20 +410,11 @@ export const ThankYou = () => {
 
           </div>
 
-          <div className="mt-8 flex justify-center">
-            <ConsentPreferencesButton className="text-sm font-medium text-gray-500 hover:text-gray-700 hover:underline transition-colors">
-              Gerenciar preferencias de privacidade
-            </ConsentPreferencesButton>
-          </div>
-
           <p className="text-center text-gray-400 text-sm mt-4">
             {businessName} &copy; {new Date().getFullYear()}
           </p>
         </main>
-          <ConsentPreferencesModal />
-          <ConsentBanner />
-        </TrackingProvider>
-      </div>
-    </ConsentProvider>
+      </TrackingProvider>
+    </div>
   );
 };
