@@ -13,7 +13,7 @@ export const PlatformPrivacy = () => {
         {
             title: '2. Dados que podem ser tratados',
             paragraphs: [
-                'Podemos tratar nome, e-mail, telefone, dados de perfil, credenciais de autenticacao, logs de acesso, eventos de seguranca, dominio, configuracoes de negocio, licencas, historico operacional, pedidos, pagamentos, identificadores de transacao e dados tecnicos como IP, user agent, origem de campanha e cookies estritamente necessarios.',
+                'Podemos tratar nome, e-mail, telefone, dados de perfil, credenciais de autenticacao, logs de acesso, eventos de seguranca, dominio, configuracoes de negocio, licencas, historico operacional, pedidos, pagamentos, identificadores de transacao e dados tecnicos como IP, user agent, origem de campanha, identificadores de clique e cookies ou tecnologias de mensuracao quando habilitados no fluxo.',
                 'Numeros completos de cartao nao sao armazenados pelo Super Checkout. Dados de pagamento sensiveis permanecem sob tratamento direto dos processadores contratados para a operacao.',
             ],
         },

@@ -9,6 +9,10 @@ import { Order } from '../../types';
 import { TrackingProvider, useTracking } from '../../context/TrackingContext';
 import { useTranslation } from 'react-i18next';
 import { getApiUrl } from '../../utils/apiUtils';
+import {
+  captureCheckoutTrackingAttribution,
+  type CheckoutTrackingAttribution,
+} from '../../utils/trackingAttribution';
 
 interface OrderDeliverable {
   id: string;
@@ -107,17 +111,27 @@ function resolveOriginalOrderId(order: Order | null) {
   return typeof postPurchase.original_order_id === 'string' ? postPurchase.original_order_id.trim() : '';
 }
 
-const PurchaseTracker: React.FC<{ order: Order }> = ({ order }) => {
+const PurchaseTracker: React.FC<{ order: Order; attribution?: CheckoutTrackingAttribution | null }> = ({ order, attribution }) => {
   const { trackPurchase, isInitialized } = useTracking();
   useEffect(() => {
     if (isInitialized && order && order.status === 'paid') {
       trackPurchase({
         id: order.id,
         amount: order.total || order.amount || 0,
-        currency: 'BRL'
+        currency: order.metadata?.payment_context?.currency || 'BRL',
+        items: Array.isArray(order.items)
+          ? order.items.map((item: any) => ({
+              id: item?.product_id || item?.id,
+              name: item?.name,
+              price: item?.price,
+              quantity: item?.quantity,
+              type: item?.type,
+            }))
+          : [],
+        attribution,
       });
     }
-  }, [order, isInitialized]);
+  }, [attribution, order, isInitialized, trackPurchase]);
   return null;
 };
 
@@ -132,8 +146,13 @@ export const ThankYou = () => {
   const [deliverables, setDeliverables] = useState<OrderDeliverable[]>([]);
   const [businessName, setBusinessName] = useState('Super Checkout');
   const [loading, setLoading] = useState(true);
+  const [trackingAttribution, setTrackingAttribution] = useState<CheckoutTrackingAttribution | null>(() => (
+    typeof window !== 'undefined' ? captureCheckoutTrackingAttribution() : null
+  ));
 
   useEffect(() => {
+    setTrackingAttribution(captureCheckoutTrackingAttribution());
+
     const fetchSignedOrderSnapshot = async (targetOrderId: string, signature: string): Promise<SignedOrderSnapshot | null> => {
       if (!targetOrderId || !signature) return null;
 
@@ -271,8 +290,12 @@ export const ThankYou = () => {
   const missingDeliverables = deliverables.filter((deliverable) => deliverable.status !== 'available' || !deliverable.url);
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-gray-900">
-      <TrackingProvider config={config}>
-        {order && <PurchaseTracker order={order} />}
+      <TrackingProvider
+        config={config}
+        trackingPolicy="market_standard"
+        attribution={trackingAttribution}
+      >
+        {order && <PurchaseTracker order={order} attribution={trackingAttribution} />}
         <main className="max-w-3xl mx-auto px-4 py-12 sm:py-20">
 
           {/* Success Card */}

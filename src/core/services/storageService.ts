@@ -1441,6 +1441,9 @@ class StorageService {
       ...rest,
       total: amount,
       items: order.items,
+      utm_source: order.utm_source || null,
+      utm_medium: order.utm_medium || null,
+      utm_campaign: order.utm_campaign || null,
       user_id: merchantId
     };
 

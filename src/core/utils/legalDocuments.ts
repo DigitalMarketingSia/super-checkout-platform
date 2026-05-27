@@ -108,13 +108,13 @@ Esta politica explica como {{business_name}} trata dados pessoais em seu checkou
 Podemos tratar dados de identificacao e contato, como nome, e-mail, telefone e documento quando solicitado; dados da compra, como produto, valor, tentativas, status, meio de pagamento e identificadores da transacao; e dados tecnicos e de seguranca, como IP, user agent, cookies tecnicos, origem de campanha, logs de acesso e eventos necessarios para proteger a operacao.
 
 3. Como os dados sao coletados
-Os dados podem ser fornecidos diretamente pelo comprador no checkout, coletados automaticamente pelo navegador em recursos tecnicos estritamente necessarios ou recebidos de integracoes e processadores usados para pagamento, antifraude, atendimento, entrega e recuperacao de acesso. Neste checkout hospedado, tecnologias opcionais de analytics e marketing nao sao iniciadas automaticamente por padrao.
+Os dados podem ser fornecidos diretamente pelo comprador no checkout, coletados automaticamente pelo navegador ou recebidos de integracoes e processadores usados para pagamento, antifraude, atendimento, entrega e recuperacao de acesso. Quando o vendedor habilita mensuracao comercial, o checkout tambem pode registrar parametros de campanha, identificadores de clique e eventos de navegacao ou compra para atribuicao e performance.
 
 4. Finalidades do tratamento
-Os dados sao utilizados para processar o pedido, confirmar o pagamento, entregar o produto, liberar acessos, enviar e-mails transacionais, prestar suporte, prevenir fraude, auditar eventos criticos, cumprir obrigacoes legais e defender direitos em demandas administrativas ou judiciais. Eventual mensuracao comercial do vendedor deve ocorrer, preferencialmente, em paginas externas sob a propria base legal, transparencia e configuracao de privacidade do vendedor.
+Os dados sao utilizados para processar o pedido, confirmar o pagamento, entregar o produto, liberar acessos, enviar e-mails transacionais, prestar suporte, prevenir fraude, auditar eventos criticos, cumprir obrigacoes legais e defender direitos em demandas administrativas ou judiciais. Quando o vendedor habilita pixels, analytics ou integracoes de publicidade, dados de navegacao e da transacao tambem podem ser usados para mensuracao comercial, atribuicao de campanhas e deduplicacao de eventos.
 
 5. Compartilhamento com terceiros
-Os dados podem ser compartilhados, na medida do necessario, com processadores de pagamento, provedores de hospedagem, banco de dados, envio de e-mail, antifraude e suporte tecnico vinculados a esta operacao. Dados sensiveis de pagamento, como o numero completo do cartao, nao sao armazenados por este checkout e permanecem sob tratamento direto dos processadores utilizados.
+Os dados podem ser compartilhados, na medida do necessario, com processadores de pagamento, provedores de hospedagem, banco de dados, envio de e-mail, antifraude, analytics, publicidade e suporte tecnico vinculados a esta operacao. Dados sensiveis de pagamento, como o numero completo do cartao, nao sao armazenados por este checkout e permanecem sob tratamento direto dos processadores utilizados.
 
 6. Retencao e seguranca
 Os dados sao mantidos pelo prazo necessario para executar a venda, prestar suporte, cumprir obrigacoes fiscais, regulatorias e de seguranca, ou resguardar direitos em disputas. Medidas tecnicas e organizacionais sao adotadas para reduzir acesso indevido, abuso, fraude e exposicao nao autorizada.
@@ -145,7 +145,7 @@ O comprador e responsavel por revisar as informacoes da oferta, utilizar os cana
 Condicoes especificas de cancelamento, garantia ou reembolso devem ser apresentadas na propria oferta. Quando houver direito de arrependimento ou outra obrigacao legal aplicavel, ela sera observada nos termos da legislacao vigente e pelos canais oficiais do vendedor.
 
 7. Infraestrutura tecnica e contato
-O Super Checkout fornece a infraestrutura tecnica do checkout, mas nao substitui as obrigacoes comerciais e legais do vendedor perante o comprador. Este checkout hospedado opera, por padrao, apenas com recursos tecnicos necessarios para pagamento, seguranca e entrega. Para atendimento comercial, suporte e privacidade desta operacao, o canal informado pelo vendedor e {{support_email}}.`,
+O Super Checkout fornece a infraestrutura tecnica do checkout, mas nao substitui as obrigacoes comerciais e legais do vendedor perante o comprador. Quando houver mensuracao comercial habilitada, este checkout pode acionar tecnologias de analytics, pixel e atribuicao para registrar o inicio e a conclusao da compra. Para atendimento comercial, suporte e privacidade desta operacao, o canal informado pelo vendedor e {{support_email}}.`,
     settings,
   );
 

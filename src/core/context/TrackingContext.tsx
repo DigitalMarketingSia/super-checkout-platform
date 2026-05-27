@@ -8,23 +8,76 @@ import {
     sanitizeGoogleAnalyticsId,
     sanitizeGoogleAdsId,
 } from '../utils/trackingSanitizer';
+import {
+    buildTrackingAttributionEventFields,
+    type CheckoutTrackingAttribution,
+} from '../utils/trackingAttribution';
+
+type TrackingPolicy = 'consent_required' | 'market_standard' | 'disabled';
+
+type TrackingItem = {
+    id?: string;
+    name?: string;
+    price?: number;
+    quantity?: number;
+    type?: string;
+};
+
+type TrackingCheckoutPayload = {
+    checkoutId?: string;
+    currency?: string;
+    value?: number;
+    items?: TrackingItem[];
+    attribution?: CheckoutTrackingAttribution | null;
+};
+
+type TrackingPurchasePayload = {
+    id: string;
+    amount: number;
+    currency?: string;
+    coupon?: string;
+    items?: TrackingItem[];
+    attribution?: CheckoutTrackingAttribution | null;
+};
 
 interface TrackingContextType {
     trackPageView: () => void;
-    trackInitiateCheckout: () => void;
-    trackPurchase: (order: { id: string; amount: number; currency?: string; coupon?: string }) => void;
+    trackInitiateCheckout: (payload?: TrackingCheckoutPayload) => void;
+    trackPurchase: (order: TrackingPurchasePayload) => void;
     isInitialized: boolean;
 }
 
 const TrackingContext = createContext<TrackingContextType | undefined>(undefined);
 
+function mapItems(items?: TrackingItem[]) {
+    return (items || []).map((item, index) => ({
+        item_id: item.id || `item-${index + 1}`,
+        item_name: item.name || 'Produto',
+        price: Number(item.price || 0) || 0,
+        quantity: Number(item.quantity || 1) || 1,
+        item_category: item.type || undefined,
+    }));
+}
+
 export const TrackingProvider: React.FC<{
     config?: CheckoutConfig;
+    trackingPolicy?: TrackingPolicy;
+    attribution?: CheckoutTrackingAttribution | null;
     children: React.ReactNode;
-}> = ({ config, children }) => {
+}> = ({ config, trackingPolicy = 'consent_required', attribution = null, children }) => {
     const [scriptsLoaded, setScriptsLoaded] = useState(false);
     const initializedRef = useRef(false);
-    const { allowsAnalytics, allowsMarketing } = useConsent();
+    const consent = useConsent();
+    const allowsAnalytics = trackingPolicy === 'market_standard'
+        ? true
+        : trackingPolicy === 'disabled'
+            ? false
+            : consent.allowsAnalytics;
+    const allowsMarketing = trackingPolicy === 'market_standard'
+        ? true
+        : trackingPolicy === 'disabled'
+            ? false
+            : consent.allowsMarketing;
 
     const pixels = config?.pixels;
     const canLoadAnalytics = Boolean(
@@ -40,6 +93,7 @@ export const TrackingProvider: React.FC<{
     const isActive = canLoadAnalytics || canLoadMarketing;
 
     const getWindow = () => window as any;
+    const attributionFields = buildTrackingAttributionEventFields(attribution);
 
     useEffect(() => {
         if (!isActive || initializedRef.current) return;
@@ -74,36 +128,81 @@ export const TrackingProvider: React.FC<{
     const trackPageView = () => {
         if (!isActive) return;
         console.log('[Tracking] PageView');
+        const eventFields = {
+            page_location: window.location.href,
+            page_path: window.location.pathname,
+            ...attributionFields,
+        };
 
         if (canLoadMarketing && pixels?.gtm_id) {
-            getWindow().dataLayer?.push({ event: 'page_view' });
+            getWindow().dataLayer?.push({ event: 'page_view', ...eventFields });
             return;
         }
 
         if (canLoadMarketing && pixels?.facebook_pixel_id) getWindow().fbq?.('track', 'PageView');
         if (canLoadMarketing && pixels?.tiktok_pixel_id) getWindow().ttq?.page();
-        if (canLoadAnalytics && pixels?.google_analytics_id) getWindow().gtag?.('event', 'page_view');
+        if (canLoadAnalytics && pixels?.google_analytics_id) getWindow().gtag?.('event', 'page_view', eventFields);
     };
 
-    const trackInitiateCheckout = () => {
+    const trackInitiateCheckout = (payload?: TrackingCheckoutPayload) => {
         if (!isActive) return;
         console.log('[Tracking] InitiateCheckout');
+        const currency = payload?.currency || 'BRL';
+        const items = mapItems(payload?.items);
+        const eventId = payload?.checkoutId ? `checkout:${payload.checkoutId}` : undefined;
+        const eventFields = {
+            currency,
+            value: Number(payload?.value || 0) || undefined,
+            items,
+            ...attributionFields,
+        };
 
         if (canLoadMarketing && pixels?.gtm_id) {
-            getWindow().dataLayer?.push({ event: 'begin_checkout' });
+            getWindow().dataLayer?.push({
+                event: 'begin_checkout',
+                event_id: eventId,
+                ecommerce: {
+                    currency,
+                    value: Number(payload?.value || 0) || undefined,
+                    items,
+                },
+                ...attributionFields,
+            });
             return;
         }
 
-        if (canLoadMarketing && pixels?.facebook_pixel_id) getWindow().fbq?.('track', 'InitiateCheckout');
-        if (canLoadMarketing && pixels?.tiktok_pixel_id) getWindow().ttq?.track('InitiateCheckout');
-        if (canLoadAnalytics && pixels?.google_analytics_id) getWindow().gtag?.('event', 'begin_checkout');
+        if (canLoadMarketing && pixels?.facebook_pixel_id) {
+            getWindow().fbq?.('track', 'InitiateCheckout', {
+                currency,
+                value: Number(payload?.value || 0) || undefined,
+                content_type: 'product',
+                contents: items.map((item) => ({
+                    id: item.item_id,
+                    quantity: item.quantity,
+                    item_price: item.price,
+                })),
+            }, eventId ? { eventID: eventId } : undefined);
+        }
+        if (canLoadMarketing && pixels?.tiktok_pixel_id) {
+            getWindow().ttq?.track('InitiateCheckout', {
+                currency,
+                value: Number(payload?.value || 0) || undefined,
+                content_type: 'product',
+                contents: items,
+                event_id: eventId,
+            });
+        }
+        if (canLoadAnalytics && pixels?.google_analytics_id) {
+            getWindow().gtag?.('event', 'begin_checkout', eventFields);
+        }
     };
 
-    const trackPurchase = (order: { id: string; amount: number; currency?: string; coupon?: string }) => {
+    const trackPurchase = (order: TrackingPurchasePayload) => {
         if (!isActive) return;
 
         const currency = order.currency || 'BRL';
         const storageKey = `tracked_order_${order.id}`;
+        const items = mapItems(order.items);
 
         if (localStorage.getItem(storageKey)) {
             console.warn('[Tracking] Purchase event blocked (Duplicate):', order.id);
@@ -116,12 +215,15 @@ export const TrackingProvider: React.FC<{
         if (canLoadMarketing && pixels?.gtm_id) {
             getWindow().dataLayer?.push({
                 event: 'purchase',
+                event_id: order.id,
                 ecommerce: {
                     transaction_id: order.id,
                     value: order.amount,
                     currency,
                     coupon: order.coupon,
+                    items,
                 },
+                ...buildTrackingAttributionEventFields(order.attribution || attribution),
             });
             return;
         }
@@ -131,16 +233,24 @@ export const TrackingProvider: React.FC<{
                 value: order.amount,
                 currency,
                 order_id: order.id,
-            });
+                content_type: 'product',
+                contents: items.map((item) => ({
+                    id: item.item_id,
+                    quantity: item.quantity,
+                    item_price: item.price,
+                })),
+            }, { eventID: order.id });
         }
 
         if (canLoadMarketing && pixels?.tiktok_pixel_id) {
             getWindow().ttq?.track('CompletePayment', {
                 content_type: 'product',
-                quantity: 1,
+                quantity: items.reduce((sum, item) => sum + Number(item.quantity || 1), 0) || 1,
                 price: order.amount,
                 value: order.amount,
                 currency,
+                contents: items,
+                event_id: order.id,
             });
         }
 
@@ -149,6 +259,9 @@ export const TrackingProvider: React.FC<{
                 transaction_id: order.id,
                 value: order.amount,
                 currency,
+                coupon: order.coupon,
+                items,
+                ...buildTrackingAttributionEventFields(order.attribution || attribution),
             });
         }
 

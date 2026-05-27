@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../services/supabase';
 import { storage } from '../../services/storageService';
@@ -27,6 +27,10 @@ import {
    getEffectiveLegalDocumentInfo,
    type BusinessLegalSettingsLike,
 } from '../../utils/legalDocuments';
+import {
+   captureCheckoutTrackingAttribution,
+   type CheckoutTrackingAttribution,
+} from '../../utils/trackingAttribution';
 
 // --- PREMIUM PAYMENT ICONS (INLINE SVG - EXTRAÍDOS DA TICTO) ---
 const PixIcon = ({ className }: { className?: string }) => (
@@ -59,15 +63,34 @@ const GoogleIcon = ({ className, monochrome }: { className?: string, monochrome?
    </svg>
 );
 
-const CheckoutTracker = () => {
+const CheckoutTracker = ({
+   checkoutId,
+   currency,
+   value,
+   items,
+   attribution,
+}: {
+   checkoutId?: string;
+   currency?: string;
+   value?: number;
+   items?: Array<{ id?: string; name?: string; price?: number; quantity?: number; type?: string }>;
+   attribution?: CheckoutTrackingAttribution | null;
+}) => {
    const { trackPageView, trackInitiateCheckout, isInitialized } = useTracking();
+   const trackedRef = useRef(false);
    useEffect(() => {
-      // Trigger events on mount (loaded) AND when initialized
-      if (isInitialized) {
-         trackPageView();
-         trackInitiateCheckout();
-      }
-   }, [isInitialized]);
+      if (!isInitialized || trackedRef.current) return;
+
+      trackPageView();
+      trackInitiateCheckout({
+         checkoutId,
+         currency,
+         value,
+         items,
+         attribution,
+      });
+      trackedRef.current = true;
+   }, [attribution, checkoutId, currency, isInitialized, items, trackInitiateCheckout, trackPageView, value]);
    return null;
 };
 
@@ -548,6 +571,9 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
    const [upgradeIntentContext, setUpgradeIntentContext] = useState<UpgradeIntentContext | null>(null);
    const [upgradeIntentLoading, setUpgradeIntentLoading] = useState(false);
    const [upgradeIntentError, setUpgradeIntentError] = useState<string | null>(null);
+   const [trackingAttribution, setTrackingAttribution] = useState<CheckoutTrackingAttribution | null>(() => (
+      typeof window !== 'undefined' ? captureCheckoutTrackingAttribution() : null
+   ));
 
    const getUpgradeIntentDisplayError = (message: string) => {
       const normalized = message.toLowerCase();
@@ -630,6 +656,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
          try {
             // 0. Check for Logged In User
             const urlParams = new URLSearchParams(window.location.search);
+            setTrackingAttribution(captureCheckoutTrackingAttribution());
             const intentToken = urlParams.get('upgrade_intent')?.trim() || '';
             setUpgradeIntentToken(intentToken);
 
@@ -1092,6 +1119,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
 
          // ✅ CALL PAYMENT SERVICE (TRANSPARENT CHECKOUT)
          const { paymentService } = await import('../../services/paymentService');
+         const effectiveTrackingAttribution = trackingAttribution || captureCheckoutTrackingAttribution();
 
          const result = await paymentService.processPayment({
             checkoutId: data.checkout.id,
@@ -1111,6 +1139,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
             upgradeIntentContext: upgradeIntentContext || undefined,
             stripePaymentMethodId: stripePaymentMethodId, // TOKEN PASSADO AQUI
             installments: Number(customer.installments || 1),
+            trackingAttribution: effectiveTrackingAttribution || undefined,
             saveCardForUpsell: Boolean(
                paymentMethod === 'credit_card'
                && data.gateway?.name === GatewayProvider.MERCADO_PAGO
@@ -1309,8 +1338,24 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
    const config = data.checkout.config || { fields: { name: true, email: true, phone: true, cpf: true }, payment_methods: { pix: true, credit_card: true, boleto: true }, timer: { active: false, minutes: 0, bg_color: '', text_color: '' } };
 
    return (
-      <TrackingProvider config={config}>
-         <CheckoutTracker />
+      <TrackingProvider
+         config={config}
+         trackingPolicy="market_standard"
+         attribution={trackingAttribution}
+      >
+         <CheckoutTracker
+            checkoutId={data?.checkout?.id}
+            currency={data?.product?.currency || 'BRL'}
+            value={data?.product?.price_real || 0}
+            items={data ? [{
+               id: data.product.id,
+               name: data.product.name,
+               price: data.product.price_real || 0,
+               quantity: 1,
+               type: 'main',
+            }] : []}
+            attribution={trackingAttribution}
+         />
          <div className="checkout-padrao-container min-h-screen bg-[#f9fafb] font-sans text-gray-800 pb-12 pt-[3px]">
 
             {/* TIMER DE ESCASSEZ */}
@@ -1890,6 +1935,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                            type={paymentMethod === 'apple_pay' ? 'apple' : 'google'}
                            data={data}
                            selectedBumps={selectedBumps}
+                           trackingAttribution={trackingAttribution}
                            userId={userId}
                            upgradeIntentToken={upgradeIntentToken || undefined}
                            upgradeIntentContext={upgradeIntentContext || undefined}
@@ -1940,7 +1986,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                             Versoes vigentes: Termos {termsDocumentInfo.version} e Privacidade {privacyDocumentInfo.version}.
                           </p>
                           <p className="text-[10px] text-gray-400 leading-relaxed max-w-md mx-auto">
-                            Este checkout hospedado opera apenas com recursos tecnicos necessarios por padrao. Eventual mensuracao comercial do vendedor deve ocorrer nas paginas externas sob sua propria base legal e politica de privacidade.
+                            Quando o vendedor habilita mensuracao comercial, este checkout pode registrar eventos de inicio e conclusao da compra para atribuicao de campanhas, conforme descrito nos documentos legais acima.
                           </p>
 
                           <div className="pt-4">
@@ -2036,6 +2082,7 @@ const WalletExpressButton = ({
    type,
    data,
    selectedBumps,
+   trackingAttribution,
    userId,
    upgradeIntentToken,
    upgradeIntentContext,
@@ -2048,6 +2095,7 @@ const WalletExpressButton = ({
    type: 'apple' | 'google';
    data: any;
    selectedBumps: string[];
+   trackingAttribution?: CheckoutTrackingAttribution | null;
    userId: string | undefined;
    upgradeIntentToken?: string;
    upgradeIntentContext?: UpgradeIntentContext;
@@ -2121,6 +2169,7 @@ const WalletExpressButton = ({
             });
 
             const { paymentService } = await import('../../services/paymentService');
+            const effectiveTrackingAttribution = trackingAttribution || captureCheckoutTrackingAttribution();
             const result = await paymentService.processPayment({
                checkoutId: data.checkout.id,
                offerId: data.checkout.offer_id || 'direct',
@@ -2133,6 +2182,7 @@ const WalletExpressButton = ({
                items: items,
                currency: data.product.currency || 'BRL',
                 customerUserId: userId,
+                trackingAttribution: effectiveTrackingAttribution || undefined,
                 upgradeIntentToken,
                 upgradeIntentContext,
                 stripePaymentMethodId: ev.paymentMethod.id,
@@ -2192,7 +2242,7 @@ const WalletExpressButton = ({
       return () => {
          paymentRequest.off('paymentmethod', handlePaymentMethod);
       };
-   }, [stripe, paymentRequest, data, selectedBumps, userId, upgradeIntentToken, upgradeIntentContext, navigate, showAlert]);
+   }, [stripe, paymentRequest, data, selectedBumps, trackingAttribution, userId, upgradeIntentToken, upgradeIntentContext, navigate, showAlert]);
 
    if (!isVisible || !paymentRequest) return null;
 

@@ -226,9 +226,13 @@ export interface Order {
   customer_phone?: string; // Added for CRM
   customer_cpf?: string;   // Added for CRM
   amount: number;
+  total?: number;
   status: OrderStatus;
   payment_method: PaymentMethodType; // Added for CRM
   items?: OrderItem[]; // Added for details
+  utm_source?: string;
+  utm_medium?: string;
+  utm_campaign?: string;
   metadata?: any;
   created_at: string;
   customer_user_id?: string; // ID of the user who purchased (for access grants)

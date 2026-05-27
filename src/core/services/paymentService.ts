@@ -9,6 +9,7 @@ import { translatePaymentError } from '../utils/errorTranslator';
 import i18n from '../i18n/config';
 import type { UpgradeIntentContext } from './licenseService';
 import type { UpsellGatewayCapability } from '../config/upsellCapabilities';
+import type { CheckoutTrackingAttribution } from '../utils/trackingAttribution';
 
 // Helper for UUID generation
 const generateUUID = () => {
@@ -49,6 +50,7 @@ export interface ProcessPaymentRequest {
   installments?: number; // New: Number of installments
   upgradeIntentToken?: string;
   upgradeIntentContext?: UpgradeIntentContext;
+  trackingAttribution?: CheckoutTrackingAttribution;
   legalAcceptance?: {
     accepted_at: string;
     source_surface: 'public_checkout' | 'upsell';
@@ -119,6 +121,9 @@ class PaymentService {
       phone: request.customerPhone || null,
       cpf: request.customerCpf || null,
     };
+    const trackingAttribution = request.trackingAttribution && typeof request.trackingAttribution === 'object'
+      ? request.trackingAttribution
+      : null;
     const legalAcceptance = request.legalAcceptance && typeof request.legalAcceptance === 'object'
       ? {
           accepted_at: request.legalAcceptance.accepted_at || new Date().toISOString(),
@@ -139,6 +144,12 @@ class PaymentService {
         ...(originalOrderId ? { original_order_id: originalOrderId } : {}),
         ...(postPurchaseContext ? { post_purchase: postPurchaseContext } : {}),
         payer_snapshot: payerSnapshot,
+        ...(trackingAttribution ? { attribution: trackingAttribution } : {}),
+        payment_context: {
+          currency: request.currency || 'BRL',
+          gateway_id: request.gatewayId || null,
+          payment_method: request.paymentMethod || null,
+        },
         ...(legalAcceptance ? { legal_acceptance: legalAcceptance } : {}),
         reconciliation: {
           status: 'not_required',
@@ -170,6 +181,12 @@ class PaymentService {
         target_plan_slug: context?.target_plan_slug || null,
       },
       payer_snapshot: payerSnapshot,
+      ...(trackingAttribution ? { attribution: trackingAttribution } : {}),
+      payment_context: {
+        currency: request.currency || 'BRL',
+        gateway_id: request.gatewayId || null,
+        payment_method: request.paymentMethod || null,
+      },
       ...(legalAcceptance ? { legal_acceptance: legalAcceptance } : {}),
       reconciliation: {
         status: context?.can_auto_apply ? 'intent_attached' : 'manual_review_required',
@@ -346,6 +363,9 @@ class PaymentService {
               customer_cpf: request.customerCpf,
               status: OrderStatus.PENDING,
               payment_method: request.paymentMethod,
+              utm_source: request.trackingAttribution?.utm_source || undefined,
+              utm_medium: request.trackingAttribution?.utm_medium || undefined,
+              utm_campaign: request.trackingAttribution?.utm_campaign || undefined,
               items: request.items,
               metadata: this.buildOrderMetadata(request),
               created_at: new Date().toISOString(),
