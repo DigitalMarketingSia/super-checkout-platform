@@ -49,6 +49,18 @@ export interface ProcessPaymentRequest {
   installments?: number; // New: Number of installments
   upgradeIntentToken?: string;
   upgradeIntentContext?: UpgradeIntentContext;
+  legalAcceptance?: {
+    accepted_at: string;
+    source_surface: 'public_checkout' | 'upsell';
+    checkout_id: string;
+    business_name: string;
+    privacy_policy_version: string;
+    privacy_policy_published_at?: string | null;
+    privacy_policy_source: 'custom' | 'default';
+    terms_of_purchase_version: string;
+    terms_of_purchase_published_at?: string | null;
+    terms_of_purchase_source: 'custom' | 'default';
+  };
 }
 
 export interface ProcessPaymentResult {
@@ -107,12 +119,27 @@ class PaymentService {
       phone: request.customerPhone || null,
       cpf: request.customerCpf || null,
     };
+    const legalAcceptance = request.legalAcceptance && typeof request.legalAcceptance === 'object'
+      ? {
+          accepted_at: request.legalAcceptance.accepted_at || new Date().toISOString(),
+          source_surface: request.legalAcceptance.source_surface || 'public_checkout',
+          checkout_id: request.legalAcceptance.checkout_id || request.checkoutId,
+          business_name: request.legalAcceptance.business_name || null,
+          privacy_policy_version: request.legalAcceptance.privacy_policy_version || null,
+          privacy_policy_published_at: request.legalAcceptance.privacy_policy_published_at || null,
+          privacy_policy_source: request.legalAcceptance.privacy_policy_source || null,
+          terms_of_purchase_version: request.legalAcceptance.terms_of_purchase_version || null,
+          terms_of_purchase_published_at: request.legalAcceptance.terms_of_purchase_published_at || null,
+          terms_of_purchase_source: request.legalAcceptance.terms_of_purchase_source || null,
+        }
+      : null;
 
     if (!token) {
       return {
         ...(originalOrderId ? { original_order_id: originalOrderId } : {}),
         ...(postPurchaseContext ? { post_purchase: postPurchaseContext } : {}),
         payer_snapshot: payerSnapshot,
+        ...(legalAcceptance ? { legal_acceptance: legalAcceptance } : {}),
         reconciliation: {
           status: 'not_required',
           reason: 'public_checkout_without_upgrade_intent',
@@ -143,6 +170,7 @@ class PaymentService {
         target_plan_slug: context?.target_plan_slug || null,
       },
       payer_snapshot: payerSnapshot,
+      ...(legalAcceptance ? { legal_acceptance: legalAcceptance } : {}),
       reconciliation: {
         status: context?.can_auto_apply ? 'intent_attached' : 'manual_review_required',
         reason: context?.can_auto_apply ? null : 'upgrade_intent_cannot_auto_apply',

@@ -22,6 +22,21 @@ import { useTranslation } from 'react-i18next';
 import { Modal } from '../../components/ui/Modal';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
+import {
+    buildDefaultPrivacyPolicy,
+    buildDefaultTermsOfPurchase,
+    buildNextCustomLegalVersion,
+    getEffectiveLegalDocumentInfo,
+} from '../../utils/legalDocuments';
+
+const formatDocumentPublication = (value?: string | null) => {
+    if (!value) return 'nao publicado';
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'nao publicado';
+
+    return date.toLocaleDateString('pt-BR');
+};
 
 export const BusinessSettings = () => {
     const { user, refreshProfile } = useAuth();
@@ -32,13 +47,35 @@ export const BusinessSettings = () => {
         support_email: user?.email || '',
         legal_name: '',
         privacy_policy: '',
+        privacy_policy_version: '',
+        privacy_policy_published_at: '',
         terms_of_purchase: '',
+        terms_of_purchase_version: '',
+        terms_of_purchase_published_at: '',
         show_legal_footer: true,
         agree_terms: false
+    });
+    const [loadedDocumentState, setLoadedDocumentState] = useState({
+        privacy_policy: '',
+        privacy_policy_version: '',
+        privacy_policy_published_at: '',
+        terms_of_purchase: '',
+        terms_of_purchase_version: '',
+        terms_of_purchase_published_at: ''
     });
     const [editingDoc, setEditingDoc] = useState<'privacy' | 'terms' | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
+    const isBusinessIdentityComplete = Boolean(formData.business_name.trim() && formData.support_email.trim());
+    const hasLegalDocuments = Boolean(formData.privacy_policy.trim() && formData.terms_of_purchase.trim());
+    const complianceStatusLabel = hasLegalDocuments
+        ? t('business_settings.header.review_pending', 'Revisao pendente')
+        : t('business_settings.header.docs_pending', 'Documentos pendentes');
+    const readinessStatusLabel = isBusinessIdentityComplete
+        ? t('business_settings.header.basic_setup_complete', 'Estrutura basica concluida')
+        : t('business_settings.header.basic_setup_incomplete', 'Estrutura basica incompleta');
+    const privacyDocumentInfo = getEffectiveLegalDocumentInfo('privacy_policy', formData, buildDefaultPrivacyPolicy);
+    const termsDocumentInfo = getEffectiveLegalDocumentInfo('terms_of_purchase', formData, buildDefaultTermsOfPurchase);
 
     useEffect(() => {
         const loadSettings = async () => {
@@ -53,10 +90,22 @@ export const BusinessSettings = () => {
                         support_email: settings.support_email || user.email || '',
                         legal_name: settings.legal_name || '',
                         privacy_policy: settings.privacy_policy || '',
+                        privacy_policy_version: settings.privacy_policy_version || '',
+                        privacy_policy_published_at: settings.privacy_policy_published_at || '',
                         terms_of_purchase: settings.terms_of_purchase || '',
-                        show_legal_footer: settings.show_legal_footer ?? true,
+                        terms_of_purchase_version: settings.terms_of_purchase_version || '',
+                        terms_of_purchase_published_at: settings.terms_of_purchase_published_at || '',
+                        show_legal_footer: true,
                         agree_terms: true // Assume true if data exists
                     }));
+                    setLoadedDocumentState({
+                        privacy_policy: settings.privacy_policy || '',
+                        privacy_policy_version: settings.privacy_policy_version || '',
+                        privacy_policy_published_at: settings.privacy_policy_published_at || '',
+                        terms_of_purchase: settings.terms_of_purchase || '',
+                        terms_of_purchase_version: settings.terms_of_purchase_version || '',
+                        terms_of_purchase_published_at: settings.terms_of_purchase_published_at || ''
+                    });
                 }
             }
         };
@@ -91,6 +140,51 @@ export const BusinessSettings = () => {
                 throw new Error(t('business_settings.form.agree_error', 'Você precisa concordar com os termos.'));
             }
 
+            const now = new Date();
+            const nextPrivacyDocument = (() => {
+                const content = formData.privacy_policy.trim();
+                if (!content) {
+                    return { version: null, publishedAt: null };
+                }
+
+                if (
+                    content === loadedDocumentState.privacy_policy.trim()
+                    && formData.privacy_policy_version.trim()
+                ) {
+                    return {
+                        version: formData.privacy_policy_version.trim(),
+                        publishedAt: formData.privacy_policy_published_at.trim() || now.toISOString(),
+                    };
+                }
+
+                return {
+                    version: buildNextCustomLegalVersion('privacy_policy', now),
+                    publishedAt: now.toISOString(),
+                };
+            })();
+
+            const nextTermsDocument = (() => {
+                const content = formData.terms_of_purchase.trim();
+                if (!content) {
+                    return { version: null, publishedAt: null };
+                }
+
+                if (
+                    content === loadedDocumentState.terms_of_purchase.trim()
+                    && formData.terms_of_purchase_version.trim()
+                ) {
+                    return {
+                        version: formData.terms_of_purchase_version.trim(),
+                        publishedAt: formData.terms_of_purchase_published_at.trim() || now.toISOString(),
+                    };
+                }
+
+                return {
+                    version: buildNextCustomLegalVersion('terms_of_purchase', now),
+                    publishedAt: now.toISOString(),
+                };
+            })();
+
             const { error: settingsError } = await supabase
                 .from('business_settings')
                 .upsert({
@@ -99,11 +193,15 @@ export const BusinessSettings = () => {
                     legal_name: formData.legal_name || formData.business_name,
                     support_email: formData.support_email,
                     privacy_policy: formData.privacy_policy,
+                    privacy_policy_version: nextPrivacyDocument.version,
+                    privacy_policy_published_at: nextPrivacyDocument.publishedAt,
                     terms_of_purchase: formData.terms_of_purchase,
-                    show_legal_footer: formData.show_legal_footer,
+                    terms_of_purchase_version: nextTermsDocument.version,
+                    terms_of_purchase_published_at: nextTermsDocument.publishedAt,
+                    show_legal_footer: true,
                     sender_name: formData.business_name,
                     sender_email: formData.support_email,
-                    compliance_status: 'verified',
+                    compliance_status: 'pending',
                     is_ready_to_sell: true
                 }, { onConflict: 'account_id' });
 
@@ -113,11 +211,29 @@ export const BusinessSettings = () => {
                 account_id: account.id,
                 type: 'business_info_updated',
                 metadata: {
-                    business_name: formData.business_name
+                    business_name: formData.business_name,
+                    compliance_status: 'pending',
+                    has_legal_documents: hasLegalDocuments
                 }
             });
 
             await refreshProfile();
+            setFormData(prev => ({
+                ...prev,
+                privacy_policy_version: nextPrivacyDocument.version || '',
+                privacy_policy_published_at: nextPrivacyDocument.publishedAt || '',
+                terms_of_purchase_version: nextTermsDocument.version || '',
+                terms_of_purchase_published_at: nextTermsDocument.publishedAt || '',
+                show_legal_footer: true,
+            }));
+            setLoadedDocumentState({
+                privacy_policy: formData.privacy_policy,
+                privacy_policy_version: nextPrivacyDocument.version || '',
+                privacy_policy_published_at: nextPrivacyDocument.publishedAt || '',
+                terms_of_purchase: formData.terms_of_purchase,
+                terms_of_purchase_version: nextTermsDocument.version || '',
+                terms_of_purchase_published_at: nextTermsDocument.publishedAt || '',
+            });
             setSuccess(true);
             setTimeout(() => setSuccess(false), 5000);
 
@@ -155,25 +271,25 @@ export const BusinessSettings = () => {
 
                         {/* Tactical Status Cards */}
                         <div className="flex flex-col sm:flex-row items-center gap-4">
-                           <div className="flex items-center gap-4 px-6 py-4 rounded-[1.5rem] bg-white/[0.02] border border-white/5 group/item hover:border-emerald-500/30 transition-all duration-500">
-                              <div className="p-2 bg-emerald-500/10 rounded-xl">
-                                <ShieldCheck className="w-5 h-5 text-emerald-500" />
+                           <div className="flex items-center gap-4 px-6 py-4 rounded-[1.5rem] bg-white/[0.02] border border-white/5 group/item hover:border-amber-400/30 transition-all duration-500">
+                              <div className="p-2 bg-amber-500/10 rounded-xl">
+                                <ShieldCheck className="w-5 h-5 text-amber-400" />
                               </div>
                               <div className="flex flex-col">
                                  <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest">{t('business_settings.header.compliance')}</span>
-                                 <span className="text-[11px] font-black text-emerald-500 uppercase tracking-tighter italic">{t('business_settings.header.verified_protocol')}</span>
+                                 <span className="text-[11px] font-black text-amber-400 uppercase tracking-tighter italic">{complianceStatusLabel}</span>
                               </div>
                            </div>
 
                            <div className="flex items-center gap-4 px-6 py-4 rounded-[1.5rem] bg-white/[0.02] border border-white/5 group/item hover:border-primary/30 transition-all duration-500">
-                              <div className="p-2 bg-primary/10 rounded-xl">
-                                <CheckCircle className="w-5 h-5 text-primary" />
+                              <div className={`p-2 rounded-xl ${isBusinessIdentityComplete ? 'bg-primary/10' : 'bg-white/5'}`}>
+                                <CheckCircle className={`w-5 h-5 ${isBusinessIdentityComplete ? 'text-primary' : 'text-gray-500'}`} />
                               </div>
                               <div className="flex flex-col">
                                  <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest">{t('business_settings.header.readiness')}</span>
                                  <div className="flex items-center gap-2 mt-0.5">
-                                    <span className="text-[11px] font-black text-white uppercase tracking-tighter italic">{t('business_settings.header.ready_to_scale')}</span>
-                                    <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)] animate-pulse" />
+                                    <span className={`text-[11px] font-black uppercase tracking-tighter italic ${isBusinessIdentityComplete ? 'text-white' : 'text-gray-500'}`}>{readinessStatusLabel}</span>
+                                    <div className={`w-2 h-2 rounded-full ${isBusinessIdentityComplete ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.4)]'} animate-pulse`} />
                                  </div>
                               </div>
                            </div>
@@ -287,8 +403,8 @@ export const BusinessSettings = () => {
                                     <input 
                                         type="checkbox" 
                                         className="sr-only peer"
-                                        checked={formData.show_legal_footer}
-                                        onChange={e => setFormData({ ...formData, show_legal_footer: e.target.checked })}
+                                        checked
+                                        disabled
                                     />
                                     <div className="w-16 h-8 bg-white/5 border border-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-gray-800 after:rounded-full after:h-6 after:w-6 after:transition-all duration-500 peer-checked:after:bg-white peer-checked:bg-primary shadow-inner"></div>
                                 </label>
@@ -326,7 +442,14 @@ export const BusinessSettings = () => {
                                                        {formData.privacy_policy ? 'Configurada' : 'Pendente'}
                                                     </p>
                                                 </div>
-                                                <span className="text-[8px] font-bold text-gray-800 uppercase tracking-widest">v1.2</span>
+                                                <div className="text-right">
+                                                    <span className="block text-[8px] font-bold text-gray-800 uppercase tracking-widest">
+                                                        {privacyDocumentInfo.version}
+                                                    </span>
+                                                    <span className="block text-[8px] text-gray-600">
+                                                        Publicado em {formatDocumentPublication(privacyDocumentInfo.publishedAt)}
+                                                    </span>
+                                                </div>
                                             </div>
                                         </div>
                                     </button>
@@ -354,7 +477,14 @@ export const BusinessSettings = () => {
                                                        {formData.terms_of_purchase ? 'Configurado' : 'Pendente'}
                                                     </p>
                                                 </div>
-                                                <span className="text-[8px] font-bold text-gray-800 uppercase tracking-widest">v1.0</span>
+                                                <div className="text-right">
+                                                    <span className="block text-[8px] font-bold text-gray-800 uppercase tracking-widest">
+                                                        {termsDocumentInfo.version}
+                                                    </span>
+                                                    <span className="block text-[8px] text-gray-600">
+                                                        Publicado em {formatDocumentPublication(termsDocumentInfo.publishedAt)}
+                                                    </span>
+                                                </div>
                                             </div>
                                         </div>
                                     </button>
@@ -368,7 +498,7 @@ export const BusinessSettings = () => {
                                         {formData.agree_terms && <Check className="w-4 h-4 text-white font-black" />}
                                     </div>
                                     <span className="text-xs text-gray-400 font-medium leading-relaxed italic pr-12">
-                                        Certifico que as diretrizes comerciais e fiscais acima documentadas são legítimas e refletem a governança atual da minha operação. Estou ciente da responsabilidade jurídica sobre tais dados.
+                                        O aceite abaixo registra uma autodeclaracao comercial e operacional. Ele nao substitui revisao juridica, fiscal ou de LGPD, e o status de conformidade permanece pendente ate validacao propria da operacao.
                                     </span>
                                 </label>
                             </div>
@@ -396,7 +526,7 @@ export const BusinessSettings = () => {
                 <Modal
                     isOpen={!!editingDoc}
                     onClose={() => setEditingDoc(null)}
-                    title={editingDoc === 'privacy' ? '📜 POLÍTICA DE PRIVACIDADE' : '📄 TERMOS DE COMPRA'}
+                    title={editingDoc === 'privacy' ? 'POLITICA DE PRIVACIDADE' : 'TERMOS DE COMPRA'}
                     className="max-w-4xl"
                 >
                     <div className="space-y-8 p-2">
@@ -408,7 +538,7 @@ export const BusinessSettings = () => {
                             <div className="relative z-10">
                                <p className="text-[10px] text-primary font-black uppercase tracking-[0.3em] mb-3 italic">Vault Automation System</p>
                                <p className="text-xs text-gray-500 leading-relaxed font-medium max-w-xl">
-                                  O sistema de renderização suporta tags dinâmicas. Utilize <code className="bg-white/5 px-2.5 py-1 rounded-lg text-primary font-black italic">{"{{business_name}}"}</code> e <code className="bg-white/5 px-2.5 py-1 rounded-lg text-primary font-black italic">{"{{support_email}}"}</code> para paridade automática com seu perfil.
+                                  O sistema suporta tags dinamicas. Utilize <code className="bg-white/5 px-2.5 py-1 rounded-lg text-primary font-black italic">{"{{business_name}}"}</code>, <code className="bg-white/5 px-2.5 py-1 rounded-lg text-primary font-black italic">{"{{legal_name}}"}</code>, <code className="bg-white/5 px-2.5 py-1 rounded-lg text-primary font-black italic">{"{{support_email}}"}</code> e <code className="bg-white/5 px-2.5 py-1 rounded-lg text-primary font-black italic">{"{{legal_contact}}"}</code> para sincronizar o texto com seu perfil.
                                </p>
                             </div>
                         </div>
@@ -416,7 +546,7 @@ export const BusinessSettings = () => {
                         <div className="relative">
                             <textarea
                                 className="w-full h-[550px] bg-[#05050A] border-2 border-white/5 rounded-[2.5rem] p-10 text-white focus:border-primary/50 focus:ring-0 outline-none transition-all font-mono text-sm leading-relaxed scrollbar-hide shadow-inner"
-                                placeholder="Redija aqui o conteúdo legal do seu negócio com linguagem estratégica..."
+                                placeholder="Redija aqui o conteudo legal do seu negocio com base real na sua operacao..."
                                 value={editingDoc === 'privacy' ? formData.privacy_policy : formData.terms_of_purchase}
                                 onChange={(e) => setFormData({
                                     ...formData,

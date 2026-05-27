@@ -654,11 +654,12 @@ export const SystemManager = {
       { table: 'system_info', columns: ['db_version', 'github_installation_id', 'github_repository'] },
       { table: 'schema_migrations', columns: ['version', 'success'] },
       { table: 'accounts', columns: ['owner_user_id', 'plan_type', 'status'] },
-      { table: 'business_settings', columns: ['account_id', 'support_email', 'is_ready_to_sell'] },
+      { table: 'business_settings', columns: ['account_id', 'support_email', 'privacy_policy_version', 'terms_of_purchase_version', 'is_ready_to_sell'] },
       { table: 'licenses', columns: ['key', 'account_id', 'max_instances', 'status'] },
       { table: 'installations', columns: ['license_key', 'account_id', 'installation_id', 'status'] },
       { table: 'gateways', columns: ['provider', 'credentials', 'config', 'is_active'] },
       { table: 'public_gateways', columns: ['id', 'provider', 'public_key', 'config'] },
+      { table: 'consent_preferences', columns: ['checkout_id', 'visitor_key', 'consent_version', 'analytics', 'marketing'] },
       { table: 'email_templates', columns: ['event_type', 'language', 'html_body'] },
       { table: 'system_email_templates', columns: ['event_type', 'language', 'html_body'] },
       { table: 'system_updates_log', columns: ['action', 'status', 'files_affected'] }

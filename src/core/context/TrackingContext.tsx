@@ -1,5 +1,13 @@
-import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { CheckoutConfig } from '../types';
+import { useConsent } from './ConsentContext';
+import {
+    sanitizeGtmId,
+    sanitizeFacebookId,
+    sanitizeTiktokId,
+    sanitizeGoogleAnalyticsId,
+    sanitizeGoogleAdsId,
+} from '../utils/trackingSanitizer';
 
 interface TrackingContextType {
     trackPageView: () => void;
@@ -12,163 +20,157 @@ const TrackingContext = createContext<TrackingContextType | undefined>(undefined
 
 export const TrackingProvider: React.FC<{
     config?: CheckoutConfig;
-    children: React.ReactNode
+    children: React.ReactNode;
 }> = ({ config, children }) => {
     const [scriptsLoaded, setScriptsLoaded] = useState(false);
     const initializedRef = useRef(false);
+    const { allowsAnalytics, allowsMarketing } = useConsent();
 
-    // Pixels Config
     const pixels = config?.pixels;
-    const isActive = pixels?.active;
+    const canLoadAnalytics = Boolean(
+        pixels?.active
+        && allowsAnalytics
+        && pixels?.google_analytics_id,
+    );
+    const canLoadMarketing = Boolean(
+        pixels?.active
+        && allowsMarketing
+        && (pixels?.facebook_pixel_id || pixels?.tiktok_pixel_id || pixels?.google_ads_id || pixels?.gtm_id),
+    );
+    const isActive = canLoadAnalytics || canLoadMarketing;
 
-    // Helper: Safe access to globals
     const getWindow = () => window as any;
 
     useEffect(() => {
         if (!isActive || initializedRef.current) return;
 
-        // GTM Priority Logic
-        if (pixels?.gtm_id) {
-            console.log('🏁 [Tracking] Initializing GTM:', pixels.gtm_id);
+        // GTM is treated as marketing because it can fan out to multiple optional tags.
+        if (canLoadMarketing && pixels?.gtm_id) {
+            console.log('[Tracking] Initializing GTM:', pixels.gtm_id);
             injectGTM(pixels.gtm_id);
         } else {
-            // Direct Pixel Injection
-            if (pixels?.facebook_pixel_id) {
-                console.log('🏁 [Tracking] Initializing Facebook Pixel:', pixels.facebook_pixel_id);
+            if (canLoadMarketing && pixels?.facebook_pixel_id) {
+                console.log('[Tracking] Initializing Facebook Pixel:', pixels.facebook_pixel_id);
                 injectFacebook(pixels.facebook_pixel_id);
             }
-            if (pixels?.tiktok_pixel_id) {
-                console.log('🏁 [Tracking] Initializing TikTok Pixel:', pixels.tiktok_pixel_id);
+            if (canLoadMarketing && pixels?.tiktok_pixel_id) {
+                console.log('[Tracking] Initializing TikTok Pixel:', pixels.tiktok_pixel_id);
                 injectTikTok(pixels.tiktok_pixel_id);
             }
-            if (pixels?.google_analytics_id) {
-                console.log('🏁 [Tracking] Initializing GA4:', pixels.google_analytics_id);
+            if (canLoadAnalytics && pixels?.google_analytics_id) {
+                console.log('[Tracking] Initializing GA4:', pixels.google_analytics_id);
                 injectGA4(pixels.google_analytics_id);
             }
-            if (pixels?.google_ads_id) {
-                console.log('🏁 [Tracking] Initializing Google Ads:', pixels.google_ads_id);
+            if (canLoadMarketing && pixels?.google_ads_id) {
+                console.log('[Tracking] Initializing Google Ads:', pixels.google_ads_id);
                 injectGoogleAds(pixels.google_ads_id);
             }
         }
 
         initializedRef.current = true;
         setScriptsLoaded(true);
-
-        // Note: We DO NOT cleanup scripts on unmount to avoid breaking global state
-        // during navigation (SPA behavior).
-    }, [config]);
-
-    // --- Events ---
+    }, [canLoadAnalytics, canLoadMarketing, isActive, pixels]);
 
     const trackPageView = () => {
         if (!isActive) return;
-        console.log('📊 [Tracking] PageView');
+        console.log('[Tracking] PageView');
 
-        // GTM
-        if (pixels?.gtm_id) {
+        if (canLoadMarketing && pixels?.gtm_id) {
             getWindow().dataLayer?.push({ event: 'page_view' });
             return;
         }
 
-        // Direct
-        if (pixels?.facebook_pixel_id) getWindow().fbq?.('track', 'PageView');
-        if (pixels?.tiktok_pixel_id) getWindow().ttq?.page();
-        if (pixels?.google_analytics_id) getWindow().gtag?.('event', 'page_view');
+        if (canLoadMarketing && pixels?.facebook_pixel_id) getWindow().fbq?.('track', 'PageView');
+        if (canLoadMarketing && pixels?.tiktok_pixel_id) getWindow().ttq?.page();
+        if (canLoadAnalytics && pixels?.google_analytics_id) getWindow().gtag?.('event', 'page_view');
     };
 
     const trackInitiateCheckout = () => {
         if (!isActive) return;
-        console.log('🛒 [Tracking] InitiateCheckout');
+        console.log('[Tracking] InitiateCheckout');
 
-        // GTM
-        if (pixels?.gtm_id) {
+        if (canLoadMarketing && pixels?.gtm_id) {
             getWindow().dataLayer?.push({ event: 'begin_checkout' });
             return;
         }
 
-        // Direct
-        if (pixels?.facebook_pixel_id) getWindow().fbq?.('track', 'InitiateCheckout');
-        if (pixels?.tiktok_pixel_id) getWindow().ttq?.track('InitiateCheckout');
-        if (pixels?.google_analytics_id) getWindow().gtag?.('event', 'begin_checkout');
+        if (canLoadMarketing && pixels?.facebook_pixel_id) getWindow().fbq?.('track', 'InitiateCheckout');
+        if (canLoadMarketing && pixels?.tiktok_pixel_id) getWindow().ttq?.track('InitiateCheckout');
+        if (canLoadAnalytics && pixels?.google_analytics_id) getWindow().gtag?.('event', 'begin_checkout');
     };
 
     const trackPurchase = (order: { id: string; amount: number; currency?: string; coupon?: string }) => {
         if (!isActive) return;
 
         const currency = order.currency || 'BRL';
-
-        // 🛡️ Deduplication Check
         const storageKey = `tracked_order_${order.id}`;
+
         if (localStorage.getItem(storageKey)) {
-            console.warn('⚠️ [Tracking] Purchase event blocked (Duplicate):', order.id);
+            console.warn('[Tracking] Purchase event blocked (Duplicate):', order.id);
             return;
         }
 
-        console.log('💰 [Tracking] Purchase:', order);
-
-        // Mark as tracked IMMEDIATELY
+        console.log('[Tracking] Purchase:', order);
         localStorage.setItem(storageKey, 'true');
 
-        // GTM
-        if (pixels?.gtm_id) {
+        if (canLoadMarketing && pixels?.gtm_id) {
             getWindow().dataLayer?.push({
                 event: 'purchase',
                 ecommerce: {
                     transaction_id: order.id,
                     value: order.amount,
-                    currency: currency,
-                    coupon: order.coupon
-                }
+                    currency,
+                    coupon: order.coupon,
+                },
             });
             return;
         }
 
-        // Direct
-        if (pixels?.facebook_pixel_id) {
+        if (canLoadMarketing && pixels?.facebook_pixel_id) {
             getWindow().fbq?.('track', 'Purchase', {
                 value: order.amount,
-                currency: currency,
-                order_id: order.id // Advanced matching
+                currency,
+                order_id: order.id,
             });
         }
 
-        if (pixels?.tiktok_pixel_id) {
+        if (canLoadMarketing && pixels?.tiktok_pixel_id) {
             getWindow().ttq?.track('CompletePayment', {
                 content_type: 'product',
                 quantity: 1,
                 price: order.amount,
                 value: order.amount,
-                currency: currency
+                currency,
             });
         }
 
-        if (pixels?.google_analytics_id) {
+        if (canLoadAnalytics && pixels?.google_analytics_id) {
             getWindow().gtag?.('event', 'purchase', {
                 transaction_id: order.id,
                 value: order.amount,
-                currency: currency
+                currency,
             });
         }
 
-        if (pixels?.google_ads_id) {
-            // Google Ads Conversion usually requires a specific label + ID
-            // Standard generic event:
+        if (canLoadMarketing && pixels?.google_ads_id) {
             getWindow().gtag?.('event', 'conversion', {
                 send_to: pixels.google_ads_id,
                 value: order.amount,
-                currency: currency,
-                transaction_id: order.id
+                currency,
+                transaction_id: order.id,
             });
         }
     };
 
     return (
-        <TrackingContext.Provider value={{
-            trackPageView,
-            trackInitiateCheckout,
-            trackPurchase,
-            isInitialized: scriptsLoaded
-        }}>
+        <TrackingContext.Provider
+            value={{
+                trackPageView,
+                trackInitiateCheckout,
+                trackPurchase,
+                isInitialized: scriptsLoaded && isActive,
+            }}
+        >
             {children}
         </TrackingContext.Provider>
     );
@@ -177,30 +179,21 @@ export const TrackingProvider: React.FC<{
 export const useTracking = () => {
     const context = useContext(TrackingContext);
     if (!context) {
-        // Return dummy functions if used outside provider to prevent crashes
         return {
-            trackPageView: () => { },
-            trackInitiateCheckout: () => { },
-            trackPurchase: () => { }
+            trackPageView: () => {},
+            trackInitiateCheckout: () => {},
+            trackPurchase: () => {},
+            isInitialized: false,
         };
     }
+
     return context;
 };
-
-// --- Injection Helpers ---
-
-import { 
-    sanitizeGtmId, 
-    sanitizeFacebookId, 
-    sanitizeTiktokId, 
-    sanitizeGoogleAnalyticsId, 
-    sanitizeGoogleAdsId 
-} from '../utils/trackingSanitizer';
 
 function injectGTM(rawId: string) {
     const id = sanitizeGtmId(rawId);
     if (!id) return;
-    // Head
+
     const script = document.createElement('script');
     script.innerHTML = `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
     new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
@@ -209,7 +202,6 @@ function injectGTM(rawId: string) {
     })(window,document,'script','dataLayer',${JSON.stringify(id)});`;
     document.head.appendChild(script);
 
-    // Body (NoScript)
     const noscript = document.createElement('noscript');
     noscript.innerHTML = `<iframe src="https://www.googletagmanager.com/ns.html?id=${encodeURIComponent(id)}"
     height="0" width="0" style="display:none;visibility:hidden"></iframe>`;
@@ -219,6 +211,7 @@ function injectGTM(rawId: string) {
 function injectFacebook(rawId: string) {
     const id = sanitizeFacebookId(rawId);
     if (!id) return;
+
     const script = document.createElement('script');
     script.innerHTML = `!function(f,b,e,v,n,t,s)
     {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
@@ -235,6 +228,7 @@ function injectFacebook(rawId: string) {
 function injectTikTok(rawId: string) {
     const id = sanitizeTiktokId(rawId);
     if (!id) return;
+
     const script = document.createElement('script');
     script.innerHTML = `!function (w, d, t) {
       w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];
@@ -254,13 +248,12 @@ function injectTikTok(rawId: string) {
 function injectGA4(rawId: string) {
     const id = sanitizeGoogleAnalyticsId(rawId);
     if (!id) return;
-    // 1. Script Tag
+
     const script = document.createElement('script');
     script.async = true;
     script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(id)}`;
     document.head.appendChild(script);
 
-    // 2. Init
     const initScript = document.createElement('script');
     initScript.innerHTML = `
       window.dataLayer = window.dataLayer || [];
@@ -274,9 +267,7 @@ function injectGA4(rawId: string) {
 function injectGoogleAds(rawId: string) {
     const id = sanitizeGoogleAdsId(rawId);
     if (!id) return;
-    // Usually shares gtag logic with GA4, but needs config.
-    // We assume GA4 might OR might not be present.
-    // If GA4 is NOT present, we need to load the gtag lib.
+
     if (!document.querySelector('script[src*="googletagmanager.com/gtag/js"]')) {
         const script = document.createElement('script');
         script.async = true;
@@ -291,11 +282,10 @@ function injectGoogleAds(rawId: string) {
           gtag('config', ${JSON.stringify(id)});
         `;
         document.head.appendChild(initScript);
-    } else {
-        // Just config if lib exists
-        const configScript = document.createElement('script');
-        configScript.innerHTML = `gtag('config', ${JSON.stringify(id)});`;
-        document.head.appendChild(configScript);
+        return;
     }
-}
 
+    const configScript = document.createElement('script');
+    configScript.innerHTML = `gtag('config', ${JSON.stringify(id)});`;
+    document.head.appendChild(configScript);
+}

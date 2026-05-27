@@ -145,7 +145,11 @@ CREATE TABLE IF NOT EXISTS public.business_settings(
     logo_url TEXT,
     primary_color TEXT DEFAULT '#007bff',
     privacy_policy TEXT,
+    privacy_policy_version TEXT,
+    privacy_policy_published_at TIMESTAMP WITH TIME ZONE,
     terms_of_purchase TEXT,
+    terms_of_purchase_version TEXT,
+    terms_of_purchase_published_at TIMESTAMP WITH TIME ZONE,
     show_legal_footer BOOLEAN DEFAULT true,
     compliance_status TEXT NOT NULL DEFAULT 'pending',
     is_ready_to_sell BOOLEAN NOT NULL DEFAULT false,
@@ -164,7 +168,11 @@ BEGIN
     ALTER TABLE public.business_settings ADD COLUMN IF NOT EXISTS logo_url TEXT;
     ALTER TABLE public.business_settings ADD COLUMN IF NOT EXISTS primary_color TEXT DEFAULT '#007bff';
     ALTER TABLE public.business_settings ADD COLUMN IF NOT EXISTS privacy_policy TEXT;
+    ALTER TABLE public.business_settings ADD COLUMN IF NOT EXISTS privacy_policy_version TEXT;
+    ALTER TABLE public.business_settings ADD COLUMN IF NOT EXISTS privacy_policy_published_at TIMESTAMP WITH TIME ZONE;
     ALTER TABLE public.business_settings ADD COLUMN IF NOT EXISTS terms_of_purchase TEXT;
+    ALTER TABLE public.business_settings ADD COLUMN IF NOT EXISTS terms_of_purchase_version TEXT;
+    ALTER TABLE public.business_settings ADD COLUMN IF NOT EXISTS terms_of_purchase_published_at TIMESTAMP WITH TIME ZONE;
     ALTER TABLE public.business_settings ADD COLUMN IF NOT EXISTS show_legal_footer BOOLEAN DEFAULT true;
     ALTER TABLE public.business_settings ADD COLUMN IF NOT EXISTS compliance_status TEXT DEFAULT 'pending';
     ALTER TABLE public.business_settings ADD COLUMN IF NOT EXISTS is_ready_to_sell BOOLEAN DEFAULT false;
@@ -172,6 +180,37 @@ END $$;
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_business_settings_account_id
 ON public.business_settings(account_id);
+
+CREATE TABLE IF NOT EXISTS public.consent_preferences(
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    checkout_id UUID NOT NULL,
+    visitor_key TEXT NOT NULL,
+    source_surface TEXT NOT NULL CHECK (source_surface IN ('public_checkout', 'thank_you')),
+    consent_version TEXT NOT NULL,
+    necessary BOOLEAN NOT NULL DEFAULT true,
+    analytics BOOLEAN NOT NULL DEFAULT false,
+    marketing BOOLEAN NOT NULL DEFAULT false,
+    revoked_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+DO $$
+BEGIN
+    ALTER TABLE public.consent_preferences ADD COLUMN IF NOT EXISTS checkout_id UUID;
+    ALTER TABLE public.consent_preferences ADD COLUMN IF NOT EXISTS visitor_key TEXT;
+    ALTER TABLE public.consent_preferences ADD COLUMN IF NOT EXISTS source_surface TEXT;
+    ALTER TABLE public.consent_preferences ADD COLUMN IF NOT EXISTS consent_version TEXT;
+    ALTER TABLE public.consent_preferences ADD COLUMN IF NOT EXISTS necessary BOOLEAN DEFAULT true;
+    ALTER TABLE public.consent_preferences ADD COLUMN IF NOT EXISTS analytics BOOLEAN DEFAULT false;
+    ALTER TABLE public.consent_preferences ADD COLUMN IF NOT EXISTS marketing BOOLEAN DEFAULT false;
+    ALTER TABLE public.consent_preferences ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMP WITH TIME ZONE;
+    ALTER TABLE public.consent_preferences ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
+    ALTER TABLE public.consent_preferences ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
+END $$;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_consent_preferences_checkout_visitor
+ON public.consent_preferences(checkout_id, visitor_key);
 
 -- 2.2 Member Areas
 CREATE TABLE IF NOT EXISTS member_areas(
@@ -358,6 +397,17 @@ BEGIN
     ALTER TABLE checkouts ADD COLUMN IF NOT EXISTS upsell_product_id UUID;
     ALTER TABLE checkouts ADD COLUMN IF NOT EXISTS custom_url_slug TEXT;
     ALTER TABLE checkouts ADD COLUMN IF NOT EXISTS config JSONB;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM pg_constraint WHERE conname = 'consent_preferences_checkout_id_fk') THEN
+        ALTER TABLE public.consent_preferences
+        ADD CONSTRAINT consent_preferences_checkout_id_fk
+        FOREIGN KEY(checkout_id)
+        REFERENCES public.checkouts(id)
+        ON DELETE CASCADE;
+    END IF;
 END $$;
 
 -- 2.5.1 Funnels
@@ -673,6 +723,22 @@ ON public.customer_payment_profiles(user_id, gateway_id, customer_email, gateway
 DROP TRIGGER IF EXISTS update_customer_payment_profiles_updated_at ON public.customer_payment_profiles;
 CREATE TRIGGER update_customer_payment_profiles_updated_at
     BEFORE UPDATE ON public.customer_payment_profiles
+    FOR EACH ROW
+    EXECUTE FUNCTION public.handle_updated_at();
+
+ALTER TABLE public.consent_preferences ALTER COLUMN checkout_id SET NOT NULL;
+ALTER TABLE public.consent_preferences ALTER COLUMN visitor_key SET NOT NULL;
+ALTER TABLE public.consent_preferences ALTER COLUMN source_surface SET NOT NULL;
+ALTER TABLE public.consent_preferences ALTER COLUMN consent_version SET NOT NULL;
+ALTER TABLE public.consent_preferences ALTER COLUMN necessary SET NOT NULL;
+ALTER TABLE public.consent_preferences ALTER COLUMN analytics SET NOT NULL;
+ALTER TABLE public.consent_preferences ALTER COLUMN marketing SET NOT NULL;
+ALTER TABLE public.consent_preferences ALTER COLUMN created_at SET NOT NULL;
+ALTER TABLE public.consent_preferences ALTER COLUMN updated_at SET NOT NULL;
+
+DROP TRIGGER IF EXISTS update_consent_preferences_updated_at ON public.consent_preferences;
+CREATE TRIGGER update_consent_preferences_updated_at
+    BEFORE UPDATE ON public.consent_preferences
     FOR EACH ROW
     EXECUTE FUNCTION public.handle_updated_at();
 
@@ -1267,6 +1333,7 @@ ALTER TABLE licenses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE validation_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.accounts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.business_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.consent_preferences ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.two_factor_challenges ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.member_notes ENABLE ROW LEVEL SECURITY;
@@ -1439,6 +1506,20 @@ WITH CHECK(account_id IN (SELECT id FROM public.accounts WHERE owner_user_id = a
 
 CREATE POLICY "Public can read business settings" ON public.business_settings
 FOR SELECT USING(true);
+
+CREATE POLICY "Users can view consent preferences for owned checkouts" ON public.consent_preferences
+FOR SELECT TO authenticated
+USING (
+    EXISTS (
+        SELECT 1 FROM public.checkouts c
+        WHERE c.id = consent_preferences.checkout_id
+          AND c.user_id = auth.uid()
+    )
+);
+
+CREATE POLICY "Admins can view all consent preferences" ON public.consent_preferences
+FOR SELECT TO authenticated
+USING (public.is_admin());
 
 -- Config Tables
 CREATE POLICY "Admins can read system info" ON public.system_info

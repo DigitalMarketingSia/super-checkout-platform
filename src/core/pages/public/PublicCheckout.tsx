@@ -16,10 +16,21 @@ import { Loading } from '../../components/ui/Loading';
 import './PublicCheckout.css';
 
 import { TrackingProvider, useTracking } from '../../context/TrackingContext';
+import { ConsentProvider } from '../../context/ConsentContext';
+import { ConsentBanner } from '../../components/public/ConsentBanner';
+import { ConsentPreferencesModal } from '../../components/public/ConsentPreferencesModal';
+import { ConsentPreferencesButton } from '../../components/public/ConsentPreferencesButton';
 import { translatePaymentError } from '../../utils/errorTranslator';
 import { useTranslation } from 'react-i18next';
 import type { UpsellGatewayCapability } from '../../config/upsellCapabilities';
 import { getApiUrl } from '../../utils/apiUtils';
+import type { ProcessPaymentRequest } from '../../services/paymentService';
+import {
+   buildDefaultPrivacyPolicy,
+   buildDefaultTermsOfPurchase,
+   getEffectiveLegalDocumentInfo,
+   type BusinessLegalSettingsLike,
+} from '../../utils/legalDocuments';
 
 // --- PREMIUM PAYMENT ICONS (INLINE SVG - EXTRAÍDOS DA TICTO) ---
 const PixIcon = ({ className }: { className?: string }) => (
@@ -536,6 +547,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
    const [businessName, setBusinessName] = useState<string>("Super Checkout");
    const [supportEmail, setSupportEmail] = useState<string>("");
    const [showLegalFooter, setShowLegalFooter] = useState<boolean>(true);
+   const [businessLegalSettings, setBusinessLegalSettings] = useState<BusinessLegalSettingsLike | null>(null);
    const [upgradeIntentToken, setUpgradeIntentToken] = useState<string>('');
    const [upgradeIntentContext, setUpgradeIntentContext] = useState<UpgradeIntentContext | null>(null);
    const [upgradeIntentLoading, setUpgradeIntentLoading] = useState(false);
@@ -567,6 +579,54 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
          default: return 'R$';
       }
    };
+
+   const applyBusinessSettings = (settings?: {
+      business_name?: string | null;
+      legal_name?: string | null;
+      legal_responsible_email?: string | null;
+      support_email?: string | null;
+      support_whatsapp?: string | null;
+      privacy_policy?: string | null;
+      privacy_policy_version?: string | null;
+      privacy_policy_published_at?: string | null;
+      terms_of_purchase?: string | null;
+      terms_of_purchase_version?: string | null;
+      terms_of_purchase_published_at?: string | null;
+      show_legal_footer?: boolean | null;
+      updated_at?: string | null;
+   } | null) => {
+      if (!settings) return;
+
+      if (settings.business_name) setBusinessName(settings.business_name);
+      if (settings.support_email) setSupportEmail(settings.support_email);
+      setShowLegalFooter(true);
+      setBusinessLegalSettings(prev => ({
+         ...(prev || {}),
+         ...settings,
+      }));
+   };
+
+   const effectiveBusinessLegalSettings: BusinessLegalSettingsLike = {
+      ...(businessLegalSettings || {}),
+      business_name: businessLegalSettings?.business_name || businessName,
+      support_email: businessLegalSettings?.support_email || supportEmail,
+   };
+   const privacyDocumentInfo = getEffectiveLegalDocumentInfo('privacy_policy', effectiveBusinessLegalSettings, buildDefaultPrivacyPolicy);
+   const termsDocumentInfo = getEffectiveLegalDocumentInfo('terms_of_purchase', effectiveBusinessLegalSettings, buildDefaultTermsOfPurchase);
+   const effectiveShowLegalFooter = showLegalFooter;
+
+   const buildLegalAcceptanceSnapshot = (): NonNullable<ProcessPaymentRequest['legalAcceptance']> => ({
+      accepted_at: new Date().toISOString(),
+      source_surface: 'public_checkout',
+      checkout_id: data?.checkout?.id || id || '',
+      business_name: businessName,
+      privacy_policy_version: privacyDocumentInfo.version,
+      privacy_policy_published_at: privacyDocumentInfo.publishedAt,
+      privacy_policy_source: privacyDocumentInfo.source,
+      terms_of_purchase_version: termsDocumentInfo.version,
+      terms_of_purchase_published_at: termsDocumentInfo.publishedAt,
+      terms_of_purchase_source: termsDocumentInfo.source,
+   });
 
    // Load Data
    useEffect(() => {
@@ -629,15 +689,11 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                    if (account?.id) {                       // Fetch Settings
                        const { data: settings } = await supabase
                           .from('business_settings')
-                          .select('business_name, support_email, show_legal_footer')
+                          .select('business_name, legal_name, legal_responsible_email, support_email, support_whatsapp, privacy_policy, privacy_policy_version, privacy_policy_published_at, terms_of_purchase, terms_of_purchase_version, terms_of_purchase_published_at, show_legal_footer, updated_at')
                           .eq('account_id', account.id)
                           .maybeSingle();
 
-                       if (settings) {
-                         if (settings.business_name) setBusinessName(settings.business_name);
-                         if (settings.support_email) setSupportEmail(settings.support_email);
-                         setShowLegalFooter(settings.show_legal_footer ?? true);
-                       }
+                       applyBusinessSettings(settings);
                    }
                 }
              } catch (bsErr) {
@@ -667,15 +723,11 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                      if (account?.id) {
                         const { data: settings } = await supabase
                            .from('business_settings')
-                           .select('business_name, support_email, show_legal_footer')
+                           .select('business_name, legal_name, legal_responsible_email, support_email, support_whatsapp, privacy_policy, privacy_policy_version, privacy_policy_published_at, terms_of_purchase, terms_of_purchase_version, terms_of_purchase_published_at, show_legal_footer, updated_at')
                            .eq('account_id', account.id)
                            .maybeSingle();
 
-                        if (settings) {
-                           if (settings.business_name) setBusinessName(settings.business_name);
-                           if (settings.support_email) setSupportEmail(settings.support_email);
-                           setShowLegalFooter(settings.show_legal_footer ?? true);
-                        }
+                        applyBusinessSettings(settings);
                      }
                   }
                } catch (bsFallbackErr) {
@@ -687,11 +739,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
             // URL may not map to a custom domain, so use the installation business settings.
             try {
                const hostnameSettings = await storage.getBusinessSettingsByHostname(window.location.hostname);
-               if (hostnameSettings) {
-                  if (hostnameSettings.business_name) setBusinessName(hostnameSettings.business_name);
-                  if (hostnameSettings.support_email) setSupportEmail(hostnameSettings.support_email);
-                  setShowLegalFooter(hostnameSettings.show_legal_footer ?? true);
-               }
+               applyBusinessSettings(hostnameSettings);
             } catch (hostnameSettingsErr) {
                console.warn("Could not load hostname business settings", hostnameSettingsErr);
             }
@@ -1072,6 +1120,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                && data.gateway?.name === GatewayProvider.MERCADO_PAGO
                && data.checkout.config?.upsell?.active
             ),
+            legalAcceptance: buildLegalAcceptanceSnapshot(),
             // Pass Card Data only if it's NOT a Stripe payment
             cardData: (paymentMethod === 'credit_card' && !stripePaymentMethodId) ? {
                number: customer.cardNumber,
@@ -1848,6 +1897,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                            userId={userId}
                            upgradeIntentToken={upgradeIntentToken || undefined}
                            upgradeIntentContext={upgradeIntentContext || undefined}
+                           legalAcceptance={buildLegalAcceptanceSnapshot()}
                            showAlert={showAlert}
                            stripe={stripe}
                            simulated={!!walletAvailability?.simulated}
@@ -1877,19 +1927,25 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                           {t('checkout.encryption_notice', 'Criptografia 2048 bits com certificação')} <span className="font-bold text-gray-500 uppercase tracking-tighter">PCI-DSS {t('checkout.pci_level', 'Nível 1')}</span>
                        </p>
 
-                      {showLegalFooter && (
+                       {effectiveShowLegalFooter && (
                         <>
                           {supportEmail && (
                             <p className="text-[11px] text-gray-500">
                               {t('checkout.need_help', 'Precisa de ajuda?')} <span className="text-gray-400">{t('checkout.contact_seller_by_email', 'Fale com o vendedor pelo e-mail')}</span> <a href={`mailto:${supportEmail}`} className="text-gray-500 hover:text-gray-700 hover:underline transition-colors font-medium">{supportEmail}</a>
                             </p>
                           )}
-
                           <p className="text-[10px] text-gray-400 leading-relaxed max-w-sm mx-auto">
                             {t('checkout.legal_prefix', 'Estou ciente de que o pagamento será processado em nome do vendedor')} <span className="font-bold text-gray-500">{businessName}</span>,
                             {t('checkout.legal_terms_prefix', 'concordo com os')} <a href={`/terms-of-purchase?c=${id}`} target="_blank" className="text-gray-500 hover:text-gray-700 hover:underline transition-colors">{t('checkout.terms', 'Termos de Compra')}</a> {t('checkout.legal_and', 'e')}
                             {t('checkout.legal_privacy_prefix', 'confirmo que li e entendi a')} <a href={`/privacy-policy?c=${id}`} target="_blank" className="text-gray-500 hover:text-gray-700 hover:underline transition-colors">{t('checkout.privacy_policy', 'Política de Privacidade')}</a>.
                           </p>
+
+                          <p className="text-[10px] text-gray-400 leading-relaxed max-w-md mx-auto">
+                            Versoes vigentes: Termos {termsDocumentInfo.version} e Privacidade {privacyDocumentInfo.version}.
+                          </p>
+                          <ConsentPreferencesButton className="mx-auto inline-flex text-[10px] font-semibold text-gray-500 hover:text-gray-700 hover:underline transition-colors">
+                            Gerenciar preferencias de privacidade
+                          </ConsentPreferencesButton>
 
                           <div className="pt-4">
                             <p className="text-[10px] text-gray-400 font-medium">
@@ -1918,6 +1974,8 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                message={alertState.message}
                variant={alertState.variant}
             />
+            <ConsentPreferencesModal />
+            <ConsentBanner />
          </div>
       </TrackingProvider>
    );
@@ -1987,6 +2045,7 @@ const WalletExpressButton = ({
    userId,
    upgradeIntentToken,
    upgradeIntentContext,
+   legalAcceptance,
    showAlert,
    stripe,
    simulated
@@ -1998,6 +2057,7 @@ const WalletExpressButton = ({
    userId: string | undefined;
    upgradeIntentToken?: string;
    upgradeIntentContext?: UpgradeIntentContext;
+   legalAcceptance?: ProcessPaymentRequest['legalAcceptance'];
    showAlert: (t: string, m: string, v?: any) => void;
    stripe: any;
    simulated?: boolean;
@@ -2078,11 +2138,12 @@ const WalletExpressButton = ({
                paymentMethod: 'credit_card',
                items: items,
                currency: data.product.currency || 'BRL',
-               customerUserId: userId,
-               upgradeIntentToken,
-               upgradeIntentContext,
-               stripePaymentMethodId: ev.paymentMethod.id
-            });
+                customerUserId: userId,
+                upgradeIntentToken,
+                upgradeIntentContext,
+                stripePaymentMethodId: ev.paymentMethod.id,
+                legalAcceptance,
+             });
 
             if (result.success) {
                if (result.requiresAction) {
@@ -2203,11 +2264,13 @@ const PublicCheckoutContent = ({ checkoutId }: { checkoutId?: string }) => {
    if (loading) return <Loading label={t('checkout.loading', 'Carregando checkout')} />;
 
    return (
-      <StripeHooksBridge gatewayName={gatewayName}>
-         {(stripe, elements) => (
-            <PublicCheckoutUI checkoutId={checkoutId} stripe={stripe} elements={elements} />
-         )}
-      </StripeHooksBridge>
+      <ConsentProvider checkoutId={id || checkoutId || 'public-checkout'} sourceSurface="public_checkout">
+         <StripeHooksBridge gatewayName={gatewayName}>
+            {(stripe, elements) => (
+               <PublicCheckoutUI checkoutId={checkoutId} stripe={stripe} elements={elements} />
+            )}
+         </StripeHooksBridge>
+      </ConsentProvider>
    );
 };
 

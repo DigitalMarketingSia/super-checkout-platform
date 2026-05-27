@@ -8,6 +8,7 @@ import { decrypt, verifySignature } from '../src/core/utils/cryptoUtils.js';
 import { enforceApiRateLimit } from '../src/core/api/_rate-limit.js';
 import { fulfillOrder } from '../src/core/services/fulfillment.js';
 import { sendOrderAccessEmail } from '../src/core/services/orderEmail.js';
+import { mergeOrderMetadata, normalizeOrderMetadata } from '../src/core/services/orderMetadata.js';
 
 const DEFAULT_ALLOWED_ORIGIN = 'https://app.supercheckout.app';
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -525,19 +526,13 @@ async function orderDeliverablesHandler(req: VercelRequest, res: VercelResponse)
       includeAccessTokens: true,
     });
 
-    const metadata = order.metadata && typeof order.metadata === 'object' ? order.metadata : {};
+    const metadata = normalizeOrderMetadata(order.metadata);
     if (!metadata.order_deliverables_generated_at) {
-      await supabaseAdmin
-        .from('orders')
-        .update({
-          metadata: {
-            ...metadata,
-            order_deliverables: deliverables.map(stripSensitiveDeliverableFields),
-            order_deliverables_generated_at: new Date().toISOString(),
-            order_deliverables_source: 'thank_you_endpoint',
-          },
-        })
-        .eq('id', orderId);
+      await mergeOrderMetadata(supabaseAdmin, orderId, {
+        order_deliverables: deliverables.map(stripSensitiveDeliverableFields),
+        order_deliverables_generated_at: new Date().toISOString(),
+        order_deliverables_source: 'thank_you_endpoint',
+      });
     }
 
     return res.status(200).json({
@@ -775,6 +770,112 @@ function buildPublicOrderSummary(order: any) {
     items: Array.isArray(order.items) ? order.items : [],
     metadata: buildPublicOrderMetadata(order.metadata),
   };
+}
+
+async function consentPreferencesHandler(req: VercelRequest, res: VercelResponse) {
+  const corsAllowed = applyPublicCors(req, res);
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (!corsAllowed) return res.status(403).json({ error: 'Origin not allowed' });
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  const body = await readJsonBody(req);
+  const checkoutId = String(body.checkoutId || '').trim();
+  const visitorKey = String(body.visitorKey || '').trim();
+  const sourceSurface = String(body.sourceSurface || '').trim();
+  const consentVersion = String(body.consentVersion || '').trim();
+  const categories = body.categories && typeof body.categories === 'object' ? body.categories : {};
+  const analytics = categories.analytics === true;
+  const marketing = categories.marketing === true;
+
+  const parseTimestamp = (value: unknown) => {
+    const normalized = String(value || '').trim();
+    if (!normalized) return null;
+
+    const parsed = new Date(normalized);
+    if (Number.isNaN(parsed.getTime())) return null;
+
+    return parsed.toISOString();
+  };
+
+  const now = new Date().toISOString();
+  const createdAt = parseTimestamp(body.createdAt) || now;
+  const updatedAt = parseTimestamp(body.updatedAt) || now;
+  const revokedAt = analytics || marketing
+    ? null
+    : (parseTimestamp(body.revokedAt) || updatedAt);
+
+  if (!UUID_REGEX.test(checkoutId)) {
+    return res.status(400).json({ error: 'Invalid checkoutId' });
+  }
+
+  if (!visitorKey || visitorKey.length < 8 || visitorKey.length > 200) {
+    return res.status(400).json({ error: 'Invalid visitorKey' });
+  }
+
+  if (!consentVersion || consentVersion.length > 120) {
+    return res.status(400).json({ error: 'Invalid consentVersion' });
+  }
+
+  if (sourceSurface !== 'public_checkout' && sourceSurface !== 'thank_you') {
+    return res.status(400).json({ error: 'Invalid sourceSurface' });
+  }
+
+  const rateLimit = enforceApiRateLimit(req, res, {
+    scope: 'system_consent_preferences',
+    identifiers: [checkoutId, visitorKey],
+    limit: 30,
+    windowMs: 15 * 60 * 1000,
+  });
+  if (!rateLimit.allowed) {
+    return res.status(429).json({ error: 'Too many requests' });
+  }
+
+  try {
+    const { supabase: supabaseAdmin } = await resolveLocalSupabaseServerClient();
+    if (!supabaseAdmin) {
+      return res.status(500).json({ error: getLocalSupabaseServerKeyErrorMessage() });
+    }
+
+    const { data: checkout } = await supabaseAdmin
+      .from('checkouts')
+      .select('id')
+      .eq('id', checkoutId)
+      .maybeSingle();
+
+    if (!checkout?.id) {
+      return res.status(404).json({ error: 'Checkout not found' });
+    }
+
+    const { error } = await supabaseAdmin
+      .from('consent_preferences')
+      .upsert({
+        checkout_id: checkoutId,
+        visitor_key: visitorKey,
+        source_surface: sourceSurface,
+        consent_version: consentVersion,
+        necessary: true,
+        analytics,
+        marketing,
+        created_at: createdAt,
+        updated_at: updatedAt,
+        revoked_at: revokedAt,
+      }, {
+        onConflict: 'checkout_id,visitor_key',
+      });
+
+    if (error) {
+      console.error('[System] consent-preferences failed:', error);
+      return res.status(500).json({ error: 'Failed to persist consent preference' });
+    }
+
+    return res.status(200).json({ status: 'ok' });
+  } catch (error: any) {
+    console.error('[System] consent-preferences crashed:', error?.message || error);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
 }
 
 async function finalizeStripePaymentHandler(req: VercelRequest, res: VercelResponse) {
@@ -1210,6 +1311,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return await deliverableFileHandler(req, res);
             case 'order-deliverables':
                 return await orderDeliverablesHandler(req, res);
+            case 'consent-preferences':
+                return await consentPreferencesHandler(req, res);
             case 'finalize-stripe-payment':
                 return await finalizeStripePaymentHandler(req, res);
             case 'upsell-eligibility':
