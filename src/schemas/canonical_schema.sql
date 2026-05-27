@@ -1876,7 +1876,18 @@ SELECT '1.0.15', 'Canonical schema includes customer payment profile foundation'
 WHERE NOT EXISTS (SELECT 1 FROM public.schema_migrations WHERE version = '1.0.15');
 
 UPDATE public.system_info
-SET db_version = '1.0.15',
+SET db_version = '1.0.16',
     last_update_at = timezone('utc'::text, now());
+
+UPDATE public.schema_migrations
+SET success = true,
+    description = 'Canonical schema includes LGPD consent preferences and legal version metadata',
+    error_log = NULL,
+    executed_at = timezone('utc'::text, now())
+WHERE version = '1.0.16';
+
+INSERT INTO public.schema_migrations(version, description, success, execution_time_ms)
+SELECT '1.0.16', 'Canonical schema includes LGPD consent preferences and legal version metadata', true, 0
+WHERE NOT EXISTS (SELECT 1 FROM public.schema_migrations WHERE version = '1.0.16');
 
 NOTIFY pgrst, 'reload schema';

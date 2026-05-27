@@ -64,7 +64,7 @@ export const APPROVED_MIGRATION_ALLOWLIST: Record<string, { file: string; sha256
   },
   '1.0.16': {
     file: 'v1.0.16.sql',
-    sha256: 'df80de9f5683b70d18830aafc28c7099f738ee6b82981dfb371fd6f3e20d0b75'
+    sha256: '3e3e7e050e97dd51ffa8b52cba94ae30425fca8baf515c6af85c300aefebde3b'
   }
 };
 
