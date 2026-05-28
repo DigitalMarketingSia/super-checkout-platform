@@ -137,6 +137,57 @@ async function buildDashboard(supabase: any, accountIds: string[]) {
   };
 }
 
+async function canSelectColumn(supabase: any, table: string, column: string) {
+  const { error } = await supabase.from(table).select(column).limit(1);
+  if (!error) return true;
+
+  const code = String(error.code || '').trim();
+  const message = String(error.message || '').toLowerCase();
+  if (
+    code === '42703'
+    || code === 'PGRST204'
+    || message.includes('schema cache')
+    || message.includes('does not exist')
+    || message.includes(`'${column.toLowerCase()}' column`)
+  ) {
+    return false;
+  }
+
+  throw error;
+}
+
+async function resolveOrdersSelect(supabase: any) {
+  const baseColumns = [
+    'id',
+    'checkout_id',
+    'status',
+    'customer_email',
+    'customer_name',
+    'payment_method',
+    'total',
+    'metadata',
+    'created_at',
+  ];
+  const optionalColumns = [
+    'customer_phone',
+    'customer_document',
+    'customer_cpf',
+    'utm_source',
+    'utm_medium',
+    'utm_campaign',
+    'customer_user_id',
+  ];
+
+  const resolvedOptionalColumns: string[] = [];
+  for (const column of optionalColumns) {
+    if (await canSelectColumn(supabase, 'orders', column)) {
+      resolvedOptionalColumns.push(column);
+    }
+  }
+
+  return [...baseColumns, ...resolvedOptionalColumns].join(',');
+}
+
 async function exportSubjectData(supabase: any, email: string) {
   const normalizedEmail = normalizeEmail(email);
 
@@ -150,9 +201,11 @@ async function exportSubjectData(supabase: any, email: string) {
 
   const userIds = Array.from(new Set((profiles || []).map((profile: any) => String(profile.id || '')).filter(Boolean)));
 
+  const ordersSelect = await resolveOrdersSelect(supabase);
+
   const { data: orders, error: ordersError } = await supabase
     .from('orders')
-    .select('id,checkout_id,status,customer_email,customer_name,customer_phone,customer_document,customer_cpf,payment_method,total,utm_source,utm_medium,utm_campaign,metadata,created_at,customer_user_id')
+    .select(ordersSelect)
     .ilike('customer_email', normalizedEmail)
     .order('created_at', { ascending: false })
     .limit(500);
