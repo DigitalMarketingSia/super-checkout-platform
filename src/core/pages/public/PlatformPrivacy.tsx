@@ -35,6 +35,7 @@ export const PlatformPrivacy = () => {
             title: '5. Retencao e seguranca',
             paragraphs: [
                 'Os dados sao mantidos pelo periodo necessario para operar a conta, executar pedidos, resguardar direitos, investigar abuso, cumprir obrigacoes legais e manter trilhas minimas de seguranca.',
+                'Logs tecnicos e trilhas auxiliares podem seguir janelas operacionais menores e politicas internas de exclusao periodica, especialmente quando deixarem de ser necessarios para suporte, auditoria ou seguranca.',
                 'Sao adotadas medidas tecnicas e organizacionais para restringir acessos, registrar eventos criticos e reduzir risco de fraude, abuso, exposicao indevida e uso automatizado da plataforma.',
             ],
         },
@@ -42,6 +43,7 @@ export const PlatformPrivacy = () => {
             title: '6. Direitos do titular',
             paragraphs: [
                 'O titular pode solicitar informacoes sobre os dados tratados, atualizacao, correcao, revisao de acessos e outras medidas cabiveis conforme a legislacao aplicavel e o papel exercido pelo Super Checkout em cada fluxo.',
+                'As solicitacoes de privacidade podem ser registradas, acompanhadas e respondidas por trilha interna para garantir tratamento operacional, evidencia e eventual encaminhamento ao controlador principal aplicavel.',
                 'Quando o Super Checkout estiver atuando apenas como operador de um vendedor, pedidos relacionados ao conteudo da venda, marketing ou cadastro do comprador podem depender do encaminhamento ao controlador principal da operacao.',
             ],
         },

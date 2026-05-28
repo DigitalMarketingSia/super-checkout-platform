@@ -8,6 +8,7 @@ import runMigrationHandler from '../src/core/api/admin/run-migration.js';
 import systemInfoHandler from '../src/core/api/admin/system-info.js';
 import updateLogHandler from '../src/core/api/admin/update-log.js';
 import sessionAuthzHandler from '../src/core/api/admin/session-authz.js';
+import privacyOpsHandler from '../src/core/api/admin/privacy-ops.js';
 
 const DEFAULT_ALLOWED_ORIGIN = 'https://app.supercheckout.app';
 
@@ -58,6 +59,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return await updateLogHandler(req, res);
             case 'session-authz':
                 return await sessionAuthzHandler(req, res);
+            case 'privacy-ops':
+                return await privacyOpsHandler(req, res);
             default:
                 return res.status(404).json({ error: `Action ${action} not found in Admin Controller` });
         }

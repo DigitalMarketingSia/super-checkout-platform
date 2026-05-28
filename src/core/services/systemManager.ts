@@ -448,6 +448,15 @@ export const SystemManager = {
       return templateTypes.has('ORDER_DIRECT_DELIVERY') && templateTypes.has('ORDER_MEMBER_ACCESS');
     }
 
+    if (version === '1.0.17') {
+      const [hasPrivacyRequests, hasRetentionPolicies, hasRetentionRuns] = await Promise.all([
+        hasColumn('privacy_requests', 'subject_email'),
+        hasColumn('data_retention_policies', 'retention_days'),
+        hasColumn('data_retention_runs', 'rows_affected'),
+      ]);
+      return hasPrivacyRequests && hasRetentionPolicies && hasRetentionRuns;
+    }
+
     return false;
   },
 
@@ -660,6 +669,9 @@ export const SystemManager = {
       { table: 'gateways', columns: ['provider', 'credentials', 'config', 'is_active'] },
       { table: 'public_gateways', columns: ['id', 'provider', 'public_key', 'config'] },
       { table: 'consent_preferences', columns: ['checkout_id', 'visitor_key', 'consent_version', 'analytics', 'marketing'] },
+      { table: 'privacy_requests', columns: ['account_id', 'request_type', 'status', 'subject_email'] },
+      { table: 'data_retention_policies', columns: ['table_name', 'retention_days', 'run_mode', 'active'] },
+      { table: 'data_retention_runs', columns: ['table_name', 'rows_affected', 'cutoff_at', 'created_at'] },
       { table: 'email_templates', columns: ['event_type', 'language', 'html_body'] },
       { table: 'system_email_templates', columns: ['event_type', 'language', 'html_body'] },
       { table: 'system_updates_log', columns: ['action', 'status', 'files_affected'] }

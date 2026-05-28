@@ -493,7 +493,7 @@ async function orderDeliverablesHandler(req: VercelRequest, res: VercelResponse)
 
     const { data: order, error: orderError } = await supabaseAdmin
       .from('orders')
-      .select('id, status, customer_email, customer_name, customer_phone, customer_cpf, payment_method, customer_user_id, items, metadata, checkout_id, created_at, total')
+      .select('id, status, customer_email, customer_name, payment_method, customer_user_id, items, metadata, checkout_id, created_at, total')
       .eq('id', orderId)
       .single();
 
@@ -760,8 +760,6 @@ function buildPublicOrderSummary(order: any) {
     checkout_id: String(order.checkout_id || ''),
     customer_name: String(order.customer_name || ''),
     customer_email: String(order.customer_email || ''),
-    customer_phone: String(order.customer_phone || ''),
-    customer_cpf: String(order.customer_cpf || ''),
     payment_method: String(order.payment_method || ''),
     created_at: order.created_at || null,
     customer_user_id: order.customer_user_id || null,

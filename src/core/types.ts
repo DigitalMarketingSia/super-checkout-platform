@@ -456,6 +456,70 @@ export interface ActivityLog {
   created_at: string;
 }
 
+export type PrivacyRequestType =
+  | 'access'
+  | 'correction'
+  | 'deletion'
+  | 'anonymization'
+  | 'objection'
+  | 'portability'
+  | 'revocation';
+
+export type PrivacyRequestStatus =
+  | 'open'
+  | 'in_review'
+  | 'fulfilled'
+  | 'rejected';
+
+export interface PrivacyRequest {
+  id: string;
+  account_id: string;
+  request_type: PrivacyRequestType;
+  status: PrivacyRequestStatus;
+  subject_email: string;
+  subject_name?: string | null;
+  subject_phone?: string | null;
+  subject_document?: string | null;
+  request_channel: string;
+  notes?: string | null;
+  resolution_notes?: string | null;
+  fulfilled_at?: string | null;
+  requested_by_user_id?: string | null;
+  metadata?: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DataRetentionPolicy {
+  id: string;
+  table_name: string;
+  retention_days: number;
+  run_mode: 'delete' | 'anonymize';
+  active: boolean;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DataRetentionRun {
+  id: string;
+  policy_id?: string | null;
+  table_name: string;
+  rows_affected: number;
+  cutoff_at?: string | null;
+  run_mode: 'delete' | 'anonymize';
+  triggered_by_user_id?: string | null;
+  metadata?: Record<string, any>;
+  created_at: string;
+}
+
+export interface PrivacyDashboardSnapshot {
+  scope_account_id?: string | null;
+  requests: PrivacyRequest[];
+  policies: DataRetentionPolicy[];
+  runs: DataRetentionRun[];
+}
+
 export interface SystemInfo {
   id: string;
   core_version: string | null;

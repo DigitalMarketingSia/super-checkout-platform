@@ -97,6 +97,7 @@ export const PublicPrivacy = () => {
                         <p><span className="font-semibold text-white">Publicado em:</span> {formatUpdatedAt(privacyDocument.publishedAt)}</p>
                         <p><span className="font-semibold text-white">Ultima atualizacao cadastrada:</span> {formatUpdatedAt(settings?.updated_at)}</p>
                         <p><span className="font-semibold text-white">Checkout hospedado:</span> quando o vendedor habilita mensuracao comercial, esta superficie pode registrar parametros de campanha e eventos de inicio ou conclusao da compra para analytics, atribuicao e deduplicacao.</p>
+                        <p><span className="font-semibold text-white">Minimizacao operacional:</span> telefone e documento so devem ser exigidos quando necessarios para o metodo de pagamento, antifraude, conciliacao ou suporte da compra.</p>
                     </div>
 
                     <div className="relative z-10 prose prose-invert prose-purple max-w-none">

@@ -90,8 +90,6 @@ function normalizeSignedOrder(value: any): Order | null {
     checkout_id: String(value.checkout_id || ''),
     customer_name: String(value.customer_name || ''),
     customer_email: String(value.customer_email || ''),
-    customer_phone: String(value.customer_phone || ''),
-    customer_cpf: String(value.customer_cpf || ''),
     amount: Number(value.amount ?? value.total ?? 0) || 0,
     status: String(value.status || 'pending') as Order['status'],
     payment_method: String(value.payment_method || 'credit_card') as Order['payment_method'],
@@ -195,7 +193,7 @@ export const ThankYou = () => {
     const fetchPublicOrderById = async (targetOrderId: string) => {
       const { data, error } = await supabase
         .from('orders')
-        .select('*')
+        .select('id, offer_id, checkout_id, customer_name, customer_email, status, payment_method, items, metadata, created_at, total, customer_user_id')
         .eq('id', targetOrderId)
         .maybeSingle();
 

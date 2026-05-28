@@ -118,8 +118,6 @@ class PaymentService {
     const payerSnapshot = {
       name: request.customerName || null,
       email: request.customerEmail || null,
-      phone: request.customerPhone || null,
-      cpf: request.customerCpf || null,
     };
     const trackingAttribution = request.trackingAttribution && typeof request.trackingAttribution === 'object'
       ? request.trackingAttribution

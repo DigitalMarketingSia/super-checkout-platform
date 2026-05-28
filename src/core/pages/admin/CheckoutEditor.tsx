@@ -39,7 +39,7 @@ import { BusinessSetupModal } from '../../components/admin/BusinessSetupModal';
 import { useTranslation } from 'react-i18next';
 
 const initialConfig: CheckoutConfig = {
-   fields: { name: true, email: true, phone: true, cpf: true },
+   fields: { name: true, email: true, phone: false, cpf: false },
    payment_methods: { pix: true, credit_card: true, boleto: true, apple_pay: false, google_pay: false },
    timer: { active: false, minutes: 15, bg_color: '#EF4444', text_color: '#FFFFFF' },
    header_image: '',

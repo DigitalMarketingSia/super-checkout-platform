@@ -123,7 +123,7 @@ export const Checkouts = () => {
   const [showComplianceModal, setShowComplianceModal] = useState(false);
 
   const handleActionWithCompliance = (action: () => void) => {
-    if (compliance?.status !== 'verified') {
+    if (!compliance?.is_ready) {
       setShowComplianceModal(true);
       return;
     }

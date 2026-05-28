@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../services/supabase';
 import { storage } from '../../services/storageService';
-import { Checkout, Product, Gateway, Order, OrderStatus, OrderItem, InstallmentOption, GatewayProvider } from '../../types';
+import { Checkout, CheckoutConfig, Product, Gateway, Order, OrderStatus, OrderItem, InstallmentOption, GatewayProvider } from '../../types';
 import { licenseService, UpgradeIntentContext } from '../../services/licenseService';
 import {
   Barcode, Check, Clock, ShieldCheck, Lock, AlertCircle, ShoppingBag, Smartphone, Link2
@@ -31,6 +31,38 @@ import {
    captureCheckoutTrackingAttribution,
    type CheckoutTrackingAttribution,
 } from '../../utils/trackingAttribution';
+
+const defaultPublicCheckoutConfig: CheckoutConfig = {
+   fields: { name: true, email: true, phone: false, cpf: false },
+   payment_methods: { pix: true, credit_card: true, boleto: true, apple_pay: false, google_pay: false },
+   timer: { active: false, minutes: 0, bg_color: '', text_color: '' },
+};
+
+const normalizePublicCheckoutConfig = (value?: Partial<CheckoutConfig> | null): CheckoutConfig => ({
+   fields: {
+      name: value?.fields?.name ?? defaultPublicCheckoutConfig.fields.name,
+      email: value?.fields?.email ?? defaultPublicCheckoutConfig.fields.email,
+      phone: value?.fields?.phone ?? defaultPublicCheckoutConfig.fields.phone,
+      cpf: value?.fields?.cpf ?? defaultPublicCheckoutConfig.fields.cpf,
+   },
+   payment_methods: {
+      pix: value?.payment_methods?.pix ?? defaultPublicCheckoutConfig.payment_methods.pix,
+      credit_card: value?.payment_methods?.credit_card ?? defaultPublicCheckoutConfig.payment_methods.credit_card,
+      boleto: value?.payment_methods?.boleto ?? defaultPublicCheckoutConfig.payment_methods.boleto,
+      apple_pay: value?.payment_methods?.apple_pay ?? defaultPublicCheckoutConfig.payment_methods.apple_pay,
+      google_pay: value?.payment_methods?.google_pay ?? defaultPublicCheckoutConfig.payment_methods.google_pay,
+   },
+   timer: {
+      active: value?.timer?.active ?? defaultPublicCheckoutConfig.timer.active,
+      minutes: value?.timer?.minutes ?? defaultPublicCheckoutConfig.timer.minutes,
+      bg_color: value?.timer?.bg_color ?? defaultPublicCheckoutConfig.timer.bg_color,
+      text_color: value?.timer?.text_color ?? defaultPublicCheckoutConfig.timer.text_color,
+   },
+   header_image: value?.header_image || '',
+   primary_color: value?.primary_color || '',
+   pixels: value?.pixels,
+   upsell: value?.upsell,
+});
 
 // --- PREMIUM PAYMENT ICONS (INLINE SVG - EXTRAÍDOS DA TICTO) ---
 const PixIcon = ({ className }: { className?: string }) => (
@@ -906,8 +938,8 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
       const requiredFields = [];
       if (config.fields.name) requiredFields.push('name');
       if (config.fields.email) requiredFields.push('email');
-      if (config.fields.phone) requiredFields.push('phone');
-      if (config.fields.cpf) requiredFields.push('cpf');
+      if (shouldRequirePhoneField) requiredFields.push('phone');
+      if (shouldRequireCpfField) requiredFields.push('cpf');
 
       for (const field of requiredFields) {
          // @ts-ignore
@@ -964,12 +996,12 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
          const err = validateField('email', customer.email);
          if (err) newErrors.email = err;
       }
-      if (config.fields.phone) {
+      if (shouldRequirePhoneField) {
          newTouched.phone = true;
          const err = validateField('phone', customer.phone);
          if (err) newErrors.phone = err;
       }
-      if (config.fields.cpf) {
+      if (shouldRequireCpfField) {
          newTouched.cpf = true;
          const err = validateField('cpf', customer.cpf);
          if (err) newErrors.cpf = err;
@@ -1335,7 +1367,10 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
    if (error || !data) return <div className="min-h-screen flex items-center justify-center bg-[#f9fafb] text-gray-500">{error}</div>;
 
    const totalAmount = calculateTotal();
-   const config = data.checkout.config || { fields: { name: true, email: true, phone: true, cpf: true }, payment_methods: { pix: true, credit_card: true, boleto: true }, timer: { active: false, minutes: 0, bg_color: '', text_color: '' } };
+   const config = normalizePublicCheckoutConfig(data.checkout.config);
+   const shouldRequirePhoneField = config.fields.phone;
+   const shouldRequireCpfField = config.fields.cpf || (data.gateway?.name === GatewayProvider.MERCADO_PAGO && paymentMethod === 'credit_card');
+   const shouldRenderCpfField = config.fields.cpf || shouldRequireCpfField;
 
    return (
       <TrackingProvider
@@ -1470,7 +1505,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                   {config.fields.email && renderInput('email', t('checkout.fields.best_email', 'Seu melhor e-mail'), 'email')}
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                     {config.fields.cpf && renderInput('cpf', t('checkout.fields.cpf', 'CPF/CNPJ'))}
+                     {shouldRenderCpfField && renderInput('cpf', t('checkout.fields.cpf', 'CPF/CNPJ'))}
                      {config.fields.phone && renderInput('phone', t('checkout.fields.phone', 'DDD + celular'), 'tel')}
                   </div>
                </div>

@@ -19,6 +19,7 @@ import {
   Globe,
   LogOut,
   Mail,
+  Shield,
   Plug,
   Users,
   BookOpen,
@@ -380,6 +381,23 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
                     <RefreshCw className={`w-5 h-5 flex-shrink-0 ${location.pathname === '/admin/updates' ? 'animate-spin-slow text-primary' : ''}`} />
                     <div className={`ml-3 truncate transition-all duration-300 ${(!sidebarOpen && !mobileMenuOpen) ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
                       {t('nav.updates', 'Atualizações')}
+                    </div>
+                  </Link>
+                )}
+
+                {canAccessSystemUpdates && (
+                  <Link
+                    to="/admin/privacy"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`flex items-center rounded-xl transition-all duration-300 group relative overflow-hidden ${(!sidebarOpen && !mobileMenuOpen) ? 'justify-center px-0 py-3' : 'px-3 py-2'} text-[10px] font-black uppercase tracking-[0.2em] ${location.pathname === '/admin/privacy'
+                      ? 'text-emerald-300 bg-emerald-400/10 border border-emerald-400/20'
+                      : 'text-gray-600 hover:text-emerald-300 hover:bg-white/5'
+                      }`}
+                    title="Privacidade"
+                  >
+                    <Shield className="w-5 h-5 flex-shrink-0" />
+                    <div className={`ml-3 truncate transition-all duration-300 ${(!sidebarOpen && !mobileMenuOpen) ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
+                      Privacidade
                     </div>
                   </Link>
                 )}

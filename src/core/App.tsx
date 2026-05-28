@@ -21,6 +21,7 @@ import { SystemLicenses } from './pages/admin/SystemLicenses';
 import { SecurityEvents } from './pages/admin/SecurityEvents';
 import { UpgradeIntents } from './pages/admin/UpgradeIntents';
 import { BusinessSettings } from './pages/admin/BusinessSettings';
+import { PrivacyCenter } from './pages/admin/PrivacyCenter';
 import { MyInstallations } from './pages/admin/Installations';
 import { LeadCRM } from './pages/admin/LeadCRM';
 import { FreeUserDetails } from './pages/admin/FreeUserDetails';
@@ -401,6 +402,7 @@ const DomainDispatcher = () => {
       {/* Admin Routes (Protected) */}
       <Route path="/admin" element={<AdminRoute><Dashboard /></AdminRoute>} />
       <Route path="/admin/business-settings" element={<AdminRoute><BusinessSettings /></AdminRoute>} />
+      <Route path="/admin/privacy" element={<AdminRoute><PrivacyCenter /></AdminRoute>} />
       <Route path="/admin/products" element={<AdminRoute><Products /></AdminRoute>} />
       <Route path="/admin/offers" element={<AdminRoute><Offers /></AdminRoute>} />
       <Route path="/admin/checkouts" element={<AdminRoute><Checkouts /></AdminRoute>} />

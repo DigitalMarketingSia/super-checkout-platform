@@ -100,12 +100,12 @@ const applyLegalPlaceholders = (content: string, settings?: BusinessLegalSetting
 };
 
 export const buildDefaultPrivacyPolicy = (settings?: BusinessLegalSettingsLike | null) =>
-  applyLegalPlaceholders(
+ applyLegalPlaceholders(
     `1. Quem controla os dados
 Esta politica explica como {{business_name}} trata dados pessoais em seu checkout, comunicacoes transacionais, suporte e entrega de produtos ou acessos. Para as compras realizadas nesta operacao, o vendedor identificado como {{legal_name}} atua como controlador principal dos dados do comprador. O Super Checkout e outros prestadores tecnicos podem atuar como operadores ou suboperadores para viabilizar a infraestrutura da venda.
 
 2. Quais dados podem ser tratados
-Podemos tratar dados de identificacao e contato, como nome, e-mail, telefone e documento quando solicitado; dados da compra, como produto, valor, tentativas, status, meio de pagamento e identificadores da transacao; e dados tecnicos e de seguranca, como IP, user agent, cookies tecnicos, origem de campanha, logs de acesso e eventos necessarios para proteger a operacao.
+Podemos tratar dados de identificacao e contato, como nome e e-mail, e solicitar telefone ou documento apenas quando isso for necessario para contato operacional, prevencao a fraude, conciliacao ou exigencia do metodo de pagamento escolhido; dados da compra, como produto, valor, tentativas, status, meio de pagamento e identificadores da transacao; e dados tecnicos e de seguranca, como IP, user agent, cookies tecnicos, origem de campanha, logs de acesso e eventos necessarios para proteger a operacao.
 
 3. Como os dados sao coletados
 Os dados podem ser fornecidos diretamente pelo comprador no checkout, coletados automaticamente pelo navegador ou recebidos de integracoes e processadores usados para pagamento, antifraude, atendimento, entrega e recuperacao de acesso. Quando o vendedor habilita mensuracao comercial, o checkout tambem pode registrar parametros de campanha, identificadores de clique e eventos de navegacao ou compra para atribuicao e performance.
@@ -117,15 +117,15 @@ Os dados sao utilizados para processar o pedido, confirmar o pagamento, entregar
 Os dados podem ser compartilhados, na medida do necessario, com processadores de pagamento, provedores de hospedagem, banco de dados, envio de e-mail, antifraude, analytics, publicidade e suporte tecnico vinculados a esta operacao. Dados sensiveis de pagamento, como o numero completo do cartao, nao sao armazenados por este checkout e permanecem sob tratamento direto dos processadores utilizados.
 
 6. Retencao e seguranca
-Os dados sao mantidos pelo prazo necessario para executar a venda, prestar suporte, cumprir obrigacoes fiscais, regulatorias e de seguranca, ou resguardar direitos em disputas. Medidas tecnicas e organizacionais sao adotadas para reduzir acesso indevido, abuso, fraude e exposicao nao autorizada.
+Os dados sao mantidos pelo prazo necessario para executar a venda, prestar suporte, cumprir obrigacoes fiscais, regulatorias e de seguranca, ou resguardar direitos em disputas. Logs e trilhas tecnicas sujeitos a janelas operacionais menores podem ser excluidos periodicamente conforme politica interna de retencao. Medidas tecnicas e organizacionais sao adotadas para reduzir acesso indevido, abuso, fraude e exposicao nao autorizada.
 
 7. Direitos do titular e contato
-O titular pode solicitar informacoes sobre tratamento, correcao, atualizacao, revogacao de consentimento quando aplicavel e demais direitos previstos em lei pelos canais oficiais do vendedor. Para temas de privacidade e atendimento, o contato informado para esta operacao e {{legal_contact}}.`,
+O titular pode solicitar informacoes sobre tratamento, correcao, atualizacao, revogacao de consentimento quando aplicavel e demais direitos previstos em lei pelos canais oficiais do vendedor. Para temas de privacidade e atendimento, o contato informado para esta operacao e {{legal_contact}}. As solicitacoes recebidas podem ser registradas internamente para controle, resposta e evidencia operacional.`,
     settings,
   );
 
 export const buildDefaultTermsOfPurchase = (settings?: BusinessLegalSettingsLike | null) =>
-  applyLegalPlaceholders(
+ applyLegalPlaceholders(
     `1. Identificacao da oferta
 Estes termos regulam a compra realizada com {{business_name}} por meio deste checkout. O vendedor identificado como {{legal_name}} e o responsavel comercial pela oferta, pelo conteudo vendido, pela entrega, pelo suporte e pelas informacoes publicadas na pagina de vendas.
 
@@ -145,7 +145,7 @@ O comprador e responsavel por revisar as informacoes da oferta, utilizar os cana
 Condicoes especificas de cancelamento, garantia ou reembolso devem ser apresentadas na propria oferta. Quando houver direito de arrependimento ou outra obrigacao legal aplicavel, ela sera observada nos termos da legislacao vigente e pelos canais oficiais do vendedor.
 
 7. Infraestrutura tecnica e contato
-O Super Checkout fornece a infraestrutura tecnica do checkout, mas nao substitui as obrigacoes comerciais e legais do vendedor perante o comprador. Quando houver mensuracao comercial habilitada, este checkout pode acionar tecnologias de analytics, pixel e atribuicao para registrar o inicio e a conclusao da compra. Para atendimento comercial, suporte e privacidade desta operacao, o canal informado pelo vendedor e {{support_email}}.`,
+O Super Checkout fornece a infraestrutura tecnica do checkout, mas nao substitui as obrigacoes comerciais e legais do vendedor perante o comprador. Quando houver mensuracao comercial habilitada, este checkout pode acionar tecnologias de analytics, pixel e atribuicao para registrar o inicio e a conclusao da compra. Campos como telefone ou documento podem ser exigidos apenas quando o meio de pagamento ou controles antifraude tornarem essa coleta necessaria. Para atendimento comercial, suporte e privacidade desta operacao, o canal informado pelo vendedor e {{support_email}}.`,
     settings,
   );
 

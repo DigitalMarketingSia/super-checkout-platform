@@ -97,6 +97,7 @@ export const PublicTerms = () => {
                         <p><span className="font-semibold text-white">Publicado em:</span> {formatUpdatedAt(termsDocument.publishedAt)}</p>
                         <p><span className="font-semibold text-white">Ultima atualizacao cadastrada:</span> {formatUpdatedAt(settings?.updated_at)}</p>
                         <p><span className="font-semibold text-white">Checkout hospedado:</span> quando o vendedor habilita mensuracao comercial, esta superficie pode registrar eventos de inicio e conclusao da compra para analytics, atribuicao de campanhas e deduplicacao de conversoes.</p>
+                        <p><span className="font-semibold text-white">Campos condicionais:</span> telefone e documento podem ser solicitados apenas quando o metodo de pagamento ou controles antifraude exigirem essa informacao.</p>
                     </div>
 
                     <div className="relative z-10 prose prose-invert prose-purple max-w-none">
