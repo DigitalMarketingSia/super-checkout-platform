@@ -85,10 +85,10 @@ function loadApprovedMigrationSql(version: string) {
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method !== 'POST' && req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
   const body = parseBody(req);
-  const version = String(body.version || '').trim();
+  const version = String((req.method === 'GET' ? req.query.version : body.version) || '').trim();
   const rateLimit = enforceApiRateLimit(req, res, {
     scope: 'admin_run_migration',
     identifiers: [version],
@@ -157,6 +157,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (!approvedMigration) {
     return res.status(400).json({ error: 'Migration version is not approved.' });
+  }
+
+  if (req.method === 'GET') {
+    return res.status(200).json({
+      success: true,
+      migration: {
+        version,
+        file: approvedMigration.file,
+        sha256: approvedMigration.sha256,
+        sql: approvedMigration.sql
+      }
+    });
   }
 
   let executionMode: 'approved_service' | 'legacy_service' | 'legacy_admin_session' = 'approved_service';

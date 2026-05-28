@@ -17,7 +17,8 @@ import {
   Database,
   Activity,
   Cpu,
-  Unplug
+  Unplug,
+  Copy
 } from 'lucide-react';
 import { SystemManager } from '../../services/systemManager';
 import { SystemInfo, SystemUpdateLog } from '../../types';
@@ -53,6 +54,7 @@ export const SystemUpdates = () => {
     const [applyingDatabaseUpdate, setApplyingDatabaseUpdate] = useState(false);
     const [databaseUpdateError, setDatabaseUpdateError] = useState<string | null>(null);
     const [showDatabaseConfirm, setShowDatabaseConfirm] = useState(false);
+    const [copyingMigrationSql, setCopyingMigrationSql] = useState(false);
 
     useEffect(() => {
         fetchData();
@@ -216,6 +218,26 @@ export const SystemUpdates = () => {
         } finally {
             setApplyingDatabaseUpdate(false);
             setShowDatabaseConfirm(false);
+        }
+    };
+
+    const handleCopyPendingMigrationSql = async () => {
+        const versions = SystemManager.getPendingMigrationVersions(systemInfo);
+        if (versions.length === 0) {
+            toast.info(`Banco ja esta no schema v${SCHEMA_VERSION}.`);
+            return;
+        }
+
+        setCopyingMigrationSql(true);
+        try {
+            const bundle = await SystemManager.getPendingMigrationSqlBundle(versions);
+            await navigator.clipboard.writeText(bundle.sql);
+            toast.success(`SQL oficial copiado: ${bundle.versions.map((version) => `v${version}`).join(', ')}.`);
+        } catch (error: any) {
+            const message = String(error?.message || 'Falha ao copiar SQL oficial.').trim();
+            toast.error(message);
+        } finally {
+            setCopyingMigrationSql(false);
         }
     };
 
@@ -427,14 +449,27 @@ export const SystemUpdates = () => {
                                     </div>
                                 )}
                                 {updateAvailable && (
-                                    <button 
-                                        onClick={() => setShowDatabaseConfirm(true)}
-                                        disabled={applyingDatabaseUpdate}
-                                        className="w-full px-4 py-3 bg-blue-500 hover:bg-blue-400 disabled:opacity-50 text-white rounded-xl shadow-lg shadow-blue-500/20 active:scale-95 transition-all flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest"
-                                    >
-                                        <Database className={`w-4 h-4 ${applyingDatabaseUpdate ? 'animate-pulse' : ''}`} />
-                                        {applyingDatabaseUpdate ? 'Atualizando...' : 'Atualizar Banco'}
-                                    </button>
+                                    <div className="space-y-3">
+                                        <button 
+                                            onClick={() => setShowDatabaseConfirm(true)}
+                                            disabled={applyingDatabaseUpdate}
+                                            className="w-full px-4 py-3 bg-blue-500 hover:bg-blue-400 disabled:opacity-50 text-white rounded-xl shadow-lg shadow-blue-500/20 active:scale-95 transition-all flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest"
+                                        >
+                                            <Database className={`w-4 h-4 ${applyingDatabaseUpdate ? 'animate-pulse' : ''}`} />
+                                            {applyingDatabaseUpdate ? 'Atualizando...' : 'Atualizar Banco'}
+                                        </button>
+                                        <button
+                                            onClick={handleCopyPendingMigrationSql}
+                                            disabled={copyingMigrationSql}
+                                            className="w-full px-4 py-3 bg-white/5 hover:bg-white/10 disabled:opacity-50 text-white border border-white/10 rounded-xl active:scale-95 transition-all flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest"
+                                        >
+                                            <Copy className={`w-4 h-4 ${copyingMigrationSql ? 'animate-pulse' : ''}`} />
+                                            {copyingMigrationSql ? 'Copiando SQL...' : 'Copiar SQL Manual'}
+                                        </button>
+                                        <p className="text-[10px] text-gray-500 leading-relaxed">
+                                            Se o executor automatico falhar, copie o SQL aprovado e rode manualmente no SQL Editor do Supabase.
+                                        </p>
+                                    </div>
                                 )}
                             </div>
                             {databaseUpdateError && (
