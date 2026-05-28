@@ -256,6 +256,54 @@ export const Gateways = () => {
              <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-white"><ArrowRight className="w-5 h-5" /></div>
           </div>
         </div>
+
+        {/* PayPal Card (Em Breve) */}
+        <div 
+          onClick={() => {
+            showAlert('PayPal', 'A integração com o PayPal estará disponível em breve.', 'info');
+          }}
+          className="group relative h-64 rounded-[2.5rem] border bg-black/20 border-white/5 opacity-60 hover:opacity-100 hover:border-white/10 transition-all duration-500 cursor-pointer overflow-hidden"
+        >
+          <div className="absolute top-8 left-8">
+             <div className="px-4 py-1.5 rounded-xl border text-[10px] font-black uppercase tracking-widest flex items-center gap-2 bg-white/5 text-gray-600 border-white/5">
+                <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
+                {'Em breve'}
+             </div>
+          </div>
+
+          <div className="h-full flex flex-col items-center justify-center p-12">
+             <img src="/paypal-logo.png" alt="PayPal" className="h-10 object-contain brightness-0 invert group-hover:scale-110 transition-transform duration-500" />
+             <p className="mt-6 text-[10px] font-black text-gray-700 uppercase tracking-[0.3em] group-hover:text-gray-500 transition-colors">Global Payments</p>
+          </div>
+
+          <div className="absolute bottom-6 right-8 opacity-0 group-hover:opacity-100 transition-all translate-x-4 group-hover:translate-x-0">
+             <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-white"><ArrowRight className="w-5 h-5" /></div>
+          </div>
+        </div>
+
+        {/* PagSeguro Card (Em Breve) */}
+        <div 
+          onClick={() => {
+            showAlert('PagSeguro', 'A integração com o PagSeguro estará disponível em breve.', 'info');
+          }}
+          className="group relative h-64 rounded-[2.5rem] border bg-black/20 border-white/5 opacity-60 hover:opacity-100 hover:border-white/10 transition-all duration-500 cursor-pointer overflow-hidden"
+        >
+          <div className="absolute top-8 left-8">
+             <div className="px-4 py-1.5 rounded-xl border text-[10px] font-black uppercase tracking-widest flex items-center gap-2 bg-white/5 text-gray-600 border-white/5">
+                <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></div>
+                {'Em breve'}
+             </div>
+          </div>
+
+          <div className="h-full flex flex-col items-center justify-center p-12">
+             <img src="/pag-seguro-logoo.png" alt="PagSeguro" className="h-12 object-contain brightness-0 invert group-hover:scale-110 transition-transform duration-500" />
+             <p className="mt-6 text-[10px] font-black text-gray-700 uppercase tracking-[0.3em] group-hover:text-gray-500 transition-colors">Brazilian Leader</p>
+          </div>
+
+          <div className="absolute bottom-6 right-8 opacity-0 group-hover:opacity-100 transition-all translate-x-4 group-hover:translate-x-0">
+             <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-white"><ArrowRight className="w-5 h-5" /></div>
+          </div>
+        </div>
       </div>
 
       {/* Security Banner */}
