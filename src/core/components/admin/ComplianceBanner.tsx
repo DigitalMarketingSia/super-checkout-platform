@@ -4,20 +4,14 @@ import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
 interface ComplianceBannerProps {
-    complianceStatus: string | undefined;
+    complianceStatus?: string;
+    isReady?: boolean;
 }
 
-export const ComplianceBanner: React.FC<ComplianceBannerProps> = ({ complianceStatus }) => {
+export const ComplianceBanner: React.FC<ComplianceBannerProps> = ({ complianceStatus, isReady }) => {
     const { t } = useTranslation('admin');
-    // Only show if NOT verified (meaning pending or empty)
-    // Wait, we need to be careful. Initially undefined/null means loading.
-    // We should pass a loading state or handle it.
-    // If complianceStatus is 'verified', return null.
-
-    if (complianceStatus === 'verified') return null;
-
-    // We should probably check if it's explicitly 'pending' or 'suspended' or missing.
-    // Assuming 'verified' is the only "good" state.
+    if (isReady === true) return null;
+    if (typeof isReady === 'undefined' && typeof complianceStatus === 'undefined') return null;
 
     return (
         <div className="w-full bg-gradient-to-r from-orange-600 to-yellow-500 text-white shadow-md relative z-50">

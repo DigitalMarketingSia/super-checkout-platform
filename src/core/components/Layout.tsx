@@ -106,7 +106,7 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
     <div className="flex h-screen bg-[#05050A] text-gray-900 dark:text-dark-textMain overflow-hidden font-sans flex-col">
 
       {/* Top Compliance Banner (Fixed at top, pushes everything down) */}
-      <ComplianceBanner complianceStatus={compliance?.status} />
+      <ComplianceBanner complianceStatus={compliance?.status} isReady={compliance?.is_ready} />
 
       <div className="flex flex-1 overflow-hidden relative">
 
