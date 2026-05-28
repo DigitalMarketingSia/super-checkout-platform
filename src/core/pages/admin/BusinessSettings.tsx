@@ -69,7 +69,7 @@ export const BusinessSettings = () => {
     const isBusinessIdentityComplete = Boolean(formData.business_name.trim() && formData.support_email.trim());
     const hasLegalDocuments = Boolean(formData.privacy_policy.trim() && formData.terms_of_purchase.trim());
     const complianceStatusLabel = hasLegalDocuments
-        ? t('business_settings.header.review_pending', 'Revisao pendente')
+        ? t('business_settings.header.docs_published', 'Documentos publicados')
         : t('business_settings.header.docs_pending', 'Documentos pendentes');
     const readinessStatusLabel = isBusinessIdentityComplete
         ? t('business_settings.header.basic_setup_complete', 'Estrutura basica concluida')
@@ -271,13 +271,13 @@ export const BusinessSettings = () => {
 
                         {/* Tactical Status Cards */}
                         <div className="flex flex-col sm:flex-row items-center gap-4">
-                           <div className="flex items-center gap-4 px-6 py-4 rounded-[1.5rem] bg-white/[0.02] border border-white/5 group/item hover:border-amber-400/30 transition-all duration-500">
-                              <div className="p-2 bg-amber-500/10 rounded-xl">
-                                <ShieldCheck className="w-5 h-5 text-amber-400" />
+                           <div className={`flex items-center gap-4 px-6 py-4 rounded-[1.5rem] bg-white/[0.02] border border-white/5 group/item transition-all duration-500 ${hasLegalDocuments ? 'hover:border-emerald-400/30' : 'hover:border-amber-400/30'}`}>
+                              <div className={`p-2 rounded-xl ${hasLegalDocuments ? 'bg-emerald-500/10' : 'bg-amber-500/10'}`}>
+                                <ShieldCheck className={`w-5 h-5 ${hasLegalDocuments ? 'text-emerald-400' : 'text-amber-400'}`} />
                               </div>
                               <div className="flex flex-col">
-                                 <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest">{t('business_settings.header.compliance')}</span>
-                                 <span className="text-[11px] font-black text-amber-400 uppercase tracking-tighter italic">{complianceStatusLabel}</span>
+                                 <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest">{t('business_settings.header.legal_docs', 'Documentacao legal')}</span>
+                                 <span className={`text-[11px] font-black uppercase tracking-tighter italic ${hasLegalDocuments ? 'text-emerald-400' : 'text-amber-400'}`}>{complianceStatusLabel}</span>
                               </div>
                            </div>
 
