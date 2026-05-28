@@ -2017,13 +2017,6 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                             {t('checkout.legal_privacy_prefix', 'confirmo que li e entendi a')} <a href={`/privacy-policy?c=${id}`} target="_blank" className="text-gray-500 hover:text-gray-700 hover:underline transition-colors">{t('checkout.privacy_policy', 'Política de Privacidade')}</a>.
                           </p>
 
-                          <p className="text-[10px] text-gray-400 leading-relaxed max-w-md mx-auto">
-                            Versoes vigentes: Termos {termsDocumentInfo.version} e Privacidade {privacyDocumentInfo.version}.
-                          </p>
-                          <p className="text-[10px] text-gray-400 leading-relaxed max-w-md mx-auto">
-                            Quando o vendedor habilita mensuracao comercial, este checkout pode registrar eventos de inicio e conclusao da compra para atribuicao de campanhas, conforme descrito nos documentos legais acima.
-                          </p>
-
                           <div className="pt-4">
                             <p className="text-[10px] text-gray-400 font-medium">
                               <span className="font-bold">{businessName}</span> ® 2026 | {t('checkout.all_rights_reserved', 'Todos os direitos reservados')}
