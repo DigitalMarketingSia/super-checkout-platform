@@ -217,163 +217,158 @@ export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) =>
             onClose={onClose}
             title={
                 <div className="flex flex-col">
-                    <span className="text-[10px] font-black uppercase tracking-[0.26em] text-emerald-300/80">
-                        Upgrade prioritario
+                    <span className="text-[9px] font-black uppercase tracking-[0.24em] text-emerald-400">
+                        Upgrade prioritário
                     </span>
-                    <span className="text-sm font-bold text-white">
-                        Remova os limites da conta com condicao especial
+                    <span className="text-xs font-medium text-white/60 mt-0.5">
+                        Remova os limites da conta com condição especial
                     </span>
                 </div>
             }
-            className="max-w-[1080px]"
+            className="max-w-[960px]"
         >
-            <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[#070910] text-left">
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.18),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(168,85,247,0.16),transparent_42%)]" />
-                <div className="pointer-events-none absolute inset-y-0 left-0 w-full bg-[linear-gradient(135deg,rgba(9,14,20,0.3),transparent_45%,rgba(9,14,20,0.18))]" />
+            <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-[#070910] text-left">
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.12),transparent_35%),radial-gradient(circle_at_bottom_right,rgba(168,85,247,0.1),transparent_45%)]" />
+                <div className="pointer-events-none absolute inset-y-0 left-0 w-full bg-[linear-gradient(135deg,rgba(9,14,20,0.4),transparent_50%,rgba(9,14,20,0.2))]" />
 
-                <div className="relative z-10 grid gap-0 lg:grid-cols-[1.08fr_0.92fr]">
-                    <section className="min-w-0 border-b border-white/10 p-5 sm:p-7 lg:border-b-0 lg:border-r">
+                <div className="relative z-10 grid gap-0 lg:grid-cols-[1.1fr_0.9fr]">
+                    <section className="min-w-0 border-b border-white/10 p-4 sm:p-6 lg:border-b-0 lg:border-r lg:p-7">
                         <div className="flex flex-wrap items-center gap-2">
-                            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-emerald-300">
-                                <Zap className="h-3.5 w-3.5" />
+                            <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-[0.2em] text-emerald-300">
+                                <Zap className="h-3 w-3" />
                                 {content.badge}
                             </div>
                             {hasDiscountAnchor && (
-                                <div className="inline-flex items-center gap-2 rounded-full border border-amber-300/20 bg-amber-300/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-amber-200">
-                                    <BadgePercent className="h-3.5 w-3.5" />
+                                <div className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/20 bg-amber-300/10 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-[0.2em] text-amber-200">
+                                    <BadgePercent className="h-3 w-3" />
                                     Economia de {savingsPercent}%
                                 </div>
                             )}
                         </div>
 
-                        <div className="mt-6 max-w-[32rem]">
-                            <h2 className="text-3xl font-black italic leading-none tracking-[-0.04em] text-white sm:text-[3.35rem]">
+                        <div className="mt-4 max-w-[32rem]">
+                            <h2 className="text-2xl font-black italic leading-none tracking-[-0.04em] text-white sm:text-4xl">
                                 {content.title}
                             </h2>
-                            <p className="mt-4 text-sm font-medium leading-relaxed text-white/68 sm:text-[1.02rem]">
+                            <p className="mt-2.5 text-xs sm:text-sm font-medium leading-relaxed text-white/60">
                                 {content.description}
                             </p>
                         </div>
 
-                        <div className="mt-7 grid gap-3 sm:grid-cols-2">
+                        <div className="mt-4 grid gap-2 grid-cols-1 sm:grid-cols-2">
                             {content.features.map((feature, idx) => (
                                 <div
                                     key={idx}
-                                    className="min-w-0 rounded-[1.4rem] border border-white/10 bg-white/[0.045] p-4 backdrop-blur-xl"
+                                    className="flex items-center gap-2.5 rounded-xl border border-white/5 bg-white/[0.02] p-2.5"
                                 >
-                                    <div className="flex items-start gap-3">
-                                        <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-emerald-400/20 bg-emerald-400/10">
-                                            <CheckCircle className="h-4 w-4 text-emerald-300" />
-                                        </span>
-                                        <span className="text-sm font-medium leading-relaxed text-white/88">
-                                            {feature}
-                                        </span>
-                                    </div>
+                                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-400">
+                                        <CheckCircle className="h-3 w-3" />
+                                    </span>
+                                    <span className="text-[11px] sm:text-xs font-semibold leading-tight text-white/90">
+                                        {feature}
+                                    </span>
                                 </div>
                             ))}
                         </div>
 
-                        <div className="mt-5 rounded-[1.5rem] border border-emerald-400/14 bg-emerald-400/[0.06] p-4">
-                            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-200/80">
-                                Liberacao imediata
-                            </p>
-                            <p className="mt-2 text-sm leading-relaxed text-white/70">
-                                O upgrade e aplicado na conta atual e remove as principais travas comerciais sem voce perder sua configuracao ja criada.
-                            </p>
+                        <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-emerald-500/10 bg-emerald-500/[0.02] p-3 text-xs leading-relaxed text-white/60">
+                            <ShieldCheck className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
+                            <div>
+                                <strong className="text-emerald-300 font-bold uppercase tracking-wider text-[9px] block mb-0.5">
+                                    Liberação imediata
+                                </strong>
+                                O upgrade é aplicado na conta atual e remove as principais travas comerciais sem você perder sua configuração já criada.
+                            </div>
                         </div>
                     </section>
 
-                    <aside className="min-w-0 p-5 sm:p-7">
-                        <div className="rounded-[1.75rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:p-6">
-                            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/38">
-                                Condicao especial desta conta
+                    <aside className="min-w-0 p-4 sm:p-6 lg:p-7 flex flex-col justify-between">
+                        <div className="rounded-xl border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))] p-4 shadow-[0_20px_50px_rgba(0,0,0,0.3)] backdrop-blur-xl sm:p-5 relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full blur-2xl" />
+
+                            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-white/40">
+                                Condição especial desta conta
                             </p>
 
-                            <div className="mt-5 space-y-3">
+                            <div className="mt-3 flex flex-col gap-1">
                                 {hasDiscountAnchor && anchorPrice !== null && (
-                                    <div className="flex items-center gap-3 text-white/28">
-                                        <span className="text-xs font-black uppercase tracking-[0.18em]">De</span>
-                                        <span className="text-xl font-black line-through sm:text-3xl">
-                                            {formatPriceBRL(anchorPrice)}
+                                    <div className="flex items-center gap-2 text-white/30 text-xs">
+                                        <span className="line-through font-medium">{formatPriceBRL(anchorPrice)}</span>
+                                        <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-bold text-[8px] uppercase tracking-wider">
+                                            Economize {savingsPercent}%
                                         </span>
                                     </div>
                                 )}
 
-                                <div className="flex flex-wrap items-end gap-3">
-                                    <span className="text-xs font-black uppercase tracking-[0.18em] text-emerald-200/70">
-                                        Por
-                                    </span>
-                                    <span className="break-words text-[2.6rem] font-black leading-none tracking-[-0.05em] text-white sm:text-[4.6rem]">
+                                <div className="flex items-baseline gap-2">
+                                    <span className="text-[2.25rem] sm:text-[3rem] font-black tracking-tight text-white leading-none">
                                         {loading ? '...' : formatPriceBRL(effectivePrice)}
                                     </span>
+                                    <span className="text-xs text-white/50 font-medium">/ vitalício</span>
                                 </div>
                             </div>
 
-                            <p className="mt-4 text-sm font-semibold text-emerald-200/90">
-                                {hasDiscountAnchor && anchorPrice !== null
-                                    ? `De ${formatPriceBRL(anchorPrice)} por ${formatPriceBRL(effectivePrice)}`
-                                    : 'Preco atual liberado para este plano'}
-                            </p>
-
                             {hasDiscountAnchor && savingsValue > 0 && (
-                                <div className="mt-4 inline-flex max-w-full items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-emerald-200">
-                                    <ShieldCheck className="h-4 w-4 shrink-0" />
-                                    <span className="truncate">Economia de {formatPriceBRL(savingsValue)}</span>
+                                <div className="mt-3 flex items-center gap-1.5 text-[11px] text-emerald-400 font-semibold">
+                                    <ShieldCheck className="h-3.5 w-3.5" />
+                                    <span>Você economiza {formatPriceBRL(savingsValue)}</span>
                                 </div>
                             )}
 
-                            <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                                <div className="rounded-2xl border border-white/8 bg-black/20 px-3 py-3">
-                                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/35">Conta</p>
-                                    <p className="mt-1 text-sm font-semibold text-white/85">Sem travas</p>
+                            <div className="mt-4 flex justify-between gap-1 border-t border-white/5 pt-3">
+                                <div className="flex items-center gap-1">
+                                    <span className="h-1 w-1 rounded-full bg-emerald-400 animate-pulse" />
+                                    <span className="text-[10px] font-bold text-white/70">Sem travas</span>
                                 </div>
-                                <div className="rounded-2xl border border-white/8 bg-black/20 px-3 py-3">
-                                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/35">Pagamento</p>
-                                    <p className="mt-1 text-sm font-semibold text-white/85">Unico</p>
+                                <div className="flex items-center gap-1">
+                                    <span className="h-1 w-1 rounded-full bg-emerald-400 animate-pulse" />
+                                    <span className="text-[10px] font-bold text-white/70">Pagamento Único</span>
                                 </div>
-                                <div className="rounded-2xl border border-white/8 bg-black/20 px-3 py-3">
-                                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/35">Ativacao</p>
-                                    <p className="mt-1 text-sm font-semibold text-white/85">Imediata</p>
+                                <div className="flex items-center gap-1">
+                                    <span className="h-1 w-1 rounded-full bg-emerald-400 animate-pulse" />
+                                    <span className="text-[10px] font-bold text-white/70">Acesso Imediato</span>
                                 </div>
                             </div>
 
-                            <p className="mt-5 text-xs font-medium leading-relaxed text-white/48">
+                            <p className="mt-3.5 text-[10px] font-medium leading-relaxed text-white/40 text-center">
                                 {content.priceContext}
                             </p>
                         </div>
 
-                        <div className="mt-5 flex flex-col gap-3">
+                        <div className="mt-4 flex flex-col gap-2.5">
                             {checkoutError && (
-                                <p className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-xs font-bold text-red-400">
+                                <p className="rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs font-bold text-red-400">
                                     {checkoutError}
                                 </p>
                             )}
 
                             {checkoutUnavailable && !checkoutError && (
-                                <p className="rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-xs font-bold text-amber-300">
-                                    Checkout oficial do plano nao encontrado. Tente novamente em instantes ou abra o upgrade pelo Portal do Cliente.
+                                <p className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs font-bold text-amber-300">
+                                    Checkout oficial do plano não encontrado. Tente novamente em instantes ou abra o upgrade pelo Portal do Cliente.
                                 </p>
                             )}
 
                             <Button
                                 onClick={handleOpenCheckout}
                                 disabled={loading || openingCheckout || checkoutUnavailable}
-                                className="w-full rounded-[1.35rem] border-none bg-gradient-to-r from-emerald-500 via-green-400 to-lime-300 py-4 text-sm font-black uppercase tracking-[0.18em] text-[#08110d] shadow-[0_24px_60px_rgba(74,222,128,0.24)] hover:brightness-105"
+                                className="w-full rounded-xl border-none bg-gradient-to-r from-emerald-500 via-green-400 to-lime-300 py-3 text-xs font-black uppercase tracking-[0.15em] text-[#08110d] shadow-[0_20px_50px_rgba(74,222,128,0.15)] hover:brightness-105 transition-all duration-200 flex items-center justify-center"
                             >
                                 {loading ? 'Carregando...' : openingCheckout ? 'Preparando Checkout...' : content.cta}
                                 <ArrowRight className="ml-2 h-4 w-4" />
                             </Button>
 
-                            <p className="text-center text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">
-                                Upgrade aplicado automaticamente nesta conta
-                            </p>
+                            <div className="flex flex-col items-center gap-1.5 mt-1.5">
+                                <p className="text-[9px] font-black uppercase tracking-[0.18em] text-white/30 text-center">
+                                    Upgrade automático e 100% seguro
+                                </p>
 
-                            <button
-                                onClick={onClose}
-                                className="py-2 text-sm text-gray-500 transition-colors hover:text-white"
-                            >
-                                Nao, obrigado. Quero continuar limitado.
-                            </button>
+                                <button
+                                    onClick={onClose}
+                                    className="text-xs text-white/40 hover:text-white transition-colors underline underline-offset-4"
+                                >
+                                    Não, obrigado. Quero continuar limitado.
+                                </button>
+                            </div>
                         </div>
                     </aside>
                 </div>
