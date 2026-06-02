@@ -5,6 +5,7 @@ import { ArrowRight, BadgePercent, CheckCircle, ShieldCheck, Zap } from 'lucide-
 import { storage } from '../../services/storageService';
 import { licenseService } from '../../services/licenseService';
 import { openUpgradeCheckout, UpgradePlanSlug } from '../../services/upgradeCheckout';
+import { matchesUpgradePlanSlug, normalizeUpgradePlanSlug } from '../../services/upgradePlanSlug';
 
 const BLOCKED_CHECKOUT_HOSTS = new Set(['pay.supercheckout.app']);
 const OFFICIAL_CHECKOUT_FALLBACKS: Partial<Record<UpgradePlanSlug, string>> = {
@@ -76,14 +77,15 @@ export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) =>
                 const localProducts = localProductsResult.status === 'fulfilled' ? localProductsResult.value : [];
 
                 const mergedPlans = officialPlans.map((plan: any) => {
-                    const localMatch = localProducts.find((product: any) => product.saas_plan_slug === plan.saas_plan_slug);
+                    const localMatch = localProducts.find((product: any) => matchesUpgradePlanSlug(product.saas_plan_slug, plan.saas_plan_slug));
 
                     return {
                         ...plan,
                         name: localMatch?.name || plan.name,
                         description: localMatch?.description || plan.description,
                         imageUrl: localMatch?.imageUrl || plan.imageUrl,
-                        price_real: localMatch?.price_real || plan.price_real,
+                        price_real: localMatch?.price_real ?? plan.price_real,
+                        saas_plan_slug: normalizeUpgradePlanSlug(localMatch?.saas_plan_slug || plan.saas_plan_slug),
                         checkout_url: resolveFirstSafeCheckoutUrl(
                             localMatch?.checkout_url,
                             plan.checkout_url,
@@ -93,9 +95,10 @@ export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) =>
                 });
 
                 const localOnlyProducts = localProducts
-                    .filter((product: any) => !mergedPlans.some((plan: any) => plan.saas_plan_slug === product.saas_plan_slug))
+                    .filter((product: any) => !mergedPlans.some((plan: any) => matchesUpgradePlanSlug(plan.saas_plan_slug, product.saas_plan_slug)))
                     .map((product: any) => ({
                         ...product,
+                        saas_plan_slug: normalizeUpgradePlanSlug(product.saas_plan_slug),
                         checkout_url: resolveSafeCheckoutUrl(product.checkout_url),
                     }));
 
@@ -167,12 +170,12 @@ export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) =>
     const content = offers[offerSlug] || offers.unlimited_domains;
     const licenseKey = import.meta.env.VITE_LICENSE_KEY || '';
 
-    const dynamicProduct = products.find((product) => product.saas_plan_slug === content.planSlug);
+    const dynamicProduct = products.find((product) => matchesUpgradePlanSlug(product.saas_plan_slug, content.planSlug));
     const checkoutUrl = resolveFirstSafeCheckoutUrl(
         dynamicProduct?.checkout_url,
         OFFICIAL_CHECKOUT_FALLBACKS[content.planSlug],
     );
-    const planSlug = (dynamicProduct?.saas_plan_slug || content.planSlug) as UpgradePlanSlug;
+    const planSlug = (normalizeUpgradePlanSlug(dynamicProduct?.saas_plan_slug) || content.planSlug) as UpgradePlanSlug;
     const checkoutUnavailable = !loading && !checkoutUrl;
 
     const effectivePrice = Number(dynamicProduct?.price_real ?? content.fallbackPrice ?? 0);

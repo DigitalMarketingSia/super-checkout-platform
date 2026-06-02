@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { licenseService, License } from '../../services/licenseService';
 import { storage } from '../../services/storageService';
+import { matchesUpgradePlanSlug, normalizeUpgradePlanSlug } from '../../services/upgradePlanSlug';
 import { Product } from '../../types';
 import { BlockPlanInfo } from './components/BlockPlanInfo';
 import { BlockLicense } from './components/BlockLicense';
@@ -176,7 +177,7 @@ export const ActivationPortal: React.FC = () => {
             ]);
 
             const mergedPlans = centralPlans.map(cp => {
-                const localMatch = localSaaSProducts.find((lp) => lp.saas_plan_slug === cp.saas_plan_slug);
+                const localMatch = localSaaSProducts.find((lp) => matchesUpgradePlanSlug(lp.saas_plan_slug, cp.saas_plan_slug));
 
                 if (localMatch) {
                     return {
@@ -184,11 +185,15 @@ export const ActivationPortal: React.FC = () => {
                         name: localMatch.name || cp.name,
                         description: localMatch.description || cp.description,
                         imageUrl: localMatch.imageUrl || cp.imageUrl,
-                        price_real: localMatch.price_real || cp.price_real,
-                        checkout_url: localMatch.checkout_url || cp.checkout_url
+                        price_real: localMatch.price_real ?? cp.price_real,
+                        checkout_url: localMatch.checkout_url || cp.checkout_url,
+                        saas_plan_slug: normalizeUpgradePlanSlug(localMatch.saas_plan_slug || cp.saas_plan_slug),
                     };
                 }
-                return cp;
+                return {
+                    ...cp,
+                    saas_plan_slug: normalizeUpgradePlanSlug(cp.saas_plan_slug),
+                };
             });
 
             setLicense(licenseData);
@@ -228,7 +233,7 @@ export const ActivationPortal: React.FC = () => {
     const showPartnerOpportunityTab = !hasPartnerAccess && isPartnerExperienceVisible;
     const showPartnerPanelTab = hasPartnerAccess;
     const showEarningsSimulatorTab = isPartnerExperienceVisible;
-    const upgradeProduct = saasProducts.find((product) => product.saas_plan_slug === 'upgrade_domains') || null;
+    const upgradeProduct = saasProducts.find((product) => matchesUpgradePlanSlug(product.saas_plan_slug, 'upgrade_domains')) || null;
     const portalDisplayName = getPortalDisplayName(centralUser, license);
     const portalFirstName = portalDisplayName.split(/\s+/)[0] || portalDisplayName;
     const portalPlanLabel = getPortalPlanLabel(license, t);

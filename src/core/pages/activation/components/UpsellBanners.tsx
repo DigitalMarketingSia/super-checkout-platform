@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { License } from '../../../services/licenseService';
 import { Product } from '../../../types';
 import { openUpgradeCheckout } from '../../../services/upgradeCheckout';
+import { matchesUpgradePlanSlug, normalizeUpgradePlanSlug } from '../../../services/upgradePlanSlug';
 
 interface UpsellBannersProps {
     license: License;
@@ -19,6 +20,7 @@ const DynamicBanner: React.FC<{
     const { t } = useTranslation('portal');
     const isPrimary = variant === 'primary';
     const [isOpeningCheckout, setIsOpeningCheckout] = React.useState(false);
+    const normalizedPlanSlug = normalizeUpgradePlanSlug(product.saas_plan_slug) || product.saas_plan_slug;
     
     // Border classes
     const borderGradient = isPrimary
@@ -31,21 +33,22 @@ const DynamicBanner: React.FC<{
         : "bg-orange-500 hover:bg-orange-600 shadow-orange-500/20";
 
     const iconBgClass = isPrimary ? "bg-primary/20 text-primary" : "bg-orange-500/20 text-orange-500";
-    const Icon = product.saas_plan_slug === 'saas' ? Users : Globe;
+    const Icon = matchesUpgradePlanSlug(product.saas_plan_slug, 'saas') ? Users : Globe;
 
     const handleOpenUpgrade = async () => {
-        if (!product.checkout_url || !product.saas_plan_slug) return;
+        const planSlug = normalizedPlanSlug;
+        if (!product.checkout_url || !planSlug) return;
 
         setIsOpeningCheckout(true);
         try {
             await openUpgradeCheckout({
                 checkoutUrl: product.checkout_url,
-                planSlug: product.saas_plan_slug as 'saas' | 'upgrade_domains' | 'whitelabel',
+                planSlug: planSlug as 'saas' | 'upgrade_domains' | 'whitelabel',
                 productId: product.id,
                 sourceSurface: 'portal',
                 sourceContext: {
                     trigger: 'portal_banner',
-                    product_slug: product.saas_plan_slug,
+                    product_slug: planSlug,
                     banner_variant: variant,
                 },
             });
@@ -64,7 +67,7 @@ const DynamicBanner: React.FC<{
                         </div>
                         <div>
                             <h3 className="text-2xl md:text-3xl font-display font-black text-white italic uppercase tracking-tighter leading-none mb-2">
-                                {(t(`banners.${product.saas_plan_slug}.name`, product.name) as string).split(' ').map((word, i) => {
+                                {(t(`banners.${normalizedPlanSlug}.name`, product.name) as string).split(' ').map((word, i) => {
                                     const highlightWords = (t('banners.highlights', { defaultValue: 'ilimitados parceiro unlimited partner socio' }) as string).toLowerCase();
                                     const shouldHighlight = highlightWords.includes(word.toLowerCase().replace(/[.,!]/g, ''));
                                     return (
@@ -75,7 +78,7 @@ const DynamicBanner: React.FC<{
                                 })}
                             </h3>
                             <p className="text-gray-400 text-sm md:text-base font-medium leading-relaxed max-w-xl line-clamp-2">
-                                {t(`banners.${product.saas_plan_slug}.description`, product.description)}
+                                {t(`banners.${normalizedPlanSlug}.description`, product.description)}
                             </p>
                         </div>
                     </div>
@@ -117,13 +120,13 @@ export const UpsellBanners: React.FC<UpsellBannersProps> = ({ license, products,
     // The "Dominios Ilimitados" banner must always target the exact `upgrade_domains` plan.
     const showUpgrade = !hasUnlimitedDomains
         && (license?.max_instances || 0) <= 1
-        && products.some(p => p.saas_plan_slug === 'upgrade_domains');
+        && products.some(p => matchesUpgradePlanSlug(p.saas_plan_slug, 'upgrade_domains'));
 
     // 2. If not partner, show saas plan if available in products
-    const showSaaS = showPartnerOpportunity && !hasPartnerAccess && products.some(p => p.saas_plan_slug === 'saas');
+    const showSaaS = showPartnerOpportunity && !hasPartnerAccess && products.some(p => matchesUpgradePlanSlug(p.saas_plan_slug, 'saas'));
 
-    const upgradeProduct = products.find(p => p.saas_plan_slug === 'upgrade_domains');
-    const saasProduct = products.find(p => p.saas_plan_slug === 'saas');
+    const upgradeProduct = products.find(p => matchesUpgradePlanSlug(p.saas_plan_slug, 'upgrade_domains'));
+    const saasProduct = products.find(p => matchesUpgradePlanSlug(p.saas_plan_slug, 'saas'));
 
     return (
         <div className="space-y-6">

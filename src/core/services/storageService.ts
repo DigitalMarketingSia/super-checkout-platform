@@ -19,13 +19,18 @@ export { supabase };
 import { User } from '@supabase/supabase-js';
 
 function mapProductRecord(record: any, overrides: Partial<Product> = {}): Product {
+  const priceReal = record.price_real ?? record.price;
+  const normalizedPriceReal = priceReal === null || priceReal === undefined || priceReal === ''
+    ? undefined
+    : Number(priceReal);
+
   return {
     id: record.id,
     name: record.name,
     description: record.description,
     active: record.active,
     imageUrl: record.image_url,
-    price_real: record.price_real,
+    price_real: normalizedPriceReal,
     price_fake: record.price_fake,
     sku: record.sku,
     category: record.category,

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { sanitizeTranslationHtml } from '../../../utils/sanitize';
 import Aurora from '../../../components/ui/Aurora';
 import { openUpgradeCheckout } from '../../../services/upgradeCheckout';
+import { matchesUpgradePlanSlug, normalizeUpgradePlanSlug } from '../../../services/upgradePlanSlug';
 
 interface BlockOpportunityProps {
     onNavigate: (tab: string) => void;
@@ -20,7 +21,7 @@ export const BlockOpportunity: React.FC<BlockOpportunityProps> = ({ onNavigate }
             try {
                 const { storage } = await import('../../../services/storageService');
                 const products = await storage.getPublicSaaSProducts();
-                const found = products.find(p => p.saas_plan_slug === 'saas');
+                const found = products.find(p => matchesUpgradePlanSlug(p.saas_plan_slug, 'saas'));
                 setSaasProduct(found);
             } catch (err) {
                 console.error('Error loading saas product for BlockOpportunity:', err);
@@ -32,18 +33,19 @@ export const BlockOpportunity: React.FC<BlockOpportunityProps> = ({ onNavigate }
     }, []);
 
     const handleOpenPartnerCheckout = async () => {
-        if (!saasProduct?.checkout_url || !saasProduct?.saas_plan_slug) return;
+        const planSlug = normalizeUpgradePlanSlug(saasProduct?.saas_plan_slug);
+        if (!saasProduct?.checkout_url || !planSlug) return;
 
         setIsOpeningCheckout(true);
         try {
             await openUpgradeCheckout({
                 checkoutUrl: saasProduct.checkout_url,
-                planSlug: saasProduct.saas_plan_slug,
+                planSlug,
                 productId: saasProduct.id,
                 sourceSurface: 'portal',
                 sourceContext: {
                     trigger: 'partner_opportunity_page',
-                    product_slug: saasProduct.saas_plan_slug,
+                    product_slug: planSlug,
                 },
             });
         } finally {
