@@ -69,6 +69,24 @@ CREATE TABLE IF NOT EXISTS public.system_email_templates(
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
+-- 1.1 Bootstrap helper functions required by early policies on fresh installs.
+-- `public.is_admin()` starts as a safe stub because `public.profiles`
+-- is only created later in this schema.
+CREATE OR REPLACE FUNCTION public.handle_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS BOOLEAN AS $$
+BEGIN
+    RETURN false;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- ==========================================
 -- 2. CORE TABLES (Idempotent Creation)
 -- ==========================================
@@ -1193,7 +1211,7 @@ ON CONFLICT (event_type, language) DO NOTHING;
 -- 4. VIEWS & FUNCTIONS
 -- ==========================================
 
--- 4.1 Admin Helper Function
+-- 4.1 Replace bootstrap admin helper now that public.profiles already exists.
 CREATE OR REPLACE FUNCTION public.is_admin()
 RETURNS BOOLEAN AS $$
 BEGIN
