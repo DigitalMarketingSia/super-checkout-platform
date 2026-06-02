@@ -26,11 +26,17 @@ export const PublicTerms = () => {
         const load = async () => {
             const urlParams = new URLSearchParams(window.location.search);
             const checkoutId = urlParams.get('c');
+            const memberAreaId = urlParams.get('ma');
 
             let data;
             if (checkoutId) {
                 console.log('[PublicTerms] Loading settings for checkout:', checkoutId);
                 data = await storage.getBusinessSettingsByCheckoutId(checkoutId);
+            }
+
+            if (!data && memberAreaId) {
+                console.log('[PublicTerms] Loading settings for member area:', memberAreaId);
+                data = await storage.getBusinessSettingsByMemberAreaId(memberAreaId);
             }
 
             if (!data) {

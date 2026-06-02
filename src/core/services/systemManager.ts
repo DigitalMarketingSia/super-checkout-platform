@@ -508,6 +508,31 @@ export const SystemManager = {
       return hasPrivacyRequests && hasRetentionPolicies && hasRetentionRuns;
     }
 
+    if (version === '1.0.18') {
+      const [hasPrivacyRequests, hasRetentionPolicies, hasRetentionRuns, hasLegalHistory] = await Promise.all([
+        hasColumn('privacy_requests', 'subject_email'),
+        hasColumn('data_retention_policies', 'retention_days'),
+        hasColumn('data_retention_runs', 'rows_affected'),
+        hasColumn('business_legal_document_versions', 'content_sha256'),
+      ]);
+      return hasPrivacyRequests && hasRetentionPolicies && hasRetentionRuns && hasLegalHistory;
+    }
+
+    if (version === '1.0.19') {
+      const [hasPrivacyRequests, hasRetentionPolicies, hasRetentionRuns, hasLegalHistory, hasPlatformLegalAcceptances] = await Promise.all([
+        hasColumn('privacy_requests', 'subject_email'),
+        hasColumn('data_retention_policies', 'retention_days'),
+        hasColumn('data_retention_runs', 'rows_affected'),
+        hasColumn('business_legal_document_versions', 'content_sha256'),
+        hasColumn('platform_legal_acceptances', 'privacy_version'),
+      ]);
+      return hasPrivacyRequests
+        && hasRetentionPolicies
+        && hasRetentionRuns
+        && hasLegalHistory
+        && hasPlatformLegalAcceptances;
+    }
+
     return false;
   },
 
@@ -715,6 +740,8 @@ export const SystemManager = {
       { table: 'schema_migrations', columns: ['version', 'success'] },
       { table: 'accounts', columns: ['owner_user_id', 'plan_type', 'status'] },
       { table: 'business_settings', columns: ['account_id', 'support_email', 'privacy_policy_version', 'terms_of_purchase_version', 'is_ready_to_sell'] },
+      { table: 'business_legal_document_versions', columns: ['account_id', 'document_key', 'version', 'content_sha256'] },
+      { table: 'platform_legal_acceptances', columns: ['email', 'surface', 'terms_version', 'privacy_version'] },
       { table: 'licenses', columns: ['key', 'account_id', 'max_instances', 'status'] },
       { table: 'installations', columns: ['license_key', 'account_id', 'installation_id', 'status'] },
       { table: 'gateways', columns: ['provider', 'credentials', 'config', 'is_active'] },

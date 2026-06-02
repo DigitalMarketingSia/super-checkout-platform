@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { applyCors, emailFingerprint, getAuditClient, getIp, getPortalBaseUrl, getUserAgent, logSecurityEvent, maskEmail, normalizeEmail } from './_shared.js';
 import { isDisposableEmailDomain } from './_disposableEmailDomains.js';
+import { PLATFORM_LEGAL_CONTACT_EMAIL, PLATFORM_LEGAL_VERSION } from '../../core/config/platformLegal.js';
 
 type PublicAction = 'signup' | 'resend' | 'track' | 'status' | 'waitlist' | 'waitlist_group_link' | 'validate_invite';
 type PublicTrackEvent =
@@ -58,6 +59,16 @@ interface SignupPersistenceParams {
     partnerConsent: boolean;
     accountStatus: 'active' | 'pending_approval';
     inviteToken: string | null;
+}
+
+interface PlatformLegalAcceptanceParams {
+    userId: string | null;
+    email: string;
+    ip: string;
+    userAgent: string;
+    portalBaseUrl: string;
+    surface: 'register';
+    acceptedAt: string;
 }
 
 const HARD_LIMITS = {
@@ -555,6 +566,51 @@ async function ensureSignupPersistence(params: SignupPersistenceParams) {
     return {
         ok: true,
         recoveredProfile: true,
+        reason: null
+    } as const;
+}
+
+async function persistPlatformLegalAcceptance(params: PlatformLegalAcceptanceParams) {
+    const centralAdmin = getCentralAdminClient();
+    if (!centralAdmin) {
+        return {
+            ok: false,
+            reason: 'missing_central_admin_client'
+        } as const;
+    }
+
+    const payload = {
+        user_id: params.userId,
+        email: normalizeEmail(params.email),
+        surface: params.surface,
+        terms_version: PLATFORM_LEGAL_VERSION,
+        privacy_version: PLATFORM_LEGAL_VERSION,
+        terms_url: `${params.portalBaseUrl}/legal/terms`,
+        privacy_url: `${params.portalBaseUrl}/legal/privacy`,
+        channel_email: PLATFORM_LEGAL_CONTACT_EMAIL,
+        accepted_at: params.acceptedAt,
+        ip_address: params.ip,
+        user_agent: params.userAgent,
+        metadata: {
+            source: SOURCE,
+            accepted_via: params.surface,
+            accepted_at: params.acceptedAt,
+        }
+    };
+
+    const { error } = await centralAdmin
+        .from('platform_legal_acceptances')
+        .upsert(payload, { onConflict: 'email,surface,terms_version,privacy_version' });
+
+    if (error) {
+        return {
+            ok: false,
+            reason: error.message
+        } as const;
+    }
+
+    return {
+        ok: true,
         reason: null
     } as const;
 }
@@ -1137,6 +1193,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const name = String(req.body?.name || '').trim();
         const whatsapp = String(req.body?.whatsapp || '').trim();
         const password = String(req.body?.password || '');
+        const platformLegalAccepted = Boolean(req.body?.platformLegalAccepted);
         const partnerId = typeof req.body?.partnerId === 'string' ? req.body.partnerId : null;
         const partnerConsent = Boolean(req.body?.partnerConsent);
         const inviteToken = normalizeInviteToken(req.body?.inviteToken);
@@ -1153,6 +1210,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(400).json({ error: 'Informe seu telefone ou WhatsApp.' });
         }
 
+        if (!platformLegalAccepted) {
+            return res.status(400).json({
+                error: 'Voce precisa aceitar os Termos de Uso e a Politica de Privacidade da plataforma.',
+                error_code: 'platform_legal_required'
+            });
+        }
+
         await incrementRateLimitBucket(`signup:ip:${ip}`, HARD_LIMITS.signupIp);
         await incrementRateLimitBucket(`signup:email:${emailFingerprint(email)}`, HARD_LIMITS.signupEmail);
 
@@ -1166,7 +1230,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 email: maskEmail(email),
                 email_fingerprint: emailFingerprint(email),
                 partner_id: partnerId,
-                partner_consent: partnerConsent
+                partner_consent: partnerConsent,
+                platform_legal_accepted: platformLegalAccepted,
+                platform_legal_version: PLATFORM_LEGAL_VERSION
             }
         });
 
@@ -1177,6 +1243,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         try {
             const launchSettings = await getLaunchSettings(central);
+            const acceptanceTimestamp = new Date().toISOString();
+            const portalBaseUrl = getPortalBaseUrl(req.headers.origin);
             const invite = inviteToken
                 ? await validateInviteToken(central, inviteToken)
                 : { valid: false, reason: null as string | null, expiresAt: null as string | null };
@@ -1227,7 +1295,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             const accountStatus = launchSettings.manualApprovalEnabled ? 'pending_approval' : 'active';
-            const redirectPath = `${getPortalBaseUrl(req.headers.origin)}/activate`;
+            const redirectPath = `${portalBaseUrl}/activate`;
             const existingAuthUser = await findCentralAuthUserByEmail(email);
 
             if (existingAuthUser.reason) {
@@ -1317,6 +1385,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         });
                     }
 
+                    const acceptancePersistence = await persistPlatformLegalAcceptance({
+                        userId: existingAuthUser.user.id,
+                        email,
+                        ip,
+                        userAgent,
+                        portalBaseUrl,
+                        surface: 'register',
+                        acceptedAt: acceptanceTimestamp
+                    });
+
+                    if (!acceptancePersistence.ok) {
+                        await logSecurityEvent({
+                            eventType: 'register_signup_failed',
+                            severity: 'WARNING',
+                            ip,
+                            userAgent,
+                            source: SOURCE,
+                            userId: existingAuthUser.user.id,
+                            metadata: {
+                                email: maskEmail(email),
+                                email_fingerprint: emailFingerprint(email),
+                                reason: acceptancePersistence.reason || 'platform_legal_acceptance_failed',
+                                reused_existing_user: true
+                            }
+                        });
+                    }
+
                     await logSecurityEvent({
                         eventType: 'register_signup_success',
                         severity: 'INFO',
@@ -1373,6 +1468,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         phone: whatsapp,
                         role: 'admin',
                         source: 'register_page',
+                        platform_legal_acceptance: {
+                            surface: 'register',
+                            accepted_at: acceptanceTimestamp,
+                            terms_version: PLATFORM_LEGAL_VERSION,
+                            privacy_version: PLATFORM_LEGAL_VERSION,
+                            channel_email: PLATFORM_LEGAL_CONTACT_EMAIL
+                        },
                         partner_id: partnerId,
                         partner_consent: partnerId ? partnerConsent : false,
                         account_status: accountStatus,
@@ -1483,6 +1585,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return res.status(503).json({
                     error: 'O cadastro nao foi concluido com seguranca. Tente novamente em alguns instantes.',
                     error_code: 'signup_not_persisted'
+                });
+            }
+
+            const acceptancePersistence = await persistPlatformLegalAcceptance({
+                userId: data.user.id,
+                email,
+                ip,
+                userAgent,
+                portalBaseUrl,
+                surface: 'register',
+                acceptedAt: acceptanceTimestamp
+            });
+
+            if (!acceptancePersistence.ok) {
+                await logSecurityEvent({
+                    eventType: 'register_signup_failed',
+                    severity: 'WARNING',
+                    ip,
+                    userAgent,
+                    source: SOURCE,
+                    userId: data.user.id,
+                    metadata: {
+                        email: maskEmail(email),
+                        email_fingerprint: emailFingerprint(email),
+                        reason: acceptancePersistence.reason || 'platform_legal_acceptance_failed'
+                    }
                 });
             }
 

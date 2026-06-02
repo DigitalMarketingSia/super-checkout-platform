@@ -26,6 +26,19 @@ export interface EffectiveLegalDocumentInfo {
   publishedAt: string | null;
 }
 
+export interface LegalDocumentHistorySnapshot {
+  key: LegalDocumentKey;
+  source: LegalDocumentSource;
+  version: string;
+  publishedAt: string;
+  templateContent: string | null;
+  renderedContent: string;
+  legalName: string;
+  legalContact: string;
+  supportEmail: string;
+  metadata: Record<string, unknown>;
+}
+
 export const DEFAULT_PUBLIC_LEGAL_VERSION = 'lgpd-baseline-2026.05';
 export const DEFAULT_PUBLIC_LEGAL_PUBLISHED_AT = '2026-05-26T00:00:00.000Z';
 
@@ -203,5 +216,33 @@ export function getEffectiveLegalDocumentInfo(
     sourceLabel: 'Documento personalizado pelo vendedor.',
     version,
     publishedAt,
+  };
+}
+
+export function buildLegalDocumentHistorySnapshot(
+  key: LegalDocumentKey,
+  settings: BusinessLegalSettingsLike | null | undefined,
+  fallbackBuilder: (settings?: BusinessLegalSettingsLike | null) => string,
+): LegalDocumentHistorySnapshot {
+  const document = getEffectiveLegalDocumentInfo(key, settings, fallbackBuilder);
+  const identity = getBusinessLegalIdentity(settings);
+  const rawTemplate = settings?.[key];
+  const templateContent = hasCustomLegalContent(rawTemplate) ? String(rawTemplate) : null;
+
+  return {
+    key,
+    source: document.source,
+    version: document.version,
+    publishedAt: document.publishedAt || DEFAULT_PUBLIC_LEGAL_PUBLISHED_AT,
+    templateContent,
+    renderedContent: document.content,
+    legalName: identity.legalName,
+    legalContact: identity.legalContact,
+    supportEmail: identity.supportEmail,
+    metadata: {
+      has_custom_document: document.hasCustomDocument,
+      source_label: document.sourceLabel,
+      default_legal_version: DEFAULT_PUBLIC_LEGAL_VERSION,
+    },
   };
 }

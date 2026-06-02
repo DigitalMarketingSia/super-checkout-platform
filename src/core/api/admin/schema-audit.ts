@@ -17,6 +17,8 @@ const SCHEMA_CHECKS = [
   { table: 'schema_migrations', columns: ['version', 'success'] },
   { table: 'accounts', columns: ['owner_user_id', 'plan_type', 'status'] },
   { table: 'business_settings', columns: ['account_id', 'support_email', 'privacy_policy_version', 'terms_of_purchase_version', 'is_ready_to_sell'] },
+  { table: 'business_legal_document_versions', columns: ['account_id', 'document_key', 'version', 'content_sha256'] },
+  { table: 'platform_legal_acceptances', columns: ['email', 'surface', 'terms_version', 'privacy_version'] },
   { table: 'licenses', columns: ['key', 'account_id', 'max_instances', 'status'] },
   { table: 'installations', columns: ['license_key', 'account_id', 'installation_id', 'status'] },
   { table: 'profiles', columns: ['role', 'status', 'last_login_at', 'is_blocked'] },

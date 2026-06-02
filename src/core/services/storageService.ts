@@ -1080,6 +1080,32 @@ class StorageService {
     return settings;
   }
 
+  async getBusinessSettingsByMemberAreaId(memberAreaId: string) {
+    const { data: memberArea } = await supabase
+      .from('member_areas')
+      .select('owner_id')
+      .eq('id', memberAreaId)
+      .maybeSingle();
+
+    if (!memberArea?.owner_id) return null;
+
+    const { data: account } = await supabase
+      .from('accounts')
+      .select('id')
+      .eq('owner_user_id', memberArea.owner_id)
+      .maybeSingle();
+
+    if (!account?.id) return null;
+
+    const { data: settings } = await supabase
+      .from('business_settings')
+      .select('*')
+      .eq('account_id', account.id)
+      .maybeSingle();
+
+    return settings;
+  }
+
   async getDomainUsage(domainId: string) {
     const user = await this.getUser();
     if (!user) throw new Error('No user logged in');

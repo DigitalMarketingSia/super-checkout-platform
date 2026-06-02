@@ -45,6 +45,7 @@ export function registerAccount(payload: {
     email: string;
     whatsapp: string;
     password: string;
+    platformLegalAccepted: boolean;
     partnerId?: string | null;
     partnerConsent?: boolean;
     honeypot?: string;

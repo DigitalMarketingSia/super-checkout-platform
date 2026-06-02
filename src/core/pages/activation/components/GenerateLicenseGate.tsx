@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ShieldCheck, Check, ArrowRight, Loader2 } from 'lucide-react';
 import { getPlatformPrivacyUrl, getPlatformTermsUrl } from '../../../config/platformUrls';
 import { licenseService } from '../../../services/licenseService';
+import { PLATFORM_LEGAL_CONTACT_EMAIL, PLATFORM_LEGAL_VERSION } from '../../../config/platformLegal';
 
 interface GenerateLicenseGateProps {
     userName: string;
@@ -80,6 +81,7 @@ export const GenerateLicenseGate: React.FC<GenerateLicenseGateProps> = ({ userNa
                         <a href={getPlatformPrivacyUrl()} target="_blank" rel="noreferrer" className="text-white hover:text-orange-300 underline underline-offset-4">
                             politica de privacidade
                         </a>
+                        {' '}da plataforma na versao {PLATFORM_LEGAL_VERSION}. Canal oficial: {PLATFORM_LEGAL_CONTACT_EMAIL}
                     </span>
                 </label>
             </div>

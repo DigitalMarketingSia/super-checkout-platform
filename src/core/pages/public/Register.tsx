@@ -8,6 +8,12 @@ import { openInboxForEmail } from '../../utils/emailInbox';
 import { getRegistrationStatus, getWaitlistWhatsappGroupLink, joinRegistrationWaitlist, registerAccount, resendRegistrationEmail, trackRegistrationEvent, validateInviteToken as validateRegistrationInvite } from '../../services/registerFlow';
 import { RiskCaptcha } from '../../components/auth/RiskCaptcha';
 import { PhoneInput } from '../../components/ui/PhoneInput';
+import { getPlatformPrivacyUrl, getPlatformTermsUrl } from '../../config/platformUrls';
+import {
+    formatPlatformLegalPublishedAt,
+    PLATFORM_LEGAL_CONTACT_EMAIL,
+    PLATFORM_LEGAL_VERSION,
+} from '../../config/platformLegal';
 
 export const Register = () => {
     const { t } = useTranslation('auth');
@@ -141,6 +147,7 @@ export const Register = () => {
     const [email, setEmail] = useState('');
     const [whatsapp, setWhatsapp] = useState('');
     const [password, setPassword] = useState('');
+    const [platformLegalAccepted, setPlatformLegalAccepted] = useState(false);
     const [consent, setConsent] = useState(false);
     const [honeypot, setHoneypot] = useState('');
 
@@ -242,11 +249,18 @@ export const Register = () => {
         setWaitlistSuccess(null);
 
         try {
+            if (!platformLegalAccepted) {
+                throw new Error(t('register.platform_legal_required', {
+                    defaultValue: 'Voce precisa aceitar os Termos de Uso e a Politica de Privacidade da plataforma para criar sua conta.'
+                }));
+            }
+
             const response = await registerAccount({
                 name,
                 email,
                 whatsapp,
                 password,
+                platformLegalAccepted,
                 partnerId,
                 partnerConsent: partnerId ? consent : false,
                 honeypot,
@@ -897,6 +911,41 @@ export const Register = () => {
                                 </div>
                             )}
 
+                            <div className="bg-white/[0.03] border border-white/8 rounded-3xl p-6 flex items-start gap-4 animate-in slide-in-from-bottom-4 duration-500">
+                                <div className="pt-1">
+                                    <input
+                                        type="checkbox"
+                                        id="platform-legal-acceptance"
+                                        required
+                                        checked={platformLegalAccepted}
+                                        onChange={e => setPlatformLegalAccepted(e.target.checked)}
+                                        className="w-6 h-6 rounded-lg border-white/20 bg-white/5 text-emerald-500 focus:ring-emerald-500/50 cursor-pointer"
+                                    />
+                                </div>
+                                <label htmlFor="platform-legal-acceptance" className="text-sm text-gray-400 leading-relaxed cursor-pointer select-none">
+                                    <span className="font-black text-white block mb-1 uppercase tracking-tighter italic">
+                                        {t('register.platform_legal_label', { defaultValue: 'Aceite institucional da plataforma' })}
+                                    </span>
+                                    {t('register.platform_legal_desc_prefix', { defaultValue: 'Li e aceito os' })}
+                                    {' '}
+                                    <a href={getPlatformTermsUrl()} target="_blank" rel="noreferrer" className="text-white hover:text-emerald-300 underline underline-offset-4">
+                                        {t('register.platform_terms_link', { defaultValue: 'Termos de Uso' })}
+                                    </a>
+                                    {' '}
+                                    {t('register.platform_legal_desc_middle', { defaultValue: 'e a' })}
+                                    {' '}
+                                    <a href={getPlatformPrivacyUrl()} target="_blank" rel="noreferrer" className="text-white hover:text-emerald-300 underline underline-offset-4">
+                                        {t('register.platform_privacy_link', { defaultValue: 'Politica de Privacidade' })}
+                                    </a>
+                                    {' '}
+                                    {t('register.platform_legal_desc_suffix', {
+                                        defaultValue: 'da plataforma, na versao {{version}}, com canal oficial em {{email}}.',
+                                        version: PLATFORM_LEGAL_VERSION,
+                                        email: PLATFORM_LEGAL_CONTACT_EMAIL
+                                    })}
+                                </label>
+                            </div>
+
                             {requiresCaptcha && captchaSiteKey && (
                                 <div className="bg-white/5 border border-white/10 rounded-3xl p-5 space-y-3">
                                     <p className="text-xs text-gray-300 font-bold uppercase tracking-[0.18em]">
@@ -938,6 +987,25 @@ export const Register = () => {
                             >
                                 {t('register.login_link')}
                             </a>
+                        </div>
+
+                        <div className="mt-8 rounded-2xl border border-white/5 bg-white/[0.03] p-5 text-left">
+                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 mb-2">
+                                Base legal da plataforma
+                            </p>
+                            <p className="text-xs text-gray-400 leading-relaxed">
+                                Ao criar sua conta, voce aceita os documentos oficiais da plataforma e registra a evidência desse aceite no fluxo de cadastro.
+                                {' '}
+                                <a href={getPlatformTermsUrl()} target="_blank" rel="noreferrer" className="text-white hover:text-emerald-300 underline underline-offset-4">
+                                    Termos de Uso
+                                </a>
+                                {' '}e{' '}
+                                <a href={getPlatformPrivacyUrl()} target="_blank" rel="noreferrer" className="text-white hover:text-emerald-300 underline underline-offset-4">
+                                    Politica de Privacidade
+                                </a>
+                                {' '}vigentes em {PLATFORM_LEGAL_VERSION}, publicados em {formatPlatformLegalPublishedAt()}.
+                                {' '}Canal oficial: <a href={`mailto:${PLATFORM_LEGAL_CONTACT_EMAIL}`} className="text-white hover:text-emerald-300 underline underline-offset-4">{PLATFORM_LEGAL_CONTACT_EMAIL}</a>.
+                            </p>
                         </div>
                     </div>
                 </div>

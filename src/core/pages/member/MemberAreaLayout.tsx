@@ -5,6 +5,14 @@ import { LogOut, User, Menu, X, ChevronDown, ChevronRight, ExternalLink, Home, S
 import { MemberArea, SidebarItem } from '../../types';
 import { useTranslation } from 'react-i18next';
 import { sanitizeTranslationHtml } from '../../utils/sanitize';
+import { storage } from '../../services/storageService';
+import {
+    buildDefaultPrivacyPolicy,
+    buildDefaultTermsOfPurchase,
+    getBusinessLegalIdentity,
+    getEffectiveLegalDocumentInfo,
+    type BusinessLegalSettingsLike,
+} from '../../utils/legalDocuments';
 
 interface MemberAreaLayoutProps {
     children: React.ReactNode;
@@ -20,6 +28,7 @@ export const MemberAreaLayout: React.FC<MemberAreaLayoutProps> = ({ children, me
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [scrolled, setScrolled] = useState(false);
     const [expandedSections, setExpandedSections] = useState<string[]>([]);
+    const [businessLegalSettings, setBusinessLegalSettings] = useState<BusinessLegalSettingsLike | null>(null);
 
     // Detect if we're on a custom domain
     // If hostname is not the default Vercel domain, we're on a custom domain
@@ -72,6 +81,35 @@ export const MemberAreaLayout: React.FC<MemberAreaLayoutProps> = ({ children, me
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
 
+    useEffect(() => {
+        let active = true;
+
+        const loadLegalSettings = async () => {
+            if (!memberArea?.id) {
+                if (active) setBusinessLegalSettings(null);
+                return;
+            }
+
+            try {
+                const settings = await storage.getBusinessSettingsByMemberAreaId(memberArea.id);
+                if (active) {
+                    setBusinessLegalSettings(settings);
+                }
+            } catch (error) {
+                console.warn('[MemberAreaLayout] Failed to load legal settings:', error);
+                if (active) {
+                    setBusinessLegalSettings(null);
+                }
+            }
+        };
+
+        loadLegalSettings();
+
+        return () => {
+            active = false;
+        };
+    }, [memberArea?.id]);
+
     // Favicon Effect
     useEffect(() => {
         if (memberArea?.favicon_url) {
@@ -98,6 +136,13 @@ export const MemberAreaLayout: React.FC<MemberAreaLayoutProps> = ({ children, me
             prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]
         );
     };
+
+    const privacyDocumentInfo = getEffectiveLegalDocumentInfo('privacy_policy', businessLegalSettings, buildDefaultPrivacyPolicy);
+    const termsDocumentInfo = getEffectiveLegalDocumentInfo('terms_of_purchase', businessLegalSettings, buildDefaultTermsOfPurchase);
+    const legalIdentity = getBusinessLegalIdentity(businessLegalSettings);
+    const legalContact = legalIdentity.legalContact !== 'nao informado' ? legalIdentity.legalContact : null;
+    const privacyHref = memberArea?.id ? `/privacy-policy?ma=${memberArea.id}` : '/privacy-policy';
+    const termsHref = memberArea?.id ? `/terms-of-purchase?ma=${memberArea.id}` : '/terms-of-purchase';
 
     const renderSidebarItem = (item: SidebarItem, depth = 0) => {
         const isExpanded = expandedSections.includes(item.id);
@@ -387,6 +432,20 @@ export const MemberAreaLayout: React.FC<MemberAreaLayoutProps> = ({ children, me
             {/* Footer */}
             <footer className="py-12 px-4 md:px-12 text-center text-gray-500 text-sm bg-black/50 mt-auto flex flex-col items-center justify-center gap-2">
                 <p>Copyright © {new Date().getFullYear()} {memberArea?.name || t('layout.member_area_fallback')}</p>
+
+                <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-[11px] text-gray-400">
+                    <a href={termsHref} target="_blank" rel="noreferrer" className="hover:text-white transition-colors">
+                        Termos de Compra ({termsDocumentInfo.version})
+                    </a>
+                    <a href={privacyHref} target="_blank" rel="noreferrer" className="hover:text-white transition-colors">
+                        Politica de Privacidade ({privacyDocumentInfo.version})
+                    </a>
+                    {legalContact && (
+                        <span className="text-gray-500">
+                            Contato legal: {legalContact}
+                        </span>
+                    )}
+                </div>
 
                 {!memberArea?.custom_branding && (
                     <div className="flex items-center gap-2 opacity-50 text-xs mt-2">

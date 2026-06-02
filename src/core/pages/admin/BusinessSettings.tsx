@@ -23,6 +23,8 @@ import { Modal } from '../../components/ui/Modal';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import {
+    BusinessLegalSettingsLike,
+    buildLegalDocumentHistorySnapshot,
     buildDefaultPrivacyPolicy,
     buildDefaultTermsOfPurchase,
     buildNextCustomLegalVersion,
@@ -38,6 +40,36 @@ const formatDocumentPublication = (value?: string | null) => {
     return date.toLocaleDateString('pt-BR');
 };
 
+const formatHistoryTimestamp = (value?: string | null) => {
+    if (!value) return 'nao registrado';
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'nao registrado';
+
+    return date.toLocaleString('pt-BR');
+};
+
+const isMissingLegalHistoryTableError = (error?: { code?: string | null; message?: string | null; details?: string | null } | null) => {
+    const message = `${error?.message || ''} ${error?.details || ''}`.toLowerCase();
+    return error?.code === '42P01'
+        || error?.code === 'PGRST205'
+        || message.includes('public.business_legal_document_versions')
+        || message.includes('business_legal_document_versions does not exist');
+};
+
+type LegalHistoryEntry = {
+    id: string;
+    document_key: 'privacy_policy' | 'terms_of_purchase';
+    source: 'custom' | 'default';
+    version: string;
+    published_at: string;
+    legal_name: string | null;
+    legal_contact: string | null;
+    support_email: string | null;
+    created_at: string;
+    metadata: Record<string, unknown> | null;
+};
+
 export const BusinessSettings = () => {
     const { user, refreshProfile } = useAuth();
     const { t } = useTranslation('admin');
@@ -46,6 +78,7 @@ export const BusinessSettings = () => {
         business_name: '',
         support_email: user?.email || '',
         legal_name: '',
+        legal_responsible_email: '',
         privacy_policy: '',
         privacy_policy_version: '',
         privacy_policy_published_at: '',
@@ -66,29 +99,75 @@ export const BusinessSettings = () => {
     const [editingDoc, setEditingDoc] = useState<'privacy' | 'terms' | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
+    const [historyLoading, setHistoryLoading] = useState(false);
+    const [documentHistory, setDocumentHistory] = useState<LegalHistoryEntry[]>([]);
     const isBusinessIdentityComplete = Boolean(formData.business_name.trim() && formData.support_email.trim());
-    const hasLegalDocuments = Boolean(formData.privacy_policy.trim() && formData.terms_of_purchase.trim());
+    const privacyDocumentInfo = getEffectiveLegalDocumentInfo('privacy_policy', formData, buildDefaultPrivacyPolicy);
+    const termsDocumentInfo = getEffectiveLegalDocumentInfo('terms_of_purchase', formData, buildDefaultTermsOfPurchase);
+    const hasLegalDocuments = Boolean(
+        privacyDocumentInfo.content.trim()
+        && termsDocumentInfo.content.trim()
+        && formData.business_name.trim()
+        && formData.support_email.trim()
+    );
     const complianceStatusLabel = hasLegalDocuments
         ? t('business_settings.header.docs_published', 'Documentos publicados')
         : t('business_settings.header.docs_pending', 'Documentos pendentes');
     const readinessStatusLabel = isBusinessIdentityComplete
         ? t('business_settings.header.basic_setup_complete', 'Estrutura basica concluida')
         : t('business_settings.header.basic_setup_incomplete', 'Estrutura basica incompleta');
-    const privacyDocumentInfo = getEffectiveLegalDocumentInfo('privacy_policy', formData, buildDefaultPrivacyPolicy);
-    const termsDocumentInfo = getEffectiveLegalDocumentInfo('terms_of_purchase', formData, buildDefaultTermsOfPurchase);
+    const privacyHistory = documentHistory.filter((entry) => entry.document_key === 'privacy_policy').slice(0, 3);
+    const termsHistory = documentHistory.filter((entry) => entry.document_key === 'terms_of_purchase').slice(0, 3);
+
+    const loadDocumentHistory = async (accountId: string) => {
+        setHistoryLoading(true);
+
+        const { data, error: historyError } = await supabase
+            .from('business_legal_document_versions')
+            .select('id, document_key, source, version, published_at, legal_name, legal_contact, support_email, created_at, metadata')
+            .eq('account_id', accountId)
+            .order('published_at', { ascending: false })
+            .order('created_at', { ascending: false })
+            .limit(24);
+
+        if (historyError) {
+            if (!isMissingLegalHistoryTableError(historyError)) {
+                console.warn('[BusinessSettings] Falha ao carregar historico legal:', historyError);
+            }
+            setDocumentHistory([]);
+            setHistoryLoading(false);
+            return;
+        }
+
+        setDocumentHistory((data || []) as LegalHistoryEntry[]);
+        setHistoryLoading(false);
+    };
 
     useEffect(() => {
         const loadSettings = async () => {
             if (!user) return;
-            const { data: accounts } = await supabase.from('accounts').select('id').eq('owner_user_id', user.id).single();
-            if (accounts) {
-                const { data: settings } = await supabase.from('business_settings').select('*').eq('account_id', accounts.id).single();
+            const { data: account } = await supabase
+                .from('accounts')
+                .select('id')
+                .eq('owner_user_id', user.id)
+                .maybeSingle();
+
+            if (account?.id) {
+                await loadDocumentHistory(account.id);
+
+                const { data: settings } = await supabase
+                    .from('business_settings')
+                    .select('*')
+                    .eq('account_id', account.id)
+                    .maybeSingle();
+
                 if (settings) {
                     setFormData(prev => ({
                         ...prev,
                         business_name: settings.business_name || '',
                         support_email: settings.support_email || user.email || '',
                         legal_name: settings.legal_name || '',
+                        legal_responsible_email: settings.legal_responsible_email || '',
                         privacy_policy: settings.privacy_policy || '',
                         privacy_policy_version: settings.privacy_policy_version || '',
                         privacy_policy_published_at: settings.privacy_policy_published_at || '',
@@ -107,7 +186,10 @@ export const BusinessSettings = () => {
                         terms_of_purchase_published_at: settings.terms_of_purchase_published_at || ''
                     });
                 }
+                return;
             }
+
+            setDocumentHistory([]);
         };
         loadSettings();
     }, [user]);
@@ -124,7 +206,7 @@ export const BusinessSettings = () => {
                 .from('accounts')
                 .select('id')
                 .eq('owner_user_id', user.id)
-                .single();
+                .maybeSingle();
 
             if (!account) {
                 const { data: newAccount, error: createError } = await supabase
@@ -141,6 +223,8 @@ export const BusinessSettings = () => {
             }
 
             const now = new Date();
+            const normalizedLegalName = formData.legal_name.trim() || formData.business_name.trim();
+            const normalizedLegalResponsibleEmail = formData.legal_responsible_email.trim() || formData.support_email.trim();
             const nextPrivacyDocument = (() => {
                 const content = formData.privacy_policy.trim();
                 if (!content) {
@@ -190,7 +274,8 @@ export const BusinessSettings = () => {
                 .upsert({
                     account_id: account.id,
                     business_name: formData.business_name,
-                    legal_name: formData.legal_name || formData.business_name,
+                    legal_name: normalizedLegalName,
+                    legal_responsible_email: normalizedLegalResponsibleEmail,
                     support_email: formData.support_email,
                     privacy_policy: formData.privacy_policy,
                     privacy_policy_version: nextPrivacyDocument.version,
@@ -206,6 +291,53 @@ export const BusinessSettings = () => {
                 }, { onConflict: 'account_id' });
 
             if (settingsError) throw settingsError;
+
+            const historySettings: BusinessLegalSettingsLike = {
+                business_name: formData.business_name,
+                legal_name: normalizedLegalName,
+                legal_responsible_email: normalizedLegalResponsibleEmail,
+                support_email: formData.support_email,
+                privacy_policy: formData.privacy_policy,
+                privacy_policy_version: nextPrivacyDocument.version || '',
+                privacy_policy_published_at: nextPrivacyDocument.publishedAt || '',
+                terms_of_purchase: formData.terms_of_purchase,
+                terms_of_purchase_version: nextTermsDocument.version || '',
+                terms_of_purchase_published_at: nextTermsDocument.publishedAt || '',
+                updated_at: now.toISOString(),
+            };
+
+            const historySnapshots = [
+                buildLegalDocumentHistorySnapshot('privacy_policy', historySettings, buildDefaultPrivacyPolicy),
+                buildLegalDocumentHistorySnapshot('terms_of_purchase', historySettings, buildDefaultTermsOfPurchase),
+            ];
+
+            const { error: historyError } = await supabase
+                .from('business_legal_document_versions')
+                .upsert(
+                    historySnapshots.map((snapshot) => ({
+                        account_id: account.id,
+                        document_key: snapshot.key,
+                        version: snapshot.version,
+                        published_at: snapshot.publishedAt,
+                        source: snapshot.source,
+                        template_content: snapshot.templateContent,
+                        rendered_content: snapshot.renderedContent,
+                        legal_name: snapshot.legalName,
+                        legal_contact: snapshot.legalContact,
+                        support_email: snapshot.supportEmail,
+                        metadata: {
+                            ...snapshot.metadata,
+                            saved_at: now.toISOString(),
+                            saved_by_user_id: user.id,
+                            saved_via: 'BusinessSettings',
+                        },
+                    })),
+                    { onConflict: 'account_id,document_key,content_sha256', ignoreDuplicates: true },
+                );
+
+            if (historyError && !isMissingLegalHistoryTableError(historyError)) {
+                throw historyError;
+            }
 
             await supabase.from('system_events').insert({
                 account_id: account.id,
@@ -234,6 +366,7 @@ export const BusinessSettings = () => {
                 terms_of_purchase_version: nextTermsDocument.version || '',
                 terms_of_purchase_published_at: nextTermsDocument.publishedAt || '',
             });
+            await loadDocumentHistory(account.id);
             setSuccess(true);
             setTimeout(() => setSuccess(false), 5000);
 
@@ -338,6 +471,7 @@ export const BusinessSettings = () => {
                                         </h2>
                                         <p className="text-[10px] text-gray-700 font-bold uppercase tracking-[0.2em] mt-1.5">Commerce Authority Configuration</p>
                                     </div>
+
                                 </div>
                                 <Building2 className="w-10 h-10 text-gray-800/30" />
                             </div>
@@ -385,6 +519,27 @@ export const BusinessSettings = () => {
                                         </div>
                                         <p className="text-[10px] text-gray-700 font-medium mt-2 italic px-2 flex items-center gap-2">
                                             <AlertCircle className="w-3 h-3" /> {t('business_settings.form.support_email_hint', 'Usado em e-mails, suporte e rodapé legal do checkout.')}
+                                        </p>
+                                    </div>
+
+                                    <div className="space-y-4 md:col-span-2">
+                                        <label className="flex items-center gap-2 text-[10px] font-black text-gray-600 uppercase tracking-widest ml-1">
+                                            <div className="w-1 h-1 rounded-full bg-primary" />
+                                            Contato Legal / Privacidade
+                                        </label>
+                                        <div className="relative group/input">
+                                            <div className="absolute inset-0 bg-primary/5 rounded-2xl blur-sm opacity-0 group-focus-within/input:opacity-100 transition-opacity" />
+                                            <Mail className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-800 group-focus-within/input:text-primary transition-all duration-300" size={20} />
+                                            <input
+                                                type="email"
+                                                value={formData.legal_responsible_email}
+                                                onChange={e => setFormData({ ...formData, legal_responsible_email: e.target.value })}
+                                                className="relative w-full bg-white/[0.02] border border-white/5 rounded-2xl pl-16 pr-6 py-5 text-white focus:ring-2 focus:ring-primary/50 outline-none transition-all font-bold placeholder:text-gray-900 shadow-inner"
+                                                placeholder="privacidade@empresa.com"
+                                            />
+                                        </div>
+                                        <p className="text-[10px] text-gray-700 font-medium mt-2 italic px-2 flex items-center gap-2">
+                                            <AlertCircle className="w-3 h-3" /> Exibido como canal legal nos documentos quando preenchido. Se ficar vazio, o sistema usa o e-mail de suporte como fallback.
                                         </p>
                                     </div>
                                 </div>
@@ -488,6 +643,93 @@ export const BusinessSettings = () => {
                                             </div>
                                         </div>
                                     </button>
+                                </div>
+
+                                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 pt-2">
+                                    {[
+                                        {
+                                            key: 'privacy_policy' as const,
+                                            label: 'Historico - Politica de Privacidade',
+                                            entries: privacyHistory,
+                                            accent: 'emerald',
+                                            Icon: Shield,
+                                        },
+                                        {
+                                            key: 'terms_of_purchase' as const,
+                                            label: 'Historico - Termos de Compra',
+                                            entries: termsHistory,
+                                            accent: 'primary',
+                                            Icon: FileText,
+                                        },
+                                    ].map(({ key, label, entries, accent, Icon }) => (
+                                        <div
+                                            key={key}
+                                            className={`rounded-[2rem] border p-6 bg-black/20 ${accent === 'emerald' ? 'border-emerald-500/15' : 'border-primary/15'}`}
+                                        >
+                                            <div className="flex items-center justify-between gap-4 mb-5">
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`p-3 rounded-2xl ${accent === 'emerald' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-primary/10 text-primary'}`}>
+                                                        <Icon className="w-5 h-5" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-sm font-black text-white tracking-tight">{label}</p>
+                                                        <p className="text-[9px] text-gray-700 font-bold uppercase tracking-[0.2em]">Ultimos snapshots por conta</p>
+                                                    </div>
+                                                </div>
+                                                <span className="text-[9px] text-gray-600 font-black uppercase tracking-widest">
+                                                    {historyLoading ? 'Sincronizando' : `${entries.length} itens`}
+                                                </span>
+                                            </div>
+
+                                            <div className="space-y-3">
+                                                {historyLoading && (
+                                                    <div className="rounded-2xl border border-white/5 bg-white/[0.02] px-4 py-5 text-[11px] text-gray-500 font-medium">
+                                                        Carregando historico legal...
+                                                    </div>
+                                                )}
+
+                                                {!historyLoading && entries.length === 0 && (
+                                                    <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] px-4 py-5 text-[11px] text-gray-500 font-medium leading-relaxed">
+                                                        Nenhum snapshot registrado ainda para este documento nesta conta. O primeiro registro formal e criado no proximo salvamento.
+                                                    </div>
+                                                )}
+
+                                                {!historyLoading && entries.map((entry) => (
+                                                    <div key={entry.id} className="rounded-2xl border border-white/5 bg-white/[0.02] px-4 py-4">
+                                                        <div className="flex items-start justify-between gap-4">
+                                                            <div>
+                                                                <p className="text-sm font-black text-white tracking-tight">{entry.version}</p>
+                                                                <p className="text-[10px] text-gray-600 font-bold uppercase tracking-[0.2em] mt-1">
+                                                                    {entry.source === 'custom' ? 'Documento personalizado' : 'Modelo padrao versionado'}
+                                                                </p>
+                                                            </div>
+                                                            <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-[0.2em] ${entry.source === 'custom' ? 'bg-amber-500/10 text-amber-300' : 'bg-sky-500/10 text-sky-300'}`}>
+                                                                {entry.source}
+                                                            </span>
+                                                        </div>
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4 text-[11px] text-gray-500">
+                                                            <div>
+                                                                <span className="block text-[9px] font-black uppercase tracking-[0.2em] text-gray-700">Publicado em</span>
+                                                                <span>{formatHistoryTimestamp(entry.published_at)}</span>
+                                                            </div>
+                                                            <div>
+                                                                <span className="block text-[9px] font-black uppercase tracking-[0.2em] text-gray-700">Registrado em</span>
+                                                                <span>{formatHistoryTimestamp(entry.created_at)}</span>
+                                                            </div>
+                                                            <div>
+                                                                <span className="block text-[9px] font-black uppercase tracking-[0.2em] text-gray-700">Titular legal</span>
+                                                                <span>{entry.legal_name || 'nao informado'}</span>
+                                                            </div>
+                                                            <div>
+                                                                <span className="block text-[9px] font-black uppercase tracking-[0.2em] text-gray-700">Canal do documento</span>
+                                                                <span>{entry.legal_contact || entry.support_email || 'nao informado'}</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
 
