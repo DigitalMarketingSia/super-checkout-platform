@@ -1,7 +1,7 @@
 import React from 'react';
 import { Modal } from './Modal';
 import { Button } from './Button';
-import { CheckCircle, ArrowRight, Zap } from 'lucide-react';
+import { ArrowRight, BadgePercent, CheckCircle, ShieldCheck, Zap } from 'lucide-react';
 import { storage } from '../../services/storageService';
 import { licenseService } from '../../services/licenseService';
 import { openUpgradeCheckout, UpgradePlanSlug } from '../../services/upgradeCheckout';
@@ -37,6 +37,23 @@ interface UpsellModalProps {
     offerSlug: 'unlimited_domains' | 'partner_rights' | 'whitelabel' | null;
 }
 
+interface OfferConfig {
+    title: string;
+    description: string;
+    anchorPrice: number | null;
+    fallbackPrice: number;
+    features: string[];
+    cta: string;
+    planSlug: UpgradePlanSlug;
+    badge: string;
+    priceContext: string;
+}
+
+const formatPriceBRL = (value: number) => new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+}).format(value);
+
 export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) => {
     const [products, setProducts] = React.useState<any[]>([]);
     const [loading, setLoading] = React.useState(false);
@@ -44,99 +61,125 @@ export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) =>
     const [checkoutError, setCheckoutError] = React.useState<string | null>(null);
 
     React.useEffect(() => {
-        if (isOpen) {
-            const fetchProducts = async () => {
-                setLoading(true);
-                setCheckoutError(null);
-                try {
-                    const [officialPlansResult, localProductsResult] = await Promise.allSettled([
-                        licenseService.getOfficialPlans(),
-                        storage.getPublicSaaSProducts(),
-                    ]);
+        if (!isOpen) return;
 
-                    const officialPlans = officialPlansResult.status === 'fulfilled' ? officialPlansResult.value : [];
-                    const localProducts = localProductsResult.status === 'fulfilled' ? localProductsResult.value : [];
+        const fetchProducts = async () => {
+            setLoading(true);
+            setCheckoutError(null);
+            try {
+                const [officialPlansResult, localProductsResult] = await Promise.allSettled([
+                    licenseService.getOfficialPlans(),
+                    storage.getPublicSaaSProducts(),
+                ]);
 
-                    const mergedPlans = officialPlans.map((plan: any) => {
-                        const localMatch = localProducts.find((product: any) => product.saas_plan_slug === plan.saas_plan_slug);
+                const officialPlans = officialPlansResult.status === 'fulfilled' ? officialPlansResult.value : [];
+                const localProducts = localProductsResult.status === 'fulfilled' ? localProductsResult.value : [];
 
-                        return {
-                            ...plan,
-                            name: localMatch?.name || plan.name,
-                            description: localMatch?.description || plan.description,
-                            imageUrl: localMatch?.imageUrl || plan.imageUrl,
-                            price_real: localMatch?.price_real || plan.price_real,
-                            checkout_url: resolveFirstSafeCheckoutUrl(
-                                localMatch?.checkout_url,
-                                plan.checkout_url,
-                                OFFICIAL_CHECKOUT_FALLBACKS[plan.saas_plan_slug as UpgradePlanSlug],
-                            ),
-                        };
-                    });
+                const mergedPlans = officialPlans.map((plan: any) => {
+                    const localMatch = localProducts.find((product: any) => product.saas_plan_slug === plan.saas_plan_slug);
 
-                    const localOnlyProducts = localProducts.filter((product: any) =>
-                        !mergedPlans.some((plan: any) => plan.saas_plan_slug === product.saas_plan_slug)
-                    ).map((product: any) => ({
+                    return {
+                        ...plan,
+                        name: localMatch?.name || plan.name,
+                        description: localMatch?.description || plan.description,
+                        imageUrl: localMatch?.imageUrl || plan.imageUrl,
+                        price_real: localMatch?.price_real || plan.price_real,
+                        checkout_url: resolveFirstSafeCheckoutUrl(
+                            localMatch?.checkout_url,
+                            plan.checkout_url,
+                            OFFICIAL_CHECKOUT_FALLBACKS[plan.saas_plan_slug as UpgradePlanSlug],
+                        ),
+                    };
+                });
+
+                const localOnlyProducts = localProducts
+                    .filter((product: any) => !mergedPlans.some((plan: any) => plan.saas_plan_slug === product.saas_plan_slug))
+                    .map((product: any) => ({
                         ...product,
                         checkout_url: resolveSafeCheckoutUrl(product.checkout_url),
                     }));
 
-                    setProducts([...mergedPlans, ...localOnlyProducts]);
-                } catch (err) {
-                    console.error('Error fetching SaaS products for modal:', err);
-                    setCheckoutError('Nao foi possivel carregar o checkout de upgrade agora.');
-                } finally {
-                    setLoading(false);
-                }
-            };
-            fetchProducts();
-        }
+                setProducts([...mergedPlans, ...localOnlyProducts]);
+            } catch (error) {
+                console.error('Error fetching SaaS products for modal:', error);
+                setCheckoutError('Nao foi possivel carregar o checkout de upgrade agora.');
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchProducts();
     }, [isOpen]);
 
     if (!offerSlug) return null;
 
-    const offers = {
+    const offers: Record<'unlimited_domains' | 'partner_rights' | 'whitelabel', OfferConfig> = {
         unlimited_domains: {
-            title: 'Licença Vitalícia Elite',
-            description: 'Remova todos os limites de domínios e produtos. Pague uma vez e tenha liberdade total para escalar seu negócio.',
-            price: 'R$ 197',
-            features: ['Domínios e Subdomínios Ilimitados', 'Produtos e Checkouts Ilimitados', 'SSL Automático incluso', 'Atualizações Vitalícias'],
-            cta: 'Fazer Upgrade Vitalício',
-            plan_slug: 'upgrade_domains'
+            title: 'Licenca Vitalicia Elite',
+            description: 'Remova todos os limites principais do sistema e destrave uma oferta especial de ativacao para escalar com mais margem.',
+            anchorPrice: 497,
+            fallbackPrice: 197,
+            features: [
+                'Dominios e subdominios ilimitados',
+                'Produtos, checkouts e areas de membros ilimitados',
+                'SSL automatico incluso',
+                'Atualizacoes vitalicias',
+            ],
+            cta: 'Fazer Upgrade Vitalicio',
+            planSlug: 'upgrade_domains',
+            badge: 'Oferta de Ativacao',
+            priceContext: 'O valor final abaixo acompanha automaticamente o produto vinculado ao plano de upgrade.',
         },
         partner_rights: {
-            title: 'Licença Comercial / Parceiro',
-            description: 'O modelo ideal para agências e freelancers. Instale o sistema para seus clientes e lucre com a implementação.',
-            price: 'R$ 497',
-            features: ['Direito de Uso Comercial', 'Instalações p/ Clientes', 'Suporte Prioritário', 'Painel de Gestão Multi-Licenças'],
+            title: 'Licenca Comercial / Parceiro',
+            description: 'Ideal para agencias e freelancers que querem vender implantacao e operar com uma condicao comercial mais agressiva.',
+            anchorPrice: 997,
+            fallbackPrice: 497,
+            features: [
+                'Direito de uso comercial',
+                'Instalacoes para clientes',
+                'Suporte prioritario',
+                'Painel de gestao multi-licencas',
+            ],
             cta: 'Ser Parceiro Oficial',
-            plan_slug: 'saas'
+            planSlug: 'saas',
+            badge: 'Condicao Comercial',
+            priceContext: 'O valor final abaixo acompanha automaticamente o produto parceiro vinculado a este plano.',
         },
         whitelabel: {
             title: 'Upgrade White Label Elite',
-            description: 'Remova totalmente a nossa marca e apresente o sistema como seu para seus clientes.',
-            price: 'R$ 997',
-            features: ['Tudo da Licença Comercial', 'Remover Marca Super Checkout', 'Personalização de Logotipo', 'Domínio Próprio de Admin'],
+            description: 'Remova totalmente a nossa marca e apresente o sistema como seu para clientes com uma camada premium de posicionamento.',
+            anchorPrice: null,
+            fallbackPrice: 997,
+            features: [
+                'Tudo da licenca comercial',
+                'Remocao da marca Super Checkout',
+                'Personalizacao de logotipo',
+                'Dominio proprio de admin',
+            ],
             cta: 'Ativar White Label',
-            plan_slug: 'whitelabel'
-        }
+            planSlug: 'whitelabel',
+            badge: 'Camada Premium',
+            priceContext: 'O valor final abaixo acompanha o produto white label vinculado quando existir configuracao comercial publicada.',
+        },
     };
 
     const content = offers[offerSlug] || offers.unlimited_domains;
-
-    // Detect current license key
     const licenseKey = import.meta.env.VITE_LICENSE_KEY || '';
-    
-    // Try to find a dynamic product that matches the required plan
-    const dynamicProduct = products.find((p) => p.saas_plan_slug === content.plan_slug);
+
+    const dynamicProduct = products.find((product) => product.saas_plan_slug === content.planSlug);
     const checkoutUrl = resolveFirstSafeCheckoutUrl(
         dynamicProduct?.checkout_url,
-        OFFICIAL_CHECKOUT_FALLBACKS[content.plan_slug as UpgradePlanSlug],
+        OFFICIAL_CHECKOUT_FALLBACKS[content.planSlug],
     );
-    const planSlug = (dynamicProduct?.saas_plan_slug || content.plan_slug) as UpgradePlanSlug;
+    const planSlug = (dynamicProduct?.saas_plan_slug || content.planSlug) as UpgradePlanSlug;
     const checkoutUnavailable = !loading && !checkoutUrl;
 
-    const finalPrice = dynamicProduct ? `R$ ${dynamicProduct.price_real}` : content.price;
+    const effectivePrice = Number(dynamicProduct?.price_real ?? content.fallbackPrice ?? 0);
+    const anchorPrice = typeof content.anchorPrice === 'number' ? content.anchorPrice : null;
+    const hasDiscountAnchor = anchorPrice !== null && effectivePrice > 0 && anchorPrice > effectivePrice;
+    const savingsValue = hasDiscountAnchor ? anchorPrice - effectivePrice : 0;
+    const savingsPercent = hasDiscountAnchor ? Math.round((savingsValue / anchorPrice) * 100) : 0;
 
     const handleOpenCheckout = async () => {
         if (!checkoutUrl || !planSlug) {
@@ -170,58 +213,113 @@ export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) =>
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="">
-            <div className="text-center sm:text-left">
-                <div className="mb-6 flex justify-center sm:justify-start">
-                    <div className="w-12 h-12 bg-purple-500/20 rounded-full flex items-center justify-center text-purple-400">
-                        <Zap className="w-6 h-6" />
+            <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[#070910] p-6 text-center sm:p-8 sm:text-left">
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(34,197,94,0.18),transparent_34%),radial-gradient(circle_at_bottom_left,rgba(168,85,247,0.18),transparent_40%)]" />
+
+                <div className="relative z-10">
+                    <div className="mb-6 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
+                        <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-emerald-300">
+                            <Zap className="h-3.5 w-3.5" />
+                            {content.badge}
+                        </div>
+                        {hasDiscountAnchor && (
+                            <div className="inline-flex items-center gap-2 rounded-full border border-amber-300/20 bg-amber-300/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-amber-200">
+                                <BadgePercent className="h-3.5 w-3.5" />
+                                Economia de {savingsPercent}%
+                            </div>
+                        )}
                     </div>
-                </div>
 
-                <h2 className="text-2xl font-bold text-white mb-2">{content.title}</h2>
-                <p className="text-gray-400 mb-6">{content.description}</p>
-
-                <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-6">
-                    <ul className="space-y-3">
-                        {content.features.map((feat, idx) => (
-                            <li key={idx} className="flex items-center gap-2 text-sm text-gray-300">
-                                <CheckCircle className="w-4 h-4 text-green-500" />
-                                {feat}
-                            </li>
-                        ))}
-                    </ul>
-                    <div className="mt-4 pt-4 border-t border-white/10 flex justify-between items-center">
-                        <span className="text-sm text-gray-400">Pagamento Único</span>
-                        <span className="text-xl font-bold text-white">{loading ? '...' : finalPrice}</span>
-                    </div>
-                </div>
-
-                <div className="flex flex-col gap-3">
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 text-center">
-                        Upgrade aplicado automaticamente nesta conta
+                    <h2 className="text-3xl font-black italic tracking-tighter text-white sm:text-4xl">
+                        {content.title}
+                    </h2>
+                    <p className="mt-3 max-w-2xl text-sm font-medium leading-relaxed text-white/60 sm:text-base">
+                        {content.description}
                     </p>
-                    {checkoutError && (
-                        <p className="text-xs font-bold text-red-400 bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3">
-                            {checkoutError}
+
+                    <div className="mt-7 grid gap-4 lg:grid-cols-[1.08fr_0.92fr]">
+                        <div className="rounded-[1.75rem] border border-white/10 bg-white/[0.04] p-5 backdrop-blur-xl">
+                            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/40">
+                                Condicao especial desta conta
+                            </p>
+
+                            <div className="mt-4 flex flex-wrap items-end gap-3">
+                                {hasDiscountAnchor && anchorPrice !== null && (
+                                    <span className="text-lg font-black text-white/30 line-through sm:text-2xl">
+                                        {formatPriceBRL(anchorPrice)}
+                                    </span>
+                                )}
+                                <span className="text-4xl font-black tracking-tight text-white sm:text-6xl">
+                                    {loading ? '...' : formatPriceBRL(effectivePrice)}
+                                </span>
+                            </div>
+
+                            <p className="mt-3 text-sm font-medium text-emerald-200/90">
+                                {hasDiscountAnchor && anchorPrice !== null
+                                    ? `De ${formatPriceBRL(anchorPrice)} por ${formatPriceBRL(effectivePrice)}`
+                                    : 'Preco atual liberado para este plano'}
+                            </p>
+
+                            {hasDiscountAnchor && savingsValue > 0 && (
+                                <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-2 text-[11px] font-black uppercase tracking-[0.2em] text-emerald-200">
+                                    <ShieldCheck className="h-4 w-4" />
+                                    Economia de {formatPriceBRL(savingsValue)}
+                                </div>
+                            )}
+
+                            <p className="mt-4 text-xs font-medium leading-relaxed text-white/45">
+                                {content.priceContext}
+                            </p>
+                        </div>
+
+                        <div className="rounded-[1.75rem] border border-white/10 bg-black/20 p-5">
+                            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/40">
+                                O que voce libera agora
+                            </p>
+                            <ul className="mt-4 space-y-3">
+                                {content.features.map((feature, idx) => (
+                                    <li key={idx} className="flex items-start gap-3 text-sm text-gray-200">
+                                        <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+                                        <span className="leading-relaxed">{feature}</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div className="mt-6 flex flex-col gap-3">
+                        <p className="text-center text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">
+                            Upgrade aplicado automaticamente nesta conta
                         </p>
-                    )}
-                    {checkoutUnavailable && !checkoutError && (
-                        <p className="text-xs font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-2xl px-4 py-3">
-                            Checkout oficial do plano nao encontrado. Tente novamente em instantes ou abra o upgrade pelo Portal do Cliente.
-                        </p>
-                    )}
-                    <Button
-                        onClick={handleOpenCheckout}
-                        disabled={loading || openingCheckout || checkoutUnavailable}
-                        className="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold shadow-lg shadow-purple-500/20"
-                    >
-                        {loading ? 'Carregando...' : openingCheckout ? 'Preparando Checkout...' : content.cta} <ArrowRight className="w-4 h-4 ml-2" />
-                    </Button>
-                    <button
-                        onClick={onClose}
-                        className="text-sm text-gray-500 hover:text-white transition-colors py-2"
-                    >
-                        Não, obrigado. Quero continuar limitado.
-                    </button>
+
+                        {checkoutError && (
+                            <p className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-xs font-bold text-red-400">
+                                {checkoutError}
+                            </p>
+                        )}
+
+                        {checkoutUnavailable && !checkoutError && (
+                            <p className="rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-xs font-bold text-amber-300">
+                                Checkout oficial do plano nao encontrado. Tente novamente em instantes ou abra o upgrade pelo Portal do Cliente.
+                            </p>
+                        )}
+
+                        <Button
+                            onClick={handleOpenCheckout}
+                            disabled={loading || openingCheckout || checkoutUnavailable}
+                            className="w-full rounded-[1.35rem] border-none bg-gradient-to-r from-emerald-500 via-green-400 to-lime-300 py-4 text-sm font-black uppercase tracking-[0.18em] text-[#08110d] shadow-[0_24px_60px_rgba(74,222,128,0.24)] hover:brightness-105"
+                        >
+                            {loading ? 'Carregando...' : openingCheckout ? 'Preparando Checkout...' : content.cta}
+                            <ArrowRight className="ml-2 h-4 w-4" />
+                        </Button>
+
+                        <button
+                            onClick={onClose}
+                            className="py-2 text-sm text-gray-500 transition-colors hover:text-white"
+                        >
+                            Nao, obrigado. Quero continuar limitado.
+                        </button>
+                    </div>
                 </div>
             </div>
         </Modal>

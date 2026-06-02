@@ -9,6 +9,10 @@ import {
   sanitizeProductDeliverableFileName,
   validateProductDeliverableFile,
 } from '../config/productDeliverables';
+import {
+  createPlanLimitError,
+  resolveFeatureAccess,
+} from './featureAccess';
 import { supabase } from './supabase';
 export { supabase };
 
@@ -2178,6 +2182,26 @@ class StorageService {
   async createMemberArea(area: Omit<MemberArea, 'id' | 'created_at'>) {
     const user = await this.getUser();
     if (!user) throw new Error('No user logged in');
+
+    const resolvedAccess = await resolveFeatureAccess(user.email);
+    const memberAreaLimit = resolvedAccess.limits.member_areas;
+
+    if (memberAreaLimit !== 'unlimited' && memberAreaLimit !== null) {
+      const { count, error: countError } = await supabase
+        .from('member_areas')
+        .select('id', { count: 'exact', head: true })
+        .eq('owner_id', user.id);
+
+      if (countError) {
+        console.error('Error checking member area quota:', countError.message);
+        throw countError;
+      }
+
+      const currentCount = count || 0;
+      if (currentCount >= memberAreaLimit) {
+        throw createPlanLimitError('member_areas', currentCount, memberAreaLimit);
+      }
+    }
 
     const { data, error } = await supabase
       .from('member_areas')

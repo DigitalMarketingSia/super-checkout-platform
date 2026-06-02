@@ -4,19 +4,25 @@ import { storage } from '../../services/storageService';
 import { MemberArea } from '../../types';
 import { Button } from '../../components/ui/Button';
 import { ConfirmModal } from '../../components/ui/Modal';
-import { Plus, Users, ExternalLink, Trash2, Activity, Globe, Layout as LayoutIcon, ChevronRight } from 'lucide-react';
+import { Plus, Users, ExternalLink, Trash2, Activity, Globe, Layout as LayoutIcon, ChevronRight, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTranslation } from 'react-i18next';
+import { useFeatures } from '../../hooks/useFeatures';
+import { UpsellModal } from '../../components/ui/UpsellModal';
 
 export const MemberAreas = () => {
     const { t } = useTranslation('admin');
     const navigate = useNavigate();
     const { user } = useAuth();
+    const { getLimit, loading: checkingFeatures } = useFeatures();
     const [loading, setLoading] = useState(true);
     const [areas, setAreas] = useState<MemberArea[]>([]);
     const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; areaId: string | null }>({ isOpen: false, areaId: null });
     const [isDeleting, setIsDeleting] = useState(false);
+    const [isUpsellModalOpen, setIsUpsellModalOpen] = useState(false);
+
+    const memberAreaLimit = getLimit('member_areas');
 
     useEffect(() => {
         if (user) {
@@ -53,6 +59,18 @@ export const MemberAreas = () => {
         }
     };
 
+    const handleCreateArea = () => {
+        if (checkingFeatures) return;
+
+        const allowed = memberAreaLimit === null || memberAreaLimit === 'unlimited' || (memberAreaLimit && areas.length < memberAreaLimit);
+        if (!allowed) {
+            setIsUpsellModalOpen(true);
+            return;
+        }
+
+        navigate('/admin/members/new');
+    };
+
     return (
         <Layout>
             {/* Tactical Header */}
@@ -67,12 +85,25 @@ export const MemberAreas = () => {
                         <span className="text-purple-500">{t('member_areas_page.hero_title_highlight')}</span>
                     </h1>
                     <p className="text-white/40 text-sm mt-2 font-medium">{t('member_areas_page.hero_subtitle')}</p>
+                    {memberAreaLimit && !checkingFeatures && (
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-purple-300/80 mt-3">
+                            {t('member_areas_page.limit_status', {
+                                count: areas.length,
+                                limit: memberAreaLimit === 'unlimited' ? '∞' : memberAreaLimit,
+                            })}
+                        </p>
+                    )}
                 </div>
                 <Button 
-                    onClick={() => navigate('/admin/members/new')}
+                    onClick={handleCreateArea}
+                    disabled={checkingFeatures}
                     className="bg-purple-600 hover:bg-purple-500 text-white border-none px-6 py-6 rounded-xl shadow-[0_0_20px_rgba(147,51,234,0.3)] group transition-all"
                 >
-                    <Plus className="w-5 h-5 mr-2 group-hover:rotate-90 transition-transform" /> 
+                    {checkingFeatures ? (
+                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    ) : (
+                        <Plus className="w-5 h-5 mr-2 group-hover:rotate-90 transition-transform" />
+                    )}
                     <span className="font-bold uppercase tracking-tight">{t('member_areas_page.create_new_portal')}</span>
                 </Button>
             </div>
@@ -101,10 +132,11 @@ export const MemberAreas = () => {
                             {t('member_areas_page.empty_desc')}
                         </p>
                         <Button 
-                            onClick={() => navigate('/admin/members/new')} 
+                            onClick={handleCreateArea}
+                            disabled={checkingFeatures}
                             className="bg-white text-black hover:bg-white/90 border-none px-8 py-6 rounded-xl font-black uppercase italic tracking-tighter"
                         >
-                            {t('member_areas_page.deploy_first')}
+                            {checkingFeatures ? t('member_areas_page.checking_plan') : t('member_areas_page.deploy_first')}
                         </Button>
                     </div>
                 </div>
@@ -199,6 +231,12 @@ export const MemberAreas = () => {
                 confirmText={t('member_areas_page.delete_btn')}
                 variant="danger"
                 loading={isDeleting}
+            />
+
+            <UpsellModal
+                isOpen={isUpsellModalOpen}
+                onClose={() => setIsUpsellModalOpen(false)}
+                offerSlug="unlimited_domains"
             />
         </Layout>
     );

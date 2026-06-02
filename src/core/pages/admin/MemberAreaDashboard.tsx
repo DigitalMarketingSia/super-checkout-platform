@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Layout } from '../../components/Layout';
 import { storage } from '../../services/storageService';
 import { MemberArea } from '../../types';
-import { ArrowLeft, BookOpen, Settings, Globe, Package, ExternalLink, Layers, Users, Activity, Terminal } from 'lucide-react';
+import { ArrowLeft, BookOpen, Settings, Globe, Package, ExternalLink, Layers, Users, Activity, Terminal, Lock } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Contents } from './Contents';
 import { MemberSettings } from './MemberSettings';
@@ -11,15 +11,24 @@ import { MemberAreaTracks } from './MemberAreaTracks';
 import { MemberAreaMembers } from './MemberAreaMembers';
 import { MemberAreaProducts } from './MemberAreaProducts';
 import { useTranslation } from 'react-i18next';
+import { Button } from '../../components/ui/Button';
+import { useFeatures } from '../../hooks/useFeatures';
+import { UpsellModal } from '../../components/ui/UpsellModal';
+import { isPlanLimitError } from '../../services/featureAccess';
 
 export const MemberAreaDashboard = () => {
     const { t } = useTranslation('admin');
     const navigate = useNavigate();
     const { id } = useParams<{ id: string }>();
     const isNew = !id || id === 'new';
+    const { getLimit, loading: checkingFeatures } = useFeatures();
 
     const [activeTab, setActiveTab] = useState<'contents' | 'settings' | 'domains' | 'products' | 'tracks' | 'members'>('contents');
     const [loading, setLoading] = useState(true);
+    const [createGuardLoading, setCreateGuardLoading] = useState(false);
+    const [canCreateNewArea, setCanCreateNewArea] = useState(true);
+    const [currentAreaCount, setCurrentAreaCount] = useState(0);
+    const [isUpsellModalOpen, setIsUpsellModalOpen] = useState(false);
     const [area, setArea] = useState<MemberArea>({
         id: '',
         owner_id: '',
@@ -28,16 +37,48 @@ export const MemberAreaDashboard = () => {
         primary_color: '#8A2BE2',
         created_at: ''
     });
+    const memberAreaLimit = getLimit('member_areas');
 
     useEffect(() => {
         if (!isNew && id) {
             loadArea(id);
         } else {
-            setArea({ ...area, id: crypto.randomUUID() });
+            setArea((current) => ({ ...current, id: current.id || crypto.randomUUID() }));
             setLoading(false);
             setActiveTab('settings');
         }
-    }, [id]);
+    }, [id, isNew]);
+
+    useEffect(() => {
+        if (!isNew || checkingFeatures) return;
+
+        if (memberAreaLimit === 'unlimited' || memberAreaLimit === null) {
+            setCanCreateNewArea(true);
+            return;
+        }
+
+        let isMounted = true;
+        setCreateGuardLoading(true);
+
+        storage.getMemberAreas()
+            .then((areas) => {
+                if (!isMounted) return;
+                setCurrentAreaCount(areas.length);
+                setCanCreateNewArea(areas.length < memberAreaLimit);
+            })
+            .catch((error) => {
+                console.error('Error checking member area creation limit:', error);
+            })
+            .finally(() => {
+                if (isMounted) {
+                    setCreateGuardLoading(false);
+                }
+            });
+
+        return () => {
+            isMounted = false;
+        };
+    }, [checkingFeatures, isNew, memberAreaLimit]);
 
     const loadArea = async (areaId: string) => {
         setLoading(true);
@@ -58,6 +99,11 @@ export const MemberAreaDashboard = () => {
     const handleSave = async (updatedArea: MemberArea) => {
         try {
             if (isNew) {
+                if (!canCreateNewArea) {
+                    setIsUpsellModalOpen(true);
+                    return;
+                }
+
                 const { created_at, ...areaData } = updatedArea;
                 // @ts-ignore
                 const newArea = await storage.createMemberArea(areaData);
@@ -68,6 +114,11 @@ export const MemberAreaDashboard = () => {
             setArea(updatedArea);
         } catch (error: any) {
             console.error('Error saving area:', error);
+            if (isPlanLimitError(error, 'member_areas')) {
+                setCanCreateNewArea(false);
+                setIsUpsellModalOpen(true);
+                return;
+            }
             alert(`${t('member_area_details.error_save', 'Erro ao salvar:')} ${error.message}`);
         }
     };
@@ -81,6 +132,88 @@ export const MemberAreaDashboard = () => {
                         {t('member_area_details.loading')}
                     </p>
                 </div>
+            </Layout>
+        );
+    }
+
+    if (isNew && (checkingFeatures || createGuardLoading)) {
+        return (
+            <Layout>
+                <div className="flex flex-col items-center justify-center py-20">
+                    <div className="w-12 h-12 border-4 border-white/5 border-t-purple-500 rounded-full animate-spin mb-4" />
+                    <p className="text-white/40 text-xs font-bold uppercase tracking-widest font-mono">
+                        {t('member_areas_page.checking_plan')}
+                    </p>
+                </div>
+            </Layout>
+        );
+    }
+
+    if (isNew && !canCreateNewArea) {
+        return (
+            <Layout>
+                <div className="max-w-3xl mx-auto">
+                    <div className="flex items-center gap-6 mb-10">
+                        <button
+                            onClick={() => navigate('/admin/members')}
+                            className="w-12 h-12 flex items-center justify-center rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all group"
+                        >
+                            <ArrowLeft className="w-5 h-5 text-white group-hover:-translate-x-1 transition-transform" />
+                        </button>
+                        <div>
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-white/40 font-mono mb-1">
+                                {t('member_area_details.control_plane')}
+                            </p>
+                            <h1 className="text-3xl font-black text-white italic tracking-tighter uppercase leading-none">
+                                {t('member_areas_page.upgrade_gate_title')}
+                            </h1>
+                        </div>
+                    </div>
+
+                    <div className="bg-[#0A0A15]/50 backdrop-blur-3xl rounded-[2.5rem] border border-white/5 p-10 relative overflow-hidden">
+                        <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 via-transparent to-emerald-500/10 pointer-events-none" />
+                        <div className="relative z-10">
+                            <div className="w-20 h-20 rounded-[2rem] bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mb-8">
+                                <Lock className="w-9 h-9 text-emerald-400" />
+                            </div>
+                            <h2 className="text-3xl font-black text-white italic uppercase tracking-tighter mb-4">
+                                {t('member_areas_page.upgrade_gate_heading')}
+                            </h2>
+                            <p className="text-white/50 text-base leading-relaxed max-w-2xl">
+                                {t('member_areas_page.upgrade_gate_desc')}
+                            </p>
+                            {memberAreaLimit && (
+                                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-purple-300/80 mt-6">
+                                    {t('member_areas_page.limit_status', {
+                                        count: currentAreaCount,
+                                        limit: memberAreaLimit === 'unlimited' ? '∞' : memberAreaLimit,
+                                    })}
+                                </p>
+                            )}
+
+                            <div className="flex flex-col sm:flex-row gap-4 mt-10">
+                                <Button
+                                    onClick={() => setIsUpsellModalOpen(true)}
+                                    className="bg-purple-600 hover:bg-purple-500 text-white border-none px-8 py-5 rounded-2xl font-black uppercase tracking-tight"
+                                >
+                                    {t('member_areas_page.upgrade_gate_cta')}
+                                </Button>
+                                <Button
+                                    onClick={() => navigate('/admin/members')}
+                                    className="bg-white/5 hover:bg-white/10 text-white border border-white/10 px-8 py-5 rounded-2xl font-black uppercase tracking-tight"
+                                >
+                                    {t('member_areas_page.upgrade_gate_back')}
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <UpsellModal
+                    isOpen={isUpsellModalOpen}
+                    onClose={() => setIsUpsellModalOpen(false)}
+                    offerSlug="unlimited_domains"
+                />
             </Layout>
         );
     }
@@ -244,6 +377,12 @@ export const MemberAreaDashboard = () => {
                     </div>
                 </div>
             </div>
+
+            <UpsellModal
+                isOpen={isUpsellModalOpen}
+                onClose={() => setIsUpsellModalOpen(false)}
+                offerSlug="unlimited_domains"
+            />
         </Layout>
     );
 };

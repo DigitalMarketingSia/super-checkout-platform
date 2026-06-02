@@ -503,12 +503,19 @@
     "hero_subtitle": "Gerencie tus portais educacionais e ecossistemas de entrega.",
     "create_new_portal": "Crear novo portal",
     "loading": "Sincronizando áreas...",
+    "checking_plan": "Verificando plan...",
     "empty_title_prefix": "Crie tu",
     "empty_title_highlight": "primeira área",
     "empty_desc": "Ning?na área de membros encontrada. Crie tu primeiro portal para hospedar cursos, conteúdos e comunidades.",
     "deploy_first": "Crear primeira área",
+    "limit_status": "{{count}} / {{limit}} areas disponibles en este plan",
     "live_slug": "Slug ativo",
-    "visit_public_access": "Acessar área pública"
+    "visit_public_access": "Acessar área pública",
+    "upgrade_gate_title": "Upgrade necesario",
+    "upgrade_gate_heading": "Limite del plan gratuito alcanzado",
+    "upgrade_gate_desc": "El plan gratuito libera solo 1 area de miembros. Haz upgrade para desbloquear nuevos portales sin este limite.",
+    "upgrade_gate_cta": "Desbloquear mas areas",
+    "upgrade_gate_back": "Volver a areas"
   },
   "system_updates": {
     "title": "Actualizaciones del Sistema",
