@@ -323,7 +323,17 @@ export const Register = () => {
         setWaitlistSuccess(null);
 
         try {
-            const response = await joinRegistrationWaitlist({ name, email });
+            if (!platformLegalAccepted) {
+                throw new Error(t('register.platform_legal_required', {
+                    defaultValue: 'Voce precisa aceitar os Termos de Uso e a Politica de Privacidade da plataforma para continuar.'
+                }));
+            }
+
+            const response = await joinRegistrationWaitlist({
+                name,
+                email,
+                platformLegalAccepted
+            });
             setWaitlistSuccess(
                 response.alreadyJoined
                     ? 'Seu e-mail ja estava na lista. Vamos avisar quando abrirmos.'
@@ -375,6 +385,43 @@ export const Register = () => {
         setCaptchaSiteKey(null);
         setCaptchaToken(null);
     };
+
+    const renderPlatformLegalAcceptance = () => (
+        <div className="bg-white/[0.03] border border-white/8 rounded-3xl p-6 flex items-start gap-4 animate-in slide-in-from-bottom-4 duration-500">
+            <div className="pt-1">
+                <input
+                    type="checkbox"
+                    id="platform-legal-acceptance"
+                    required
+                    checked={platformLegalAccepted}
+                    onChange={e => setPlatformLegalAccepted(e.target.checked)}
+                    className="w-6 h-6 rounded-lg border-white/20 bg-white/5 text-emerald-500 focus:ring-emerald-500/50 cursor-pointer"
+                />
+            </div>
+            <label htmlFor="platform-legal-acceptance" className="text-sm text-gray-400 leading-relaxed cursor-pointer select-none">
+                <span className="font-black text-white block mb-1 uppercase tracking-tighter italic">
+                    {t('register.platform_legal_label', { defaultValue: 'Aceite institucional da plataforma' })}
+                </span>
+                {t('register.platform_legal_desc_prefix', { defaultValue: 'Li e aceito os' })}
+                {' '}
+                <a href={getPlatformTermsUrl()} target="_blank" rel="noreferrer" className="text-white hover:text-emerald-300 underline underline-offset-4">
+                    {t('register.platform_terms_link', { defaultValue: 'Termos de Uso' })}
+                </a>
+                {' '}
+                {t('register.platform_legal_desc_middle', { defaultValue: 'e a' })}
+                {' '}
+                <a href={getPlatformPrivacyUrl()} target="_blank" rel="noreferrer" className="text-white hover:text-emerald-300 underline underline-offset-4">
+                    {t('register.platform_privacy_link', { defaultValue: 'Politica de Privacidade' })}
+                </a>
+                {' '}
+                {t('register.platform_legal_desc_suffix', {
+                    defaultValue: 'da plataforma, na versao {{version}}, com canal oficial em {{email}}.',
+                    version: PLATFORM_LEGAL_VERSION,
+                    email: PLATFORM_LEGAL_CONTACT_EMAIL
+                })}
+            </label>
+        </div>
+    );
 
     if (success) {
         return (
@@ -680,6 +727,8 @@ export const Register = () => {
                                 </div>
                             </div>
 
+                            {renderPlatformLegalAcceptance()}
+
                             {error && (
                                 <p className="text-red-500/80 text-[10px] font-bold text-center italic">{error}</p>
                             )}
@@ -911,40 +960,7 @@ export const Register = () => {
                                 </div>
                             )}
 
-                            <div className="bg-white/[0.03] border border-white/8 rounded-3xl p-6 flex items-start gap-4 animate-in slide-in-from-bottom-4 duration-500">
-                                <div className="pt-1">
-                                    <input
-                                        type="checkbox"
-                                        id="platform-legal-acceptance"
-                                        required
-                                        checked={platformLegalAccepted}
-                                        onChange={e => setPlatformLegalAccepted(e.target.checked)}
-                                        className="w-6 h-6 rounded-lg border-white/20 bg-white/5 text-emerald-500 focus:ring-emerald-500/50 cursor-pointer"
-                                    />
-                                </div>
-                                <label htmlFor="platform-legal-acceptance" className="text-sm text-gray-400 leading-relaxed cursor-pointer select-none">
-                                    <span className="font-black text-white block mb-1 uppercase tracking-tighter italic">
-                                        {t('register.platform_legal_label', { defaultValue: 'Aceite institucional da plataforma' })}
-                                    </span>
-                                    {t('register.platform_legal_desc_prefix', { defaultValue: 'Li e aceito os' })}
-                                    {' '}
-                                    <a href={getPlatformTermsUrl()} target="_blank" rel="noreferrer" className="text-white hover:text-emerald-300 underline underline-offset-4">
-                                        {t('register.platform_terms_link', { defaultValue: 'Termos de Uso' })}
-                                    </a>
-                                    {' '}
-                                    {t('register.platform_legal_desc_middle', { defaultValue: 'e a' })}
-                                    {' '}
-                                    <a href={getPlatformPrivacyUrl()} target="_blank" rel="noreferrer" className="text-white hover:text-emerald-300 underline underline-offset-4">
-                                        {t('register.platform_privacy_link', { defaultValue: 'Politica de Privacidade' })}
-                                    </a>
-                                    {' '}
-                                    {t('register.platform_legal_desc_suffix', {
-                                        defaultValue: 'da plataforma, na versao {{version}}, com canal oficial em {{email}}.',
-                                        version: PLATFORM_LEGAL_VERSION,
-                                        email: PLATFORM_LEGAL_CONTACT_EMAIL
-                                    })}
-                                </label>
-                            </div>
+                            {renderPlatformLegalAcceptance()}
 
                             {requiresCaptcha && captchaSiteKey && (
                                 <div className="bg-white/5 border border-white/10 rounded-3xl p-5 space-y-3">

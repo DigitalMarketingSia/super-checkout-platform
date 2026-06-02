@@ -69,6 +69,7 @@ interface PlatformLegalAcceptanceParams {
     portalBaseUrl: string;
     surface: 'register';
     acceptedAt: string;
+    entryPoint?: 'register' | 'waitlist';
 }
 
 const HARD_LIMITS = {
@@ -594,6 +595,7 @@ async function persistPlatformLegalAcceptance(params: PlatformLegalAcceptancePar
         metadata: {
             source: SOURCE,
             accepted_via: params.surface,
+            entry_point: params.entryPoint || params.surface,
             accepted_at: params.acceptedAt,
         }
     };
@@ -1108,9 +1110,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (action === 'waitlist') {
         const name = String(req.body?.name || '').trim();
+        const platformLegalAccepted = Boolean(req.body?.platformLegalAccepted);
+
+        if (!platformLegalAccepted) {
+            return res.status(400).json({
+                error: 'Voce precisa aceitar os Termos de Uso e a Politica de Privacidade da plataforma.',
+                error_code: 'platform_legal_required'
+            });
+        }
 
         await incrementRateLimitBucket(`waitlist:ip:${ip}`, HARD_LIMITS.waitlistIp);
         await incrementRateLimitBucket(`waitlist:email:${emailFingerprint(email)}`, HARD_LIMITS.waitlistEmail);
+
+        const acceptanceTimestamp = new Date().toISOString();
+        const portalBaseUrl = getPortalBaseUrl(req.headers.origin);
 
         await logSecurityEvent({
             eventType: 'register_waitlist_join_attempt',
@@ -1120,7 +1133,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             source: SOURCE,
             metadata: {
                 email: maskEmail(email),
-                email_fingerprint: emailFingerprint(email)
+                email_fingerprint: emailFingerprint(email),
+                platform_legal_accepted: platformLegalAccepted,
+                platform_legal_version: PLATFORM_LEGAL_VERSION
             }
         });
 
@@ -1130,6 +1145,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         try {
+            const acceptancePersistence = await persistPlatformLegalAcceptance({
+                userId: null,
+                email,
+                ip,
+                userAgent,
+                portalBaseUrl,
+                surface: 'register',
+                acceptedAt: acceptanceTimestamp,
+                entryPoint: 'waitlist'
+            });
+
+            if (!acceptancePersistence.ok) {
+                await logSecurityEvent({
+                    eventType: 'register_waitlist_legal_acceptance_failed',
+                    severity: 'WARNING',
+                    ip,
+                    userAgent,
+                    source: SOURCE,
+                    metadata: {
+                        email: maskEmail(email),
+                        email_fingerprint: emailFingerprint(email),
+                        reason: acceptancePersistence.reason || 'platform_legal_acceptance_failed'
+                    }
+                });
+
+                return res.status(503).json({
+                    error: 'Nao foi possivel registrar o aceite legal agora. Tente novamente em alguns minutos.',
+                    error_code: 'platform_legal_persistence_failed'
+                });
+            }
+
             const { error } = await central
                 .from('registration_waitlist')
                 .insert({
@@ -1138,7 +1184,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     metadata: {
                         name: name || null,
                         ip,
-                        user_agent: userAgent
+                        user_agent: userAgent,
+                        platform_legal_acceptance: {
+                            surface: 'register',
+                            entry_point: 'waitlist',
+                            accepted_at: acceptanceTimestamp,
+                            terms_version: PLATFORM_LEGAL_VERSION,
+                            privacy_version: PLATFORM_LEGAL_VERSION,
+                            channel_email: PLATFORM_LEGAL_CONTACT_EMAIL
+                        }
                     }
                 });
 

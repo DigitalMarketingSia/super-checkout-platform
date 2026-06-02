@@ -87,6 +87,7 @@ export function validateInviteToken(payload: {
 export function joinRegistrationWaitlist(payload: {
     name?: string;
     email: string;
+    platformLegalAccepted: boolean;
 }) {
     return postRegister({
         action: 'waitlist',
