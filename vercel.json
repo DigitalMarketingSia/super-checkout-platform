@@ -6,6 +6,7 @@
     },
     "rewrites": [
         { "source": "/api/check-status", "destination": "/api/system?action=check-status" },
+        { "source": "/api/health", "destination": "/api/system?action=health" },
         { "source": "/api/auth/login", "destination": "/api/auth?route=login" },
         { "source": "/api/auth/register", "destination": "/api/auth?route=register" },
         { "source": "/api/auth/2fa", "destination": "/api/auth?route=2fa" },
