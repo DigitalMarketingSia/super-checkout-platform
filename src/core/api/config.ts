@@ -9,35 +9,41 @@ import { applyCors } from './_cors.js';
  * (e.g. fresh load on a custom domain).
  */
 export default function handler(req: VercelRequest, res: VercelResponse) {
-    applyCors(req, res, 'GET,OPTIONS');
+    try {
+        applyCors(req, res, 'GET,OPTIONS');
 
-    if (req.method === 'OPTIONS') {
-        res.status(200).end();
-        return;
-    }
+        if (req.method === 'OPTIONS') {
+            res.status(200).end();
+            return;
+        }
 
-    // Retrieve keys from standard Vercel/Vite env vars
-    const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey =
-        process.env.SUPABASE_PUBLISHABLE_KEY ||
-        process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
-        process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-        process.env.VITE_SUPABASE_ANON_KEY ||
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+        const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const supabaseAnonKey =
+            process.env.SUPABASE_PUBLISHABLE_KEY ||
+            process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+            process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+            process.env.VITE_SUPABASE_ANON_KEY ||
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-    if (!supabaseUrl || !supabaseAnonKey) {
+        if (!supabaseUrl || !supabaseAnonKey) {
+            return res.status(500).json({
+                error: 'Environment Configuration Missing',
+                message: 'Server environment variables are not set.'
+            });
+        }
+
+        const licenseKey = process.env.VITE_LICENSE_KEY || process.env.NEXT_PUBLIC_LICENSE_KEY;
+
+        res.status(200).json({
+            url: supabaseUrl,
+            anon: supabaseAnonKey,
+            license: licenseKey
+        });
+    } catch (error: any) {
+        console.error('[config] Failed to return runtime config:', error?.message || error);
         return res.status(500).json({
-            error: 'Environment Configuration Missing',
-            message: 'Server environment variables are not set.'
+            error: 'Runtime Config Failed',
+            message: 'Unable to load runtime configuration.'
         });
     }
-
-    const licenseKey = process.env.VITE_LICENSE_KEY || process.env.NEXT_PUBLIC_LICENSE_KEY;
-
-    res.status(200).json({
-        url: supabaseUrl,
-        anon: supabaseAnonKey,
-        license: licenseKey
-        // We DO NOT return the Service Role Key here for security.
-    });
 }
