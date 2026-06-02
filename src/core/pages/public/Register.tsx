@@ -387,37 +387,76 @@ export const Register = () => {
     };
 
     const renderPlatformLegalAcceptance = () => (
-        <div className="bg-white/[0.03] border border-white/8 rounded-3xl p-6 flex items-start gap-4 animate-in slide-in-from-bottom-4 duration-500">
-            <div className="pt-1">
+        <div
+            className={`relative overflow-hidden rounded-3xl p-5 flex items-start gap-4 animate-in slide-in-from-bottom-4 duration-500 transition-all ${
+                platformLegalAccepted
+                    ? 'border border-emerald-300/25 bg-emerald-500/[0.10] shadow-[0_0_28px_rgba(16,185,129,0.14)] backdrop-blur-xl'
+                    : 'border border-white/8 bg-white/[0.03]'
+            }`}
+        >
+            <div
+                aria-hidden="true"
+                className={`pointer-events-none absolute inset-0 rounded-3xl transition-all duration-500 ${
+                    platformLegalAccepted ? 'opacity-100' : 'opacity-0'
+                }`}
+            >
+                <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(16,185,129,0.18),rgba(255,255,255,0.04)_45%,rgba(16,185,129,0.10))]" />
+                <div className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-emerald-100/70 to-transparent" />
+            </div>
+
+            <div className="relative pt-0.5">
                 <input
                     type="checkbox"
                     id="platform-legal-acceptance"
                     required
                     checked={platformLegalAccepted}
                     onChange={e => setPlatformLegalAccepted(e.target.checked)}
-                    className="w-6 h-6 rounded-lg border-white/20 bg-white/5 text-emerald-500 focus:ring-emerald-500/50 cursor-pointer"
+                    className={`w-5 h-5 rounded-lg cursor-pointer transition-all duration-300 ${
+                        platformLegalAccepted
+                            ? 'border-emerald-100/50 bg-emerald-400/25 text-emerald-100 shadow-[0_0_0_6px_rgba(16,185,129,0.10)] focus:ring-emerald-300/40'
+                            : 'border-white/20 bg-white/5 text-emerald-500 focus:ring-emerald-500/50'
+                    }`}
                 />
             </div>
-            <label htmlFor="platform-legal-acceptance" className="text-sm text-gray-400 leading-relaxed cursor-pointer select-none">
-                <span className="font-black text-white block mb-1 uppercase tracking-tighter italic">
+
+            <label
+                htmlFor="platform-legal-acceptance"
+                className={`relative cursor-pointer select-none text-[9px] font-black uppercase tracking-[0.18em] leading-[1.9] transition-colors ${
+                    platformLegalAccepted ? 'text-emerald-100/85' : 'text-gray-500'
+                }`}
+            >
+                <span className={`block mb-2 italic transition-colors ${platformLegalAccepted ? 'text-emerald-50' : 'text-white'}`}>
                     {t('register.platform_legal_label', { defaultValue: 'Aceite institucional da plataforma' })}
                 </span>
                 {t('register.platform_legal_desc_prefix', { defaultValue: 'Li e aceito os' })}
                 {' '}
-                <a href={getPlatformTermsUrl()} target="_blank" rel="noreferrer" className="text-white hover:text-emerald-300 underline underline-offset-4">
+                <a
+                    href={getPlatformTermsUrl()}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={`underline underline-offset-4 transition-colors ${
+                        platformLegalAccepted ? 'text-emerald-50 hover:text-white' : 'text-white hover:text-emerald-300'
+                    }`}
+                >
                     {t('register.platform_terms_link', { defaultValue: 'Termos de Uso' })}
                 </a>
                 {' '}
                 {t('register.platform_legal_desc_middle', { defaultValue: 'e a' })}
                 {' '}
-                <a href={getPlatformPrivacyUrl()} target="_blank" rel="noreferrer" className="text-white hover:text-emerald-300 underline underline-offset-4">
+                <a
+                    href={getPlatformPrivacyUrl()}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={`underline underline-offset-4 transition-colors ${
+                        platformLegalAccepted ? 'text-emerald-50 hover:text-white' : 'text-white hover:text-emerald-300'
+                    }`}
+                >
                     {t('register.platform_privacy_link', { defaultValue: 'Politica de Privacidade' })}
                 </a>
                 {' '}
                 {t('register.platform_legal_desc_suffix', {
-                    defaultValue: 'da plataforma, na versao {{version}}, com canal oficial em {{email}}.',
-                    version: PLATFORM_LEGAL_VERSION,
-                    email: PLATFORM_LEGAL_CONTACT_EMAIL
+                    defaultValue: 'da plataforma, na versao {{version}}.',
+                    version: PLATFORM_LEGAL_VERSION
                 })}
             </label>
         </div>
