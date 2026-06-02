@@ -37,6 +37,7 @@ import { CoursePlayer } from './pages/member/CoursePlayer';
 import { ContentModules } from './pages/member/ContentModules';
 import { PublicCheckout } from './pages/public/PublicCheckout';
 import { PixPayment } from './pages/public/PixPayment';
+import { PreviewUpsell } from './pages/public/PreviewUpsell';
 import { UpsellPage } from './pages/public/UpsellPage';
 import { ThankYou } from './pages/public/ThankYou';
 import { Login } from './pages/Login';
@@ -66,6 +67,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import { ConfigLoader } from './components/ConfigLoader';
 import { Toaster } from 'sonner';
 import { getEnv } from './utils/env';
+import { GlobalErrorBoundary } from './components/GlobalErrorBoundary';
 
 import { storage } from './services/storageService';
 import { DomainUsage } from './types';
@@ -209,7 +211,7 @@ const DomainDispatcher = () => {
 
       console.log('Current hostname:', hostname);
 
-      // Ignorar domínios do sistema
+      // Ignorar dominios do sistema
       if (isSystemHostname(hostname)) {
         console.log('System domain detected, skipping custom domain check.');
         setLoading(false);
@@ -222,10 +224,8 @@ const DomainDispatcher = () => {
         console.log('Domain found:', domain);
 
         if (domain) {
-          // 1. Check Status and Auto-Verify
           if (domain.status !== 'active') {
             console.log('Domain pending. Attempting auto-verification...');
-            // Try to auto-verify
             try {
               const verifyRes = await fetch(`/api/domains/verify?domain=${hostname}`);
               const verifyData = await verifyRes.json();
@@ -246,9 +246,7 @@ const DomainDispatcher = () => {
 
           const pathname = window.location.pathname;
 
-          // --- CHECKOUT DOMAIN LOGIC ---
           if (domain.usage === DomainUsage.CHECKOUT) {
-            // Check for reserved paths
             if (pathname === '/privacy-policy' || pathname === '/terms-of-purchase' || pathname.startsWith('/thank-you') || pathname.startsWith('/pagamento') || pathname.startsWith('/upsell')) {
               setLoading(false);
               setCustomCheckoutId('system');
@@ -267,7 +265,6 @@ const DomainDispatcher = () => {
             return;
           }
 
-          // --- MEMBER AREA DOMAIN LOGIC ---
           if (domain.usage === DomainUsage.MEMBER_AREA) {
             const memberArea = await storage.getMemberAreaByDomain(domain.id);
 
@@ -280,26 +277,20 @@ const DomainDispatcher = () => {
             return;
           }
 
-          // --- SYSTEM DOMAIN LOGIC ---
-          // Allow standard routing (Admin panel, etc.)
           if (domain.usage === DomainUsage.SYSTEM) {
             console.log('System domain detected, allowing standard routing.');
             setLoading(false);
             return;
           }
 
-          // --- FALLBACK FOR UNKNOWN USAGE ---
-          // If domain exists but has unknown usage, allow standard routing
           console.log('Unknown domain usage, allowing standard routing.');
           setLoading(false);
-
         } else {
-          // Domain points here but not found in DB
           setError(t('domain_not_configured'));
           setLoading(false);
         }
       } catch (err) {
-        console.error('Erro ao verificar domínio:', err);
+        console.error('Erro ao verificar dominio:', err);
         setError(t('domain_load_error'));
         setLoading(false);
       }
@@ -307,8 +298,6 @@ const DomainDispatcher = () => {
 
     const domainCheckTimeout = setTimeout(() => {
       console.warn('DomainDispatcher: Check timed out, forcing standard load.');
-      // If domain check fails, we assume it's safe to load standard routes (admin/public)
-      // rather than blocking the entire app forever.
       setLoading(false);
     }, 4000);
 
@@ -333,7 +322,6 @@ const DomainDispatcher = () => {
     );
   }
 
-  // RENDER: Checkout Mode
   if (customCheckoutId) {
     return (
       <Routes>
@@ -349,17 +337,13 @@ const DomainDispatcher = () => {
     );
   }
 
-  // RENDER: Member Area Mode (Custom Domain)
   if (customMemberAreaSlug) {
-    // Logic for Member Area on Root Domain
     return (
       <Routes>
-        {/* Login and Signup at root level for custom domain */}
         <Route path="/login" element={<MemberLogin forcedSlug={customMemberAreaSlug} />} />
         <Route path="/signup" element={<MemberSignup forcedSlug={customMemberAreaSlug} />} />
         <Route path="/update-password" element={<UpdatePassword />} />
 
-        {/* Member Area Routes */}
         <Route path="/" element={<MemberAreaWrapper forcedSlug={customMemberAreaSlug} />}>
           <Route index element={<MemberDashboard />} />
           <Route path="products" element={<MemberProducts />} />
@@ -370,7 +354,6 @@ const DomainDispatcher = () => {
           <Route path="profile" element={<MemberProfile />} />
         </Route>
 
-        {/* Course Player - Outside wrapper to avoid layout */}
         <Route path="/course/:id" element={<CoursePlayer forcedSlug={customMemberAreaSlug} />} />
 
         <Route path="*" element={<Navigate to="/" replace />} />
@@ -380,7 +363,6 @@ const DomainDispatcher = () => {
 
   return (
     <Routes>
-      {/* Public Routes */}
       <Route path="/setup" element={<Setup />} />
       {AuthDebug && (
         <Route path="/debug-auth" element={<React.Suspense fallback={<Loading />}><AuthDebug /></React.Suspense>} />
@@ -397,9 +379,9 @@ const DomainDispatcher = () => {
       <Route path="/upsell/:orderId" element={<UpsellPage />} />
       <Route path="/thank-you/:orderId" element={<ThankYou />} />
       <Route path="/c/:id" element={<PublicCheckout />} />
+      <Route path="/preview/upsell" element={<PreviewUpsell />} />
       <Route path="/installer" element={<InstallerWizard />} />
 
-      {/* Admin Routes (Protected) */}
       <Route path="/admin" element={<AdminRoute><Dashboard /></AdminRoute>} />
       <Route path="/admin/business-settings" element={<AdminRoute><BusinessSettings /></AdminRoute>} />
       <Route path="/admin/privacy" element={<AdminRoute><PrivacyCenter /></AdminRoute>} />
@@ -419,14 +401,11 @@ const DomainDispatcher = () => {
       <Route path="/admin/updates" element={<AdminRoute><SystemUpdates /></AdminRoute>} />
       <Route path="/admin/flow/*" element={<AdminRoute><React.Suspense fallback={<Loading />}><FlowApp /></React.Suspense></AdminRoute>} />
 
-      {/* Free Users Management (Leads) */}
       <Route path="/admin/free-users" element={<AdminRoute><LeadCRM /></AdminRoute>} />
       <Route path="/admin/free-users/:id" element={<AdminRoute><FreeUserDetails /></AdminRoute>} />
 
-      {/* SaaS Module Routes (New) */}
       <Route path="/admin/installations" element={<AdminRoute><MyInstallations /></AdminRoute>} />
       <Route path="/admin/partner-dashboard" element={<AdminRoute><PartnerDashboard /></AdminRoute>} />
-
       <Route path="/admin/marketing" element={<AdminRoute><Marketing /></AdminRoute>} />
       <Route path="/admin/integrations" element={<AdminRoute><IntegrationsHub /></AdminRoute>} />
       <Route path="/admin/notifications" element={<AdminRoute><Notifications /></AdminRoute>} />
@@ -434,23 +413,17 @@ const DomainDispatcher = () => {
       <Route path="/admin/members/:id" element={<AdminRoute><MemberAreaDashboard /></AdminRoute>} />
       <Route path="/admin/contents/:id" element={<AdminRoute><ContentEditor /></AdminRoute>} />
 
-      {/* Activation Portal Admin */}
       <Route path="/admin/activation-content" element={<SystemOwnerRoute><ActivationContentEditor /></SystemOwnerRoute>} />
 
-      {/* Activation Portal (Client) */}
       <Route path="/activate" element={<ActivationLogin />} />
       <Route path="/activate/setup" element={<ActivationPortal />} />
 
-      {/* Documentation Routes */}
       <Route path="/docs/webhooks" element={<AdminRoute><WebhookDocs /></AdminRoute>} />
 
-
-      {/* Member Area Public Routes (Standard) */}
       <Route path="/app/:slug/login" element={<MemberLogin />} />
       <Route path="/app/:slug/signup" element={<MemberSignup />} />
       <Route path="/app/:slug/update-password" element={<UpdatePassword />} />
 
-      {/* Member Area App Routes with Slug (Standard) */}
       <Route path="/app/:slug" element={<MemberAreaWrapper />}>
         <Route index element={<MemberDashboard />} />
         <Route path="products" element={<MemberProducts />} />
@@ -462,16 +435,12 @@ const DomainDispatcher = () => {
         <Route path="profile" element={<MemberProfile />} />
       </Route>
 
-      {/* Course Player (Fullscreen - Outside Wrapper) */}
       <Route path="/app/:slug/course/:id" element={<CoursePlayer />} />
 
-      {/* Redirect root to Admin */}
       <Route path="/" element={<HostAwareRootRoute />} />
     </Routes>
   );
 };
-
-import { GlobalErrorBoundary } from './components/GlobalErrorBoundary';
 
 const App = () => {
   const { t } = useTranslation('common');

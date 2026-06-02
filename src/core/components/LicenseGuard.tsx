@@ -35,6 +35,7 @@ export const LicenseGuard: React.FC<LicenseGuardProps> = ({ children }) => {
                 '/terms-of-purchase',
                 '/legal/privacy',
                 '/legal/terms',
+                '/preview/upsell',
                 '/setup',
                 ...(import.meta.env.DEV ? ['/debug-auth'] : []),
             ];

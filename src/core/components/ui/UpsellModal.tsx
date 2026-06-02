@@ -116,18 +116,18 @@ export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) =>
     const offers: Record<'unlimited_domains' | 'partner_rights' | 'whitelabel', OfferConfig> = {
         unlimited_domains: {
             title: 'Licenca Vitalicia Elite',
-            description: 'Remova todos os limites principais do sistema e destrave uma oferta especial de ativacao para escalar com mais margem.',
+            description: 'Tudo ilimitado para você vender mais: domínios, subdomínios, produtos, checkouts e áreas de membros.',
             anchorPrice: 497,
             fallbackPrice: 197,
             features: [
-                'Dominios e subdominios ilimitados',
-                'Produtos, checkouts e areas de membros ilimitados',
-                'SSL automatico incluso',
-                'Atualizacoes vitalicias',
+                'Dominios ilimitados',
+                'Subdominios ilimitados',
+                'Produtos e checkouts ilimitados',
+                'Areas de membros ilimitadas',
             ],
             cta: 'Fazer Upgrade Vitalicio',
             planSlug: 'upgrade_domains',
-            badge: 'Oferta de Ativacao',
+            badge: 'Oferta Especial de Ativação',
             priceContext: 'O valor final abaixo acompanha automaticamente o produto vinculado ao plano de upgrade.',
         },
         partner_rights: {
@@ -221,7 +221,7 @@ export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) =>
                         Upgrade prioritário
                     </span>
                     <span className="text-xs font-medium text-white/60 mt-0.5">
-                        Remova os limites da conta com condição especial
+                        Remova os limites da conta com essa condição Exclusiva
                     </span>
                 </div>
             }
@@ -232,18 +232,14 @@ export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) =>
                 <div className="pointer-events-none absolute inset-y-0 left-0 w-full bg-[linear-gradient(135deg,rgba(9,14,20,0.4),transparent_50%,rgba(9,14,20,0.2))]" />
 
                 <div className="relative z-10 grid gap-0 lg:grid-cols-[1.1fr_0.9fr]">
-                    <section className="min-w-0 border-b border-white/10 p-4 sm:p-6 lg:border-b-0 lg:border-r lg:p-7">
+                    <section className="min-w-0 border-b border-white/10 p-4 sm:p-6 lg:border-b-0 lg:p-7">
                         <div className="flex flex-wrap items-center gap-2">
-                            <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-[0.2em] text-emerald-300">
-                                <Zap className="h-3 w-3" />
-                                {content.badge}
+                            <div className="inline-flex items-center transform skew-x-[-12deg] bg-emerald-400 text-slate-950 px-3 py-1 text-[9px] font-black uppercase tracking-[0.18em]">
+                                <span className="transform skew-x-[12deg] flex items-center gap-1.5">
+                                    <Zap className="h-3 w-3 fill-slate-950" />
+                                    {content.badge}
+                                </span>
                             </div>
-                            {hasDiscountAnchor && (
-                                <div className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/20 bg-amber-300/10 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-[0.2em] text-amber-200">
-                                    <BadgePercent className="h-3 w-3" />
-                                    Economia de {savingsPercent}%
-                                </div>
-                            )}
                         </div>
 
                         <div className="mt-4 max-w-[32rem]">
@@ -255,16 +251,16 @@ export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) =>
                             </p>
                         </div>
 
-                        <div className="mt-4 grid gap-2 grid-cols-1 sm:grid-cols-2">
+                        <div className={`mt-4 grid gap-2.5 ${content.features.length <= 2 ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'}`}>
                             {content.features.map((feature, idx) => (
                                 <div
                                     key={idx}
-                                    className="flex items-center gap-2.5 rounded-xl border border-white/5 bg-white/[0.02] p-2.5"
+                                    className="flex items-center gap-3 rounded-xl border border-white/5 bg-white/[0.02] p-3 hover:border-emerald-500/10 hover:bg-white/[0.04] transition-all duration-200"
                                 >
                                     <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-400">
-                                        <CheckCircle className="h-3 w-3" />
+                                        <CheckCircle className="h-3.5 w-3.5" />
                                     </span>
-                                    <span className="text-[11px] sm:text-xs font-semibold leading-tight text-white/90">
+                                    <span className="text-xs sm:text-sm font-semibold leading-tight text-white/95">
                                         {feature}
                                     </span>
                                 </div>
@@ -277,73 +273,83 @@ export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) =>
                                 <strong className="text-emerald-300 font-bold uppercase tracking-wider text-[9px] block mb-0.5">
                                     Liberação imediata
                                 </strong>
-                                O upgrade é aplicado na conta atual e remove as principais travas comerciais sem você perder sua configuração já criada.
+                                Ativação rápida e transparente. Sua estrutura atual é mantida enquanto os limites da plataforma são removidos automaticamente.
                             </div>
                         </div>
                     </section>
 
-                    <aside className="min-w-0 p-4 sm:p-6 lg:p-7 flex flex-col justify-between">
-                        <div className="rounded-xl border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))] p-4 shadow-[0_20px_50px_rgba(0,0,0,0.3)] backdrop-blur-xl sm:p-5 relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full blur-2xl" />
+                    <aside className="min-w-0 p-4 sm:p-6 lg:p-7 flex flex-col justify-between bg-slate-50 border-t border-slate-200 lg:border-t-0 lg:border-l lg:border-slate-200">
+                        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-[0_10px_30px_rgba(0,0,0,0.03)] sm:p-5 relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/[0.02] rounded-full blur-2xl" />
 
-                            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-white/40">
-                                Condição especial desta conta
-                            </p>
+                            <div className="relative w-fit mb-3">
+                                <div 
+                                    className="absolute inset-0 bg-emerald-500/15 translate-x-[2px] translate-y-[2px]"
+                                    style={{ clipPath: 'polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)' }}
+                                />
+                                <div 
+                                    style={{ clipPath: 'polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)' }}
+                                    className="relative bg-slate-900 px-3.5 py-1 text-emerald-400 font-mono text-[8px] sm:text-[9px] font-black uppercase tracking-[0.2em] flex items-center gap-2"
+                                >
+                                    <span className="w-1.5 h-1.5 bg-emerald-400 rotate-45 shrink-0 block" />
+                                    Condição especial Aplicada!
+                                </div>
+                            </div>
 
                             <div className="mt-3 flex flex-col gap-1">
                                 {hasDiscountAnchor && anchorPrice !== null && (
-                                    <div className="flex items-center gap-2 text-white/30 text-xs">
+                                    <div className="flex items-center gap-2 text-slate-400 text-xs">
                                         <span className="line-through font-medium">{formatPriceBRL(anchorPrice)}</span>
-                                        <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-bold text-[8px] uppercase tracking-wider">
+                                        <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200/50 font-bold text-[8px] uppercase tracking-wider">
                                             Economize {savingsPercent}%
                                         </span>
                                     </div>
                                 )}
 
                                 <div className="flex items-baseline gap-2">
-                                    <span className="text-[2.25rem] sm:text-[3rem] font-black tracking-tight text-white leading-none">
+                                    <span className="text-[2.25rem] sm:text-[3rem] font-black tracking-tight text-slate-900 leading-none">
                                         {loading ? '...' : formatPriceBRL(effectivePrice)}
                                     </span>
-                                    <span className="text-xs text-white/50 font-medium">/ vitalício</span>
+                                    <span className="text-xs text-slate-500 font-semibold">/ vitalício</span>
                                 </div>
                             </div>
 
                             {hasDiscountAnchor && savingsValue > 0 && (
-                                <div className="mt-3 flex items-center gap-1.5 text-[11px] text-emerald-400 font-semibold">
-                                    <ShieldCheck className="h-3.5 w-3.5" />
+                                <div className="mt-3 flex items-center gap-1.5 text-[11px] text-emerald-600 font-bold bg-emerald-50/50 border border-emerald-100/50 rounded-lg px-2 py-1 w-fit">
+                                    <CheckCircle className="h-3.5 w-3.5 text-emerald-500" />
                                     <span>Você economiza {formatPriceBRL(savingsValue)}</span>
                                 </div>
                             )}
 
-                            <div className="mt-4 flex justify-between gap-1 border-t border-white/5 pt-3">
-                                <div className="flex items-center gap-1">
-                                    <span className="h-1 w-1 rounded-full bg-emerald-400 animate-pulse" />
-                                    <span className="text-[10px] font-bold text-white/70">Sem travas</span>
+                            <div className="mt-4 flex justify-between gap-1 border-t border-slate-100 pt-3">
+                                <div className="flex items-center gap-1.5">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                    <span className="text-[10px] font-bold text-slate-700">Sem travas</span>
                                 </div>
-                                <div className="flex items-center gap-1">
-                                    <span className="h-1 w-1 rounded-full bg-emerald-400 animate-pulse" />
-                                    <span className="text-[10px] font-bold text-white/70">Pagamento Único</span>
+                                <div className="flex items-center gap-1.5">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                    <span className="text-[10px] font-bold text-slate-700">Pagamento Único</span>
                                 </div>
-                                <div className="flex items-center gap-1">
-                                    <span className="h-1 w-1 rounded-full bg-emerald-400 animate-pulse" />
-                                    <span className="text-[10px] font-bold text-white/70">Acesso Imediato</span>
+                                <div className="flex items-center gap-1.5">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                    <span className="text-[10px] font-bold text-slate-700">Acesso Imediato</span>
                                 </div>
                             </div>
 
-                            <p className="mt-3.5 text-[10px] font-medium leading-relaxed text-white/40 text-center">
+                            <p className="mt-3.5 text-[10px] font-semibold leading-relaxed text-slate-400 text-center">
                                 {content.priceContext}
                             </p>
                         </div>
 
                         <div className="mt-4 flex flex-col gap-2.5">
                             {checkoutError && (
-                                <p className="rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs font-bold text-red-400">
+                                <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-600">
                                     {checkoutError}
                                 </p>
                             )}
 
                             {checkoutUnavailable && !checkoutError && (
-                                <p className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs font-bold text-amber-300">
+                                <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700">
                                     Checkout oficial do plano não encontrado. Tente novamente em instantes ou abra o upgrade pelo Portal do Cliente.
                                 </p>
                             )}
@@ -351,20 +357,20 @@ export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) =>
                             <Button
                                 onClick={handleOpenCheckout}
                                 disabled={loading || openingCheckout || checkoutUnavailable}
-                                className="w-full rounded-xl border-none bg-gradient-to-r from-emerald-500 via-green-400 to-lime-300 py-3 text-xs font-black uppercase tracking-[0.15em] text-[#08110d] shadow-[0_20px_50px_rgba(74,222,128,0.15)] hover:brightness-105 transition-all duration-200 flex items-center justify-center"
+                                className="w-full rounded-xl border-none bg-gradient-to-r from-emerald-600 via-emerald-500 to-green-500 py-3.5 text-xs font-black uppercase tracking-[0.15em] text-white shadow-[0_10px_20px_rgba(16,185,129,0.2)] hover:shadow-[0_12px_24px_rgba(16,185,129,0.3)] hover:brightness-105 active:scale-[0.99] transition-all duration-200 flex items-center justify-center"
                             >
                                 {loading ? 'Carregando...' : openingCheckout ? 'Preparando Checkout...' : content.cta}
                                 <ArrowRight className="ml-2 h-4 w-4" />
                             </Button>
 
-                            <div className="flex flex-col items-center gap-1.5 mt-1.5">
-                                <p className="text-[9px] font-black uppercase tracking-[0.18em] text-white/30 text-center">
+                            <div className="flex flex-col items-center gap-2 mt-1">
+                                <p className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-400 text-center">
                                     Upgrade automático e 100% seguro
                                 </p>
 
                                 <button
                                     onClick={onClose}
-                                    className="text-xs text-white/40 hover:text-white transition-colors underline underline-offset-4"
+                                    className="text-xs text-slate-400 hover:text-slate-700 transition-colors font-medium underline underline-offset-4"
                                 >
                                     Não, obrigado. Quero continuar limitado.
                                 </button>
