@@ -64,11 +64,11 @@
     "final_step": "Cole a URL do seu site para finalizar (Ex: minhaloja.vercel.app)",
     "finish_btn": "Concluir",
     "processing_btn": "Ativando...",
-    "processing_title": "Ativando sua instalaÃ§Ã£o",
-    "progress_activate": "Validando a licenÃ§a no domÃ­nio final.",
-    "progress_verify": "Verificando se o backend da Vercel jÃ¡ ficou online. Isso pode levar alguns segundos.",
-    "progress_finalize": "Finalizando a ativaÃ§Ã£o e consumindo o token de instalaÃ§Ã£o.",
-    "progress_hint": "Depois de salvar as variÃ¡veis na Vercel, pode ser necessÃ¡rio fazer um Redeploy. Esta etapa pode levar atÃ© cerca de 1 minuto."
+    "processing_title": "Ativando sua instala\u00e7\u00e3o",
+    "progress_activate": "Validando a licen\u00e7a no dom\u00ednio final.",
+    "progress_verify": "Verificando se o backend da Vercel j\u00e1 ficou online. Isso pode levar alguns segundos.",
+    "progress_finalize": "Finalizando a ativa\u00e7\u00e3o e consumindo o token de instala\u00e7\u00e3o.",
+    "progress_hint": "Depois de salvar as vari\u00e1veis na Vercel, pode ser necess\u00e1rio fazer um Redeploy. Esta etapa pode levar at\u00e9 cerca de 1 minuto."
   },
   "success": {
     "title": "Instalação Concluída!",

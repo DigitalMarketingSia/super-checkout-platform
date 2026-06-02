@@ -103,7 +103,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- 1.1 Bootstrap helper functions required by early policies/triggers on fresh installs.
--- `public.is_admin()` is defined as a safe stub first because `public.profiles`
+-- public.is_admin() is defined as a safe stub first because public.profiles
 -- is created later in this schema and some policies reference the function before that.
 CREATE OR REPLACE FUNCTION public.handle_updated_at()
 RETURNS TRIGGER AS $$
