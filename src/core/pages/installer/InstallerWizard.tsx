@@ -99,7 +99,7 @@ const verifyDistributionBackend = async (domain: string, params: { licenseKey: s
         if (attempt < BACKEND_VERIFY_ATTEMPTS) await wait(BACKEND_VERIFY_INTERVAL_MS);
     }
 
-    throw new Error(`O deploy em ${domain} ainda esta sem backend /api ativo (${lastResult}). Aguarde o build/deploy concluir, atualize esta aba e tente finalizar novamente.`);
+    throw new Error(`O deploy em ${domain} ainda esta sem backend /api ativo (${lastResult}). Se voce acabou de adicionar as variaveis na Vercel, faca um Redeploy, aguarde a publicacao concluir, atualize esta aba e tente finalizar novamente.`);
 };
 
 export default function InstallerWizard() {
@@ -137,6 +137,7 @@ export default function InstallerWizard() {
 
     const [successAnim, setSuccessAnim] = useState<{ show: boolean; msg: string }>({ show: false, msg: '' });
     const [upsellSlug, setUpsellSlug] = useState<'unlimited_domains' | 'partner_rights' | 'whitelabel' | null>(null);
+    const [deployProgressMessage, setDeployProgressMessage] = useState('');
 
     // --- SAAS SECURITY HARDENING (TOKEN CHECK) ---
     const [installToken, setInstallToken] = useState<string | null>(null);
@@ -441,6 +442,7 @@ export default function InstallerWizard() {
     // --- LOGIC: Deploy (Final Activation) ---
     const handleDeploySubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (loading) return;
         if (!vercelDomain) {
             showAlert(t('common:error'), t('errors.domain_required'), 'error');
             return;
@@ -453,6 +455,7 @@ export default function InstallerWizard() {
         localStorage.setItem('installation_domain', cleanDomain);
 
         setLoading(true);
+        setDeployProgressMessage(t('vercel_config.progress_activate'));
 
         try {
             // Final Activation: Lock to Vercel Domain
@@ -476,16 +479,20 @@ export default function InstallerWizard() {
             const data = await response.json();
             if (!data.valid) throw new Error(data.message || 'Licença inválida para este domínio.');
 
+            setDeployProgressMessage(t('vercel_config.progress_verify'));
             await verifyDistributionBackend(cleanDomain, { licenseKey, installationId });
+            setDeployProgressMessage(t('vercel_config.progress_finalize'));
             await consumeInstallToken(cleanDomain);
             localStorage.setItem('installer_vercel_domain', cleanDomain);
             runSuccessAnim('Domínio Ativado!', () => {
+                setDeployProgressMessage('');
                 setCurrentStep('success');
             });
 
         } catch (error: any) {
             const message = safeInstallerErrorMessage(error);
             console.error('[Installer] Activation failed:', message);
+            setDeployProgressMessage('');
             showAlert('Erro de Ativação', message, 'error');
         } finally {
             setLoading(false);
@@ -612,6 +619,17 @@ export default function InstallerWizard() {
                     <div className="w-20 h-20 border-4 border-[#3ECF8E]/30 border-t-[#3ECF8E] rounded-full animate-spin mb-8 shadow-[0_0_30px_rgba(62,207,142,0.2)]"></div>
                     <h2 className="text-2xl font-bold text-white mb-2">{t('database.connecting')}</h2>
                     <p className="text-gray-400">{t('database.connecting_desc')}</p>
+                </div>
+            )}
+
+            {currentStep === 'vercel_config' && loading && (
+                <div className="fixed inset-0 z-[95] flex flex-col items-center justify-center bg-black/85 backdrop-blur-md animate-in fade-in p-6 text-center">
+                    <div className="w-20 h-20 rounded-full bg-[#3ECF8E]/10 border border-[#3ECF8E]/20 flex items-center justify-center mb-6 shadow-[0_0_40px_rgba(62,207,142,0.12)]">
+                        <Loader2 className="w-10 h-10 text-[#3ECF8E] animate-spin" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-white mb-2">{t('vercel_config.processing_title')}</h2>
+                    <p className="text-gray-300 max-w-xl">{deployProgressMessage || t('vercel_config.processing_btn')}</p>
+                    <p className="text-sm text-gray-500 mt-3 max-w-lg">{t('vercel_config.progress_hint')}</p>
                 </div>
             )}
 
@@ -1221,10 +1239,26 @@ export default function InstallerWizard() {
                                                 required
                                             />
                                         </div>
-                                        <button type="submit" className="bg-[#3ECF8E] hover:bg-[#3ECF8E]/90 text-black px-8 rounded-xl font-bold transition-all flex items-center gap-2 shadow-lg shadow-[#3ECF8E]/20">
-                                            {t('vercel_config.finish_btn')} <ArrowRight className="w-5 h-5" />
+                                        <button
+                                            type="submit"
+                                            disabled={loading}
+                                            className="bg-[#3ECF8E] hover:bg-[#3ECF8E]/90 disabled:bg-[#3ECF8E]/50 disabled:cursor-wait text-black px-8 rounded-xl font-bold transition-all flex items-center gap-2 shadow-lg shadow-[#3ECF8E]/20"
+                                        >
+                                            {loading ? (
+                                                <>
+                                                    <Loader2 className="w-5 h-5 animate-spin" />
+                                                    {t('vercel_config.processing_btn')}
+                                                </>
+                                            ) : (
+                                                <>
+                                                    {t('vercel_config.finish_btn')} <ArrowRight className="w-5 h-5" />
+                                                </>
+                                            )}
                                         </button>
                                     </div>
+                                    <p className="text-xs text-gray-500 mt-3">
+                                        {t('vercel_config.progress_hint')}
+                                    </p>
                                 </form>
                             </div>
                         </div>

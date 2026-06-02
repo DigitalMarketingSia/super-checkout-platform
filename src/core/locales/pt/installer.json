@@ -62,7 +62,13 @@
     "generate_token": "Gerar Token",
     "view_settings": "Ver Configurações",
     "final_step": "Cole a URL do seu site para finalizar (Ex: minhaloja.vercel.app)",
-    "finish_btn": "Concluir"
+    "finish_btn": "Concluir",
+    "processing_btn": "Ativando...",
+    "processing_title": "Ativando sua instalaÃ§Ã£o",
+    "progress_activate": "Validando a licenÃ§a no domÃ­nio final.",
+    "progress_verify": "Verificando se o backend da Vercel jÃ¡ ficou online. Isso pode levar alguns segundos.",
+    "progress_finalize": "Finalizando a ativaÃ§Ã£o e consumindo o token de instalaÃ§Ã£o.",
+    "progress_hint": "Depois de salvar as variÃ¡veis na Vercel, pode ser necessÃ¡rio fazer um Redeploy. Esta etapa pode levar atÃ© cerca de 1 minuto."
   },
   "success": {
     "title": "Instalação Concluída!",

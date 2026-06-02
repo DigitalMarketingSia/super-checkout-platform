@@ -62,7 +62,13 @@
     "generate_token": "Generate Token",
     "view_settings": "View Settings",
     "final_step": "Paste your site URL to finish (Ex: my-store.vercel.app)",
-    "finish_btn": "Finish"
+    "finish_btn": "Finish",
+    "processing_btn": "Activating...",
+    "processing_title": "Activating your installation",
+    "progress_activate": "Validating the license on the final domain.",
+    "progress_verify": "Checking whether the Vercel backend is already online. This can take a few seconds.",
+    "progress_finalize": "Finalizing activation and consuming the installation token.",
+    "progress_hint": "After saving the variables in Vercel, you may need to trigger a Redeploy. This step can take up to about 1 minute."
   },
   "success": {
     "title": "Installation Completed!",
