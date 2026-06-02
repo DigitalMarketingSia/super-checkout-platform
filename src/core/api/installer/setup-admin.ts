@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { applyCors } from '../_cors.js';
 import { enforceApiRateLimit } from '../_rate-limit.js';
+import { getLocalSupabaseServerConfig } from '../_supabase-server.js';
 
 type SetupBody = {
     name?: string;
@@ -173,13 +174,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === 'OPTIONS') return res.status(200).end();
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-    const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const serviceKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const { supabaseUrl, serverKey: serviceKey, serverKeySource } = getLocalSupabaseServerConfig();
 
     if (!supabaseUrl || !serviceKey) {
-        return res.status(500).json({ error: 'Server configuration error' });
+        const missing = [
+            !supabaseUrl ? 'VITE_SUPABASE_URL/NEXT_PUBLIC_SUPABASE_URL' : null,
+            !serviceKey ? 'SUPABASE_SECRET_KEY/SUPABASE_SERVICE_ROLE_KEY' : null,
+        ].filter(Boolean);
+
+        return res.status(500).json({ error: `Server configuration error: missing ${missing.join(', ')}` });
     }
 
+    console.log('[installer/setup-admin] Using Supabase server key source:', serverKeySource);
     const body = parseBody(req);
     const name = String(body.name || '').trim();
     const email = String(body.email || '').trim().toLowerCase();

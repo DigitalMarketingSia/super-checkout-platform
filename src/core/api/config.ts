@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { applyCors } from './_cors.js';
+import { getLocalSupabasePublicConfig } from './_supabase-server.js';
 
 /**
  * CONFIGURATION ENDPOINT
@@ -17,18 +18,17 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
             return;
         }
 
-        const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-        const supabaseAnonKey =
-            process.env.SUPABASE_PUBLISHABLE_KEY ||
-            process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
-            process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-            process.env.VITE_SUPABASE_ANON_KEY ||
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+        const { supabaseUrl, publicKey: supabaseAnonKey } = getLocalSupabasePublicConfig();
 
         if (!supabaseUrl || !supabaseAnonKey) {
+            const missing = [
+                !supabaseUrl ? 'VITE_SUPABASE_URL/NEXT_PUBLIC_SUPABASE_URL' : null,
+                !supabaseAnonKey ? 'SUPABASE_PUBLISHABLE_KEY/VITE_SUPABASE_ANON_KEY' : null,
+            ].filter(Boolean);
+
             return res.status(500).json({
                 error: 'Environment Configuration Missing',
-                message: 'Server environment variables are not set.'
+                message: `Missing runtime environment variables: ${missing.join(', ')}`
             });
         }
 

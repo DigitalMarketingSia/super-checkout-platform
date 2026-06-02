@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { applyCors } from '../_cors.js';
 import { enforceApiRateLimit } from '../_rate-limit.js';
+import { getLocalSupabaseServerConfig } from '../_supabase-server.js';
 import { Buffer } from 'node:buffer';
 import { randomBytes } from 'node:crypto';
 import pg from 'pg';
@@ -1147,14 +1148,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { action, code, licenseKey, projectRef, dbPass, organizationSlug, installationId, targetDomain } = req.body;
 
     // 0. Initialize Supabase (Admin Context)
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const { supabaseUrl, serverKey: supabaseServiceKey, serverKeySource } = getLocalSupabaseServerConfig();
 
     if (!supabaseUrl || !supabaseServiceKey) {
-      console.error('Missing Supabase Environment Variables');
-      return res.status(500).json({ error: 'Server configuration error: Missing Supabase keys' });
+      const missing = [
+        !supabaseUrl ? 'VITE_SUPABASE_URL/NEXT_PUBLIC_SUPABASE_URL' : null,
+        !supabaseServiceKey ? 'SUPABASE_SECRET_KEY/SUPABASE_SERVICE_ROLE_KEY' : null,
+      ].filter(Boolean);
+
+      console.error('[installer/supabase] Missing Supabase environment variables:', missing.join(', '));
+      return res.status(500).json({ error: `Server configuration error: missing ${missing.join(', ')}` });
     }
 
+    console.log('[installer/supabase] Using Supabase server key source:', serverKeySource);
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // 1. Validate License (Via Central API - manage-licenses)

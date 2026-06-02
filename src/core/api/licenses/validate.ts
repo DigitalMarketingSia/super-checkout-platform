@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { applyCors } from '../_cors.js';
+import { getLocalSupabaseServerConfig } from '../_supabase-server.js';
 
 const getRequestDomain = (req: VercelRequest, fallback?: string | null) => {
     const host = fallback || req.headers['x-forwarded-host'] || req.headers.host || 'unknown';
@@ -45,14 +46,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let { key, domain, skip_lock, activate, register, installation_id } = req.body || {};
 
     try {
-        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
-        const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        const { supabaseUrl, serverKey: supabaseServiceKey, serverKeySource } = getLocalSupabaseServerConfig();
 
         if (!supabaseUrl || !supabaseServiceKey) {
-            console.error('Missing Supabase Environment Variables');
-            return res.status(500).json({ valid: false, message: 'Server configuration error' });
+            const missing = [
+                !supabaseUrl ? 'VITE_SUPABASE_URL/NEXT_PUBLIC_SUPABASE_URL' : null,
+                !supabaseServiceKey ? 'SUPABASE_SECRET_KEY/SUPABASE_SERVICE_ROLE_KEY' : null,
+            ].filter(Boolean);
+
+            console.error('[licenses/validate] Missing Supabase environment variables:', missing.join(', '));
+            return res.status(500).json({
+                valid: false,
+                message: `Server configuration error: missing ${missing.join(', ')}`
+            });
         }
 
+        console.log('[licenses/validate] Using Supabase server key source:', serverKeySource);
         const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
         // 1. If no key provided (or GET), fetch most recent local license
