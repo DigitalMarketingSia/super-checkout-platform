@@ -847,12 +847,6 @@ CREATE TRIGGER update_business_legal_document_versions_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION public.handle_updated_at();
 
-DROP TRIGGER IF EXISTS update_platform_legal_acceptances_updated_at ON public.platform_legal_acceptances;
-CREATE TRIGGER update_platform_legal_acceptances_updated_at
-    BEFORE UPDATE ON public.platform_legal_acceptances
-    FOR EACH ROW
-    EXECUTE FUNCTION public.handle_updated_at();
-
 -- 2.14 Access Grants (AFTER contents AND products)
 CREATE TABLE IF NOT EXISTS access_grants(
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -1065,6 +1059,12 @@ ON public.platform_legal_acceptances(email, surface, terms_version, privacy_vers
 
 CREATE INDEX IF NOT EXISTS idx_platform_legal_acceptances_user_accepted
 ON public.platform_legal_acceptances(user_id, accepted_at DESC);
+
+DROP TRIGGER IF EXISTS update_platform_legal_acceptances_updated_at ON public.platform_legal_acceptances;
+CREATE TRIGGER update_platform_legal_acceptances_updated_at
+    BEFORE UPDATE ON public.platform_legal_acceptances
+    FOR EACH ROW
+    EXECUTE FUNCTION public.handle_updated_at();
 
 CREATE TABLE IF NOT EXISTS public.two_factor_challenges(
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
