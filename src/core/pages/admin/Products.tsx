@@ -43,10 +43,39 @@ const initialFormState = {
   delivery_file_size_bytes: null as number | null,
 };
 
+const getHostnameFromUrl = (url?: string) => {
+  if (!url) return null;
+
+  try {
+    return new URL(url).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+};
+
+const CONTROL_PLANE_HOSTNAMES = new Set(
+  [
+    'app.supercheckout.app',
+    'super-checkout.vercel.app',
+    getHostnameFromUrl(import.meta.env.VITE_SUPER_CHECKOUT_APP_URL),
+    getHostnameFromUrl(import.meta.env.VITE_APP_URL),
+  ].filter(Boolean) as string[]
+);
+
+const isControlPlaneHost = () => {
+  if (typeof window === 'undefined') return false;
+  const hostname = window.location.hostname.toLowerCase();
+  return hostname.includes('localhost') || hostname.includes('127.0.0.1') || CONTROL_PLANE_HOSTNAMES.has(hostname);
+};
+
 export const Products = () => {
   const { t, i18n } = useTranslation(['admin', 'common']);
   const { profile, compliance, isWhiteLabel } = useAuth();
   const { getLimit, loading: checkingFeatures } = useFeatures();
+  const effectiveRole = profile?.effective_role || profile?.role;
+  const canManageSaasPlanMapping =
+    (effectiveRole === 'master_admin' || effectiveRole === 'owner') &&
+    isControlPlaneHost();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'grid' | 'edit'>('grid');
@@ -594,6 +623,29 @@ export const Products = () => {
                    <label className="block text-[10px] text-gray-600 font-black uppercase tracking-widest mb-3">{t('products.description_label')}</label>
                    <textarea className="w-full bg-black/40 border border-white/5 rounded-3xl px-6 py-5 text-white placeholder:text-gray-800 focus:border-white/20 transition-all resize-none font-medium h-40" placeholder={t('products.description_placeholder')} value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} />
                 </div>
+
+                {canManageSaasPlanMapping && (
+                  <div className="md:col-span-2">
+                    <div className="rounded-[2rem] border border-primary/20 bg-primary/5 p-6">
+                      <label className="block text-[10px] font-black text-primary uppercase tracking-widest mb-3">
+                        {t('products.saas_mapping_title')}
+                      </label>
+                      <select
+                        className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-4 text-white outline-none focus:border-primary/50 transition-all font-medium appearance-none cursor-pointer"
+                        value={formData.saas_plan_slug}
+                        onChange={e => setFormData({ ...formData, saas_plan_slug: e.target.value })}
+                      >
+                        <option value="">{t('products.not_saas_plan')}</option>
+                        <option value="upgrade_domains">{t('products.upgrade_domains_plan')}</option>
+                        <option value="saas">{t('products.saas_partner_plan')}</option>
+                        <option value="whitelabel">{t('products.whitelabel_plan')}</option>
+                      </select>
+                      <p className="text-[11px] text-gray-400 mt-3">
+                        {t('products.saas_mapping_hint')}
+                      </p>
+                    </div>
+                  </div>
+                )}
              </div>
           </section>
 
