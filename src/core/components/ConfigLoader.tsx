@@ -54,7 +54,8 @@ export const ConfigLoader: React.FC<ConfigLoaderProps> = ({ onConfigLoaded }) =>
                 const res = await fetch('/api/config');
 
                 if (!res.ok) {
-                    throw new Error(`Server returned ${res.status}`);
+                    const errorData = await res.json().catch(() => ({}));
+                    throw new Error(errorData.message || errorData.error || `Server returned ${res.status}`);
                 }
 
                 const data = await res.json();

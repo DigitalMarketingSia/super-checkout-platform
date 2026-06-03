@@ -78,17 +78,27 @@ async function verifyVercelBackend(domain: string) {
     headers: { Accept: 'application/json' },
   });
 
+  const payload = await response.json().catch(() => ({}));
+  const failureMessage = safeResponsePreview(
+    payload?.message
+    || payload?.error
+    || `HTTP ${response.status}`
+  );
+
   if (!response.ok) {
     return {
       ok: false,
       status: response.status,
+      error: failureMessage,
     };
   }
 
-  const payload = await response.json().catch(() => ({}));
   return {
     ok: Boolean(payload?.url && payload?.anon),
     status: response.status,
+    error: payload?.url && payload?.anon
+      ? null
+      : safeResponsePreview(payload?.message || payload?.error || 'Runtime config response is missing required fields.'),
   };
 }
 
@@ -1221,7 +1231,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(409).json({
             success: false,
             status: result.status,
-            error: 'Deployment backend is not ready'
+            error: result.error || 'Deployment backend is not ready'
           });
         }
 

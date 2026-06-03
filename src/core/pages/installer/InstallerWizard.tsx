@@ -90,7 +90,8 @@ const verifyDistributionBackend = async (domain: string, params: { licenseKey: s
             });
             const payload = await response.json().catch(() => ({}));
 
-            lastResult = payload?.error ? `${payload.error} (${response.status})` : `HTTP ${response.status}`;
+            const payloadMessage = payload?.message || payload?.error;
+            lastResult = payloadMessage ? `${payloadMessage} (${response.status})` : `HTTP ${response.status}`;
             if (response.ok && payload?.success) return;
         } catch (error: any) {
             lastResult = safeInstallerErrorMessage(error);
