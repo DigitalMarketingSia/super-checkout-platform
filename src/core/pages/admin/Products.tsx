@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Layout } from '../../components/Layout';
 import { storage } from '../../services/storageService';
+import { supabase } from '../../services/supabase';
 import { Product, Content, Checkout, MemberArea } from '../../types';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
@@ -165,6 +166,32 @@ export const Products = () => {
     setLoading(false);
   };
 
+  const syncCentralUpgradePlan = async (productId: string) => {
+    const { data: authData, error: authError } = await supabase.auth.getSession();
+    if (authError) throw authError;
+
+    const accessToken = authData.session?.access_token;
+    if (!accessToken) {
+      throw new Error('Sua sessao expirou antes da publicacao do plano central. Entre novamente e salve o produto mais uma vez.');
+    }
+
+    const response = await fetch('/api/admin?action=sync-saas-plan', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ productId }),
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload?.error || payload?.message || 'Falha ao publicar o produto de upgrade no catalogo central.');
+    }
+
+    return payload;
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -204,10 +231,23 @@ export const Products = () => {
         await storage.setProductContents(currentProductId, selectedContentIds);
       }
 
+      let syncWarning = '';
+      if (currentProductId && canManageSaasPlanMapping && sanitizedFormData.saas_plan_slug) {
+        try {
+          await syncCentralUpgradePlan(currentProductId);
+        } catch (syncError) {
+          syncWarning = syncError instanceof Error ? syncError.message : 'Falha ao publicar o plano central.';
+        }
+      }
+
       await loadData();
       setViewMode('grid');
       setEditingId(null);
       setCurrentProductId(null);
+
+      if (syncWarning) {
+        showAlert('Plano central nao sincronizado', syncWarning, 'error');
+      }
     } catch (error) {
       console.error('Error saving product:', error);
       const detailedError = error instanceof Error ? error.message : JSON.stringify(error);
