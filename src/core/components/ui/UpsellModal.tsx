@@ -81,14 +81,15 @@ export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) =>
 
                     return {
                         ...plan,
-                        name: localMatch?.name || plan.name,
-                        description: localMatch?.description || plan.description,
-                        imageUrl: localMatch?.imageUrl || plan.imageUrl,
-                        price_real: localMatch?.price_real ?? plan.price_real,
-                        saas_plan_slug: normalizeUpgradePlanSlug(localMatch?.saas_plan_slug || plan.saas_plan_slug),
+                        name: plan.name || localMatch?.name,
+                        description: plan.description || localMatch?.description || '',
+                        imageUrl: plan.imageUrl || localMatch?.imageUrl,
+                        // The official central catalog must be authoritative for upgrade pricing.
+                        price_real: plan.price_real ?? localMatch?.price_real,
+                        saas_plan_slug: normalizeUpgradePlanSlug(plan.saas_plan_slug || localMatch?.saas_plan_slug),
                         checkout_url: resolveFirstSafeCheckoutUrl(
-                            localMatch?.checkout_url,
                             plan.checkout_url,
+                            localMatch?.checkout_url,
                             OFFICIAL_CHECKOUT_FALLBACKS[plan.saas_plan_slug as UpgradePlanSlug],
                         ),
                     };

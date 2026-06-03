@@ -182,12 +182,13 @@ export const ActivationPortal: React.FC = () => {
                 if (localMatch) {
                     return {
                         ...cp,
-                        name: localMatch.name || cp.name,
-                        description: localMatch.description || cp.description,
-                        imageUrl: localMatch.imageUrl || cp.imageUrl,
-                        price_real: localMatch.price_real ?? cp.price_real,
-                        checkout_url: localMatch.checkout_url || cp.checkout_url,
-                        saas_plan_slug: normalizeUpgradePlanSlug(localMatch.saas_plan_slug || cp.saas_plan_slug),
+                        name: cp.name || localMatch.name,
+                        description: cp.description || localMatch.description || '',
+                        imageUrl: cp.imageUrl || localMatch.imageUrl,
+                        // The central upgrade catalog should override legacy local product pricing.
+                        price_real: cp.price_real ?? localMatch.price_real,
+                        checkout_url: cp.checkout_url || localMatch.checkout_url,
+                        saas_plan_slug: normalizeUpgradePlanSlug(cp.saas_plan_slug || localMatch.saas_plan_slug),
                     };
                 }
                 return {
