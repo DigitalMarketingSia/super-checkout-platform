@@ -564,8 +564,7 @@ function shouldForwardAdminSecret(
     }
 
     if (endpoint === 'upgrade-intents') {
-        return action === 'create_upgrade_intent'
-            || action === 'consume_upgrade_intent'
+        return action === 'consume_upgrade_intent'
             || (action === 'list_recent_upgrade_intents' && hasOwnerGradeControlPlaneAccess);
     }
 
@@ -870,7 +869,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (shouldSendAdminSecret && !centralSecret) {
             console.error(`[Central Proxy] Missing CENTRAL_SHARED_SECRET for trusted endpoint ${endpoint}`);
-            return res.status(500).json({ error: 'Server configuration error' });
+            return res.status(500).json({
+                error: 'Server configuration error: missing CENTRAL_SHARED_SECRET for trusted central action.',
+            });
         }
 
         if (endpoint === 'activate-free-license') {
