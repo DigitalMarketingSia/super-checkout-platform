@@ -10,6 +10,8 @@ import { AlertModal } from '../../components/ui/Modal';
 import { Loading } from '../../components/ui/Loading';
 import { getApiUrl } from '../../utils/apiUtils';
 import { useTranslation } from 'react-i18next';
+import { getRuntimeMode } from '../../config/runtimeMode';
+import { demoDataService } from '../../services/demoDataService';
 
 // Mocks de segurança conforme solicitado
 const FALLBACK_MOCK_ORDER = {
@@ -28,6 +30,7 @@ const MOCK_PIX_DATA = {
 const getPixSessionKey = (orderId?: string) => `pix-payment-context:${orderId || 'unknown'}`;
 const toPixQrImageSrc = (value?: string | null) => {
   if (!value) return '';
+  if (/^https?:\/\//i.test(value)) return value;
   return value.startsWith('data:image') ? value : `data:image/png;base64,${value}`;
 };
 
@@ -35,6 +38,8 @@ export const PixPayment = () => {
   const { orderId } = useParams<{ orderId: string }>();
   const location = useLocation();
   const { t } = useTranslation('public');
+  const runtimeMode = getRuntimeMode();
+  const isDemoRuntime = runtimeMode === 'demo';
   const [timeLeft, setTimeLeft] = useState({ minutes: 14, seconds: 59 });
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -133,6 +138,37 @@ export const PixPayment = () => {
       // 2. Load Real Data from Supabase (always check to get Account ID -> Business Settings)
       if (orderId) {
         try {
+          if (isDemoRuntime) {
+            const demoOrder = await demoDataService.getOrderById(orderId);
+            if (demoOrder) {
+              const adaptedOrder = {
+                items: demoOrder.items || [{ name: t('pix.fallback_item', 'Oferta selecionada'), price: demoOrder.amount, quantity: 1 }],
+                totalAmount: demoOrder.total || demoOrder.amount,
+                customer: { name: demoOrder.customer_name, email: demoOrder.customer_email },
+                currency: 'BRL',
+              };
+
+              if (!location.state?.orderData) {
+                setOrderData(adaptedOrder);
+              }
+              if (!location.state?.pixData) {
+                const pixData = demoDataService.buildPixData(orderId, demoOrder.amount || 0);
+                setPixCode(pixData.qr_code);
+                setPixQrImageSrc(toPixQrImageSrc(pixData.qr_code_base64));
+              }
+
+              const settings = await storage.getBusinessSettingsByCheckoutId(demoOrder.checkout_id);
+              if (settings?.business_name) {
+                setBusinessName(settings.business_name);
+              }
+
+              const demoStatus = String(demoOrder.status || '').toLowerCase();
+              if (demoStatus === 'paid' || demoStatus === 'approved') {
+                setPaymentConfirmed(true);
+                setRedirectTarget(appendStatusSignature(`/thank-you/${orderId}`));
+              }
+            }
+          } else {
           // Buscar pedido para pegar account_id (owner)
           // As we don't have account_id directly on orders (yet, maybe), we go through checkout -> product -> owner or direct relation
           // Actually, our schema update added account_id to orders? Let's assume we can traverse.
@@ -162,8 +198,12 @@ export const PixPayment = () => {
                   const raw = typeof payments[0].raw_response === 'string' ? JSON.parse(payments[0].raw_response) : payments[0].raw_response;
                   const qrCode = raw.point_of_interaction?.transaction_data?.qr_code;
                   const qrCodeBase64 = raw.point_of_interaction?.transaction_data?.qr_code_base64;
+                  const pagSeguroQrCode = raw.qr_codes?.[0]?.text;
+                  const pagSeguroQrCodeImage = raw.qr_codes?.[0]?.image_url;
                   if (qrCode) realPixCode = qrCode;
                   if (qrCodeBase64) realPixQrImageSrc = toPixQrImageSrc(qrCodeBase64);
+                  if (pagSeguroQrCode) realPixCode = pagSeguroQrCode;
+                  if (pagSeguroQrCodeImage) realPixQrImageSrc = toPixQrImageSrc(pagSeguroQrCodeImage);
                 } catch (e) { console.warn('Erro PIX parse', e); }
               }
 
@@ -211,6 +251,7 @@ export const PixPayment = () => {
               setRedirectTarget(appendStatusSignature(`/thank-you/${orderId}`));
             }
           }
+          }
         } catch (err) {
           console.error('[PixPayment] Error loading order/settings:', err);
         }
@@ -239,13 +280,26 @@ export const PixPayment = () => {
         // 1. Check Location State first
         if (location.state?.checkoutId) {
           const chk = await storage.getPublicCheckout(location.state.checkoutId);
-          if (chk?.config?.upsell?.active) {
+          const upsellProductId = String(chk?.config?.upsell?.product_id || '').trim();
+          if (chk?.config?.upsell?.active && upsellProductId) {
             setUpsellActive(true);
             return;
           }
         }
 
         if (!orderId) {
+          setUpsellActive(false);
+          return;
+        }
+
+        if (isDemoRuntime) {
+          const order = await demoDataService.getOrderById(orderId);
+          if (order?.checkout_id) {
+            const chk = await storage.getPublicCheckout(order.checkout_id);
+            const upsellProductId = String(chk?.config?.upsell?.product_id || '').trim();
+            setUpsellActive(Boolean(chk?.config?.upsell?.active && upsellProductId));
+            return;
+          }
           setUpsellActive(false);
           return;
         }
@@ -260,7 +314,8 @@ export const PixPayment = () => {
 
         if (order?.checkout_id) {
           const chk = await storage.getPublicCheckout(order.checkout_id);
-          if (chk?.config?.upsell?.active) {
+          const upsellProductId = String(chk?.config?.upsell?.product_id || '').trim();
+          if (chk?.config?.upsell?.active && upsellProductId) {
             setUpsellActive(true);
             return;
           }
@@ -291,23 +346,30 @@ export const PixPayment = () => {
       if (hasRedirectedRef.current || redirectTarget) return;
 
       try {
-        const response = await fetch(getApiUrl(`/api/check-status?orderId=${orderId}&sig=${statusSignature}&t=${Date.now()}`));
         let isPaid = false;
 
-        const contentType = response.headers.get('content-type');
-        if (response.ok && contentType && contentType.includes('application/json')) {
-          const data = await response.json();
-          const status = (data && data.status) ? data.status.toLowerCase() : '';
-          console.log('[PixPayment] Polling status:', status);
+        if (isDemoRuntime) {
+          const demoStatus = await demoDataService.getOrderStatus(orderId);
+          const status = String(demoStatus || '').toLowerCase();
+          console.log('[PixPayment] Demo polling status:', status);
           if (status === 'paid' || status === 'approved') isPaid = true;
-        }
+        } else {
+          const response = await fetch(getApiUrl(`/api/check-status?orderId=${orderId}&sig=${statusSignature}&t=${Date.now()}`));
 
-        if (!isPaid) {
-          // Fallback Supabase
-          const { data } = await supabase.from('orders').select('status').eq('id', orderId).single();
-          const status = (data && data.status) ? data.status.toLowerCase() : '';
-          console.log('[PixPayment] Fallback status:', status);
-          if (status === 'paid' || status === 'approved') isPaid = true;
+          const contentType = response.headers.get('content-type');
+          if (response.ok && contentType && contentType.includes('application/json')) {
+            const data = await response.json();
+            const status = (data && data.status) ? data.status.toLowerCase() : '';
+            console.log('[PixPayment] Polling status:', status);
+            if (status === 'paid' || status === 'approved') isPaid = true;
+          }
+
+          if (!isPaid) {
+            const { data } = await supabase.from('orders').select('status').eq('id', orderId).single();
+            const status = (data && data.status) ? data.status.toLowerCase() : '';
+            console.log('[PixPayment] Fallback status:', status);
+            if (status === 'paid' || status === 'approved') isPaid = true;
+          }
         }
 
         // Only navigate if we know the status.
@@ -345,6 +407,7 @@ export const PixPayment = () => {
   }, [orderId, location.search, location.state, upsellActive, redirectTarget, statusSignature, appendStatusSignature]);
 
   useEffect(() => {
+    if (isDemoRuntime) return;
     if (!orderId || redirectTarget) return;
 
     const channel = supabase
@@ -371,7 +434,7 @@ export const PixPayment = () => {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [orderId, redirectTarget, upsellActive, appendStatusSignature]);
+  }, [appendStatusSignature, isDemoRuntime, orderId, redirectTarget, upsellActive]);
 
   useEffect(() => {
     if (!redirectTarget || hasRedirectedRef.current) return;

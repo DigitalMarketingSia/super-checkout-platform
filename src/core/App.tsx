@@ -68,6 +68,13 @@ import { ConfigLoader } from './components/ConfigLoader';
 import { Toaster } from 'sonner';
 import { getEnv } from './utils/env';
 import { GlobalErrorBoundary } from './components/GlobalErrorBoundary';
+import { DemoWorkspaceLauncher } from './pages/demo/DemoWorkspaceLauncher';
+import {
+  getCurrentHostname,
+  getHostnameFromUrl,
+  getRuntimeMode,
+  isLocalHostname,
+} from './config/runtimeMode';
 
 import { storage } from './services/storageService';
 import { DomainUsage } from './types';
@@ -76,16 +83,6 @@ const FlowApp = React.lazy(() => import('./pages/admin/flow/App'));
 const AuthDebug = import.meta.env.DEV
   ? React.lazy(() => import('./pages/debug/AuthDebug').then((mod) => ({ default: mod.AuthDebug })))
   : null;
-
-const getHostnameFromUrl = (url?: string) => {
-  if (!url) return null;
-
-  try {
-    return new URL(url).hostname.toLowerCase();
-  } catch {
-    return null;
-  }
-};
 
 const CONTROL_PLANE_HOSTNAMES = new Set(
   [
@@ -103,11 +100,13 @@ const SYSTEM_HOSTNAMES = new Set(
     'app.supercheckout.app',
     'portal.supercheckout.app',
     'install.supercheckout.app',
+    'demo.supercheckout.app',
     'super-checkout.vercel.app',
     getHostnameFromUrl(import.meta.env.VITE_SUPER_CHECKOUT_MARKETING_URL),
     getHostnameFromUrl(import.meta.env.VITE_SUPER_CHECKOUT_APP_URL),
     getHostnameFromUrl(import.meta.env.VITE_SUPER_CHECKOUT_PORTAL_URL),
     getHostnameFromUrl(import.meta.env.VITE_SUPER_CHECKOUT_INSTALL_URL),
+    getHostnameFromUrl(import.meta.env.VITE_SUPER_CHECKOUT_DEMO_URL),
     getHostnameFromUrl(import.meta.env.VITE_APP_URL),
   ].filter(Boolean) as string[]
 );
@@ -126,13 +125,12 @@ const INSTALL_HOSTNAMES = new Set(
   ].filter(Boolean) as string[]
 );
 
-const getCurrentHostname = () => {
-  if (typeof window === 'undefined') return '';
-  return window.location.hostname.toLowerCase();
-};
-
-const isLocalHostname = (hostname: string) =>
-  hostname.includes('localhost') || hostname.includes('127.0.0.1');
+const DEMO_HOSTNAMES = new Set(
+  [
+    'demo.supercheckout.app',
+    getHostnameFromUrl(import.meta.env.VITE_SUPER_CHECKOUT_DEMO_URL),
+  ].filter(Boolean) as string[]
+);
 
 const isControlPlaneHostname = (hostname: string) => {
   const normalizedHostname = hostname.toLowerCase();
@@ -148,6 +146,10 @@ const getHostAwareRootPath = (hostname = getCurrentHostname()) => {
     return '/installer';
   }
 
+  if (DEMO_HOSTNAMES.has(hostname)) {
+    return '/demo';
+  }
+
   return '/admin';
 };
 
@@ -160,6 +162,10 @@ const HostAwareLoginRoute: React.FC = () => {
 
   if (PORTAL_HOSTNAMES.has(hostname)) {
     return <Navigate to="/activate" replace />;
+  }
+
+  if (DEMO_HOSTNAMES.has(hostname)) {
+    return <Navigate to="/demo" replace />;
   }
 
   return <Login />;
@@ -369,6 +375,7 @@ const DomainDispatcher = () => {
       )}
       <Route path="/login" element={<HostAwareLoginRoute />} />
       <Route path="/passport" element={<PassportExchange />} />
+      <Route path="/demo" element={<DemoWorkspaceLauncher />} />
       <Route path="/register" element={<Register />} />
       <Route path="/update-password" element={<UpdatePassword />} />
       <Route path="/privacy-policy" element={<PublicPrivacy />} />
@@ -384,7 +391,7 @@ const DomainDispatcher = () => {
 
       <Route path="/admin" element={<AdminRoute><Dashboard /></AdminRoute>} />
       <Route path="/admin/business-settings" element={<AdminRoute><BusinessSettings /></AdminRoute>} />
-      <Route path="/admin/privacy" element={<AdminRoute><PrivacyCenter /></AdminRoute>} />
+      <Route path="/admin/privacy" element={<SystemOwnerRoute requireControlPlane><PrivacyCenter /></SystemOwnerRoute>} />
       <Route path="/admin/products" element={<AdminRoute><Products /></AdminRoute>} />
       <Route path="/admin/offers" element={<AdminRoute><Offers /></AdminRoute>} />
       <Route path="/admin/checkouts" element={<AdminRoute><Checkouts /></AdminRoute>} />
@@ -401,11 +408,11 @@ const DomainDispatcher = () => {
       <Route path="/admin/updates" element={<AdminRoute><SystemUpdates /></AdminRoute>} />
       <Route path="/admin/flow/*" element={<AdminRoute><React.Suspense fallback={<Loading />}><FlowApp /></React.Suspense></AdminRoute>} />
 
-      <Route path="/admin/free-users" element={<AdminRoute><LeadCRM /></AdminRoute>} />
-      <Route path="/admin/free-users/:id" element={<AdminRoute><FreeUserDetails /></AdminRoute>} />
+      <Route path="/admin/free-users" element={<SystemOwnerRoute requireControlPlane><LeadCRM /></SystemOwnerRoute>} />
+      <Route path="/admin/free-users/:id" element={<SystemOwnerRoute requireControlPlane><FreeUserDetails /></SystemOwnerRoute>} />
 
       <Route path="/admin/installations" element={<AdminRoute><MyInstallations /></AdminRoute>} />
-      <Route path="/admin/partner-dashboard" element={<AdminRoute><PartnerDashboard /></AdminRoute>} />
+      <Route path="/admin/partner-dashboard" element={<SystemOwnerRoute requireControlPlane><PartnerDashboard /></SystemOwnerRoute>} />
       <Route path="/admin/marketing" element={<AdminRoute><Marketing /></AdminRoute>} />
       <Route path="/admin/integrations" element={<AdminRoute><IntegrationsHub /></AdminRoute>} />
       <Route path="/admin/notifications" element={<AdminRoute><Notifications /></AdminRoute>} />
@@ -445,6 +452,13 @@ const DomainDispatcher = () => {
 const App = () => {
   const { t } = useTranslation('common');
   const [isHydrating, setIsHydrating] = React.useState(true);
+  const runtimeMode = getRuntimeMode();
+
+  React.useEffect(() => {
+    if (typeof document === 'undefined') return;
+
+    document.documentElement.dataset.runtimeMode = runtimeMode;
+  }, [runtimeMode]);
 
   // --- CROSS-DOMAIN CONFIG HYDRATION ---
   // Detects keys passed from Installer on a different domain
@@ -498,8 +512,13 @@ const App = () => {
 
   // Check if we have the critical keys to start the app
   const hasConfig = typeof window !== 'undefined' &&
-    !!getEnv('VITE_SUPABASE_URL') &&
-    !!getEnv('VITE_LICENSE_KEY');
+    (
+      runtimeMode === 'demo' ||
+      (
+        !!getEnv('VITE_SUPABASE_URL') &&
+        !!getEnv('VITE_LICENSE_KEY')
+      )
+    );
 
   // If no config, ONLY render ConfigLoader. 
   // It will fetch config, save to localStorage, and reload the page.
@@ -528,9 +547,11 @@ const App = () => {
   }
 
   return (
-    <GlobalErrorBoundary>
-      <Toaster richColors position="top-right" theme={localStorage.getItem('theme') === 'dark' ? 'dark' : 'light'} />
-      <ConfigLoader onConfigLoaded={() => window.location.reload()} />
+      <GlobalErrorBoundary>
+        <Toaster richColors position="top-right" theme={localStorage.getItem('theme') === 'dark' ? 'dark' : 'light'} />
+      {runtimeMode !== 'demo' && (
+        <ConfigLoader onConfigLoaded={() => window.location.reload()} />
+      )}
       <InstallationProvider>
         <AuthProvider>
           <ThemeProvider>

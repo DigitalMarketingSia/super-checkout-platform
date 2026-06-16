@@ -568,8 +568,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (!supabaseUrl || !supabaseAnonKey) {
-        console.error('[Auth/Login] Missing Supabase configuration');
-        return res.status(500).json({ error: 'Erro de configuração do servidor.' });
+        const missingConfig = [
+            !supabaseUrl ? 'VITE_SUPABASE_URL/NEXT_PUBLIC_SUPABASE_URL' : null,
+            !supabaseAnonKey ? 'SUPABASE_PUBLISHABLE_KEY/VITE_SUPABASE_PUBLISHABLE_KEY/SUPABASE_ANON_KEY' : null,
+        ].filter(Boolean);
+
+        console.error('[Auth/Login] Missing Supabase configuration', {
+            target: target || 'local',
+            missingConfig,
+        });
+
+        const devHint = process.env.NODE_ENV !== 'production'
+            ? ` Runtime local sem: ${missingConfig.join(', ')}. Confirme o bootstrap do vercel dev e os arquivos .env.local/.vercel/.env.production.local.`
+            : '';
+
+        return res.status(500).json({ error: `Erro de configuracao do servidor.${devHint}` });
     }
 
     const serviceKey = getLocalSupabaseServiceKey();
@@ -777,7 +790,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const expiresAt = new Date(Date.now() + TWO_FACTOR_CHALLENGE_TTL_MS).toISOString();
                     const challengeToken = createStatelessLoginChallengeToken({
                         jti: challengeId,
-                        session: data.session,
+                        session: {
+                            ...data.session,
+                            user: data.user,
+                        },
                         user_id: data.user.id,
                         user_email: data.user.email || null,
                         user_updated_at: data.user.updated_at || null,

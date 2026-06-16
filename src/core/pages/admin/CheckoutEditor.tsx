@@ -55,6 +55,34 @@ const initialConfig: CheckoutConfig = {
    }
 };
 
+const hydrateCheckoutConfig = (
+   value?: Partial<CheckoutConfig> | null,
+   fallbackUpsellProductId: string = ''
+): CheckoutConfig => ({
+   ...initialConfig,
+   ...value,
+   fields: {
+      ...initialConfig.fields,
+      ...value?.fields,
+   },
+   payment_methods: {
+      ...initialConfig.payment_methods,
+      ...value?.payment_methods,
+   },
+   timer: {
+      ...initialConfig.timer,
+      ...value?.timer,
+   },
+   pixels: value?.pixels ? {
+      ...value.pixels,
+   } : undefined,
+   upsell: {
+      ...initialConfig.upsell,
+      ...value?.upsell,
+      product_id: String(value?.upsell?.product_id || fallbackUpsellProductId || '').trim(),
+   },
+});
+
 export const CheckoutEditor = () => {
    const { t } = useTranslation(['admin', 'common']);
    const { user, compliance } = useAuth();
@@ -117,6 +145,8 @@ export const CheckoutEditor = () => {
    const activeProducts = products.filter(p => p.active);
    const availableBumps = activeProducts.filter(p => p.is_order_bump && p.id !== productId);
    const availableUpsells = activeProducts.filter(p => p.is_upsell && p.id !== productId);
+   const selectedGatewayName = gateways.find(g => g.id === gatewayId)?.name;
+   const isPagSeguroSelected = selectedGatewayName === GatewayProvider.PAGSEGURO;
 
    useEffect(() => {
       const load = async () => {
@@ -129,6 +159,9 @@ export const CheckoutEditor = () => {
             const allCheckouts = await storage.getCheckouts();
             const found = allCheckouts.find(c => c.id === id);
             if (found) {
+               const resolvedUpsellProductId = String(
+                  found.config?.upsell?.product_id || found.upsell_product_id || ''
+               ).trim();
                setName(found.name);
                setActive(found.active);
                setProductId(found.product_id);
@@ -136,12 +169,12 @@ export const CheckoutEditor = () => {
                setDomainId(found.domain_id || '');
                setSlug(found.custom_url_slug);
                setOrderBumpIds(found.order_bump_ids || []);
-               setUpsellProductId(found.upsell_product_id || '');
+               setUpsellProductId(resolvedUpsellProductId);
                setThankYouButtonUrl((found as any).thank_you_button_url || '');
                setThankYouButtonText((found as any).thank_you_button_text || '');
                setCurrency(found.currency || 'BRL');
                setBackupGatewayId(found.backup_gateway_id || '');
-               setConfig(found.config || initialConfig);
+               setConfig(hydrateCheckoutConfig(found.config, resolvedUpsellProductId));
             }
          }
          setLoading(false);
@@ -174,10 +207,28 @@ export const CheckoutEditor = () => {
             google_ads_id: config.pixels.google_ads_id ? config.pixels.google_ads_id.trim().toUpperCase() : undefined,
          } : undefined;
 
+         const normalizedUpsellProductId = String(
+            config.upsell?.product_id || upsellProductId || ''
+         ).trim();
+
          const sanitizedConfig = {
             ...config,
-            pixels: sanitizedPixels
+            payment_methods: {
+               ...config.payment_methods,
+               boleto: selectedGatewayName === GatewayProvider.PAGSEGURO ? false : config.payment_methods.boleto,
+               apple_pay: selectedGatewayName === GatewayProvider.STRIPE ? config.payment_methods.apple_pay : false,
+               google_pay: selectedGatewayName === GatewayProvider.STRIPE ? config.payment_methods.google_pay : false,
+            },
+            pixels: sanitizedPixels,
+            upsell: config.upsell ? {
+               ...config.upsell,
+               product_id: normalizedUpsellProductId,
+            } : undefined,
          };
+
+         const hasConfiguredUpsell = Boolean(
+            sanitizedConfig.upsell?.active && normalizedUpsellProductId
+         );
 
          const checkoutData = {
             name,
@@ -187,7 +238,7 @@ export const CheckoutEditor = () => {
             domain_id: domainId || null, // Send null to clear the field in DB
             custom_url_slug: slug || (isNew ? `chk-${Date.now()}` : id!),
             order_bump_ids: orderBumpIds,
-            upsell_product_id: upsellProductId || undefined,
+            upsell_product_id: hasConfiguredUpsell ? normalizedUpsellProductId : undefined,
             thank_you_button_url: thankYouButtonUrl || null,
             thank_you_button_text: thankYouButtonText || null,
             currency,
@@ -249,6 +300,8 @@ export const CheckoutEditor = () => {
             return "/mercado-pago-logo.png";
          case GatewayProvider.STRIPE:
             return "/stripe-logo.png";
+         case GatewayProvider.PAGSEGURO:
+            return "/pag-seguro-logoo.png";
          default:
             return "";
       }
@@ -469,7 +522,10 @@ export const CheckoutEditor = () => {
                                        key={m.id}
                                        onClick={() => {
                                           setCurrency(m.id as any);
-                                          if (m.id !== 'BRL' && gateways.find(g => g.id === gatewayId)?.name === GatewayProvider.MERCADO_PAGO) {
+                                          if (m.id !== 'BRL' && (
+                                             gateways.find(g => g.id === gatewayId)?.name === GatewayProvider.MERCADO_PAGO
+                                             || gateways.find(g => g.id === gatewayId)?.name === GatewayProvider.PAGSEGURO
+                                          )) {
                                              setGatewayId('');
                                              setBackupGatewayId('');
                                           }
@@ -671,7 +727,11 @@ export const CheckoutEditor = () => {
                                        <select
                                           className="w-full bg-[#05050A] border-2 border-primary/20 rounded-[1.5rem] pl-14 pr-6 py-4 text-white font-bold focus:border-primary/50 focus:ring-0 outline-none appearance-none transition-all cursor-pointer"
                                           value={config.upsell?.product_id || ''}
-                                          onChange={e => setConfig({ ...config, upsell: { ...config.upsell!, product_id: e.target.value } })}
+                                          onChange={e => {
+                                             const nextProductId = e.target.value;
+                                             setUpsellProductId(nextProductId);
+                                             setConfig({ ...config, upsell: { ...config.upsell!, product_id: nextProductId } });
+                                          }}
                                        >
                                           <option value="" className="bg-[#0A0A15] text-white">{t('checkout_editor.select_upsell_product')}</option>
                                           {availableUpsells.map(prod => (
@@ -811,7 +871,9 @@ export const CheckoutEditor = () => {
                                  { id: 'google_pay', label: t('checkout_editor.pay_google'), icon: Smartphone }
                               ].map(method => {
                                  const isStripeOnly = method.id === 'apple_pay' || method.id === 'google_pay';
-                                 const isDisabled = isStripeOnly && gatewayId && gateways.find(g => g.id === gatewayId)?.name !== GatewayProvider.STRIPE;
+                                 const isPagSeguroBoleto = method.id === 'boleto' && isPagSeguroSelected;
+                                 const isDisabled = (isStripeOnly && gatewayId && gateways.find(g => g.id === gatewayId)?.name !== GatewayProvider.STRIPE)
+                                    || isPagSeguroBoleto;
                                  
                                  return (
                                     <button

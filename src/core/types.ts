@@ -16,6 +16,7 @@ export enum RecurrenceType {
 export enum GatewayProvider {
   MERCADO_PAGO = 'mercado_pago',
   STRIPE = 'stripe', // Future
+  PAGSEGURO = 'pagseguro',
   PIX = 'pix',       // Native/Manual
 }
 
@@ -570,7 +571,7 @@ export interface MemberArea {
   owner_id: string;
   name: string;
   slug: string;
-  domain_id?: string;
+  domain_id?: string | null;
   logo_url?: string;
   primary_color: string;
   favicon_url?: string;

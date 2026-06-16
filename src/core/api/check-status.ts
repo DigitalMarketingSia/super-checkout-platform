@@ -1,11 +1,19 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
+import crypto from 'crypto';
 import { resolveLocalSupabaseServerClient } from './_supabase-server.js';
+import { resolvePagbankAccessToken } from './_pagbank-token.js';
 import { decrypt, verifySignature } from '../utils/cryptoUtils.js';
 import { applyCors } from './_cors.js';
 import { fulfillOrder } from '../services/fulfillment.js';
 import { sendOrderAccessEmail } from '../services/orderEmail.js';
 import { enforceApiRateLimit } from './_rate-limit.js';
+import {
+    buildSafePagSeguroRawResponse,
+    getPagSeguroApiBaseUrl,
+    getPagSeguroStatus,
+    mapPagSeguroStatusToLocal,
+} from '../utils/pagSeguro.js';
 
 // Define types locally since we are in a serverless function structure that might not share types easily with frontend
 interface Order {
@@ -341,7 +349,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         const { data: gateway, error: gatewayError } = await supabaseAdmin
             .from('gateways')
-            .select('id,user_id,name,private_key')
+            .select('id,user_id,name,private_key,config')
             .eq('id', String(gatewayId))
             .eq('user_id', merchantUserId)
             .maybeSingle();
@@ -400,6 +408,98 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 })
                 .eq('id', String(payment.id));
             if (stripePaymentUpdateError) throw stripePaymentUpdateError;
+        }
+
+        if (newStatus === 'paid') {
+            await processPaidSideEffects({
+                supabaseAdmin,
+                supabaseUrl,
+                serviceRoleKey,
+                orderId: orderId as string,
+                knownOrder: { ...order, status: 'paid' },
+                origin: requestOrigin,
+            });
+        }
+
+        return res.status(200).json({ status: newStatus });
+    }
+
+    if (gatewayName === 'pagseguro' || gatewayName === 'pagbank') {
+        let authToken = '';
+        try {
+            authToken = (await resolvePagbankAccessToken({
+                supabaseAdmin,
+                gateway,
+                reason: 'status',
+            })).accessToken;
+        } catch (error: any) {
+            console.error('[CheckStatus] PagBank OAuth token could not be resolved for status polling:', error?.message || error);
+            return res.status(200).json({ status: order.status || 'pending' });
+        }
+
+        const providerOrderId = payment?.transaction_id || (order as any).payment_id;
+        if (!providerOrderId) {
+            return res.status(200).json({ status: order.status || 'pending' });
+        }
+
+        const pagSeguroRes = await fetch(`${getPagSeguroApiBaseUrl(gateway)}/orders/${encodeURIComponent(String(providerOrderId))}`, {
+            headers: {
+                Authorization: `Bearer ${authToken}`,
+                accept: 'application/json',
+            }
+        });
+
+        if (pagSeguroRes.status === 404) {
+            return res.status(200).json({ status: order.status || 'pending' });
+        }
+
+        if (!pagSeguroRes.ok) {
+            console.error('[CheckStatus] PagBank status polling failed:', { status: pagSeguroRes.status, providerOrderId: maskIdentifier(String(providerOrderId)) });
+            return res.status(200).json({ status: order.status || 'pending' });
+        }
+
+        const pagSeguroData = await pagSeguroRes.json();
+        if (pagSeguroData?.reference_id && String(pagSeguroData.reference_id) !== String(orderId)) {
+            console.warn('[CheckStatus] PagBank reference_id does not match order.');
+            return res.status(200).json({ status: order.status || 'pending' });
+        }
+
+        const newStatus = mapPagSeguroStatusToLocal(getPagSeguroStatus(pagSeguroData));
+        const currentStatusNorm = (order.status || 'pending').toLowerCase();
+
+        if (newStatus !== currentStatusNorm) {
+            const { error: pagSeguroOrderUpdateError } = await supabaseAdmin
+                .from('orders')
+                .update({ status: newStatus })
+                .eq('id', orderId)
+                .eq('checkout_id', order.checkout_id);
+            if (pagSeguroOrderUpdateError) throw pagSeguroOrderUpdateError;
+        }
+
+        if (payment?.id) {
+            const { error: pagSeguroPaymentUpdateError } = await supabaseAdmin
+                .from('payments')
+                .update({
+                    status: newStatus,
+                    raw_response: buildSafePagSeguroRawResponse(pagSeguroData),
+                })
+                .eq('id', String(payment.id))
+                .eq('order_id', orderId);
+            if (pagSeguroPaymentUpdateError) throw pagSeguroPaymentUpdateError;
+        } else {
+            const { error: pagSeguroPaymentInsertError } = await supabaseAdmin
+                .from('payments')
+                .insert({
+                    id: crypto.randomUUID(),
+                    order_id: orderId,
+                    gateway_id: gatewayId,
+                    status: newStatus,
+                    transaction_id: String(pagSeguroData?.id || providerOrderId),
+                    raw_response: buildSafePagSeguroRawResponse(pagSeguroData),
+                    user_id: merchantUserId || payment?.user_id || (order as any).user_id,
+                    created_at: new Date().toISOString(),
+                });
+            if (pagSeguroPaymentInsertError) throw pagSeguroPaymentInsertError;
         }
 
         if (newStatus === 'paid') {

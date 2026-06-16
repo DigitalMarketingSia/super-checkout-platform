@@ -9,6 +9,8 @@ import { Order } from '../../types';
 import { TrackingProvider, useTracking } from '../../context/TrackingContext';
 import { useTranslation } from 'react-i18next';
 import { getApiUrl } from '../../utils/apiUtils';
+import { getRuntimeMode } from '../../config/runtimeMode';
+import { demoDataService } from '../../services/demoDataService';
 import {
   captureCheckoutTrackingAttribution,
   type CheckoutTrackingAttribution,
@@ -138,6 +140,8 @@ export const ThankYou = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useTranslation('public');
+  const runtimeMode = getRuntimeMode();
+  const isDemoRuntime = runtimeMode === 'demo';
   const [order, setOrder] = useState<Order | null>(null);
   const [originalOrder, setOriginalOrder] = useState<Order | null>(null);
   const [checkout, setCheckout] = useState<any>(null);
@@ -153,6 +157,10 @@ export const ThankYou = () => {
 
     const fetchSignedOrderSnapshot = async (targetOrderId: string, signature: string): Promise<SignedOrderSnapshot | null> => {
       if (!targetOrderId || !signature) return null;
+
+      if (isDemoRuntime) {
+        return await demoDataService.getOrderSnapshot(targetOrderId);
+      }
 
       try {
         const response = await fetch(getApiUrl(`/api/system?action=order-deliverables&orderId=${encodeURIComponent(targetOrderId)}&sig=${encodeURIComponent(signature)}&t=${Date.now()}`));
@@ -191,6 +199,10 @@ export const ThankYou = () => {
     };
 
     const fetchPublicOrderById = async (targetOrderId: string) => {
+      if (isDemoRuntime) {
+        return await demoDataService.getOrderById(targetOrderId);
+      }
+
       const { data, error } = await supabase
         .from('orders')
         .select('id, offer_id, checkout_id, customer_name, customer_email, status, payment_method, items, metadata, created_at, total, customer_user_id')
@@ -239,14 +251,21 @@ export const ThankYou = () => {
 
         // Fetch checkout
         if (orderData?.checkout_id) {
-          const { data: checkoutData, error: checkoutError } = await supabase
-            .from('checkouts')
-            .select('thank_you_button_url, thank_you_button_text, config')
-            .eq('id', orderData.checkout_id)
-            .single();
+          if (isDemoRuntime) {
+            const checkoutData = await storage.getPublicCheckout(orderData.checkout_id);
+            if (checkoutData) {
+              setCheckout(checkoutData);
+            }
+          } else {
+            const { data: checkoutData, error: checkoutError } = await supabase
+              .from('checkouts')
+              .select('thank_you_button_url, thank_you_button_text, config')
+              .eq('id', orderData.checkout_id)
+              .single();
 
-          if (!checkoutError && checkoutData) {
-            setCheckout(checkoutData);
+            if (!checkoutError && checkoutData) {
+              setCheckout(checkoutData);
+            }
           }
 
           try {
@@ -286,6 +305,9 @@ export const ThankYou = () => {
   const orderTimestamp = originalOrder?.created_at || order?.created_at || null;
   const actionableDeliverables = deliverables.filter((deliverable) => deliverable.status === 'available' && deliverable.url);
   const missingDeliverables = deliverables.filter((deliverable) => deliverable.status !== 'available' || !deliverable.url);
+  const primaryMemberDeliverable = actionableDeliverables.find((deliverable) => deliverable.delivery_type === 'member_area');
+  const primaryAccessUrl = primaryMemberDeliverable?.url || checkout?.thank_you_button_url || '';
+  const primaryAccessLabel = primaryMemberDeliverable?.label || checkout?.thank_you_button_text || t('thank_you.access', 'Acessar');
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-gray-900">
       <TrackingProvider
@@ -364,6 +386,10 @@ export const ThankYou = () => {
                         <Button
                           onClick={() => {
                             const targetUrl = deliverable.url || '';
+                            if (isDemoRuntime && targetUrl.includes('demo_member_ticket=')) {
+                              window.open(targetUrl, '_blank', 'noopener,noreferrer');
+                              return;
+                            }
                             if (targetUrl.startsWith('http')) {
                               window.open(targetUrl, '_blank', 'noopener,noreferrer');
                             } else {
@@ -405,10 +431,14 @@ export const ThankYou = () => {
             </div>
 
             <div className="mt-10 flex justify-center">
-              {checkout?.thank_you_button_url ? (
+              {primaryAccessUrl ? (
                 <Button
                   onClick={() => {
-                    const buttonUrl = checkout.thank_you_button_url!;
+                    const buttonUrl = primaryAccessUrl;
+                    if (isDemoRuntime && buttonUrl.includes('demo_member_ticket=')) {
+                      window.open(buttonUrl, '_blank', 'noopener,noreferrer');
+                      return;
+                    }
                     if (buttonUrl.startsWith('http')) {
                       // External URL - open in new tab
                       window.open(buttonUrl, '_blank');
@@ -419,7 +449,7 @@ export const ThankYou = () => {
                   }}
                   className="w-full sm:w-auto min-w-[200px]"
                 >
-                  {checkout?.thank_you_button_text || t('thank_you.access', 'Acessar')}
+                  {primaryAccessLabel}
                   <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
               ) : (

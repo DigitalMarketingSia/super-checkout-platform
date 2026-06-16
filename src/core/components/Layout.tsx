@@ -40,8 +40,12 @@ import { useAuth } from '../context/AuthContext';
 import { useFeatures } from '../hooks/useFeatures';
 import { ComplianceBanner } from './admin/ComplianceBanner';
 import { LanguageSelector } from './ui/LanguageSelector';
+import { Modal } from './ui/Modal';
 import { useTranslation } from 'react-i18next';
 import { APP_VERSION } from '../config/version';
+import { getRuntimeMode } from '../config/runtimeMode';
+import { platformUrls } from '../config/platformUrls';
+import { demoWorkspaceService } from '../services/demoWorkspaceService';
 
 const getHostnameFromUrl = (url?: string) => {
   if (!url) return null;
@@ -72,13 +76,16 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
   const location = useLocation();
   const { theme, toggleTheme } = useTheme();
   const { user, signOut, compliance, isWhiteLabel, profile } = useAuth(); // Destructure compliance, isWhiteLabel, and profile
-  const { hasFeature, plan, isOwner } = useFeatures(); // replaces useEntitlements and useFeatureFlags
+  const { isOwner } = useFeatures(); // replaces useEntitlements and useFeatureFlags
   const { t } = useTranslation('admin');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isFlowBetaModalOpen, setIsFlowBetaModalOpen] = useState(false);
   const [showEmail, setShowEmail] = useState(() => {
     return localStorage.getItem('show_admin_email') !== 'false';
   });
+  const isDemoMode = getRuntimeMode() === 'demo';
+  const demoWorkspace = isDemoMode ? demoWorkspaceService.getCachedWorkspace()?.workspace : null;
 
   const navItems = [
     { path: '/admin', icon: LayoutDashboard, label: t('nav.overview', 'Visão Geral') },
@@ -100,10 +107,37 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
   const isAdmin = effectiveRole === 'master_admin';
   const canAccessSystemUpdates = isSystemOwner || isOwner || isAdmin || effectiveRole === 'admin' || effectiveRole === 'owner';
   const canAccessClientAccountPages = isCommercial || canAccessSystemUpdates;
+  const canAccessOwnerConsoleModules = !isDemoMode && isSystemOwner;
   const canAccessUpgradeIntents = isSystemOwner && isControlPlaneHost();
+
+  const handleFlowCtaClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    if (!isDemoMode) return;
+
+    event.preventDefault();
+    setMobileMenuOpen(false);
+    setIsFlowBetaModalOpen(true);
+  };
 
   return (
     <div className="flex h-screen bg-[#05050A] text-gray-900 dark:text-dark-textMain overflow-hidden font-sans flex-col">
+      {isDemoMode && (
+        <div className="shrink-0 border-b border-amber-400/20 bg-amber-400/10 px-4 py-2 text-amber-100">
+          <div className="mx-auto flex max-w-[1600px] flex-col gap-2 text-[10px] font-black uppercase tracking-[0.22em] md:flex-row md:items-center md:justify-between">
+            <span>
+              Modo Demo ativo
+              {demoWorkspace?.expires_at ? ` - expira em ${new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(demoWorkspace.expires_at))}` : ''}
+            </span>
+            <div className="flex flex-wrap items-center gap-3">
+              <Link to="/demo?launchpad=1" className="text-white underline-offset-4 hover:underline">
+                Detalhes e reset
+              </Link>
+              <a href={`${platformUrls.portal}/activate`} className="text-white underline-offset-4 hover:underline">
+                Instalar sistema definitivo
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Top Compliance Banner (Fixed at top, pushes everything down) */}
       <ComplianceBanner complianceStatus={compliance?.status} isReady={compliance?.is_ready} />
@@ -230,7 +264,7 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
               <div className="space-y-1">
 
                 {/* OWNER/MASTER/ADMIN: Lead CRM */}
-                {!isWhiteLabel && (isSystemOwner || isOwner || hasFeature('FEATURE_CRM_LEADS')) && (
+                {!isWhiteLabel && canAccessOwnerConsoleModules && (
                     <Link
                       to="/admin/free-users"
                       onClick={() => setMobileMenuOpen(false)}
@@ -385,7 +419,7 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
                   </Link>
                 )}
 
-                {canAccessSystemUpdates && (
+                {canAccessOwnerConsoleModules && (
                   <Link
                     to="/admin/privacy"
                     onClick={() => setMobileMenuOpen(false)}
@@ -402,7 +436,7 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
                   </Link>
                 )}
 
-                {((isSystemOwner || isOwner || hasFeature('FEATURE_PARTNER_PANEL')) || (profile?.partner_status === 'active')) && (
+                {canAccessOwnerConsoleModules && (
                   <Link
                     to="/admin/partner-dashboard"
                     onClick={() => setMobileMenuOpen(false)}
@@ -456,6 +490,8 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
               <Link 
                 to="/admin/flow" 
                 className="block group relative"
+                title="Flow Builder Beta"
+                onClick={handleFlowCtaClick}
               >
                 {/* Outer Glow Effects - Using #27CBEF Gradient - Active by Default */}
                 <div className="absolute -inset-[1px] bg-gradient-to-br from-[#27CBEF] via-transparent to-[#27CBEF]/40 rounded-2xl blur-[2px] opacity-60 transition-opacity duration-500" />
@@ -471,9 +507,14 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
                     <Cpu className="w-5 h-5 text-[#27CBEF] transition-colors" />
                     
                     {(sidebarOpen || mobileMenuOpen) && (
-                      <span className="font-black text-[11px] uppercase tracking-tighter italic text-white transition-all">
-                        {t('nav.create_funnels', 'CRIAR FLOW')}
-                      </span>
+                      <div className="flex min-w-0 flex-col items-start gap-1.5">
+                        <span className="inline-flex rounded-full border border-[#27CBEF]/30 bg-[#27CBEF]/10 px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.24em] text-[#7EE7F8]">
+                          Beta
+                        </span>
+                        <span className="font-black text-[11px] uppercase tracking-tighter italic text-white transition-all">
+                          {t('nav.create_funnels', 'CRIAR FLOW')}
+                        </span>
+                      </div>
                     )}
                   </div>
 
@@ -567,6 +608,52 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
           </div>
         </main>
       </div>
+
+      <Modal
+        isOpen={isFlowBetaModalOpen}
+        onClose={() => setIsFlowBetaModalOpen(false)}
+        title={
+          <div className="flex items-center gap-3">
+            <span className="text-lg font-black uppercase tracking-[0.12em] text-white">Flow Builder</span>
+            <span className="inline-flex rounded-full border border-[#27CBEF]/30 bg-[#27CBEF]/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.24em] text-[#7EE7F8]">
+              Beta
+            </span>
+          </div>
+        }
+        className="max-w-4xl"
+      >
+        <div className="space-y-6">
+          <div className="overflow-hidden rounded-[2rem] border border-[#27CBEF]/20 bg-[#06070A] shadow-[0_0_40px_rgba(39,203,239,0.08)]">
+            <div className="relative">
+              <img
+                src={`${import.meta.env.BASE_URL}print-flow.png`}
+                alt="Preview do Flow Builder"
+                className="block h-auto w-full object-cover opacity-60 saturate-75"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#05050A] via-[#05050A]/40 to-[#05050A]/25" />
+              <div className="absolute inset-0 bg-black/20 backdrop-blur-[1px]" />
+            </div>
+          </div>
+
+          <div className="space-y-4 text-center">
+            <p className="text-lg font-black uppercase tracking-[0.32em] text-white">
+              Em breve
+            </p>
+            <p className="mx-auto max-w-2xl text-sm text-gray-400">
+              O preview completo do Flow Builder sera liberado em breve no ambiente demo.
+            </p>
+          </div>
+
+          <div className="flex justify-center">
+            <button
+              onClick={() => setIsFlowBetaModalOpen(false)}
+              className="rounded-xl bg-primary px-6 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-white transition-colors hover:bg-rose-600"
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

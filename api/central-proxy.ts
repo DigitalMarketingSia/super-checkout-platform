@@ -41,6 +41,7 @@ const TRUSTED_PROXY_ENDPOINTS = new Set([
     'create-passport-ticket',
     'generate-install-token',
     'manage-user-installations',
+    'pagbank-oauth',
     'revoke-passport-ticket',
 ]);
 
@@ -91,6 +92,7 @@ const ALLOWED_ENDPOINTS = [
     'check-entitlement',
     'account-flags',
     'upgrade-intents',
+    'pagbank-oauth',
     'system-update-runner',
     'create-passport-ticket',
     'revoke-passport-ticket',
@@ -411,6 +413,27 @@ const getRequestDomain = (req: VercelRequest, fallback?: string | null) => {
         : forwardedHost || req.headers.host || fallback || '';
 
     return normalizeHost(String(host));
+};
+
+const getRequestOrigin = (req: VercelRequest, fallback?: string | null) => {
+    const rawOrigin = req.headers.origin || req.headers.referer;
+    if (rawOrigin) {
+        try {
+            return new URL(String(rawOrigin)).origin;
+        } catch {
+            // ignore malformed header and fall through
+        }
+    }
+
+    const host = getRequestDomain(req, fallback);
+    if (!host) return String(fallback || '');
+
+    const forwardedProto = req.headers['x-forwarded-proto'];
+    const proto = Array.isArray(forwardedProto)
+        ? forwardedProto[0] || 'https'
+        : forwardedProto || 'https';
+
+    return `${proto}://${host}`;
 };
 
 async function validateJwtWithSupabase(url: string, key: string, jwt: string, label: string) {
@@ -960,11 +983,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (
                     endpoint === 'system-update-runner'
                     || endpoint === 'check-entitlement'
+                    || endpoint === 'pagbank-oauth'
                     || (endpoint === 'manage-licenses' && CRM_READ_ACTIONS.has(bodyObj.action))
                     || (endpoint === 'upgrade-intents' && bodyObj.action === 'create_upgrade_intent')
                 ) {
                     bodyObj.license_key = bodyObj.license_key || process.env.VITE_LICENSE_KEY || process.env.NEXT_PUBLIC_LICENSE_KEY;
                     bodyObj.current_domain = getRequestDomain(req, bodyObj.current_domain);
+                    if (endpoint === 'pagbank-oauth') {
+                        bodyObj.target_origin = getRequestOrigin(req, bodyObj.target_origin);
+                    }
                     bodyObj.proxy_authenticated = true;
                 }
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../services/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { Layout } from '../../components/Layout';
+import { demoDataService, isDemoDataRuntime } from '../../services/demoDataService';
 import { 
   Building2, 
   Mail, 
@@ -73,6 +74,7 @@ type LegalHistoryEntry = {
 export const BusinessSettings = () => {
     const { user, refreshProfile } = useAuth();
     const { t } = useTranslation('admin');
+    const demoRuntime = isDemoDataRuntime();
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
         business_name: '',
@@ -119,8 +121,49 @@ export const BusinessSettings = () => {
     const privacyHistory = documentHistory.filter((entry) => entry.document_key === 'privacy_policy').slice(0, 3);
     const termsHistory = documentHistory.filter((entry) => entry.document_key === 'terms_of_purchase').slice(0, 3);
 
-    const loadDocumentHistory = async (accountId: string) => {
+    const applyLoadedSettings = (settings: Partial<BusinessLegalSettingsLike & { show_legal_footer?: boolean | null }> | null | undefined) => {
+        if (!settings) return;
+
+        setFormData(prev => ({
+            ...prev,
+            business_name: settings.business_name || '',
+            support_email: settings.support_email || user?.email || '',
+            legal_name: settings.legal_name || '',
+            legal_responsible_email: settings.legal_responsible_email || '',
+            privacy_policy: settings.privacy_policy || '',
+            privacy_policy_version: settings.privacy_policy_version || '',
+            privacy_policy_published_at: settings.privacy_policy_published_at || '',
+            terms_of_purchase: settings.terms_of_purchase || '',
+            terms_of_purchase_version: settings.terms_of_purchase_version || '',
+            terms_of_purchase_published_at: settings.terms_of_purchase_published_at || '',
+            show_legal_footer: settings.show_legal_footer !== false,
+            agree_terms: true,
+        }));
+        setLoadedDocumentState({
+            privacy_policy: settings.privacy_policy || '',
+            privacy_policy_version: settings.privacy_policy_version || '',
+            privacy_policy_published_at: settings.privacy_policy_published_at || '',
+            terms_of_purchase: settings.terms_of_purchase || '',
+            terms_of_purchase_version: settings.terms_of_purchase_version || '',
+            terms_of_purchase_published_at: settings.terms_of_purchase_published_at || '',
+        });
+    };
+
+    const loadDocumentHistory = async (accountId?: string) => {
         setHistoryLoading(true);
+
+        if (demoRuntime) {
+            const history = await demoDataService.getBusinessSettingsHistory();
+            setDocumentHistory((history || []) as LegalHistoryEntry[]);
+            setHistoryLoading(false);
+            return;
+        }
+
+        if (!accountId) {
+            setDocumentHistory([]);
+            setHistoryLoading(false);
+            return;
+        }
 
         const { data, error: historyError } = await supabase
             .from('business_legal_document_versions')
@@ -145,6 +188,13 @@ export const BusinessSettings = () => {
 
     useEffect(() => {
         const loadSettings = async () => {
+            if (demoRuntime) {
+                const settings = await demoDataService.getBusinessSettings();
+                applyLoadedSettings(settings);
+                await loadDocumentHistory();
+                return;
+            }
+
             if (!user) return;
             const { data: account } = await supabase
                 .from('accounts')
@@ -161,57 +211,148 @@ export const BusinessSettings = () => {
                     .eq('account_id', account.id)
                     .maybeSingle();
 
-                if (settings) {
-                    setFormData(prev => ({
-                        ...prev,
-                        business_name: settings.business_name || '',
-                        support_email: settings.support_email || user.email || '',
-                        legal_name: settings.legal_name || '',
-                        legal_responsible_email: settings.legal_responsible_email || '',
-                        privacy_policy: settings.privacy_policy || '',
-                        privacy_policy_version: settings.privacy_policy_version || '',
-                        privacy_policy_published_at: settings.privacy_policy_published_at || '',
-                        terms_of_purchase: settings.terms_of_purchase || '',
-                        terms_of_purchase_version: settings.terms_of_purchase_version || '',
-                        terms_of_purchase_published_at: settings.terms_of_purchase_published_at || '',
-                        show_legal_footer: true,
-                        agree_terms: true // Assume true if data exists
-                    }));
-                    setLoadedDocumentState({
-                        privacy_policy: settings.privacy_policy || '',
-                        privacy_policy_version: settings.privacy_policy_version || '',
-                        privacy_policy_published_at: settings.privacy_policy_published_at || '',
-                        terms_of_purchase: settings.terms_of_purchase || '',
-                        terms_of_purchase_version: settings.terms_of_purchase_version || '',
-                        terms_of_purchase_published_at: settings.terms_of_purchase_published_at || ''
-                    });
-                }
+                applyLoadedSettings(settings);
                 return;
             }
 
             setDocumentHistory([]);
         };
         loadSettings();
-    }, [user]);
+    }, [demoRuntime, user]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!user) return;
+        if (!user && !demoRuntime) return;
         setLoading(true);
         setError(null);
         setSuccess(false);
 
         try {
+            if (demoRuntime) {
+                if (!formData.agree_terms) {
+                    throw new Error(t('business_settings.form.agree_error', 'Voce precisa concordar com os termos.'));
+                }
+
+                const now = new Date();
+                const normalizedLegalName = formData.legal_name.trim() || formData.business_name.trim();
+                const normalizedLegalResponsibleEmail = formData.legal_responsible_email.trim() || formData.support_email.trim();
+                const nextPrivacyDocument = (() => {
+                    const content = formData.privacy_policy.trim();
+                    if (!content) {
+                        return { version: null, publishedAt: null };
+                    }
+
+                    if (
+                        content === loadedDocumentState.privacy_policy.trim()
+                        && formData.privacy_policy_version.trim()
+                    ) {
+                        return {
+                            version: formData.privacy_policy_version.trim(),
+                            publishedAt: formData.privacy_policy_published_at.trim() || now.toISOString(),
+                        };
+                    }
+
+                    return {
+                        version: buildNextCustomLegalVersion('privacy_policy', now),
+                        publishedAt: now.toISOString(),
+                    };
+                })();
+
+                const nextTermsDocument = (() => {
+                    const content = formData.terms_of_purchase.trim();
+                    if (!content) {
+                        return { version: null, publishedAt: null };
+                    }
+
+                    if (
+                        content === loadedDocumentState.terms_of_purchase.trim()
+                        && formData.terms_of_purchase_version.trim()
+                    ) {
+                        return {
+                            version: formData.terms_of_purchase_version.trim(),
+                            publishedAt: formData.terms_of_purchase_published_at.trim() || now.toISOString(),
+                        };
+                    }
+
+                    return {
+                        version: buildNextCustomLegalVersion('terms_of_purchase', now),
+                        publishedAt: now.toISOString(),
+                    };
+                })();
+
+                const historySettings: BusinessLegalSettingsLike = {
+                    business_name: formData.business_name,
+                    legal_name: normalizedLegalName,
+                    legal_responsible_email: normalizedLegalResponsibleEmail,
+                    support_email: formData.support_email,
+                    privacy_policy: formData.privacy_policy,
+                    privacy_policy_version: nextPrivacyDocument.version || '',
+                    privacy_policy_published_at: nextPrivacyDocument.publishedAt || '',
+                    terms_of_purchase: formData.terms_of_purchase,
+                    terms_of_purchase_version: nextTermsDocument.version || '',
+                    terms_of_purchase_published_at: nextTermsDocument.publishedAt || '',
+                    updated_at: now.toISOString(),
+                };
+
+                const historySnapshots = [
+                    buildLegalDocumentHistorySnapshot('privacy_policy', historySettings, buildDefaultPrivacyPolicy),
+                    buildLegalDocumentHistorySnapshot('terms_of_purchase', historySettings, buildDefaultTermsOfPurchase),
+                ];
+
+                const result = await demoDataService.saveBusinessSettings({
+                    settings: {
+                        business_name: formData.business_name,
+                        legal_name: normalizedLegalName,
+                        legal_responsible_email: normalizedLegalResponsibleEmail,
+                        support_email: formData.support_email,
+                        privacy_policy: formData.privacy_policy,
+                        privacy_policy_version: nextPrivacyDocument.version || '',
+                        privacy_policy_published_at: nextPrivacyDocument.publishedAt || '',
+                        terms_of_purchase: formData.terms_of_purchase,
+                        terms_of_purchase_version: nextTermsDocument.version || '',
+                        terms_of_purchase_published_at: nextTermsDocument.publishedAt || '',
+                        show_legal_footer: true,
+                        business_email: formData.support_email,
+                        is_ready_to_sell: true,
+                        compliance_status: hasLegalDocuments ? 'verified' : 'pending',
+                        updated_at: now.toISOString(),
+                    },
+                    historySnapshots,
+                    savedByUserId: user?.id || null,
+                });
+
+                setFormData(prev => ({
+                    ...prev,
+                    privacy_policy_version: nextPrivacyDocument.version || '',
+                    privacy_policy_published_at: nextPrivacyDocument.publishedAt || '',
+                    terms_of_purchase_version: nextTermsDocument.version || '',
+                    terms_of_purchase_published_at: nextTermsDocument.publishedAt || '',
+                    show_legal_footer: true,
+                }));
+                setLoadedDocumentState({
+                    privacy_policy: formData.privacy_policy,
+                    privacy_policy_version: nextPrivacyDocument.version || '',
+                    privacy_policy_published_at: nextPrivacyDocument.publishedAt || '',
+                    terms_of_purchase: formData.terms_of_purchase,
+                    terms_of_purchase_version: nextTermsDocument.version || '',
+                    terms_of_purchase_published_at: nextTermsDocument.publishedAt || '',
+                });
+                setDocumentHistory((result.history || []) as LegalHistoryEntry[]);
+                setSuccess(true);
+                setTimeout(() => setSuccess(false), 5000);
+                return;
+            }
+
             let { data: account } = await supabase
                 .from('accounts')
                 .select('id')
-                .eq('owner_user_id', user.id)
+                .eq('owner_user_id', user!.id)
                 .maybeSingle();
 
             if (!account) {
                 const { data: newAccount, error: createError } = await supabase
                     .from('accounts')
-                    .insert({ owner_user_id: user.id, plan_type: 'free' })
+                    .insert({ owner_user_id: user!.id, plan_type: 'free' })
                     .select()
                     .single();
                 if (createError) throw createError;
@@ -328,7 +469,7 @@ export const BusinessSettings = () => {
                         metadata: {
                             ...snapshot.metadata,
                             saved_at: now.toISOString(),
-                            saved_by_user_id: user.id,
+                            saved_by_user_id: user!.id,
                             saved_via: 'BusinessSettings',
                         },
                     })),

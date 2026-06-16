@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { buildOrderDeliverables, stripSensitiveDeliverableFields } from './orderDeliverables.js';
+import { mergeOrderMetadata, normalizeOrderMetadata } from './orderMetadata.js';
 
 type SupabaseAdmin = any;
 
@@ -30,9 +31,6 @@ type ConsumedUpgradeIntent = {
   beneficiary_email: string | null;
   beneficiary_name: string | null;
 };
-
-const isPlainObject = (value: unknown): value is Record<string, any> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
 
 function maskEmail(email?: string | null) {
   const [name, domain] = String(email || '').split('@');
@@ -161,7 +159,7 @@ export async function fulfillOrder(
   const payerName = input.name || order.customer_name || 'Cliente';
   if (!payerEmail) throw new Error('Missing customer email for fulfillment.');
 
-  const orderMetadata = isPlainObject(order.metadata) ? order.metadata : {};
+  const orderMetadata = normalizeOrderMetadata(order.metadata);
   if (orderMetadata.fulfilled_at) {
     return {
       success: true,
@@ -349,13 +347,14 @@ export async function fulfillOrder(
     });
   }
 
-  const fulfillmentUpdate: Record<string, any> = { metadata: mergedMetadata };
-  if (userId) fulfillmentUpdate.customer_user_id = userId;
+  if (userId && userId !== order.customer_user_id) {
+    await supabaseAdmin
+      .from('orders')
+      .update({ customer_user_id: userId })
+      .eq('id', orderId);
+  }
 
-  await supabaseAdmin
-    .from('orders')
-    .update(fulfillmentUpdate)
-    .eq('id', orderId);
+  await mergeOrderMetadata(supabaseAdmin, orderId, mergedMetadata);
 
   for (const item of items) {
     const productId = item.product_id || item.id;
@@ -443,16 +442,11 @@ export async function fulfillOrder(
     source: 'vercel-fulfillment',
   });
 
-  await supabaseAdmin
-    .from('orders')
-    .update({
-      metadata: {
-        ...mergedMetadata,
-        fulfilled_at: new Date().toISOString(),
-        fulfillment_access_granted_count: accessGrantedCount,
-      },
-    })
-    .eq('id', orderId);
+  await mergeOrderMetadata(supabaseAdmin, orderId, {
+    ...mergedMetadata,
+    fulfilled_at: new Date().toISOString(),
+    fulfillment_access_granted_count: accessGrantedCount,
+  });
 
   return {
     success: true,

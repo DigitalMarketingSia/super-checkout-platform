@@ -3,6 +3,9 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase, CLIENT_INSTANCE_ID } from '../services/supabase';
 import { memberService } from '../services/memberService';
 import { storage } from '../services/storageService';
+import { centralSupabase } from '../services/centralClient';
+import { getRuntimeMode } from '../config/runtimeMode';
+import { platformUrls } from '../config/platformUrls';
 import { isSessionTooOld, getSessionPolicyLabel } from '../services/sessionSecurity';
 import { Session, User } from '@supabase/supabase-js';
 import { Loading } from '../components/ui/Loading';
@@ -49,6 +52,7 @@ interface SessionAuthz {
 const normalizeRole = (role?: string | null) => String(role || '').trim().toLowerCase();
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const runtimeMode = getRuntimeMode();
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<any | null>(null);
@@ -203,6 +207,71 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setCompliance(null);
     };
 
+    const applyDemoUser = (authUser: User) => {
+      const demoProfile = {
+        id: authUser.id,
+        email: authUser.email || '',
+        full_name: authUser.user_metadata?.full_name || authUser.email || 'Demo Admin',
+        role: 'owner',
+        effective_role: 'owner',
+        status: 'active',
+      };
+
+      setSession(null);
+      setUser(authUser);
+      storage.setUser(authUser);
+      setProfile(demoProfile);
+      setAccount({
+        id: `demo-${authUser.id}`,
+        plan_type: 'demo',
+        trust_score: 100,
+      });
+      setCompliance({
+        status: 'verified',
+        is_ready: true,
+        name: 'Workspace Demo',
+      });
+    };
+
+    if (runtimeMode === 'demo') {
+      const bootstrapDemo = async () => {
+        try {
+          const { data, error } = await centralSupabase.auth.getUser();
+          if (disposed) return;
+
+          if (error || !data?.user) {
+            clearAuthState();
+            setLoading(false);
+            return;
+          }
+
+          applyDemoUser(data.user as User);
+        } catch (error) {
+          console.warn('[AuthProvider] Demo session unavailable:', error);
+          clearAuthState();
+        } finally {
+          if (!disposed) setLoading(false);
+        }
+      };
+
+      void bootstrapDemo();
+
+      const { data: { subscription } } = centralSupabase.auth.onAuthStateChange((_event, session) => {
+        if (disposed) return;
+
+        if (session?.user) {
+          applyDemoUser(session.user as User);
+        } else {
+          clearAuthState();
+        }
+      });
+
+      return () => {
+        disposed = true;
+        subscription.unsubscribe();
+      };
+    }
+
     // Get initial session
     const bootstrap = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -271,9 +340,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       disposed = true;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [runtimeMode]);
 
   const signOut = async () => {
+    if (runtimeMode === 'demo') {
+      await centralSupabase.auth.signOut();
+      setProfile(null);
+      setAccount(null);
+      setCompliance(null);
+      if (typeof window !== 'undefined') {
+        window.location.href = `${platformUrls.portal}/activate`;
+      }
+      return;
+    }
+
     await supabase.auth.signOut();
     setProfile(null);
     setAccount(null);

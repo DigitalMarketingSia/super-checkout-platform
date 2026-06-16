@@ -4,6 +4,7 @@ const DEFAULT_MARKETING_URL = 'https://supercheckout.app';
 const DEFAULT_APP_URL = 'https://app.supercheckout.app';
 const DEFAULT_PORTAL_URL = 'https://portal.supercheckout.app';
 const DEFAULT_INSTALL_URL = 'https://install.supercheckout.app';
+const DEFAULT_DEMO_URL = 'https://demo.supercheckout.app';
 
 const normalizeBaseUrl = (url: string) => url.replace(/\/+$/, '');
 
@@ -26,6 +27,7 @@ export const platformUrls = {
     app: getEnvUrl('VITE_SUPER_CHECKOUT_APP_URL', DEFAULT_APP_URL),
     portal: getEnvUrl('VITE_SUPER_CHECKOUT_PORTAL_URL', DEFAULT_PORTAL_URL),
     install: getEnvUrl('VITE_SUPER_CHECKOUT_INSTALL_URL', DEFAULT_INSTALL_URL),
+    demo: getEnvUrl('VITE_SUPER_CHECKOUT_DEMO_URL', DEFAULT_DEMO_URL),
 };
 
 export const buildPlatformUrl = (
@@ -55,6 +57,9 @@ export const getActivationSetupUrl = () =>
 
 export const getInstallerUrl = (token?: string | null) =>
     buildPlatformUrl(platformUrls.install, '/installer', { token });
+
+export const getDemoUrl = (path = '/demo', params?: Record<string, QueryValue>) =>
+    buildPlatformUrl(platformUrls.demo, path, params);
 
 export const getPlatformTermsUrl = () =>
     buildPlatformUrl(platformUrls.portal, '/legal/terms');

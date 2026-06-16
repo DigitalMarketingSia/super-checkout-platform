@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, RefreshCw } from 'lucide-react';
 import { Button } from './Button';
 import { useTranslation } from 'react-i18next';
@@ -22,39 +23,42 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, 
         };
     }, [isOpen]);
 
-    if (!isOpen) return null;
+    if (!isOpen || typeof document === 'undefined') return null;
 
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            {/* Backdrop */}
-            <div
-                className="absolute inset-0 bg-black/90 backdrop-blur-sm transition-opacity"
-                onClick={onClose}
-            />
+    return createPortal(
+        <div className="fixed inset-0 z-[9999] overflow-y-auto p-4">
+            <div className="flex min-h-full items-center justify-center">
+                {/* Backdrop */}
+                <div
+                    className="absolute inset-0 bg-black/90 backdrop-blur-sm transition-opacity"
+                    onClick={onClose}
+                />
 
-            {/* Modal Content */}
-            <div className={`relative w-full bg-[#12121A]/80 backdrop-blur-xl rounded-2xl shadow-2xl border border-purple-500/20 transform transition-all animate-in fade-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[95vh] ${className.includes('max-w-') ? '' : 'max-w-md'} ${className}`}>
-                {/* Purple glow effects */}
-                <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/20 rounded-full blur-3xl -mr-16 -mt-16" />
-                <div className="absolute bottom-0 left-0 w-32 h-32 bg-purple-500/10 rounded-full blur-3xl -ml-16 -mb-16" />
+                {/* Modal Content */}
+                <div className={`relative w-full bg-[#12121A]/80 backdrop-blur-xl rounded-2xl shadow-2xl border border-purple-500/20 transform transition-all animate-in fade-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[95vh] ${className.includes('max-w-') ? '' : 'max-w-md'} ${className}`}>
+                    {/* Purple glow effects */}
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/20 rounded-full blur-3xl -mr-16 -mt-16" />
+                    <div className="absolute bottom-0 left-0 w-32 h-32 bg-purple-500/10 rounded-full blur-3xl -ml-16 -mb-16" />
 
-                {/* Header */}
-                <div className="relative flex items-center justify-between p-6 border-b border-white/10 bg-white/[0.02]">
-                    <h3 className="text-lg font-bold text-white">{title}</h3>
-                    <button
-                        onClick={onClose}
-                        className="text-gray-400 hover:text-white transition-colors p-1 hover:bg-white/10 rounded-lg"
-                    >
-                        <X className="w-5 h-5" />
-                    </button>
-                </div>
+                    {/* Header */}
+                    <div className="relative flex items-center justify-between p-6 border-b border-white/10 bg-white/[0.02]">
+                        <h3 className="text-lg font-bold text-white">{title}</h3>
+                        <button
+                            onClick={onClose}
+                            className="text-gray-400 hover:text-white transition-colors p-1 hover:bg-white/10 rounded-lg"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
 
-                {/* Body */}
-                <div className="relative p-6 overflow-y-auto">
-                    {children}
+                    {/* Body */}
+                    <div className="relative p-6 overflow-y-auto">
+                        {children}
+                    </div>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };
 

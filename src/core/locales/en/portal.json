@@ -34,6 +34,7 @@
   },
   "sidebar": {
     "dashboard": "Dashboard",
+    "demo": "See the System",
     "access_data": "Access Data",
     "installation": "Installation",
     "tutorials": "Tutorials",
@@ -92,6 +93,66 @@
     },
     "limited_desc": "Your current plan runs with 1 domain and 3 products. When you are ready to scale without limits, upgrade to the unlimited plan.",
     "unlimited_desc": "Your current plan already runs with unlocked limits for growth and new installations.",
+    "demo": {
+      "eyebrow": "test before install",
+      "title": "Official demo system",
+      "description": "Open a guided demo environment with the same product screens to simulate business setup, products, checkout, purchases and member area before the final installation.",
+      "cta": "open demo system",
+      "opening": "opening demo...",
+      "popup_blocked": "Allow pop-ups to open the demo system in a new tab.",
+      "retention": "Each demo workspace expires and is purged automatically after 24 hours.",
+      "error": "Unable to open the demo system right now.",
+      "bullets": {
+        "ui": "same product screens",
+        "checkout": "simulated checkout and purchases",
+        "members": "demo member area"
+      },
+      "launchpad": {
+        "eyebrow": "demo mode",
+        "title": "Official demo system entry",
+        "loading": "Checking your demo session...",
+        "status_ready": "authenticated access",
+        "status_error": "access not granted",
+        "ready_intro": "You entered with the same identity used in the portal. The next slice will provision the isolated demo workspace and open the demo admin automatically.",
+        "workspace_ready": "Your demo workspace is loaded with an initial seed, a 24-hour expiration window and a manual reset action for a new test cycle.",
+        "no_session": "Your demo session was not found. Open the demo again from the portal.",
+        "safe_flow": "secure passport entry",
+        "workspace_rule": "1 active demo workspace per account",
+        "retention_rule": "automatic 24h purge",
+        "back_portal": "back to portal",
+        "signed_as": "Session validated for {{email}}",
+        "workspace_title": "provisioned workspace",
+        "feedback_ready": "Demo workspace synced successfully.",
+        "feedback_reset": "Demo workspace reset with a fresh initial seed.",
+        "reset_confirm": "This will delete the current demo state and create a fresh initial workspace. Do you want to continue?",
+        "labels": {
+          "workspace_id": "workspace id",
+          "expires_at": "expires at",
+          "reset_count": "reset count",
+          "storage_prefix": "storage prefix"
+        },
+        "actions": {
+          "refresh": "refresh",
+          "reset": "reset demo"
+        },
+        "summary": {
+          "products": "products",
+          "checkouts": "checkouts",
+          "orders": "orders",
+          "member_modules": "modules",
+          "integrations": "integrations",
+          "domains": "domains"
+        },
+        "sections": {
+          "products": "product seed",
+          "member_area": "member area seed",
+          "orders": "order scenarios",
+          "integrations": "integrations and external effects"
+        },
+        "next_title": "Next slice: wire into the real screens",
+        "next_description": "The next cycle uses this provisioned workspace to feed admin, public checkout and member area screens with demo adapters, without depending on a self-hosted installation."
+      }
+    },
     "quick_access": {
       "eyebrow": "quick access",
       "title": "Fast access to your system",

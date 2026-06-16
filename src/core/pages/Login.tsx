@@ -228,6 +228,16 @@ export const Login = () => {
           }),
         });
 
+        const verifyContentType = verifyResponse.headers.get('content-type') || '';
+        if (!verifyContentType.includes('application/json')) {
+          const rawBody = await verifyResponse.text().catch(() => '');
+          throw new Error(
+            rawBody.trim()
+              ? `Backend de 2FA respondeu algo inesperado: ${rawBody.slice(0, 200)}`
+              : 'Backend de 2FA indisponivel no ambiente local. Reinicie com npm run vercel e tente novamente.'
+          );
+        }
+
         const verifyData = await verifyResponse.json().catch(() => ({}));
         if (!verifyResponse.ok) {
           throw new Error(verifyData.error || 'Não foi possível validar o código.');

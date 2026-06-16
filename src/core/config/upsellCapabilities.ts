@@ -42,6 +42,7 @@ function normalizeGatewayName(value: string | null | undefined): UpsellGatewayNa
   const normalized = String(value || '').trim().toLowerCase();
   if (normalized === GatewayProvider.STRIPE) return GatewayProvider.STRIPE;
   if (normalized === GatewayProvider.MERCADO_PAGO) return GatewayProvider.MERCADO_PAGO;
+  if (normalized === GatewayProvider.PAGSEGURO || normalized === 'pagbank') return GatewayProvider.PAGSEGURO;
   if (normalized === GatewayProvider.PIX) return GatewayProvider.PIX;
   return 'unknown';
 }
@@ -156,6 +157,12 @@ export function resolveUpsellGatewayCapability(params: {
         mode: 'repayment_explicit',
       };
     case GatewayProvider.MERCADO_PAGO:
+      return {
+        ...baseCapability,
+        strategy: 'new_card_capture',
+        mode: 'repayment_explicit',
+      };
+    case GatewayProvider.PAGSEGURO:
       return {
         ...baseCapability,
         strategy: 'new_card_capture',

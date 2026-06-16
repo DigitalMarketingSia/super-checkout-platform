@@ -8,12 +8,14 @@ import { Layout } from '../../components/Layout';
 import Aurora from '../../components/ui/Aurora';
 import { useTranslation } from 'react-i18next';
 import { UpdateBanner } from '../../components/admin/UpdateBanner';
+import { getRuntimeMode } from '../../config/runtimeMode';
 
 type Period = 'today' | '7d' | '15d' | '30d';
 
 export const Dashboard = () => {
   const { t, i18n } = useTranslation(['admin', 'common']);
   const [period, setPeriod] = useState<Period>('today');
+  const isDemoMode = getRuntimeMode() === 'demo';
 
   const [stats, setStats] = useState({
     totalRevenue: 0,
@@ -169,7 +171,7 @@ export const Dashboard = () => {
       </div>
 
       {/* Proactive Update Check */}
-      <UpdateBanner />
+      {!isDemoMode && <UpdateBanner />}
 
       {/* MAIN GRID LAYOUT - Optimized for First Fold */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 mb-8">

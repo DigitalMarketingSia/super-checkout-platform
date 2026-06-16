@@ -1,4 +1,5 @@
 import { CENTRAL_CONFIG } from '../config/central';
+import { platformUrls } from '../config/platformUrls';
 import { CENTRAL_SUPABASE_ANON_KEY } from './centralClient';
 import { getEnv } from '../utils/env';
 
@@ -96,6 +97,15 @@ export interface UpgradeIntentRow {
     failure_reason: string | null;
     created_at: string;
     updated_at: string | null;
+}
+
+export interface PassportTicketLinkResponse {
+    success: boolean;
+    ticket_id: string;
+    ticket_url: string;
+    target_origin: string;
+    target_path: string;
+    expires_at: string;
 }
 
 /**
@@ -319,6 +329,30 @@ export const licenseService = {
         if (!response.ok) {
             throw new Error('Failed to request recovery link');
         }
+    },
+
+    async createDemoAccessLink(): Promise<PassportTicketLinkResponse> {
+        const response = await fetch(getProxyUrl('create-passport-ticket'), {
+            method: 'POST',
+            headers: await getHeaders(),
+            body: JSON.stringify({
+                purpose: 'login',
+                target_origin: platformUrls.demo,
+                target_path: '/demo',
+                expires_in_minutes: 15,
+                metadata: {
+                    source: 'portal_demo_launch',
+                    runtime_mode: 'demo',
+                    rollout: 'phase38_1',
+                },
+            }),
+        });
+
+        if (!response.ok) {
+            throw new Error(await readApiError(response, 'Falha ao abrir o sistema demo'));
+        }
+
+        return response.json();
     },
 
     async generateInstallToken(

@@ -2,6 +2,8 @@
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { AccessGrant, Content, Module, Lesson, Product, TrackItem } from '../types';
+import { getRuntimeMode } from '../config/runtimeMode';
+import { demoDataService } from '../services/demoDataService';
 
 export type AccessAction = 'ACCESS' | 'LOGIN' | 'SALES_MODAL' | 'SUSPENDED';
 
@@ -22,6 +24,8 @@ export const useAccessControl = (accessGrants: AccessGrant[] = []): UseAccessCon
     const { user } = useAuth();
     const navigate = useNavigate();
     const { memberArea } = useOutletContext<{ memberArea: any }>() || {};
+    const isDemoRuntime = getRuntimeMode() === 'demo';
+    const effectiveUser = isDemoRuntime ? (demoDataService.getCurrentMemberUser() || user) : user;
 
     const checkAccess = (
         item: TrackItem | Content | Module | Lesson | Product,
@@ -97,7 +101,7 @@ export const useAccessControl = (accessGrants: AccessGrant[] = []): UseAccessCon
 
         // 1. Free Content Logic
         if (isFree) {
-            if (!user) return 'LOGIN';
+            if (!effectiveUser) return 'LOGIN';
             return 'ACCESS';
         }
 
@@ -156,7 +160,7 @@ export const useAccessControl = (accessGrants: AccessGrant[] = []): UseAccessCon
                 !window.location.pathname.startsWith('/app/');
 
             const appLink = isCustomDomain ? '' : (memberArea ? `/app/${memberArea.slug}` : '/app');
-            navigate(`${appLink}/signup`); // Redirect to signup for free content
+            navigate(`${appLink}/${isDemoRuntime ? 'login' : 'signup'}`);
         } else if (action === 'SUSPENDED') {
             if (callbacks.onSuspended) {
                 callbacks.onSuspended();

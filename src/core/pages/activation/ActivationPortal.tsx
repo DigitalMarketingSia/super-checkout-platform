@@ -14,32 +14,46 @@ import { BlockOpportunity } from './components/BlockOpportunity';
 import { BlockPartner } from './components/BlockPartner';
 import { BlockProfile } from './components/BlockProfile';
 import { BlockEarningsSimulator } from './components/BlockEarningsSimulator';
-import { BlockBasicDashboard } from './components/BlockBasicDashboard';
+import { BlockBasicDashboard, DemoExperienceCard } from './components/BlockBasicDashboard';
 import { EmailVerificationGate } from './components/EmailVerificationGate';
 import { getPlatformPrivacyUrl, getPlatformTermsUrl } from '../../config/platformUrls';
 import { useTranslation } from 'react-i18next';
 import { LanguageSelector } from '../../components/ui/LanguageSelector';
 import { Loading } from '../../components/ui/Loading';
-import { Loader2, LogOut, LayoutDashboard, Key, Download, PlayCircle, Shield, Menu, X, User, Crown, BarChart3, Check, ArrowRight, ShieldCheck, TrendingUp } from 'lucide-react';
+import { LogOut, LayoutDashboard, Key, Download, PlayCircle, Shield, Menu, X, User, Crown, BarChart3, ArrowRight, ShieldCheck, TrendingUp, Eye } from 'lucide-react';
 import './ActivationPortal.css';
 
-const SidebarItem = ({ icon: Icon, label, active, onClick, collapsed }: any) => (
+const SidebarItem = ({ icon: Icon, label, active, onClick, collapsed, highlighted }: any) => (
     <button
         onClick={onClick}
         title={collapsed ? label : undefined}
-        className={`w-full flex items-center gap-4 py-4 rounded-2xl transition-all duration-500 group relative ${active
-            ? 'bg-primary/10 text-primary border border-primary/20 shadow-lg shadow-primary/5'
-            : 'text-gray-500 hover:text-gray-300 hover:bg-white/5 border border-transparent'
+        className={`w-full flex items-center gap-4 py-4 rounded-2xl transition-all duration-500 group relative ${
+            highlighted
+                ? 'bg-gradient-to-r from-primary to-[#8A2BE2] text-white border border-white/10 shadow-lg shadow-primary/25 hover:scale-[1.02] hover:shadow-primary/40'
+                : active
+                    ? 'bg-primary/10 text-primary border border-primary/20 shadow-lg shadow-primary/5'
+                    : 'text-gray-500 hover:text-gray-300 hover:bg-white/5 border border-transparent'
             } ${collapsed ? 'px-0 justify-center' : 'px-4'}`}
     >
-        <Icon className={`shrink-0 transition-all duration-500 ${collapsed ? 'w-7 h-7' : 'w-5 h-5'} ${active ? 'text-primary' : 'text-gray-500'}`} />
+        <Icon className={`shrink-0 transition-all duration-500 ${collapsed ? 'w-7 h-7' : 'w-5 h-5'} ${
+            highlighted
+                ? 'text-white'
+                : active
+                    ? 'text-primary'
+                    : 'text-gray-500'
+        }`} />
         {!collapsed && (
-            <span className="text-[12px] font-black uppercase tracking-wider italic whitespace-nowrap overflow-hidden animate-in fade-in slide-in-from-left-2 duration-500">
+            <span className={`text-[12px] font-black uppercase tracking-wider italic whitespace-nowrap overflow-hidden transition-all duration-500 ${
+                highlighted ? 'text-white' : ''
+            }`}>
                 {label}
             </span>
         )}
-        {active && (
+        {active && !highlighted && (
             <div className="absolute left-0 w-1 h-6 bg-primary rounded-r-full shadow-[4px_0_12px_rgba(255,90,31,0.5)]" />
+        )}
+        {active && highlighted && (
+            <div className="absolute left-0 w-1.5 h-6 bg-white rounded-r-full shadow-[4px_0_12px_rgba(255,255,255,0.8)]" />
         )}
     </button>
 );
@@ -83,6 +97,74 @@ export const ActivationPortal: React.FC = () => {
     const [isEmailUnconfirmed, setIsEmailUnconfirmed] = useState(false);
     const [approvalState, setApprovalState] = useState<{ status: 'pending_approval' | 'rejected' | 'blocked'; notes?: string | null; blockedAt?: string | null } | null>(null);
     const [partnerOpportunityEnabled, setPartnerOpportunityEnabled] = useState(false);
+    const [demoLoading, setDemoLoading] = useState(false);
+    const [demoError, setDemoError] = useState<string | null>(null);
+
+    const handleOpenDemo = async () => {
+        setDemoLoading(true);
+        setDemoError(null);
+        const popup = window.open('', '_blank');
+
+        if (popup) {
+            try {
+                popup.opener = null;
+                popup.document.write(`
+                    <!doctype html>
+                    <html lang="pt-BR">
+                      <head>
+                        <meta charset="utf-8" />
+                        <title>${t('basic_dashboard.demo.opening')}</title>
+                        <style>
+                          body {
+                            margin: 0;
+                            min-height: 100vh;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            background: #05050A;
+                            color: #FFFFFF;
+                            font-family: Arial, sans-serif;
+                          }
+                          .card {
+                            padding: 24px 28px;
+                            border: 1px solid rgba(255,255,255,0.08);
+                            border-radius: 20px;
+                            background: rgba(255,255,255,0.03);
+                            text-transform: uppercase;
+                            letter-spacing: 0.18em;
+                            font-size: 12px;
+                            font-weight: 700;
+                          }
+                        </style>
+                      </head>
+                      <body>
+                        <div class="card">${t('basic_dashboard.demo.opening')}</div>
+                      </body>
+                    </html>
+                `);
+                popup.document.close();
+            } catch {
+                // Ignore placeholder rendering issues and keep the tab open for navigation.
+            }
+        }
+
+        try {
+            const access = await licenseService.createDemoAccessLink();
+
+            if (!popup) {
+                throw new Error(t('basic_dashboard.demo.popup_blocked'));
+            }
+
+            popup.location.replace(access.ticket_url);
+        } catch (error: any) {
+            if (popup && !popup.closed) {
+                popup.close();
+            }
+            setDemoError(error?.message || t('basic_dashboard.demo.error'));
+        } finally {
+            setDemoLoading(false);
+        }
+    };
 
     const setActiveTab = (tab: string) => {
         setActiveTabInternal(tab);
@@ -400,6 +482,9 @@ export const ActivationPortal: React.FC = () => {
                                 installations={installations}
                                 onNavigate={setActiveTab}
                                 upgradeProduct={upgradeProduct}
+                                onOpenDemo={handleOpenDemo}
+                                demoLoading={demoLoading}
+                                demoError={demoError}
                             />
                         )}
                         <BlockPlanInfo
@@ -445,6 +530,24 @@ export const ActivationPortal: React.FC = () => {
                     <div className="animate-in fade-in duration-500 text-white">
                         <h2 className="text-3xl font-black text-white mb-8 font-display uppercase tracking-tighter italic">{t('sidebar.tutorials')}</h2>
                         <BlockTutorials planType={license?.plan || 'free'} />
+                    </div>
+                );
+            case 'demo':
+                return (
+                    <div className="animate-in fade-in duration-500 text-white space-y-6">
+                        <div className="flex flex-col">
+                            <span className="text-[10px] font-black uppercase tracking-[0.45em] text-primary italic leading-none mb-1">
+                                {t('basic_dashboard.demo.eyebrow')}
+                            </span>
+                            <h2 className="text-4xl font-black text-white font-display uppercase tracking-tighter italic leading-none">
+                                {t('sidebar.demo')}
+                            </h2>
+                        </div>
+                        <DemoExperienceCard
+                            onOpenDemo={handleOpenDemo}
+                            demoLoading={demoLoading}
+                            demoError={demoError}
+                        />
                     </div>
                 );
             case 'security':
@@ -526,6 +629,7 @@ export const ActivationPortal: React.FC = () => {
                         {showEarningsSimulatorTab && (
                             <SidebarItem icon={TrendingUp} label={t('sidebar.earnings_simulator')} active={activeTab === 'simulator'} onClick={() => setActiveTab('simulator')} collapsed={isCollapsed} />
                         )}
+                        <SidebarItem icon={Eye} label={t('sidebar.demo')} active={activeTab === 'demo'} onClick={() => setActiveTab('demo')} collapsed={isCollapsed} highlighted={true} />
                     </nav>
 
                     {/* Footer / Support info could go here */}
@@ -563,6 +667,7 @@ export const ActivationPortal: React.FC = () => {
                             {showEarningsSimulatorTab && (
                                 <SidebarItem icon={TrendingUp} label={t('sidebar.earnings_simulator')} active={activeTab === 'simulator'} onClick={() => setActiveTab('simulator')} />
                             )}
+                            <SidebarItem icon={Eye} label={t('sidebar.demo')} active={activeTab === 'demo'} onClick={() => setActiveTab('demo')} highlighted={true} />
                         </nav>
                         <button onClick={handleLogout} className="mt-auto flex items-center justify-center gap-3 px-4 py-4 text-red-500 font-black uppercase italic tracking-tighter border border-red-500/20 rounded-2xl bg-red-500/5 hover:bg-red-500 hover:text-white transition-all duration-300">
                             <LogOut className="w-4 h-4" /> 
@@ -586,6 +691,7 @@ export const ActivationPortal: React.FC = () => {
                                     license: 'access_data',
                                     install: 'installation',
                                     tutorials: 'tutorials',
+                                    demo: 'demo',
                                     security: 'security',
                                     opportunity: 'upgrade_business',
                                     partner: 'partner_panel',

@@ -6,6 +6,8 @@ import { MemberArea, SidebarItem } from '../../types';
 import { useTranslation } from 'react-i18next';
 import { sanitizeTranslationHtml } from '../../utils/sanitize';
 import { storage } from '../../services/storageService';
+import { getRuntimeMode } from '../../config/runtimeMode';
+import { demoDataService } from '../../services/demoDataService';
 import {
     buildDefaultPrivacyPolicy,
     buildDefaultTermsOfPurchase,
@@ -25,6 +27,11 @@ export const MemberAreaLayout: React.FC<MemberAreaLayoutProps> = ({ children, me
     const { t } = useTranslation('member');
     const navigate = useNavigate();
     const location = useLocation();
+    const isDemoRuntime = getRuntimeMode() === 'demo';
+    const demoMemberUser = isDemoRuntime ? demoDataService.getCurrentMemberUser() : null;
+    const demoMemberProfile = isDemoRuntime ? demoDataService.getCurrentMemberProfile() : null;
+    const effectiveUser = demoMemberUser || user;
+    const effectiveProfile = demoMemberProfile || profile;
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [scrolled, setScrolled] = useState(false);
     const [expandedSections, setExpandedSections] = useState<string[]>([]);
@@ -40,8 +47,25 @@ export const MemberAreaLayout: React.FC<MemberAreaLayoutProps> = ({ children, me
     // If on custom domain, use root paths. Otherwise use /app/slug paths
     const appLink = isCustomDomain ? '' : (memberArea ? `/app/${memberArea.slug}` : '/app');
     const memberLoginPath = `${appLink}/login`;
+    const effectiveDisplayName =
+        effectiveUser?.user_metadata?.full_name
+        || effectiveUser?.user_metadata?.name
+        || demoMemberProfile?.full_name
+        || effectiveUser?.email
+        || t('profile.user', 'Usuario');
 
-    const shouldShowGlobalSuspension = profile?.status === 'suspended' && !memberArea;
+    const shouldShowGlobalSuspension = effectiveProfile?.status === 'suspended' && !memberArea;
+
+    const handleMemberLogout = async () => {
+        if (isDemoRuntime && demoMemberUser) {
+            demoDataService.clearMemberSession();
+            navigate(memberLoginPath, { replace: true });
+            return;
+        }
+
+        await signOut();
+        navigate(memberLoginPath, { replace: true });
+    };
 
     if (shouldShowGlobalSuspension) {
         return (
@@ -55,18 +79,15 @@ export const MemberAreaLayout: React.FC<MemberAreaLayoutProps> = ({ children, me
                         <p className="text-gray-400 text-sm leading-relaxed" dangerouslySetInnerHTML={{ __html: sanitizeTranslationHtml(t('status.suspended_desc', 'Sua conta foi temporariamente suspensa por um administrador.<br />Entre em contato com o suporte para mais informações.')) }}>
                         </p>
                     </div>
-                    <button
-                        onClick={async () => {
-                            await signOut();
-                            navigate(memberLoginPath, { replace: true });
-                        }}
-                        className="w-full py-3 bg-white/5 hover:bg-white/10 active:bg-white/15 rounded-xl font-medium transition-all duration-200 flex items-center justify-center gap-2 text-sm border border-white/5 hover:border-white/10"
-                    >
+                        <button
+                            onClick={handleMemberLogout}
+                            className="w-full py-3 bg-white/5 hover:bg-white/10 active:bg-white/15 rounded-xl font-medium transition-all duration-200 flex items-center justify-center gap-2 text-sm border border-white/5 hover:border-white/10"
+                        >
                         <LogOut className="w-4 h-4" />
                         {t('nav.logout', 'Sair da conta')}
                     </button>
                     <div className="pt-4 border-t border-white/5">
-                        <p className="text-xs text-gray-600">ID: {user?.id}</p>
+                        <p className="text-xs text-gray-600">ID: {effectiveUser?.id}</p>
                     </div>
                 </div>
             </div>
@@ -215,11 +236,11 @@ export const MemberAreaLayout: React.FC<MemberAreaLayoutProps> = ({ children, me
                 </div>
 
                 <div className="flex items-center gap-6">
-                    {user ? (
+                    {effectiveUser ? (
                         <div className="group relative">
                             <div className="flex items-center gap-2 cursor-pointer">
                                 <div className="w-8 h-8 rounded bg-blue-600 flex items-center justify-center text-xs font-bold" style={{ backgroundColor: memberArea?.primary_color }}>
-                                    {user?.user_metadata?.name?.substring(0, 2).toUpperCase() || 'US'}
+                                    {String(effectiveDisplayName || 'US').substring(0, 2).toUpperCase()}
                                 </div>
                             </div>
 
@@ -227,14 +248,14 @@ export const MemberAreaLayout: React.FC<MemberAreaLayoutProps> = ({ children, me
                             <div className="absolute right-0 top-full mt-2 w-48 bg-[#1A1D21] border border-white/10 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform origin-top-right">
                                 <div className="py-2">
                                     <div className="px-4 py-2 border-b border-white/10 mb-2">
-                                        <p className="text-sm font-medium text-white truncate">{user?.user_metadata?.name || t('profile.user', 'Usuário')}</p>
-                                        <p className="text-xs text-gray-400 truncate">{user?.email}</p>
+                                        <p className="text-sm font-medium text-white truncate">{effectiveDisplayName}</p>
+                                        <p className="text-xs text-gray-400 truncate">{effectiveUser?.email}</p>
                                     </div>
                                     <Link to={`${appLink}/profile`} className="block px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10">
                                         <User className="w-4 h-4 inline mr-2" /> {t('nav.profile', 'Perfil')}
                                     </Link>
                                     <button
-                                        onClick={() => { signOut(); navigate(`${appLink}/login`); }}
+                                        onClick={() => { void handleMemberLogout(); }}
                                         className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10"
                                     >
                                         <LogOut className="w-4 h-4 inline mr-2" /> {t('nav.logout', 'Sair')}

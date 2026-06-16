@@ -13,6 +13,7 @@ import {
   createPlanLimitError,
   resolveFeatureAccess,
 } from './featureAccess';
+import { demoDataService, isDemoDataRuntime } from './demoDataService';
 import { supabase } from './supabase';
 export { supabase };
 
@@ -63,6 +64,18 @@ class StorageService {
   }
 
   async getUser() {
+    if (isDemoDataRuntime()) {
+      const isDemoMemberSurface = typeof window !== 'undefined'
+        && window.location.pathname.toLowerCase().startsWith('/app/');
+      if (isDemoMemberSurface) {
+        const demoMemberUser = demoDataService.getCurrentMemberUser();
+        if (demoMemberUser) {
+          console.log('[StorageService] getUser: Returning demo member user', demoMemberUser.id);
+          return demoMemberUser;
+        }
+      }
+    }
+
     // CRITICAL FIX: Robust session retrieval.
     // 1. Priority: Check cached user from AuthContext (Source of Truth)
     if (this._cachedUser) {
@@ -110,6 +123,8 @@ class StorageService {
   // --- PRODUCTS ---
 
   async getProducts(): Promise<Product[]> {
+    if (isDemoDataRuntime()) return demoDataService.getProducts();
+
     const user = await this.getUser();
     if (!user) return [];
 
@@ -128,6 +143,8 @@ class StorageService {
   }
 
   async getProductsByIds(ids: string[]): Promise<Product[]> {
+    if (isDemoDataRuntime()) return demoDataService.getProductsByIds(ids);
+
     if (!ids || ids.length === 0) return [];
 
     const { data, error } = await supabase
@@ -149,6 +166,11 @@ class StorageService {
   }
 
   async getMemberAreaProducts(areaId: string): Promise<Product[]> {
+    if (isDemoDataRuntime()) {
+      const products = await demoDataService.getProducts();
+      return products.filter((product) => product.member_area_id === areaId);
+    }
+
     // 1. Get all PRODUCT tracks for this member area
     const { data: tracks, error: tracksError } = await supabase
       .from('tracks')
@@ -202,6 +224,8 @@ class StorageService {
 
 
   async createProduct(product: Omit<Product, 'id'> & { id?: string }) {
+    if (isDemoDataRuntime()) return demoDataService.createProduct(product);
+
     const user = await this.getUser();
     if (!user) throw new Error('No user logged in');
 
@@ -246,6 +270,8 @@ class StorageService {
   }
 
   async updateProduct(product: Product) {
+    if (isDemoDataRuntime()) return demoDataService.updateProduct(product);
+
     const user = await this.getUser();
     if (!user) throw new Error('No user logged in');
 
@@ -290,6 +316,11 @@ class StorageService {
   }
 
   async deleteProduct(id: string) {
+    if (isDemoDataRuntime()) {
+      await demoDataService.deleteProduct(id);
+      return;
+    }
+
     const user = await this.getUser();
     if (!user) throw new Error('No user logged in');
 
@@ -385,6 +416,8 @@ class StorageService {
   }
 
   async uploadProductImage(file: File, productId: string): Promise<string> {
+    if (isDemoDataRuntime()) return demoDataService.uploadProductImage(file);
+
     const user = await this.getUser();
     if (!user) throw new Error('No user logged in');
 
@@ -411,6 +444,8 @@ class StorageService {
   }
 
   async uploadProductDeliverable(file: File, productId: string, previousPath?: string | null) {
+    if (isDemoDataRuntime()) return demoDataService.uploadProductDeliverable(file);
+
     const user = await this.getUser();
     if (!user) throw new Error('No user logged in');
 
@@ -456,6 +491,11 @@ class StorageService {
   }
 
   async removeProductDeliverable(filePath: string) {
+    if (isDemoDataRuntime()) {
+      await demoDataService.removeProductDeliverable(filePath);
+      return;
+    }
+
     const user = await this.getUser();
     if (!user) throw new Error('No user logged in');
 
@@ -473,6 +513,8 @@ class StorageService {
   }
 
   async uploadCheckoutBanner(file: File, checkoutId: string): Promise<string> {
+    if (isDemoDataRuntime()) return demoDataService.uploadCheckoutBanner(file);
+
     const user = await this.getUser();
     if (!user) throw new Error('No user logged in');
 
@@ -643,6 +685,8 @@ class StorageService {
   // --- CHECKOUTS ---
 
   async getCheckouts(): Promise<Checkout[]> {
+    if (isDemoDataRuntime()) return demoDataService.getCheckouts();
+
     const user = await this.getUser();
     if (!user) return [];
 
@@ -659,6 +703,8 @@ class StorageService {
   }
 
   async createCheckout(checkout: Omit<Checkout, 'id'> & { id?: string }) {
+    if (isDemoDataRuntime()) return demoDataService.createCheckout(checkout);
+
     const user = await this.getUser();
     if (!user) throw new Error('No user logged in');
 
@@ -691,6 +737,11 @@ class StorageService {
   }
 
   async getCheckoutByDomainAndSlug(domainId: string, slug?: string): Promise<Checkout | null> {
+    if (isDemoDataRuntime()) {
+      const checkouts = await demoDataService.getCheckouts();
+      return checkouts.find((checkout) => checkout.domain_id === domainId && (!slug || checkout.custom_url_slug === slug)) || null;
+    }
+
     let query = supabase
       .from('checkouts')
       .select('*')
@@ -714,6 +765,8 @@ class StorageService {
   }
 
   async updateCheckout(checkout: Checkout) {
+    if (isDemoDataRuntime()) return demoDataService.updateCheckout(checkout);
+
     const user = await this.getUser();
     if (!user) throw new Error('No user logged in');
 
@@ -746,6 +799,11 @@ class StorageService {
   }
 
   async deleteCheckout(id: string) {
+    if (isDemoDataRuntime()) {
+      await demoDataService.deleteCheckout(id);
+      return;
+    }
+
     const user = await this.getUser();
     if (!user) throw new Error('No user logged in');
 
@@ -812,6 +870,8 @@ class StorageService {
   // --- PUBLIC METHODS (NO AUTH REQUIRED) ---
 
   async getPublicCheckout(idOrSlug: string): Promise<Checkout | null> {
+    if (isDemoDataRuntime()) return demoDataService.getPublicCheckout(idOrSlug);
+
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrSlug);
     let data = null;
     let error = null;
@@ -848,6 +908,8 @@ class StorageService {
   }
 
   async getPublicProduct(id: string): Promise<Product | null> {
+    if (isDemoDataRuntime()) return demoDataService.getPublicProduct(id);
+
     const { data, error } = await supabase
       .from('products')
       .select('*')
@@ -908,6 +970,8 @@ class StorageService {
   }
 
   async getMemberAreaBySlug(slug: string): Promise<MemberArea | null> {
+    if (isDemoDataRuntime()) return demoDataService.getMemberAreaBySlug(slug);
+
     const { data, error } = await supabase
       .from('member_areas')
       .select('*')
@@ -922,6 +986,8 @@ class StorageService {
   }
 
   async getPublicGateway(id: string): Promise<Gateway | null> {
+    if (isDemoDataRuntime()) return demoDataService.getPublicGateway(id);
+
     const { data, error } = await supabase
       .from('public_gateways')
       .select('id, name, public_key, active, config')
@@ -951,6 +1017,11 @@ class StorageService {
   }
 
   async getMemberAreaByDomain(domainId: string): Promise<MemberArea | null> {
+    if (isDemoDataRuntime()) {
+      const areas = await demoDataService.getMemberAreas();
+      return areas.find((area) => area.domain_id === domainId) || null;
+    }
+
     const { data, error } = await supabase
       .from('member_areas')
       .select('*')
@@ -969,6 +1040,8 @@ class StorageService {
   // --- DOMAINS ---
 
   async getDomains(): Promise<Domain[]> {
+    if (isDemoDataRuntime()) return demoDataService.getDomains();
+
     const user = await this.getUser();
     if (!user) return [];
 
@@ -985,6 +1058,8 @@ class StorageService {
   }
 
   async getDomainByHostname(hostname: string): Promise<Domain | null> {
+    if (isDemoDataRuntime()) return demoDataService.getDomainByHostname(hostname);
+
     // Generate variations to be robust against user input (https://, www., etc)
     const variations = [
       hostname,
@@ -1013,6 +1088,8 @@ class StorageService {
   }
 
   async getBusinessSettingsByHostname(hostname: string) {
+    if (isDemoDataRuntime()) return demoDataService.getBusinessSettings();
+
     const domain = await this.getDomainByHostname(hostname);
     
     // Fallback for localhost or if domain is not found in a single-tenant setup
@@ -1061,6 +1138,8 @@ class StorageService {
   }
 
   async getBusinessSettingsByCheckoutId(checkoutId: string) {
+    if (isDemoDataRuntime()) return demoDataService.getBusinessSettings();
+
     // 1. Get Checkout to find the owner
     const { data: checkout } = await supabase
       .from('checkouts')
@@ -1090,6 +1169,8 @@ class StorageService {
   }
 
   async getBusinessSettingsByMemberAreaId(memberAreaId: string) {
+    if (isDemoDataRuntime()) return demoDataService.getBusinessSettings();
+
     const { data: memberArea } = await supabase
       .from('member_areas')
       .select('owner_id')
@@ -1240,6 +1321,8 @@ class StorageService {
   // --- GATEWAYS ---
 
   async getGateways(): Promise<Gateway[]> {
+    if (isDemoDataRuntime()) return demoDataService.getGateways();
+
     const user = await this.getUser();
     console.log('[StorageService] getGateways called. User:', user?.id || 'NO USER');
 
@@ -1251,7 +1334,8 @@ class StorageService {
     const { data, error } = await supabase
       .from('gateways')
       .select('*')
-      .eq('user_id', user.id);
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
 
     if (error) {
       console.error('[StorageService] Error fetching gateways:', error.message);
@@ -1259,7 +1343,23 @@ class StorageService {
     }
 
     console.log('[StorageService] getGateways: Found', data?.length || 0, 'gateways');
-    return data as Gateway[];
+    const seenProviders = new Set<string>();
+    const dedupedGateways = (data || []).filter((gateway: any) => {
+      const providerKey = String(gateway?.provider || gateway?.name || gateway?.id || '')
+        .trim()
+        .toLowerCase();
+
+      if (!providerKey) return true;
+      if (seenProviders.has(providerKey)) return false;
+
+      seenProviders.add(providerKey);
+      return true;
+    }).map((gateway: any) => ({
+      ...gateway,
+      active: gateway?.active ?? gateway?.is_active ?? true,
+    }));
+
+    return dedupedGateways as Gateway[];
   }
 
   async createGateway(gateway: Omit<Gateway, 'id'>) {
@@ -1362,6 +1462,8 @@ class StorageService {
   // --- ORDERS ---
 
   async getOrders(): Promise<Order[]> {
+    if (isDemoDataRuntime()) return demoDataService.getOrders();
+
     const user = await this.getUser();
     if (!user) return [];
 
@@ -1400,6 +1502,11 @@ class StorageService {
   }
 
   async saveOrders(items: Order[]) {
+    if (isDemoDataRuntime()) {
+      await demoDataService.saveOrders(items);
+      return;
+    }
+
     if (items.length === 0) return;
 
     const order = items[0];
@@ -1439,6 +1546,11 @@ class StorageService {
   }
 
   async createOrder(order: Order) {
+    if (isDemoDataRuntime()) {
+      await demoDataService.createOrder(order);
+      return;
+    }
+
     let merchantId = null;
 
     // If logged in (Merchant creating manual order)
@@ -1493,6 +1605,8 @@ class StorageService {
   // --- PAYMENTS ---
 
   async getPayments(): Promise<Payment[]> {
+    if (isDemoDataRuntime()) return demoDataService.getPayments();
+
     const user = await this.getUser();
     if (!user) return [];
 
@@ -1534,6 +1648,11 @@ class StorageService {
   }
 
   async upsertPayment(payment: Payment) {
+    if (isDemoDataRuntime()) {
+      await demoDataService.upsertPayment(payment);
+      return;
+    }
+
     let paymentToSave = { ...payment };
 
     if (!paymentToSave.user_id) {
@@ -1574,6 +1693,11 @@ class StorageService {
   }
 
   async savePayments(items: Payment[]) {
+    if (isDemoDataRuntime()) {
+      await demoDataService.savePayments(items);
+      return;
+    }
+
     if (items.length === 0) return;
 
     // We need to ensure each payment has a user_id (Merchant ID) for RLS
@@ -1606,6 +1730,8 @@ class StorageService {
   // --- INTEGRATIONS ---
 
   async getIntegration(name: string): Promise<Integration | null> {
+    if (isDemoDataRuntime()) return demoDataService.getIntegration(name);
+
     const user = await this.getUser();
     if (!user) return null;
 
@@ -1653,6 +1779,8 @@ class StorageService {
   // --- WEBHOOKS ---
 
   async getWebhooks(): Promise<WebhookConfig[]> {
+    if (isDemoDataRuntime()) return demoDataService.getWebhooks();
+
     const user = await this.getUser();
     if (!user) return [];
 
@@ -1668,6 +1796,8 @@ class StorageService {
   }
 
   async saveWebhooks(items: WebhookConfig[]) {
+    if (isDemoDataRuntime()) return demoDataService.saveWebhooks(items);
+
     const user = await this.getUser();
     if (!user) {
       console.error('No user logged in');
@@ -1689,13 +1819,44 @@ class StorageService {
     }
   }
 
+  async deleteWebhook(id: string) {
+    if (isDemoDataRuntime()) {
+      await demoDataService.deleteWebhook(id);
+      return;
+    }
+
+    const user = await this.getUser();
+    if (!user) {
+      console.error('No user logged in');
+      return;
+    }
+
+    const { error } = await supabase
+      .from('webhooks')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', user.id);
+
+    if (error) {
+      console.error('Error deleting webhook:', error.message, error);
+      throw error;
+    }
+  }
+
   async getWebhookLogs(): Promise<WebhookLog[]> {
+    if (isDemoDataRuntime()) return demoDataService.getWebhookLogs();
+
     const { data, error } = await supabase.from('webhook_logs').select('*').order('created_at', { ascending: false }).limit(100);
     if (error) return [];
     return data as WebhookLog[];
   }
 
   async saveWebhookLogs(items: WebhookLog[]) {
+    if (isDemoDataRuntime()) {
+      await demoDataService.saveWebhookLogs(items);
+      return;
+    }
+
     const { error } = await supabase.from('webhook_logs').insert(items);
     if (error) console.error('Error saving logs:', error.message);
   }
@@ -1703,6 +1864,8 @@ class StorageService {
   // --- MEMBER AREA: CONTENTS ---
 
   async getContents(memberAreaId?: string): Promise<Content[]> {
+    if (isDemoDataRuntime()) return demoDataService.getContents(memberAreaId);
+
     let query = supabase
       .from('contents')
       .select(`
@@ -1729,6 +1892,8 @@ class StorageService {
   }
 
   async createContent(content: Omit<Content, 'id' | 'created_at' | 'updated_at'> & { id?: string }, productId?: string) {
+    if (isDemoDataRuntime()) return demoDataService.createContent(content, productId);
+
     const user = await this.getUser();
     if (!user) throw new Error('No user logged in');
 
@@ -1762,6 +1927,8 @@ class StorageService {
   }
 
   async updateContent(content: Content, productId?: string) {
+    if (isDemoDataRuntime()) return demoDataService.updateContent(content, productId);
+
     const record = {
       title: content.title,
       description: content.description,
@@ -1791,6 +1958,11 @@ class StorageService {
   }
 
   async deleteContent(id: string) {
+    if (isDemoDataRuntime()) {
+      await demoDataService.deleteContent(id);
+      return;
+    }
+
     // 1. Delete files from storage
     try {
       const { data: files } = await supabase.storage.from('contents').list(id);
@@ -1809,6 +1981,8 @@ class StorageService {
   }
 
   async uploadContentThumbnail(file: File, contentId: string): Promise<string> {
+    if (isDemoDataRuntime()) return demoDataService.uploadContentThumbnail(file);
+
     const fileExt = file.name.split('.').pop();
     const fileName = `${contentId}/thumb_${Date.now()}.${fileExt}`;
 
@@ -1823,6 +1997,8 @@ class StorageService {
   }
 
   async uploadContentImage(file: File, contentId: string, type: 'vertical' | 'horizontal'): Promise<string> {
+    if (isDemoDataRuntime()) return demoDataService.uploadContentImage(file);
+
     const fileExt = file.name.split('.').pop();
     const fileName = `${contentId}/${type}_${Date.now()}.${fileExt}`;
 
@@ -1839,6 +2015,8 @@ class StorageService {
   // --- MEMBER AREA: MODULES ---
 
   async getModules(contentId: string): Promise<Module[]> {
+    if (isDemoDataRuntime()) return demoDataService.getModules(contentId);
+
     const { data, error } = await supabase
       .from('modules')
       .select('*, lessons(*)')
@@ -1860,6 +2038,8 @@ class StorageService {
   }
 
   async getModulesByAreaId(areaId: string): Promise<Module[]> {
+    if (isDemoDataRuntime()) return demoDataService.getModulesByAreaId(areaId);
+
     // First get all contents for the area
     const { data: contents, error: contentsError } = await supabase
       .from('contents')
@@ -1887,6 +2067,8 @@ class StorageService {
   }
 
   async createModule(module: Partial<Module>) {
+    if (isDemoDataRuntime()) return demoDataService.createModule(module);
+
     const record = {
       id: module.id,
       content_id: module.content_id,
@@ -1909,6 +2091,8 @@ class StorageService {
   }
 
   async updateModule(module: Module) {
+    if (isDemoDataRuntime()) return demoDataService.updateModule(module);
+
     const { data, error } = await supabase
       .from('modules')
       .update({
@@ -1928,10 +2112,17 @@ class StorageService {
   }
 
   async deleteModule(id: string) {
+    if (isDemoDataRuntime()) {
+      await demoDataService.deleteModule(id);
+      return;
+    }
+
     const { error } = await supabase.from('modules').delete().eq('id', id);
   }
 
   async uploadModuleImage(file: File, moduleId: string, type: 'vertical' | 'horizontal'): Promise<string> {
+    if (isDemoDataRuntime()) return demoDataService.uploadModuleImage(file);
+
     const fileExt = file.name.split('.').pop();
     const fileName = `${moduleId}/${type}_${Date.now()}.${fileExt}`;
 
@@ -1948,6 +2139,8 @@ class StorageService {
   // --- MEMBER AREA: LESSONS ---
 
   async createLesson(lesson: Omit<Lesson, 'id' | 'created_at'>) {
+    if (isDemoDataRuntime()) return demoDataService.createLesson(lesson);
+
     const { data, error } = await supabase
       .from('lessons')
       .insert(lesson)
@@ -1959,6 +2152,8 @@ class StorageService {
   }
 
   async updateLesson(lesson: Lesson) {
+    if (isDemoDataRuntime()) return demoDataService.updateLesson(lesson);
+
     const { data, error } = await supabase
       .from('lessons')
       .update({
@@ -1984,11 +2179,18 @@ class StorageService {
   }
 
   async deleteLesson(id: string) {
+    if (isDemoDataRuntime()) {
+      await demoDataService.deleteLesson(id);
+      return;
+    }
+
     const { error } = await supabase.from('lessons').delete().eq('id', id);
     if (error) throw error;
   }
 
   async uploadLessonImage(file: File, lessonId: string): Promise<string> {
+    if (isDemoDataRuntime()) return demoDataService.uploadLessonImage(file);
+
     const fileExt = file.name.split('.').pop();
     const fileName = `${lessonId}/card_${Date.now()}.${fileExt}`;
 
@@ -2006,6 +2208,8 @@ class StorageService {
   // --- PRODUCT - CONTENT LINKING ---
 
   async getProductContents(productId: string): Promise<string[]> {
+    if (isDemoDataRuntime()) return demoDataService.getProductContents(productId);
+
     const { data, error } = await supabase
       .from('product_contents')
       .select('content_id')
@@ -2019,6 +2223,11 @@ class StorageService {
   }
 
   async setProductContents(productId: string, contentIds: string[]) {
+    if (isDemoDataRuntime()) {
+      await demoDataService.setProductContents(productId, contentIds);
+      return;
+    }
+
     // 1. Remove existing links
     await supabase.from('product_contents').delete().eq('product_id', productId);
 
@@ -2035,6 +2244,11 @@ class StorageService {
   }
 
   async setContentProduct(contentId: string, productId: string | null) {
+    if (isDemoDataRuntime()) {
+      await demoDataService.setContentProduct(contentId, productId);
+      return;
+    }
+
     // 1. Remove existing links for this content (ensure 1 product per content for this flow)
     await supabase.from('product_contents').delete().eq('content_id', contentId);
 
@@ -2068,6 +2282,11 @@ class StorageService {
   // --- ACCESS GRANTS ---
 
   async getAccessGrants(): Promise<AccessGrant[]> {
+    if (isDemoDataRuntime()) {
+      const user = await this.getUser();
+      return demoDataService.getAccessGrants(user?.id || null);
+    }
+
     const user = await this.getUser();
     if (!user) return [];
 
@@ -2086,6 +2305,11 @@ class StorageService {
   }
 
   async createAccessGrant(grant: Omit<AccessGrant, 'id' | 'granted_at'>) {
+    if (isDemoDataRuntime()) {
+      await demoDataService.createAccessGrant(grant);
+      return;
+    }
+
     // Note: This usually requires service role or admin privileges if creating for another user
     // Assuming the current context allows it (e.g. merchant context or server-side)
     const { error } = await supabase
@@ -2104,6 +2328,8 @@ class StorageService {
   }
 
   async getContentsByProduct(productId: string): Promise<Content[]> {
+    if (isDemoDataRuntime()) return demoDataService.getContentsByProduct(productId);
+
     const { data, error } = await supabase
       .from('product_contents')
       .select('content:contents(*)')
@@ -2137,6 +2363,8 @@ class StorageService {
   // --- MEMBER AREAS ---
 
   async getMemberAreas(userId?: string): Promise<MemberArea[]> {
+    if (isDemoDataRuntime()) return demoDataService.getMemberAreas();
+
     console.log('storageService: getMemberAreas called with userId:', userId);
 
     // If userId not provided, try to fetch it (but this might hang as observed)
@@ -2160,6 +2388,8 @@ class StorageService {
   }
 
   async getMemberAreaById(id: string): Promise<MemberArea | null> {
+    if (isDemoDataRuntime()) return demoDataService.getMemberAreaById(id);
+
     const { data, error } = await supabase
       .from('member_areas')
       .select('*')
@@ -2185,6 +2415,8 @@ class StorageService {
   }
 
   async createMemberArea(area: Omit<MemberArea, 'id' | 'created_at'>) {
+    if (isDemoDataRuntime()) return demoDataService.createMemberArea(area);
+
     const user = await this.getUser();
     if (!user) throw new Error('No user logged in');
 
@@ -2232,12 +2464,15 @@ class StorageService {
   }
 
   async updateMemberArea(area: MemberArea) {
+    if (isDemoDataRuntime()) return demoDataService.updateMemberArea(area);
+
     const { data, error } = await supabase
       .from('member_areas')
       .update({
         name: area.name,
         slug: area.slug,
-        domain_id: area.domain_id,
+        // Persist null explicitly so "System Default Gateway" really clears the custom domain.
+        domain_id: area.domain_id || null,
         logo_url: area.logo_url,
         primary_color: area.primary_color,
         favicon_url: area.favicon_url,
@@ -2264,6 +2499,11 @@ class StorageService {
   }
 
   async deleteMemberArea(id: string) {
+    if (isDemoDataRuntime()) {
+      await demoDataService.deleteMemberArea(id);
+      return;
+    }
+
     // 1. Delete files from storage (member-areas bucket)
     try {
       const { data: files } = await supabase.storage.from('member-areas').list(id);
@@ -2281,6 +2521,8 @@ class StorageService {
   }
 
   async uploadMemberAreaLogo(file: File, areaId: string): Promise<string> {
+    if (isDemoDataRuntime()) return demoDataService.uploadMemberAreaLogo(file);
+
     const fileExt = file.name.split('.').pop();
     const fileName = `${areaId}/logo_${Date.now()}.${fileExt}`; // Removed 'member-areas/' prefix as it's now the bucket name
 
@@ -2297,6 +2539,8 @@ class StorageService {
   }
 
   async uploadMemberAreaFavicon(file: File, areaId: string): Promise<string> {
+    if (isDemoDataRuntime()) return demoDataService.uploadMemberAreaFavicon(file);
+
     const fileExt = file.name.split('.').pop();
     const fileName = `${areaId}/favicon_${Date.now()}.${fileExt}`;
 
@@ -2313,6 +2557,8 @@ class StorageService {
   }
 
   async uploadMemberAreaLoginImage(file: File, areaId: string): Promise<string> {
+    if (isDemoDataRuntime()) return demoDataService.uploadMemberAreaLoginImage(file);
+
     const fileExt = file.name.split('.').pop();
     const fileName = `${areaId}/login_${Date.now()}.${fileExt}`;
 
@@ -2329,6 +2575,8 @@ class StorageService {
   }
 
   async uploadMemberAreaBanner(file: File, areaId: string): Promise<string> {
+    if (isDemoDataRuntime()) return demoDataService.uploadMemberAreaBanner(file);
+
     const fileExt = file.name.split('.').pop();
     const fileName = `${areaId}/banner_${Date.now()}.${fileExt}`;
 
@@ -2348,6 +2596,8 @@ class StorageService {
   // --- TRACKS ---
 
   async getTracks(memberAreaId: string): Promise<Track[]> {
+    if (isDemoDataRuntime()) return demoDataService.getTracks(memberAreaId);
+
     const { data, error } = await supabase
       .from('tracks')
       .select('*')
@@ -2362,6 +2612,8 @@ class StorageService {
   }
 
   async getTrackWithItems(trackId: string): Promise<Track | null> {
+    if (isDemoDataRuntime()) return demoDataService.getTrackWithItems(trackId);
+
     // 1. Get Track
     const { data: track, error } = await supabase
       .from('tracks')
@@ -2504,6 +2756,8 @@ class StorageService {
   }
 
   async createTrack(track: Omit<Track, 'id' | 'created_at'>) {
+    if (isDemoDataRuntime()) return demoDataService.createTrack(track);
+
     const { data, error } = await supabase
       .from('tracks')
       .insert(track)
@@ -2515,6 +2769,8 @@ class StorageService {
   }
 
   async updateTrack(track: Partial<Track> & { id: string }) {
+    if (isDemoDataRuntime()) return demoDataService.updateTrack(track);
+
     const { data, error } = await supabase
       .from('tracks')
       .update(track)
@@ -2527,11 +2783,18 @@ class StorageService {
   }
 
   async deleteTrack(id: string) {
+    if (isDemoDataRuntime()) {
+      await demoDataService.deleteTrack(id);
+      return;
+    }
+
     const { error } = await supabase.from('tracks').delete().eq('id', id);
     if (error) throw error;
   }
 
   async addTrackItem(trackId: string, itemId: string, position: number) {
+    if (isDemoDataRuntime()) return demoDataService.addTrackItem(trackId, itemId, position);
+
     const { data, error } = await supabase
       .from('track_items')
       .insert({ track_id: trackId, item_id: itemId, position })
@@ -2543,11 +2806,21 @@ class StorageService {
   }
 
   async removeTrackItem(itemId: string) {
+    if (isDemoDataRuntime()) {
+      await demoDataService.removeTrackItem(itemId);
+      return;
+    }
+
     const { error } = await supabase.from('track_items').delete().eq('id', itemId);
     if (error) throw error;
   }
 
   async updateTrackPositions(updates: { id: string, position: number }[]) {
+    if (isDemoDataRuntime()) {
+      await demoDataService.updateTrackPositions(updates);
+      return;
+    }
+
     // Supabase doesn't support bulk update easily with different values, so loop for now or use RPC
     // For small number of tracks, loop is fine.
     for (const update of updates) {

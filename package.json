@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "vercel": "vercel dev",
+    "vercel": "node scripts/vercel-dev.cjs",
+    "vercel:raw": "vercel dev",
     "build": "vite build",
     "preview": "vite preview",
     "typecheck:audit": "tsc -p tsconfig.audit.json --pretty false",
@@ -54,6 +55,9 @@
     "zustand": "^5.0.13"
   },
   "devDependencies": {
+    "@emnapi/core": "1.11.1",
+    "@emnapi/runtime": "1.11.1",
+    "@emnapi/wasi-threads": "1.2.2",
     "@eslint/js": "^10.0.1",
     "@types/node": "^22.14.0",
     "@types/pg": "^8.15.6",

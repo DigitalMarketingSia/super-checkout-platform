@@ -207,8 +207,41 @@ export const MemberAreaTracks: React.FC<MemberAreaTracksProps> = ({ area }) => {
         );
     }
 
+    const selectedTrack = tracks.find((track) => track.id === selectedTrackId) || null;
+
+    const getTrackItemTitle = (item: TrackItem) =>
+        item.product?.name
+        || item.content?.title
+        || item.module?.title
+        || item.lesson?.title
+        || t('member_area_tracks.unknown');
+
+    const getTrackItemImage = (item: TrackItem, style: Track['card_style'] = 'horizontal') => {
+        if (item.product?.imageUrl) return item.product.imageUrl;
+        if (item.content?.thumbnail_url) return item.content.thumbnail_url;
+        if (style === 'horizontal' && item.module?.image_horizontal_url) return item.module.image_horizontal_url;
+        if (style === 'vertical' && item.module?.image_vertical_url) return item.module.image_vertical_url;
+        if (item.module?.image_vertical_url) return item.module.image_vertical_url;
+        if (item.module?.image_horizontal_url) return item.module.image_horizontal_url;
+        if (item.lesson?.image_url) return item.lesson.image_url;
+        return '';
+    };
+
+    const getSelectableItemTitle = (item: any) => item.name || item.title || t('member_area_tracks.unknown');
+
+    const getSelectableItemImage = (item: any, style: Track['card_style'] = 'horizontal') => {
+        if (item.imageUrl) return item.imageUrl;
+        if (item.thumbnail_url) return item.thumbnail_url;
+        if (item.image_url) return item.image_url;
+        if (style === 'horizontal' && item.image_horizontal_url) return item.image_horizontal_url;
+        if (style === 'vertical' && item.image_vertical_url) return item.image_vertical_url;
+        return item.image_horizontal_url || item.image_vertical_url || '';
+    };
+
     const filteredItems = availableItems.filter(item => 
-        (item.title || item.name || '').toLowerCase().includes(searchQuery.toLowerCase())
+        [item.title, item.name, item.subtitle]
+            .filter(Boolean)
+            .some((value) => String(value).toLowerCase().includes(searchQuery.toLowerCase()))
     );
 
     return (
@@ -281,9 +314,9 @@ export const MemberAreaTracks: React.FC<MemberAreaTracksProps> = ({ area }) => {
                                             <button 
                                                 key={type.id}
                                                 onClick={() => setNewTrackType(type.id as any)}
-                                                className={`flex items-center gap-3 px-5 py-4 rounded-xl border transition-all font-bold text-[10px] uppercase tracking-widest ${newTrackType === type.id ? 'bg-purple-500/10 border-purple-500 text-purple-400' : 'bg-black/20 border-white/5 text-white/20 hover:border-white/10'}`}
+                                                className={`flex items-center justify-center gap-2 px-3 py-3.5 rounded-xl border transition-all font-bold text-[9px] uppercase tracking-wider ${newTrackType === type.id ? 'bg-purple-500/10 border-purple-500 text-purple-400' : 'bg-black/20 border-white/5 text-white/20 hover:border-white/10'}`}
                                             >
-                                                <type.icon className="w-4 h-4" /> {type.label}
+                                                <type.icon className="w-3.5 h-3.5" /> {type.label}
                                             </button>
                                         ))}
                                     </div>
@@ -408,27 +441,57 @@ export const MemberAreaTracks: React.FC<MemberAreaTracksProps> = ({ area }) => {
                                 {/* Internal Content (Only if expanded) */}
                                 {isExpanded && (
                                     <div className="p-8 lg:p-10 animate-in slide-in-from-top-2 duration-300">
-                                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+                                        <div
+                                            className="grid gap-6"
+                                            style={{
+                                                gridTemplateColumns: track.card_style === 'horizontal'
+                                                    ? 'repeat(auto-fill, minmax(200px, 1fr))'
+                                                    : 'repeat(auto-fill, minmax(150px, 1fr))',
+                                            }}
+                                        >
                                             {track.items?.map((item) => (
-                                                <div key={item.id} className="group/item relative flex flex-col gap-3">
-                                                    <div className="relative aspect-video sm:aspect-square rounded-[2rem] bg-black/60 border border-white/5 overflow-hidden transition-all hover:border-purple-500/30 shadow-lg">
-                                                        {(item.product?.imageUrl || item.content?.thumbnail_url) ? (
+                                                <div key={item.id} className="group/item relative flex min-w-0 flex-col gap-3">
+                                                    <div
+                                                        className={`relative overflow-hidden rounded-2xl border border-white/5 bg-black/60 shadow-lg transition-all hover:border-purple-500/30 hover:shadow-[0_18px_45px_rgba(0,0,0,0.35)] ${
+                                                            track.card_style === 'horizontal'
+                                                                ? 'aspect-[16/10] min-h-[130px]'
+                                                                : 'aspect-[3/4] min-h-[200px]'
+                                                        }`}
+                                                    >
+                                                        {getTrackItemImage(item, track.card_style) ? (
                                                             <img
-                                                                src={item.product?.imageUrl || item.content?.thumbnail_url}
+                                                                src={getTrackItemImage(item, track.card_style)}
                                                                 className="w-full h-full object-cover opacity-60 group-hover/item:opacity-90 transition-all group-hover/item:scale-110 duration-700"
                                                                 alt={t('member_area_tracks.item_alt')}
                                                             />
                                                         ) : (
                                                             <div className="w-full h-full flex items-center justify-center opacity-10 group-hover/item:opacity-30 transition-opacity">
-                                                                <Zap className="w-10 h-10" />
+                                                                {track.type === 'modules' ? (
+                                                                    <Layers className="w-12 h-12" />
+                                                                ) : track.type === 'lessons' ? (
+                                                                    <Play className="w-12 h-12" />
+                                                                ) : track.type === 'contents' ? (
+                                                                    <BookOpen className="w-12 h-12" />
+                                                                ) : (
+                                                                    <Zap className="w-12 h-12" />
+                                                                )}
                                                             </div>
                                                         )}
+
+                                                        <div className="absolute left-4 top-4 rounded-full border border-white/10 bg-black/60 px-3 py-1 text-[8px] font-black uppercase tracking-[0.24em] text-white/70 backdrop-blur-xl">
+                                                            {t(`member_area_tracks.types.${track.type}`)}
+                                                        </div>
                                                         
-                                                        <div className="absolute inset-x-0 bottom-0 p-4 bg-gradient-to-t from-black via-black/40 to-transparent">
+                                                        <div className="absolute inset-x-0 bottom-0 p-5 bg-gradient-to-t from-black via-black/50 to-transparent">
                                                             <div className="flex items-center justify-between gap-4">
                                                                 <div className="flex-1 min-w-0">
-                                                                    <p className="text-[10px] font-black text-white uppercase italic tracking-tighter truncate leading-none">
-                                                                        {item.product?.name || item.content?.title || item.module?.title || item.lesson?.title || t('member_area_tracks.unknown')}
+                                                                    <p className="text-xs font-black text-white uppercase italic tracking-tighter leading-tight line-clamp-2">
+                                                                        {getTrackItemTitle(item)}
+                                                                    </p>
+                                                                    <p className="mt-2 text-[9px] font-bold uppercase tracking-[0.22em] text-white/45">
+                                                                        {track.card_style === 'horizontal'
+                                                                            ? t('member_area_tracks.styles.horizontal')
+                                                                            : t('member_area_tracks.styles.vertical')}
                                                                     </p>
                                                                 </div>
                                                             </div>
@@ -447,13 +510,17 @@ export const MemberAreaTracks: React.FC<MemberAreaTracksProps> = ({ area }) => {
                                             {/* Invite Slot */}
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); openItemModal(track.id, track.type); }}
-                                                className="aspect-video sm:aspect-square rounded-[2rem] border-2 border-dashed border-white/5 hover:border-purple-500/20 bg-white/[0.01] hover:bg-purple-500/[0.03] transition-all flex flex-col items-center justify-center gap-4 group/add shadow-inner"
+                                                className={`rounded-2xl border-2 border-dashed border-white/5 bg-white/[0.01] shadow-inner transition-all hover:border-purple-500/20 hover:bg-purple-500/[0.03] flex flex-col items-center justify-center gap-4 group/add ${
+                                                    track.card_style === 'horizontal'
+                                                        ? 'aspect-[16/10] min-h-[130px]'
+                                                        : 'aspect-[3/4] min-h-[200px]'
+                                                }`}
                                             >
                                                 <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center border border-white/5 group-hover/add:scale-110 group-hover/add:bg-purple-500/20 group-hover/add:border-purple-500/30 transition-all shadow-2xl">
                                                     <Plus className="w-7 h-7 text-white/40 group-hover/add:text-purple-400" />
                                                 </div>
-                                                <div className="text-center">
-                                                    <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white/10 group-hover/add:text-purple-500/60 transition-colors">{t('member_area_tracks.actions.map_node')}</span>
+                                                <div className="px-6 text-center">
+                                                    <span className="text-[10px] font-black uppercase tracking-[0.24em] text-white/20 group-hover/add:text-purple-500/70 transition-colors">{t('member_area_tracks.actions.map_node')}</span>
                                                 </div>
                                             </button>
                                         </div>
@@ -494,50 +561,70 @@ export const MemberAreaTracks: React.FC<MemberAreaTracksProps> = ({ area }) => {
                         <div className="absolute -top-40 -right-40 w-96 h-96 rounded-full blur-[150px] opacity-10 pointer-events-none" style={{ backgroundColor: primaryColor }} />
                         
                         {/* Modal Header */}
-                        <div className="p-10 lg:p-14 border-b border-white/5 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-10 bg-white/[0.01]">
-                            <div className="flex items-center gap-6">
-                                <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center border border-white/10">
-                                    <Target className="w-8 h-8 text-purple-400" />
+                        <div className="p-8 lg:p-12 border-b border-white/5 bg-white/[0.01]">
+                            <div className="flex items-start justify-between gap-6">
+                                <div className="flex items-center gap-6">
+                                    <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center border border-white/10 shrink-0">
+                                        <Target className="w-8 h-8 text-purple-400" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-3xl md:text-4xl font-black text-white italic uppercase tracking-tighter mb-1.5 leading-none">
+                                            {t('member_area_tracks.modal.title_prefix')}{' '}
+                                            <span style={{ color: primaryColor }}>{t('member_area_tracks.modal.title_highlight')}</span>
+                                        </h3>
+                                        <p className="text-white/30 text-[10px] font-bold uppercase tracking-[0.3em] leading-none ml-1">{t('member_area_tracks.modal.subtitle')}</p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h3 className="text-4xl font-black text-white italic uppercase tracking-tighter mb-1.5 leading-none line-through decoration-white/20">
-                                        {t('member_area_tracks.modal.title_prefix')}{' '}
-                                        <span style={{ color: primaryColor }}>{t('member_area_tracks.modal.title_highlight')}</span>
-                                    </h3>
-                                    <p className="text-white/30 text-[10px] font-bold uppercase tracking-[0.3em] leading-none ml-1">{t('member_area_tracks.modal.subtitle')}</p>
-                                </div>
-                            </div>
-                            
-                            <div className="flex-1 lg:max-w-2xl w-full relative group">
-                                <Search className="absolute left-8 top-1/2 -translate-y-1/2 w-6 h-6 text-white/10 group-focus-within:text-purple-500 transition-colors" />
-                                <input 
-                                    type="text"
-                                    autoFocus
-                                    placeholder={t('member_area_tracks.modal.search_placeholder')}
-                                    className="w-full bg-black/60 border border-white/5 rounded-3xl pl-20 pr-10 py-6 text-xl text-white outline-none focus:border-purple-500 font-black italic tracking-tighter shadow-3xl placeholder:text-white/5"
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                />
+
+                                <button 
+                                    onClick={() => setShowItemModal(false)}
+                                    className="w-16 h-16 rounded-3xl bg-white/5 flex items-center justify-center text-white/20 hover:text-white transition-all hover:bg-white/10 border border-white/5 active:scale-90 shrink-0"
+                                >
+                                    <X className="w-7 h-7" />
+                                </button>
                             </div>
 
-                            <button 
-                                onClick={() => setShowItemModal(false)}
-                                className="w-16 h-16 rounded-3xl bg-white/5 flex items-center justify-center text-white/20 hover:text-white transition-all hover:bg-white/10 border border-white/5 active:scale-90"
-                            >
-                                <X className="w-7 h-7" />
-                            </button>
+                            <div className="mt-8 flex flex-col xl:flex-row xl:items-center gap-4">
+                                <div className="relative group flex-1 max-w-xl">
+                                    <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within:text-purple-500 transition-colors" />
+                                    <input 
+                                        type="text"
+                                        autoFocus
+                                        placeholder={t('member_area_tracks.modal.search_placeholder')}
+                                        className="w-full bg-black/60 border border-white/5 rounded-2xl pl-12 pr-6 py-3.5 text-sm md:text-base text-white outline-none focus:border-purple-500 font-bold italic tracking-tighter shadow-3xl placeholder:text-white/10"
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                    />
+                                </div>
+
+                                <div className="inline-flex items-center gap-3 rounded-2xl border border-white/5 bg-black/30 px-5 py-3.5 text-[10px] font-black uppercase tracking-[0.26em] text-white/45">
+                                    <Activity className="h-4 w-4 text-purple-400" />
+                                    {t('member_area_tracks.modal.synced_nodes', { count: filteredItems.length })}
+                                </div>
+                            </div>
                         </div>
 
                         {/* Modal Body - Gallery Grid */}
-                        <div className="flex-1 p-10 lg:p-14 overflow-y-auto no-scrollbar grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-8 pb-32">
+                        <div
+                            className="flex-1 overflow-y-auto no-scrollbar p-8 lg:p-12 gap-6 pb-32"
+                            style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+                                gridAutoRows: '1fr',
+                            }}
+                        >
                             {filteredItems.map(item => (
                                 <button
                                     key={item.id}
                                     onClick={() => handleAddItem(item)}
-                                    className="group/btn relative aspect-square rounded-[2.5rem] bg-black/40 border border-white/5 overflow-hidden transition-all hover:border-purple-500/50 text-left shadow-2xl"
+                                    className={`group/btn relative overflow-hidden rounded-2xl border border-white/5 bg-black/40 text-left shadow-2xl transition-all hover:-translate-y-1 hover:border-purple-500/50 ${
+                                        selectedTrack?.card_style === 'vertical'
+                                            ? 'aspect-[3/4] min-h-[210px]'
+                                            : 'aspect-[16/10] min-h-[120px]'
+                                    }`}
                                 >
-                                    {(item.imageUrl || item.thumbnail_url || item.image_url || item.image_horizontal_url || item.image_vertical_url) ? (
-                                        <img src={item.imageUrl || item.thumbnail_url || item.image_url || item.image_horizontal_url || item.image_vertical_url} className="w-full h-full object-cover opacity-40 group-hover/btn:opacity-100 transition-all duration-1000 group-hover/btn:scale-110" />
+                                    {getSelectableItemImage(item, selectedTrack?.card_style) ? (
+                                        <img src={getSelectableItemImage(item, selectedTrack?.card_style)} className="w-full h-full object-cover opacity-40 group-hover/btn:opacity-100 transition-all duration-1000 group-hover/btn:scale-110" />
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center bg-white/5 group-hover/btn:bg-white/10 transition-colors">
                                             <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center border border-white/5">
@@ -545,6 +632,10 @@ export const MemberAreaTracks: React.FC<MemberAreaTracksProps> = ({ area }) => {
                                             </div>
                                         </div>
                                     )}
+
+                                    <div className="absolute left-4 top-4 rounded-full border border-white/10 bg-black/60 px-3 py-1 text-[8px] font-black uppercase tracking-[0.24em] text-white/70 backdrop-blur-xl">
+                                        {selectedTrack ? t(`member_area_tracks.types.${selectedTrack.type}`) : t('member_area_tracks.modal.entity_node')}
+                                    </div>
                                     
                                     <div className="absolute inset-0 bg-purple-500/20 opacity-0 group-hover/btn:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[4px]">
                                         <div className="w-16 h-16 rounded-full bg-white text-black flex items-center justify-center scale-75 group-hover/btn:scale-100 transition-all shadow-3xl">
@@ -553,7 +644,7 @@ export const MemberAreaTracks: React.FC<MemberAreaTracksProps> = ({ area }) => {
                                     </div>
 
                                     <div className="absolute inset-x-0 bottom-0 p-6 bg-gradient-to-t from-black via-black/90 to-transparent">
-                                        <p className="text-xs font-black text-white italic uppercase tracking-tighter leading-tight mb-1.5 group-hover/btn:translate-y-[-4px] transition-transform">{item.name || item.title}</p>
+                                        <p className="text-sm font-black text-white italic uppercase tracking-tighter leading-tight mb-2 line-clamp-3 group-hover/btn:translate-y-[-4px] transition-transform">{getSelectableItemTitle(item)}</p>
                                         <div className="flex items-center gap-2">
                                             <span className="text-[8px] font-bold text-purple-500 uppercase tracking-widest">{item.subtitle || t('member_area_tracks.modal.entity_node')}</span>
                                         </div>

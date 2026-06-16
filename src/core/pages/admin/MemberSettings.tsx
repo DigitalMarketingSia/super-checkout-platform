@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { storage } from '../../services/storageService';
 import { MemberArea } from '../../types';
 import { Button } from '../../components/ui/Button';
@@ -40,12 +40,72 @@ export const MemberSettings: React.FC<MemberSettingsProps> = ({ area, onSave, is
         isOpen: false, title: '', message: '', variant: 'info'
     });
 
-    const primaryColor = settings.primary_color || '#8A2BE2';
+    const formatToFullHex = (color: string | undefined | null) => {
+        if (!color) return '#8A2BE2';
+        let clean = color.trim();
+        if (!clean.startsWith('#')) {
+            clean = '#' + clean;
+        }
+        if (/^#[0-9A-Fa-f]{3}$/.test(clean)) {
+            return '#' + clean[1] + clean[1] + clean[2] + clean[2] + clean[3] + clean[3];
+        }
+        if (/^#[0-9A-Fa-f]{6}$/.test(clean)) {
+            return clean;
+        }
+        return '#8A2BE2';
+    };
+
+    const primaryColor = formatToFullHex(settings.primary_color);
+
+    const handleColorTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        let value = e.target.value;
+        value = value.replace(/[^#0-9A-Fa-f]/g, '');
+        if (value.startsWith('#')) {
+            if (value.length > 7) {
+                value = value.substring(0, 7);
+            }
+        } else {
+            if (value.length > 6) {
+                value = value.substring(0, 6);
+            }
+            if (value.length === 6 && /^[0-9A-Fa-f]{6}$/.test(value)) {
+                value = '#' + value;
+            } else if (value.length === 3 && /^[0-9A-Fa-f]{3}$/.test(value)) {
+                value = '#' + value;
+            }
+        }
+        setSettings({ ...settings, primary_color: value });
+    };
+
+    const handleColorTextBlur = () => {
+        const normalized = formatToFullHex(settings.primary_color);
+        setSettings({ ...settings, primary_color: normalized });
+    };
+
+    useEffect(() => {
+        setSettings((current) => {
+            const nextDomainId = area.domain_id ?? null;
+            if ((current.domain_id ?? null) === nextDomainId) {
+                return current;
+            }
+
+            return {
+                ...current,
+                domain_id: nextDomainId,
+            };
+        });
+    }, [area.domain_id]);
 
     const handleSaveClick = async () => {
         setSaving(true);
         try {
-            await onSave(settings);
+            const nextSettings: MemberArea = {
+                ...settings,
+                domain_id: area.domain_id ?? settings.domain_id ?? null,
+            };
+
+            await onSave(nextSettings);
+            setSettings(nextSettings);
             setAlertState({ 
                 isOpen: true, 
                 title: t('common.success', 'Sucesso'), 
@@ -130,7 +190,7 @@ export const MemberSettings: React.FC<MemberSettingsProps> = ({ area, onSave, is
                     style={{ color: '#0A0A1F' }}
                 >
                     <Save className="w-4 h-4" /> 
-                    <span className="text-xs">Commit UX Updates</span>
+                    <span className="text-xs">Salvar</span>
                 </Button>
             </div>
 
@@ -375,23 +435,24 @@ export const MemberSettings: React.FC<MemberSettingsProps> = ({ area, onSave, is
                             <div className="flex items-center gap-6 p-6 bg-black/40 border border-white/5 rounded-[2rem]">
                                 <div className="relative w-20 h-20 rounded-2xl overflow-hidden border-2 border-white/10 shadow-2xl shrink-0 group/color cursor-pointer">
                                     <div className="absolute inset-0" style={{ backgroundColor: primaryColor }} />
+                                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/color:opacity-100 bg-black/20 transition-opacity pointer-events-none">
+                                        <Zap className="w-6 h-6 text-white" />
+                                    </div>
                                     <input
                                         type="color"
-                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                                         value={primaryColor}
                                         onChange={e => setSettings({ ...settings, primary_color: e.target.value })}
                                     />
-                                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/color:opacity-100 bg-black/20 transition-opacity">
-                                        <Zap className="w-6 h-6 text-white" />
-                                    </div>
                                 </div>
                                 <div className="flex-1">
                                     <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1 block">Hex Code</label>
                                     <input
                                         type="text"
                                         className="w-full bg-transparent text-2xl font-black text-white outline-none uppercase italic tracking-tighter"
-                                        value={primaryColor}
-                                        onChange={e => setSettings({ ...settings, primary_color: e.target.value })}
+                                        value={settings.primary_color || ''}
+                                        onChange={handleColorTextChange}
+                                        onBlur={handleColorTextBlur}
                                     />
                                 </div>
                             </div>

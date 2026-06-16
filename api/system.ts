@@ -1,18 +1,23 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import crypto from 'crypto';
 import {
     getLocalSupabasePublicConfig,
     getLocalSupabaseServerKeyErrorMessage,
     resolveLocalSupabaseServerClient,
 } from '../src/core/api/_supabase-server.js';
-import { decrypt, verifySignature } from '../src/core/utils/cryptoUtils.js';
+import { decrypt, verifySignature, encrypt } from '../src/core/utils/cryptoUtils.js';
 import { enforceApiRateLimit } from '../src/core/api/_rate-limit.js';
 import { fulfillOrder } from '../src/core/services/fulfillment.js';
 import { sendOrderAccessEmail } from '../src/core/services/orderEmail.js';
 import { mergeOrderMetadata, normalizeOrderMetadata } from '../src/core/services/orderMetadata.js';
 
 const DEFAULT_ALLOWED_ORIGIN = 'https://app.supercheckout.app';
+const OFFICIAL_CENTRAL_API_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co/functions/v1';
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DEV_LOCAL_SUPABASE_URL = 'https://vixlzrmhqsbzjhpgfwdn.supabase.co';
+const PAGBANK_OAUTH_STATE_COOKIE = 'sc_pagbank_oauth_state';
+const PAGBANK_OAUTH_SCOPE = 'payments.read payments.create';
+const INTERNAL_SIGNATURE_TTL_MS = 5 * 60 * 1000;
 
 function getDevFallback(value: string) {
     return process.env.NODE_ENV !== 'production' ? value : '';
@@ -90,6 +95,229 @@ function applyPublicCors(req: VercelRequest, res: VercelResponse) {
 
     res.setHeader('Access-Control-Allow-Origin', origin);
     return true;
+}
+
+function parseCookies(req: VercelRequest) {
+    const header = String(req.headers.cookie || '');
+    if (!header) return {} as Record<string, string>;
+
+    return Object.fromEntries(
+        header
+            .split(';')
+            .map((entry) => entry.trim())
+            .filter(Boolean)
+            .map((entry) => {
+                const [name, ...rest] = entry.split('=');
+                return [name, decodeURIComponent(rest.join('=') || '')];
+            })
+    );
+}
+
+function buildCookie(name: string, value: string, options?: {
+    maxAge?: number;
+    path?: string;
+    httpOnly?: boolean;
+    secure?: boolean;
+    sameSite?: 'Lax' | 'Strict' | 'None';
+}) {
+    const parts = [`${name}=${encodeURIComponent(value)}`];
+    parts.push(`Path=${options?.path || '/'}`);
+    if (typeof options?.maxAge === 'number') parts.push(`Max-Age=${options.maxAge}`);
+    if (options?.httpOnly !== false) parts.push('HttpOnly');
+    if (options?.secure !== false) parts.push('Secure');
+    parts.push(`SameSite=${options?.sameSite || 'Lax'}`);
+    return parts.join('; ');
+}
+
+function clearCookie(name: string, path = '/') {
+    return buildCookie(name, '', { maxAge: 0, path });
+}
+
+function buildPagbankOauthState(params: {
+    userId: string;
+    sandbox: boolean;
+    origin: string;
+}) {
+    const nonce = crypto.randomBytes(16).toString('hex');
+    const payload = encrypt(JSON.stringify({
+        userId: params.userId,
+        sandbox: params.sandbox,
+        origin: params.origin,
+        timestamp: Date.now(),
+    }));
+
+    return {
+        state: nonce,
+        cookieValue: `${nonce}.${payload}`,
+    };
+}
+
+function parsePagbankOauthState(req: VercelRequest, state: string) {
+    if (!/^[a-f0-9]{32}$/i.test(state)) {
+        throw new Error('INVALID_STATE_FORMAT');
+    }
+
+    const cookies = parseCookies(req);
+    const rawCookie = String(cookies[PAGBANK_OAUTH_STATE_COOKIE] || '');
+    const separatorIndex = rawCookie.indexOf('.');
+    if (separatorIndex <= 0) {
+        throw new Error('MISSING_STATE_COOKIE');
+    }
+
+    const cookieState = rawCookie.slice(0, separatorIndex);
+    const encryptedPayload = rawCookie.slice(separatorIndex + 1);
+    if (cookieState !== state || !encryptedPayload) {
+        throw new Error('STATE_MISMATCH');
+    }
+
+    const parsed = JSON.parse(decrypt(encryptedPayload));
+    const timestamp = Number(parsed?.timestamp || 0);
+    if (!Number.isFinite(timestamp) || timestamp <= 0 || (Date.now() - timestamp) > 10 * 60 * 1000) {
+        throw new Error('STATE_EXPIRED');
+    }
+
+    return parsed;
+}
+
+function normalizePagbankRedirectUri(rawValue?: string) {
+    const fallback = DEFAULT_PAGBANK_OAUTH_REDIRECT_URI;
+    const raw = String(rawValue || '').trim();
+    if (!raw) return fallback;
+
+    try {
+        const url = raw.startsWith('http://') || raw.startsWith('https://')
+            ? new URL(raw)
+            : new URL(raw, DEFAULT_ALLOWED_ORIGIN);
+
+        if (url.pathname === '/api/system' && url.searchParams.get('action') === 'pagbank-oauth-callback') {
+            url.pathname = '/api/pagbank-callback';
+            url.search = '';
+        }
+
+        return url.toString();
+    } catch {
+        return fallback;
+    }
+}
+
+function getPagbankOauthServerConfig(isSandbox: boolean = false) {
+    const clientId = String(
+        isSandbox
+            ? (
+                process.env.PAGSEGURO_SANDBOX_CLIENT_ID
+                || process.env.PAGBANK_SANDBOX_CLIENT_ID
+                || ''
+            )
+            : (
+                process.env.PAGSEGURO_CLIENT_ID
+                || process.env.PAGBANK_CLIENT_ID
+                || ''
+            )
+    ).trim();
+    const clientSecret = String(
+        isSandbox
+            ? (
+                process.env.PAGSEGURO_SANDBOX_CLIENT_SECRET
+                || process.env.PAGBANK_SANDBOX_CLIENT_SECRET
+                || ''
+            )
+            : (
+                process.env.PAGSEGURO_CLIENT_SECRET
+                || process.env.PAGBANK_CLIENT_SECRET
+                || ''
+            )
+    ).trim();
+    const authorizationToken = String(
+        isSandbox
+            ? (
+                process.env.PAGSEGURO_SANDBOX_AUTHORIZATION_TOKEN
+                || process.env.PAGBANK_SANDBOX_AUTHORIZATION_TOKEN
+                || process.env.PAGSEGURO_SANDBOX_INTEGRATOR_TOKEN
+                || process.env.PAGBANK_SANDBOX_INTEGRATOR_TOKEN
+                || ''
+            )
+            : (
+                process.env.PAGSEGURO_AUTHORIZATION_TOKEN
+                || process.env.PAGBANK_AUTHORIZATION_TOKEN
+                || process.env.PAGSEGURO_INTEGRATOR_TOKEN
+                || process.env.PAGBANK_INTEGRATOR_TOKEN
+                || ''
+            )
+    ).trim();
+    const redirectUri = normalizePagbankRedirectUri(
+        process.env.PAGSEGURO_REDIRECT_URI || DEFAULT_PAGBANK_OAUTH_REDIRECT_URI
+    );
+
+    const missingEnv: string[] = [];
+    if (!clientId) missingEnv.push(isSandbox ? 'PAGSEGURO_SANDBOX_CLIENT_ID' : 'PAGSEGURO_CLIENT_ID');
+    if (!clientSecret) missingEnv.push(isSandbox ? 'PAGSEGURO_SANDBOX_CLIENT_SECRET' : 'PAGSEGURO_CLIENT_SECRET');
+    if (!authorizationToken) missingEnv.push(isSandbox ? 'PAGSEGURO_SANDBOX_AUTHORIZATION_TOKEN' : 'PAGSEGURO_AUTHORIZATION_TOKEN');
+
+    return {
+        clientId,
+        clientSecret,
+        authorizationToken,
+        redirectUri,
+        missingEnv,
+    };
+}
+
+function buildAdminGatewaysRedirect(baseOrigin: string | undefined, params: Record<string, string>) {
+    const origin = String(baseOrigin || DEFAULT_ALLOWED_ORIGIN).trim() || DEFAULT_ALLOWED_ORIGIN;
+
+    let url: URL;
+    try {
+        url = new URL('/admin/gateways', origin);
+    } catch {
+        url = new URL('/admin/gateways', DEFAULT_ALLOWED_ORIGIN);
+    }
+
+    Object.entries(params).forEach(([key, value]) => {
+        if (value) {
+            url.searchParams.set(key, value);
+        }
+    });
+
+    return url.toString();
+}
+
+function getHeaderValue(value: string | string[] | undefined) {
+    return Array.isArray(value) ? value[0] || '' : value || '';
+}
+
+function getCentralApiUrl() {
+    return String(
+        process.env.CENTRAL_API_URL
+        || process.env.VITE_CENTRAL_API_URL
+        || process.env.NEXT_PUBLIC_CENTRAL_API_URL
+        || OFFICIAL_CENTRAL_API_URL
+        || ''
+    ).trim().replace(/\/+$/, '');
+}
+
+function isValidCentralInternalSignature(req: VercelRequest, body: Record<string, any>) {
+    const secret = String(process.env.CENTRAL_SHARED_SECRET || process.env.SHARED_SECRET || '').trim();
+    const rawTimestamp = getHeaderValue(req.headers['x-admin-timestamp']);
+    const rawSignature = getHeaderValue(req.headers['x-admin-signature']).replace(/^sha256=/i, '');
+
+    if (!secret || !rawTimestamp || !rawSignature) return false;
+
+    const timestamp = Number(rawTimestamp.length === 10 ? `${rawTimestamp}000` : rawTimestamp);
+    if (!Number.isFinite(timestamp) || Math.abs(Date.now() - timestamp) > INTERNAL_SIGNATURE_TTL_MS) {
+        return false;
+    }
+
+    const payload = `${rawTimestamp}.${JSON.stringify(body)}`;
+    const expected = crypto.createHmac('sha256', secret).update(payload).digest('hex');
+
+    try {
+        const expectedBuffer = Buffer.from(expected, 'hex');
+        const receivedBuffer = Buffer.from(rawSignature, 'hex');
+        return expectedBuffer.length === receivedBuffer.length
+            && crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
+    } catch {
+        return false;
+    }
 }
 
 async function fallbackCheckStatusHandler(req: VercelRequest, res: VercelResponse) {
@@ -1279,6 +1507,566 @@ function normalizeRequestOrigin(req: VercelRequest) {
   return `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host || 'app.supercheckout.app'}`;
 }
 
+async function upsertPagbankGatewayOauth(params: {
+  supabaseAdmin: any;
+  userId: string;
+  sandbox: boolean;
+  accessToken: string;
+  refreshToken?: string | null;
+  expiresIn?: number | string | null;
+  scope?: string | null;
+  tokenType?: string | null;
+  accountId?: string | null;
+  publicKey?: string | null;
+}) {
+  const encryptedToken = encrypt(params.accessToken);
+  const gatewayName = 'pagseguro';
+
+  const { data: existingGateway, error: existingGatewayError } = await params.supabaseAdmin
+    .from('gateways')
+    .select('id, config, credentials')
+    .eq('user_id', params.userId)
+    .eq('name', gatewayName)
+    .maybeSingle();
+
+  if (existingGatewayError) throw existingGatewayError;
+
+  const existingConfig = { ...(existingGateway?.config || {}) } as Record<string, any>;
+  delete existingConfig.oauth_refresh_token;
+  delete existingConfig.oauth_expires_in;
+  delete existingConfig.oauth_expires_at;
+  delete existingConfig.oauth_account_id;
+  delete existingConfig.connected_via_oauth;
+  delete existingConfig.oauth_scope;
+  delete existingConfig.oauth_token_type;
+
+  const config = {
+    ...existingConfig,
+    environment: params.sandbox ? 'sandbox' : 'production'
+  };
+
+  const credentials = {
+    ...((existingGateway?.credentials || {}) as Record<string, any>),
+    connected_via_oauth: true,
+    oauth_account_id: params.accountId || null,
+    oauth_expires_at: params.expiresIn
+      ? new Date(Date.now() + (Number(params.expiresIn) * 1000)).toISOString()
+      : null,
+    oauth_refresh_token: params.refreshToken ? encrypt(params.refreshToken) : null,
+    oauth_scope: params.scope || null,
+    oauth_token_type: params.tokenType || null
+  };
+
+  const gatewayPayload = {
+    user_id: params.userId,
+    name: gatewayName,
+    provider: gatewayName,
+    public_key: params.publicKey || '',
+    private_key: encryptedToken,
+    credentials,
+    config,
+    active: true,
+    is_active: true
+  };
+
+  if (existingGateway?.id) {
+    const { error } = await params.supabaseAdmin
+      .from('gateways')
+      .update(gatewayPayload)
+      .eq('id', existingGateway.id);
+
+    if (error) throw error;
+    return existingGateway.id;
+  }
+
+  const { data, error } = await params.supabaseAdmin
+    .from('gateways')
+    .insert(gatewayPayload)
+    .select('id')
+    .single();
+
+  if (error) throw error;
+  return data?.id || null;
+}
+
+const DEFAULT_PAGBANK_OAUTH_REDIRECT_URI = 'https://app.supercheckout.app/api/pagbank-callback';
+
+async function proxyCentralPagbankCallback(req: VercelRequest, res: VercelResponse) {
+  const centralApiUrl = getCentralApiUrl();
+  if (!centralApiUrl) return false;
+
+  const state = String(req.query.state || '');
+  if (!state.startsWith('pbo_')) return false;
+
+  const callbackUrl = new URL(`${centralApiUrl}/pagbank-oauth`);
+  callbackUrl.searchParams.set('mode', 'callback');
+
+  for (const [key, value] of Object.entries(req.query)) {
+    if (typeof value === 'string' && value) {
+      callbackUrl.searchParams.set(key, value);
+    }
+  }
+
+  const response = await fetch(callbackUrl.toString(), {
+    method: 'GET',
+    redirect: 'manual',
+  });
+
+  const location = response.headers.get('location');
+  if (location && response.status >= 300 && response.status < 400) {
+    return res.redirect(response.status, location);
+  }
+
+  const contentType = response.headers.get('content-type') || 'application/json';
+  res.status(response.status);
+  res.setHeader('Content-Type', contentType);
+  res.send(await response.text());
+  return true;
+}
+
+async function pagbankOauthFinalizeHandler(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  const body = await readJsonBody(req);
+  if (!isValidCentralInternalSignature(req, body)) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const userId = String(body.user_id || '').trim();
+  const accessToken = String(body.access_token || '').trim();
+  const refreshToken = typeof body.refresh_token === 'string' ? body.refresh_token.trim() : '';
+  const publicKey = typeof body.public_key === 'string' ? body.public_key.trim() : '';
+  const tokenType = typeof body.token_type === 'string' ? body.token_type.trim() : '';
+  const scope = typeof body.scope === 'string' ? body.scope.trim() : '';
+  const accountId = typeof body.account_id === 'string' ? body.account_id.trim() : '';
+  const expiresInRaw = body.expires_in;
+  const isSandbox = body.environment === 'sandbox' || body.sandbox === true;
+
+  if (!userId || !accessToken) {
+    return res.status(400).json({ error: 'Missing OAuth payload' });
+  }
+
+  const expiresIn = Number(expiresInRaw);
+  if (expiresInRaw != null && (!Number.isFinite(expiresIn) || expiresIn <= 0)) {
+    return res.status(400).json({ error: 'Invalid expires_in' });
+  }
+
+  const { supabase: supabaseAdmin } = await resolveLocalSupabaseServerClient();
+  if (!supabaseAdmin) {
+    return res.status(500).json({ error: getLocalSupabaseServerKeyErrorMessage() });
+  }
+
+  try {
+    await upsertPagbankGatewayOauth({
+      supabaseAdmin,
+      userId,
+      sandbox: isSandbox,
+      accessToken,
+      refreshToken: refreshToken || null,
+      expiresIn: Number.isFinite(expiresIn) ? expiresIn : null,
+      scope: scope || null,
+      tokenType: tokenType || null,
+      accountId: accountId || null,
+      publicKey: publicKey || null
+    });
+
+    return res.status(200).json({ success: true });
+  } catch (error: any) {
+    console.error('[System] pagbank-oauth-finalize failed:', error?.message || error);
+    return res.status(500).json({ error: 'Unable to finalize PagBank OAuth' });
+  }
+}
+
+async function pagbankOauthStartHandler(req: VercelRequest, res: VercelResponse) {
+  const corsAllowed = applyMemberCors(req, res);
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  if (!corsAllowed) return res.status(403).json({ error: 'Origin not allowed' });
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  const authHeader = String(req.headers.authorization || '');
+  const accessToken = authHeader.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : '';
+  if (!accessToken) return res.status(401).json({ error: 'Missing authorization token' });
+
+  try {
+    const { supabase: supabaseAdmin } = await resolveLocalSupabaseServerClient();
+    if (!supabaseAdmin) {
+      return res.status(500).json({ error: getLocalSupabaseServerKeyErrorMessage() });
+    }
+
+    const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(accessToken);
+    const user = userData?.user;
+    if (userError || !user?.id) return res.status(401).json({ error: 'Invalid authorization token' });
+
+    const body = await readJsonBody(req);
+    const isSandbox = Boolean(body.sandbox);
+
+    const { clientId, redirectUri, missingEnv } = getPagbankOauthServerConfig(isSandbox);
+    if (missingEnv.length > 0) {
+      return res.status(500).json({
+        error: `ConfiguraÃ§Ã£o OAuth do PagBank incompleta no servidor (${missingEnv.join(', ')})`
+      });
+    }
+
+    const { state: oauthState, cookieValue } = buildPagbankOauthState({
+      userId: user.id,
+      sandbox: isSandbox,
+      origin: normalizeRequestOrigin(req)
+    });
+
+    res.setHeader('Set-Cookie', buildCookie(PAGBANK_OAUTH_STATE_COOKIE, cookieValue, {
+      maxAge: 10 * 60,
+      path: '/api'
+    }));
+
+    const { PagBankOAuthService } = await import('../src/core/services/pagbankOAuth.js');
+    const authorizeUrl = PagBankOAuthService.getAuthorizeUrl(
+      clientId,
+      redirectUri,
+      PAGBANK_OAUTH_SCOPE,
+      oauthState,
+      isSandbox
+    );
+
+    return res.status(200).json({ url: authorizeUrl });
+  } catch (err: any) {
+    console.error('[System] pagbank-oauth-start failed:', err?.message || err);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+}
+
+async function pagbankSandboxConnectMockHandler(req: VercelRequest, res: VercelResponse) {
+  const corsAllowed = applyMemberCors(req, res);
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  if (!corsAllowed) return res.status(403).json({ error: 'Origin not allowed' });
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  const authHeader = String(req.headers.authorization || '');
+  const accessToken = authHeader.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : '';
+  if (!accessToken) return res.status(401).json({ error: 'Missing authorization token' });
+
+  try {
+    const { supabase: supabaseAdmin } = await resolveLocalSupabaseServerClient();
+    if (!supabaseAdmin) {
+      return res.status(500).json({ error: getLocalSupabaseServerKeyErrorMessage() });
+    }
+
+    const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(accessToken);
+    const user = userData?.user;
+    if (userError || !user?.id) return res.status(401).json({ error: 'Invalid authorization token' });
+
+    const body = await readJsonBody(req);
+    const sellerEmail = String(body.email || '').trim().toLowerCase();
+    if (!sellerEmail) {
+      return res.status(400).json({ error: 'Informe o e-mail do vendedor teste do Sandbox.' });
+    }
+
+    const {
+      clientId,
+      clientSecret,
+      authorizationToken,
+      missingEnv
+    } = getPagbankOauthServerConfig(true);
+
+    if (missingEnv.length > 0) {
+      return res.status(500).json({
+        error: `Configuracao OAuth sandbox do PagBank incompleta no servidor (${missingEnv.join(', ')})`
+      });
+    }
+
+    const authHeaders = {
+      Authorization: `Bearer ${authorizationToken}`,
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      X_CLIENT_ID: clientId,
+      X_CLIENT_SECRET: clientSecret,
+    };
+
+    const authorizeSmsResponse = await fetch('https://sandbox.api.pagseguro.com/oauth2/authorize/sms', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        bank_branch: '0001',
+        account_number: '00000000-1',
+      }),
+    });
+
+    const authorizeSmsRaw = await authorizeSmsResponse.text();
+    const authorizeSmsPayload = JSON.parse(authorizeSmsRaw || '{}');
+
+    if (!authorizeSmsResponse.ok) {
+      console.error('[System] PagBank sandbox SMS authorize failed:', authorizeSmsRaw);
+      return res.status(502).json({
+        error: authorizeSmsPayload?.message
+          || authorizeSmsPayload?.error
+          || 'Falha ao solicitar autorizacao SMS no sandbox do PagBank.'
+      });
+    }
+
+    const authorizationId = String(
+      authorizeSmsPayload?.authorization_id
+      || authorizeSmsPayload?.id
+      || authorizeSmsPayload?.data?.authorization_id
+      || authorizeSmsPayload?.data?.id
+      || ''
+    ).trim();
+
+    if (!authorizationId) {
+      console.error('[System] PagBank sandbox SMS authorize missing authorization_id:', authorizeSmsRaw);
+      return res.status(502).json({ error: 'O PagBank nao retornou authorization_id no sandbox.' });
+    }
+
+    const tokenResponse = await fetch('https://sandbox.api.pagseguro.com/oauth2/token', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        grant_type: 'sms',
+        sms_code: '123456',
+        email: sellerEmail,
+        authorization_id: authorizationId,
+      }),
+    });
+
+    const tokenRaw = await tokenResponse.text();
+    const tokenPayload = JSON.parse(tokenRaw || '{}');
+
+    if (!tokenResponse.ok) {
+      console.error('[System] PagBank sandbox SMS token failed:', tokenRaw);
+      return res.status(502).json({
+        error: tokenPayload?.message
+          || tokenPayload?.error
+          || tokenPayload?.error_messages?.[0]?.description
+          || 'Falha ao obter access token sandbox via SMS Mock.'
+      });
+    }
+
+    const accessTokenValue = String(tokenPayload?.access_token || '').trim();
+    if (!accessTokenValue) {
+      console.error('[System] PagBank sandbox SMS token missing access_token:', tokenRaw);
+      return res.status(502).json({ error: 'O PagBank nao retornou access_token no sandbox.' });
+    }
+
+    let publicKey = '';
+    try {
+      const publicKeyResponse = await fetch('https://sandbox.api.pagseguro.com/public-keys', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessTokenValue}`,
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ type: 'card' }),
+      });
+
+      const publicKeyRaw = await publicKeyResponse.text();
+      const publicKeyPayload = JSON.parse(publicKeyRaw || '{}');
+      if (publicKeyResponse.ok) {
+        publicKey = String(
+          publicKeyPayload?.public_key
+          || publicKeyPayload?.publicKey
+          || publicKeyPayload?.data?.public_key
+          || ''
+        ).trim();
+      } else {
+        console.warn('[System] PagBank sandbox public key generation failed:', publicKeyRaw);
+      }
+    } catch (publicKeyError) {
+      console.warn('[System] PagBank sandbox public key request failed:', publicKeyError);
+    }
+
+    await upsertPagbankGatewayOauth({
+      supabaseAdmin,
+      userId: user.id,
+      sandbox: true,
+      accessToken: accessTokenValue,
+      refreshToken: typeof tokenPayload?.refresh_token === 'string' ? tokenPayload.refresh_token.trim() : null,
+      expiresIn: Number(tokenPayload?.expires_in || 0) || null,
+      scope: typeof tokenPayload?.scope === 'string' ? tokenPayload.scope.trim() : null,
+      tokenType: typeof tokenPayload?.token_type === 'string' ? tokenPayload.token_type.trim() : null,
+      accountId: typeof tokenPayload?.account_id === 'string' ? tokenPayload.account_id.trim() : null,
+      publicKey: publicKey || null,
+    });
+
+    return res.status(200).json({
+      success: true,
+      source: 'sandbox_sms_mock',
+      has_public_key: Boolean(publicKey),
+    });
+  } catch (err: any) {
+    console.error('[System] pagbank-sandbox-connect-mock failed:', err?.message || err);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+}
+
+async function pagbankOauthCallbackHandler(req: VercelRequest, res: VercelResponse) {
+  // This is a GET request initiated by PagBank's redirection
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+
+  if (await proxyCentralPagbankCallback(req, res)) {
+    return;
+  }
+
+  const code = String(req.query.code || '');
+  const stateEncrypted = String(req.query.state || '');
+  const errorParam = String(req.query.error || '');
+
+  const oauthCode = code;
+  const oauthState = stateEncrypted;
+  const providerError = errorParam;
+  const providerErrorDescription = String(req.query.error_description || '');
+  const clearStateCookie = clearCookie(PAGBANK_OAUTH_STATE_COOKIE, '/api');
+
+  let oauthStateData: any = {};
+  let baseOrigin = DEFAULT_ALLOWED_ORIGIN;
+
+  if (providerError) {
+    try {
+      if (oauthState) {
+        oauthStateData = parsePagbankOauthState(req, oauthState);
+        baseOrigin = String(oauthStateData?.origin || DEFAULT_ALLOWED_ORIGIN);
+      }
+    } catch (stateError) {
+      console.warn('[System] PagBank OAuth state could not be restored after provider error:', stateError);
+    }
+
+    res.setHeader('Set-Cookie', clearStateCookie);
+    console.error('[System] PagBank OAuth returned error:', providerError, providerErrorDescription);
+
+    if (providerError === 'access_denied') {
+      return res.redirect(302, buildAdminGatewaysRedirect(baseOrigin, {
+        error: 'pagbank_oauth_denied'
+      }));
+    }
+
+    return res.redirect(302, buildAdminGatewaysRedirect(baseOrigin, {
+      error: 'pagbank_oauth_provider_error',
+      provider_error: providerError,
+      provider_error_description: providerErrorDescription || 'Erro retornado pelo PagBank'
+    }));
+  }
+
+  if (!oauthCode || !oauthState) {
+    res.setHeader('Set-Cookie', clearStateCookie);
+    return res.status(400).json({ error: 'Missing code or state' });
+  }
+
+  try {
+    oauthStateData = parsePagbankOauthState(req, oauthState);
+    baseOrigin = String(oauthStateData?.origin || DEFAULT_ALLOWED_ORIGIN);
+  } catch (stateError) {
+    console.error('[System] PagBank OAuth state validation failed:', stateError);
+    res.setHeader('Set-Cookie', clearStateCookie);
+    return res.status(400).json({ error: 'Invalid state parameter' });
+  }
+
+  const { userId, sandbox, origin } = oauthStateData;
+  const isOauthSandbox = Boolean(sandbox);
+
+  try {
+    const {
+      clientId,
+      clientSecret,
+      authorizationToken,
+      redirectUri,
+      missingEnv
+    } = getPagbankOauthServerConfig(isOauthSandbox);
+
+    if (missingEnv.length > 0) {
+      throw new Error(`ConfiguraÃ§Ãµes OAuth do PagBank ausentes no servidor (${missingEnv.join(', ')})`);
+    }
+
+    const { PagBankOAuthService } = await import('../src/core/services/pagbankOAuth.js');
+    const tokenResponse = await PagBankOAuthService.exchangeCodeForToken(
+      oauthCode,
+      redirectUri,
+      clientId,
+      clientSecret,
+      authorizationToken,
+      isOauthSandbox
+    );
+
+    const { supabase: supabaseAdmin } = await resolveLocalSupabaseServerClient();
+    if (!supabaseAdmin) {
+      throw new Error(getLocalSupabaseServerKeyErrorMessage());
+    }
+
+    const encryptedToken = encrypt(tokenResponse.access_token);
+    const gatewayName = 'pagseguro';
+    const resolvedOrigin = origin || baseOrigin || DEFAULT_ALLOWED_ORIGIN;
+
+    const { data: existingGateway } = await supabaseAdmin
+      .from('gateways')
+      .select('id, config, credentials')
+      .eq('user_id', userId)
+      .eq('name', gatewayName)
+      .maybeSingle();
+
+    const existingConfig = { ...(existingGateway?.config || {}) } as Record<string, any>;
+    delete existingConfig.oauth_refresh_token;
+    delete existingConfig.oauth_expires_in;
+    delete existingConfig.oauth_expires_at;
+    delete existingConfig.oauth_account_id;
+    delete existingConfig.connected_via_oauth;
+    delete existingConfig.oauth_scope;
+    delete existingConfig.oauth_token_type;
+
+    const config = {
+      ...existingConfig,
+      environment: isOauthSandbox ? 'sandbox' : 'production'
+    };
+
+    const credentials = {
+      ...((existingGateway?.credentials || {}) as Record<string, any>),
+      connected_via_oauth: true,
+      oauth_account_id: tokenResponse.account_id || null,
+      oauth_expires_at: tokenResponse.expires_in
+        ? new Date(Date.now() + (Number(tokenResponse.expires_in) * 1000)).toISOString()
+        : null,
+      oauth_refresh_token: tokenResponse.refresh_token ? encrypt(tokenResponse.refresh_token) : null,
+      oauth_scope: tokenResponse.scope || null,
+      oauth_token_type: tokenResponse.token_type || null
+    };
+
+    if (existingGateway?.id) {
+      await supabaseAdmin.from('gateways').update({
+        private_key: encryptedToken,
+        credentials,
+        config,
+        active: true,
+        is_active: true
+      }).eq('id', existingGateway.id);
+    } else {
+      await supabaseAdmin.from('gateways').insert({
+        user_id: userId,
+        name: gatewayName,
+        provider: gatewayName,
+        private_key: encryptedToken,
+        credentials,
+        config,
+        active: true,
+        is_active: true
+      });
+    }
+
+    res.setHeader('Set-Cookie', clearStateCookie);
+    return res.redirect(302, buildAdminGatewaysRedirect(resolvedOrigin, {
+      success: 'pagbank_oauth'
+    }));
+  } catch (oauthError: any) {
+    console.error('[System] PagBank OAuth callback failed:', oauthError?.message || oauthError);
+    res.setHeader('Set-Cookie', clearStateCookie);
+    return res.redirect(302, buildAdminGatewaysRedirect(origin || baseOrigin, {
+      error: 'pagbank_oauth_failed'
+    }));
+  }
+}
+
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { action } = req.query;
 
@@ -1299,6 +2087,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return await (await import('../src/core/api/proxy.js')).default(req, res);
             case 'send-email':
                 return await (await import('../src/core/api/send-email.js')).default(req, res);
+            case 'demo-webhooks':
+                return await (await import('../src/core/api/demo-webhooks.js')).default(req, res);
             case 'public-gateway':
                 return await publicGatewayHandler(req, res);
             case 'auto-login':
@@ -1317,6 +2107,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return await upsellEligibilityHandler(req, res);
             case 'member-password-reset':
                 return await memberPasswordResetHandler(req, res);
+            case 'pagbank-oauth-start':
+                return await pagbankOauthStartHandler(req, res);
+            case 'pagbank-sandbox-connect-mock':
+                return await pagbankSandboxConnectMockHandler(req, res);
+            case 'pagbank-oauth-callback':
+                return await pagbankOauthCallbackHandler(req, res);
+            case 'pagbank-oauth-finalize':
+                return await pagbankOauthFinalizeHandler(req, res);
             default:
                 return res.status(404).json({ error: `Action ${action} not found in System Controller` });
         }

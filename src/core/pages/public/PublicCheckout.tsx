@@ -31,6 +31,8 @@ import {
    captureCheckoutTrackingAttribution,
    type CheckoutTrackingAttribution,
 } from '../../utils/trackingAttribution';
+import { getRuntimeMode } from '../../config/runtimeMode';
+import { demoDataService } from '../../services/demoDataService';
 
 const defaultPublicCheckoutConfig: CheckoutConfig = {
    fields: { name: true, email: true, phone: false, cpf: false },
@@ -129,6 +131,33 @@ const CheckoutTracker = ({
 type PaymentMethod = 'credit_card' | 'pix' | 'boleto' | 'apple_pay' | 'google_pay';
 type ProcessState = 'idle' | 'processing' | 'error' | 'success';
 type WalletAvailability = { applePay?: boolean; googlePay?: boolean; link?: boolean; simulated?: boolean };
+
+const getDefaultDemoScenarioForPaymentMethod = (paymentMethod: PaymentMethod | null) => (
+   paymentMethod === 'pix' ? 'pix_pending' : paymentMethod ? 'approved' : ''
+);
+
+const isDemoScenarioCompatibleWithPaymentMethod = (scenario: string, paymentMethod: PaymentMethod | null) => {
+   if (!paymentMethod || !scenario) return false;
+   if (paymentMethod === 'pix') return scenario === 'pix_pending' || scenario === 'pix_paid';
+   return scenario === 'approved' || scenario === 'rejected';
+};
+
+const getPaymentMethodLabel = (paymentMethod: PaymentMethod | null) => {
+   switch (paymentMethod) {
+      case 'credit_card':
+         return 'Cartao de credito';
+      case 'pix':
+         return 'Pix';
+      case 'boleto':
+         return 'Boleto';
+      case 'apple_pay':
+         return 'Apple Pay';
+      case 'google_pay':
+         return 'Google Pay';
+      default:
+         return '';
+   }
+};
 
 const isMercadoPagoSandboxGateway = (gateway?: Gateway | null) =>
    Boolean(gateway?.name === GatewayProvider.MERCADO_PAGO && String(gateway.public_key || '').trim().toUpperCase().startsWith('TEST-'));
@@ -457,6 +486,8 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
    const id = propId || paramId;
    const navigate = useNavigate();
    const { t } = useTranslation('public');
+   const runtimeMode = getRuntimeMode();
+   const isDemoCheckout = runtimeMode === 'demo';
 
    // Data State
    const [loading, setLoading] = useState(true);
@@ -470,6 +501,9 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
 
    // Interaction State
    const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
+   const [demoScenarios, setDemoScenarios] = useState<Array<{ id: string; label: string; status: 'approved' | 'rejected' | 'pix_pending' | 'pix_paid'; description: string }>>([]);
+   const [selectedDemoScenario, setSelectedDemoScenario] = useState<string>('');
+   const [demoReloadKey, setDemoReloadKey] = useState(0);
    const [selectedBumps, setSelectedBumps] = useState<string[]>([]);
    const [timeLeft, setTimeLeft] = useState({ minutes: 15, seconds: 0 });
    const [cardFlipped, setCardFlipped] = useState(false);
@@ -495,6 +529,17 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
 
    const closeAlert = () => {
       setAlertState(prev => ({ ...prev, isOpen: false }));
+   };
+
+   const handlePaymentMethodSelect = (method: PaymentMethod) => {
+      setPaymentMethod(method);
+
+      if (!isDemoCheckout) return;
+
+      const fallbackScenario = getDefaultDemoScenarioForPaymentMethod(method);
+      setSelectedDemoScenario((current) => (
+         isDemoScenarioCompatibleWithPaymentMethod(current, method) ? current : fallbackScenario
+      ));
    };
 
    // Form State
@@ -682,10 +727,40 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
       terms_of_purchase_source: termsDocumentInfo.source,
    });
 
+   useEffect(() => {
+      if (!isDemoCheckout) return;
+
+      const syncDemoState = () => {
+         setDemoReloadKey((current) => current + 1);
+      };
+
+      const handleStorage = (event: StorageEvent) => {
+         if (event.key && !event.key.includes('demo_workspace_runtime:')) return;
+         syncDemoState();
+      };
+
+      const handleVisibilityChange = () => {
+         if (document.visibilityState === 'visible') {
+            syncDemoState();
+         }
+      };
+
+      window.addEventListener('storage', handleStorage);
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+
+      return () => {
+         window.removeEventListener('storage', handleStorage);
+         document.removeEventListener('visibilitychange', handleVisibilityChange);
+      };
+   }, [isDemoCheckout]);
+
    // Load Data
    useEffect(() => {
       const load = async () => {
          try {
+            setLoading(true);
+            setError(null);
+
             // 0. Check for Logged In User
             const urlParams = new URLSearchParams(window.location.search);
             setTrackingAttribution(captureCheckoutTrackingAttribution());
@@ -710,12 +785,23 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                setUpgradeIntentLoading(false);
             }
 
-            const user = await storage.getUser();
-            if (user) {
-               setUserId(user.id);
+            const urlUserId = urlParams.get('u');
+            if (isDemoCheckout) {
+               const demoMemberUser = demoDataService.getCurrentMemberUser();
+               if (urlUserId) {
+                  setUserId(urlUserId);
+               } else if (demoMemberUser?.id) {
+                  setUserId(demoMemberUser.id);
+               } else {
+                  setUserId(undefined);
+               }
             } else {
-               const urlUserId = urlParams.get('u');
-               if (urlUserId) setUserId(urlUserId);
+               const user = await storage.getUser();
+               if (user) {
+                  setUserId(user.id);
+               } else if (urlUserId) {
+                  setUserId(urlUserId);
+               }
             }
 
             // 1. Get Checkout (Public)
@@ -813,11 +899,18 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
             if (checkout.order_bump_ids && checkout.order_bump_ids.length > 0) {
                for (const bumpId of checkout.order_bump_ids) {
                   const bump = await storage.getPublicProduct(bumpId);
-                  if (bump) resolvedBumps.push(bump);
+                  if (bump && bump.active && bump.is_order_bump) {
+                     resolvedBumps.push(bump);
+                  }
                }
             }
 
             setData({ checkout, product: mainProduct, gateway, bumps: resolvedBumps });
+
+            if (isDemoCheckout) {
+               const scenarios = await demoDataService.getScenarios();
+               setDemoScenarios(scenarios);
+            }
 
             // Initialize Timer from Config
             if (checkout.config?.timer?.active) {
@@ -863,7 +956,31 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
          setError("Checkout não especificado.");
          setLoading(false);
       }
-   }, [id]);
+   }, [demoReloadKey, id, isDemoCheckout]);
+
+   useEffect(() => {
+      if (!isDemoCheckout || !data?.checkout?.id || !paymentMethod) return;
+
+      const fallbackScenario = getDefaultDemoScenarioForPaymentMethod(paymentMethod);
+      setSelectedDemoScenario((current) => (
+         isDemoScenarioCompatibleWithPaymentMethod(current, paymentMethod) ? current : fallbackScenario
+      ));
+
+      let cancelled = false;
+      void demoDataService.getSelectedScenario(data.checkout.id, paymentMethod).then((scenario) => {
+         if (!cancelled) {
+            setSelectedDemoScenario(
+               isDemoScenarioCompatibleWithPaymentMethod(scenario, paymentMethod)
+                  ? scenario
+                  : fallbackScenario
+            );
+         }
+      });
+
+      return () => {
+         cancelled = true;
+      };
+   }, [data?.checkout?.id, isDemoCheckout, paymentMethod]);
 
    // Timer Logic
    useEffect(() => {
@@ -954,6 +1071,17 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
       );
    };
 
+   const handleDemoScenarioChange = async (scenario: string) => {
+      if (!data?.checkout?.id || !paymentMethod) return;
+
+      setSelectedDemoScenario(scenario);
+      await demoDataService.setSelectedScenario(
+         data.checkout.id,
+         paymentMethod,
+         scenario as 'approved' | 'rejected' | 'pix_pending' | 'pix_paid',
+      );
+   };
+
    const formatCurrency = (value: number | undefined) => {
       if (value === undefined) return '';
       const currency = data?.product?.currency || 'BRL';
@@ -973,6 +1101,11 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
       });
       return total;
    };
+
+   const configuredUpsellProductId = String(data?.checkout?.config?.upsell?.product_id || '').trim();
+   const hasConfiguredUpsell = Boolean(
+      data?.checkout?.config?.upsell?.active && configuredUpsellProductId
+   );
 
    const handleSubmit = async () => {
       if (isProcessing || !paymentMethod || !data) return;
@@ -1021,6 +1154,17 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
       // --- GATEWAY SPECIFIC PREPARATION ---
       let stripePaymentMethodId: string | undefined = undefined;
 
+      if (data.gateway.name === GatewayProvider.PAGSEGURO && paymentMethod === 'boleto') {
+         showAlert(
+            t('checkout.error_title', 'Erro'),
+            'O boleto do PagBank sera liberado quando o checkout coletar endereco de cobranca completo.',
+            'error'
+         );
+         setProcessState('idle');
+         setIsProcessing(false);
+         return;
+      }
+
       if (paymentMethod === 'credit_card') {
          if (isMercadoPagoSandboxGateway(data.gateway) && !isMercadoPagoSandboxBuyerEmail(customer.email)) {
             const emailInput = document.getElementById('input-email');
@@ -1039,7 +1183,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
             return;
          }
 
-         if (data.gateway.name === GatewayProvider.MERCADO_PAGO && !validateCPF(customer.cpf)) {
+         if ((data.gateway.name === GatewayProvider.MERCADO_PAGO || data.gateway.name === GatewayProvider.PAGSEGURO) && !validateCPF(customer.cpf)) {
             const cpfInput = document.getElementById('input-cpf');
             setTouched(prev => ({ ...prev, cpf: true }));
             setErrors(prev => ({
@@ -1175,7 +1319,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
             saveCardForUpsell: Boolean(
                paymentMethod === 'credit_card'
                && data.gateway?.name === GatewayProvider.MERCADO_PAGO
-               && data.checkout.config?.upsell?.active
+               && hasConfiguredUpsell
             ),
             legalAcceptance: buildLegalAcceptanceSnapshot(),
             // Pass Card Data only if it's NOT a Stripe payment
@@ -1279,7 +1423,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                       upsell_capability_snapshot: result.upsellCapability || null,
                    });
                    const signedQuery = result.statusSignature ? `?sig=${encodeURIComponent(result.statusSignature)}` : '';
-                   if (data.checkout.config?.upsell?.active) {
+                   if (hasConfiguredUpsell) {
                       navigate(`/upsell/${result.orderId}${signedQuery}`);
                    } else {
                       navigate(`/thank-you/${result.orderId}${signedQuery}`);
@@ -1369,7 +1513,15 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
    const totalAmount = calculateTotal();
    const config = normalizePublicCheckoutConfig(data.checkout.config);
    const shouldRequirePhoneField = config.fields.phone;
-   const shouldRequireCpfField = config.fields.cpf || (data.gateway?.name === GatewayProvider.MERCADO_PAGO && paymentMethod === 'credit_card');
+    const isPagSeguroCheckout = data.gateway?.name === GatewayProvider.PAGSEGURO;
+   const availableDemoScenarios = demoScenarios.filter((scenario) =>
+      paymentMethod === 'pix'
+         ? scenario.status === 'pix_pending' || scenario.status === 'pix_paid'
+         : scenario.status === 'approved' || scenario.status === 'rejected'
+   );
+   const shouldRequireCpfField = config.fields.cpf
+      || isPagSeguroCheckout
+      || (data.gateway?.name === GatewayProvider.MERCADO_PAGO && paymentMethod === 'credit_card');
    const shouldRenderCpfField = config.fields.cpf || shouldRequireCpfField;
 
    return (
@@ -1453,6 +1605,59 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                </div>
 
                {/* FORMULÁRIO DO CLIENTE - CONDICIONAL AOS CAMPOS */}
+               {isDemoCheckout && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 shadow-sm">
+                     <div className="flex items-start gap-3">
+                        <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5" />
+                        <div className="flex-1">
+                           <p className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-700">
+                              Modo demo
+                           </p>
+                           <p className="mt-1 text-sm text-amber-900">
+                              Escolha o comportamento da compra para testar o fluxo completo.
+                           </p>
+                           {!paymentMethod ? (
+                              <div className="mt-3 rounded-lg border border-amber-200 bg-white/80 px-3 py-2.5 text-sm text-amber-800">
+                                 Escolha a forma de pagamento abaixo para liberar os cenarios de teste.
+                              </div>
+                           ) : (
+                              <>
+                                 <div className="mt-3 inline-flex items-center rounded-full border border-amber-200 bg-white px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-amber-700">
+                                    Forma ativa: {getPaymentMethodLabel(paymentMethod)}
+                                 </div>
+                                 <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                    {availableDemoScenarios.map((scenario) => {
+                                       const isActiveScenario = selectedDemoScenario === scenario.status;
+
+                                       return (
+                                          <button
+                                             key={scenario.id}
+                                             type="button"
+                                             onClick={() => void handleDemoScenarioChange(scenario.status)}
+                                             className={`rounded-xl border px-4 py-3 text-left transition-all ${
+                                                isActiveScenario
+                                                   ? 'border-amber-500 bg-amber-100 text-amber-950 shadow-sm'
+                                                   : 'border-amber-200 bg-white text-amber-900 hover:border-amber-300 hover:bg-amber-50'
+                                             }`}
+                                          >
+                                             <p className="text-sm font-bold">{scenario.label}</p>
+                                             <p className="mt-1 text-xs opacity-80">{scenario.description}</p>
+                                          </button>
+                                       );
+                                    })}
+                                 </div>
+                                 {selectedDemoScenario && (
+                                    <p className="mt-2 text-xs text-amber-800">
+                                       {availableDemoScenarios.find((scenario) => scenario.status === selectedDemoScenario)?.description || 'Fluxo demo configurado.'}
+                                    </p>
+                                 )}
+                              </>
+                           )}
+                        </div>
+                     </div>
+                  </div>
+               )}
+
                {upgradeIntentToken && (
                   <div className={`p-5 rounded-xl shadow-sm border ${upgradeIntentError ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200'}`}>
                      <div className="flex items-start gap-3">
@@ -1520,7 +1725,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
                      {config.payment_methods?.credit_card && (
                         <button
-                           onClick={() => setPaymentMethod('credit_card')}
+                           onClick={() => handlePaymentMethodSelect('credit_card')}
                            className={`relative flex items-center justify-center gap-2 p-4 rounded-xl border-2 transition-all ${paymentMethod === 'credit_card'
                               ? 'bg-[#F0FDF4] border-[#10B981] text-[#10B981]'
                               : 'bg-gray-100 border-transparent text-gray-600 hover:bg-gray-200'
@@ -1538,7 +1743,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
 
                      {config.payment_methods?.pix && (
                         <button
-                           onClick={() => setPaymentMethod('pix')}
+                           onClick={() => handlePaymentMethodSelect('pix')}
                            className={`relative flex items-center justify-center gap-2 p-4 rounded-xl border-2 transition-all ${paymentMethod === 'pix'
                               ? 'bg-[#F0FDF4] border-[#10B981] text-[#10B981]'
                               : 'bg-gray-100 border-transparent text-gray-600 hover:bg-gray-200'
@@ -1554,9 +1759,9 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                         </button>
                      )}
 
-                     {config.payment_methods?.boleto && (
+                     {config.payment_methods?.boleto && !isPagSeguroCheckout && (
                         <button
-                           onClick={() => setPaymentMethod('boleto')}
+                           onClick={() => handlePaymentMethodSelect('boleto')}
                            className={`relative flex items-center justify-center gap-2 p-4 rounded-xl border-2 transition-all ${paymentMethod === 'boleto'
                               ? 'bg-[#F0FDF4] border-[#10B981] text-[#10B981]'
                               : 'bg-gray-100 border-transparent text-gray-600 hover:bg-gray-200'
@@ -1577,7 +1782,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                            type="apple"
                            walletAvailability={walletAvailability}
                            paymentMethod={paymentMethod}
-                           setPaymentMethod={setPaymentMethod}
+                           setPaymentMethod={handlePaymentMethodSelect}
                         />
                      )}
 
@@ -1586,7 +1791,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                            type="google"
                            walletAvailability={walletAvailability}
                            paymentMethod={paymentMethod}
-                           setPaymentMethod={setPaymentMethod}
+                           setPaymentMethod={handlePaymentMethodSelect}
                         />
                      )}
                   </div>
@@ -2135,6 +2340,10 @@ const WalletExpressButton = ({
    const navigate = useNavigate();
    const { t } = useTranslation('public');
    const [isVisible, setIsVisible] = useState(false);
+   const configuredUpsellProductId = String(data?.checkout?.config?.upsell?.product_id || '').trim();
+   const hasConfiguredUpsell = Boolean(
+      data?.checkout?.config?.upsell?.active && configuredUpsellProductId
+   );
 
    useEffect(() => {
       const checkAvailability = async () => {
@@ -2251,7 +2460,7 @@ const WalletExpressButton = ({
                   upsell_capability_snapshot: result.upsellCapability || null,
                });
                const signedQuery = result.statusSignature ? `?sig=${encodeURIComponent(result.statusSignature)}` : '';
-               if (data.checkout.config?.upsell?.active) {
+               if (hasConfiguredUpsell) {
                   navigate(`/upsell/${result.orderId}${signedQuery}`);
                } else {
                   navigate(`/thank-you/${result.orderId}${signedQuery}`);
@@ -2270,7 +2479,7 @@ const WalletExpressButton = ({
       return () => {
          paymentRequest.off('paymentmethod', handlePaymentMethod);
       };
-   }, [stripe, paymentRequest, data, selectedBumps, trackingAttribution, userId, upgradeIntentToken, upgradeIntentContext, navigate, showAlert]);
+   }, [stripe, paymentRequest, data, selectedBumps, trackingAttribution, userId, upgradeIntentToken, upgradeIntentContext, navigate, showAlert, hasConfiguredUpsell]);
 
    if (!isVisible || !paymentRequest) return null;
 

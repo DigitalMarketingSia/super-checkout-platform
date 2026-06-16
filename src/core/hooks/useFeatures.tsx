@@ -7,6 +7,7 @@ import {
 } from '../services/featureAccess';
 import { SystemFeature } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { getRuntimeMode } from '../config/runtimeMode';
 
 export interface UnifiedFeatures {
     features: FeatureSet;
@@ -35,6 +36,20 @@ export const useFeatures = (): UnifiedFeatures => {
     const loadAll = useCallback(async () => {
         setLoading(true);
         try {
+            if (getRuntimeMode() === 'demo') {
+                setRawFeatures([]);
+                setLimits({
+                    products: 'unlimited',
+                    checkouts: 'unlimited',
+                    domains: 'unlimited',
+                    member_areas: 'unlimited',
+                });
+                setFeatures({});
+                setPlan('demo');
+                setIsOwnerState(true);
+                return;
+            }
+
             const resolvedAccess = await resolveFeatureAccess(user?.email);
 
             // 1. Load Local System Features (Flags)

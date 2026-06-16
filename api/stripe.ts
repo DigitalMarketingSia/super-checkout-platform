@@ -5,6 +5,11 @@ import { decrypt } from '../src/core/utils/cryptoUtils.js';
 import { MercadoPagoConfig, Payment } from 'mercadopago';
 import { fulfillOrder } from '../src/core/services/fulfillment.js';
 import { sendOrderAccessEmail } from '../src/core/services/orderEmail.js';
+import {
+    buildSafePagSeguroRawResponse,
+    getPagSeguroStatus,
+    mapPagSeguroStatusToLocal,
+} from '../src/core/utils/pagSeguro.js';
 
 // --- CONFIG ---
 export const config = {
@@ -63,7 +68,7 @@ const summarizeWebhookPayload = (rawPayload?: string) => {
     };
 };
 
-const buildProviderRawResponse = (provider: 'stripe' | 'mercadopago', data: any) => {
+const buildProviderRawResponse = (provider: 'stripe' | 'mercadopago' | 'pagseguro', data: any) => {
     return JSON.stringify({
         redacted: true,
         provider,
@@ -286,6 +291,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         
         if (action === 'mercadopago') {
             return await handleMercadoPago(req, res, rawBody, supabaseAdmin);
+        }
+
+        if (action === 'pagseguro') {
+            return await handlePagSeguro(req, res, rawBody, supabaseAdmin);
         }
 
         if (action === 'central' || action === 'super-checkout-central') {
@@ -566,6 +575,152 @@ async function handleMercadoPago(req: VercelRequest, res: VercelResponse, rawBod
         await logWebhook(supabaseAdmin, 'webhook.mp_error', 'MP processing failed', 500, rawBody);
         return res.status(500).json({ status: 'ERROR' });
     }
+}
+
+function verifyPagSeguroSignature(rawBody: string, token: string, signature: string | string[] | undefined) {
+    const provided = Array.isArray(signature) ? signature[0] : signature;
+    if (!provided || !token) return false;
+    const expected = crypto
+        .createHash('sha256')
+        .update(`${token}-${rawBody}`, 'utf8')
+        .digest('hex');
+    return safeCompare(provided.trim().toLowerCase(), expected);
+}
+
+async function handlePagSeguro(req: VercelRequest, res: VercelResponse, rawBody: string, supabaseAdmin: any) {
+    let payload: any;
+    try {
+        payload = JSON.parse(rawBody);
+    } catch {
+        return res.status(200).json({ status: 'INVALID_JSON' });
+    }
+
+    const providerOrderId = String(payload?.id || '').trim();
+    const localOrderId = String(payload?.reference_id || '').trim();
+    const providerStatus = getPagSeguroStatus(payload);
+    const localStatus = mapPagSeguroStatusToLocal(providerStatus);
+    const webhookEventId = `pagseguro_${providerOrderId || 'unknown'}_${providerStatus || 'unknown'}`;
+
+    if (!providerOrderId || !localOrderId) {
+        await logWebhook(supabaseAdmin, 'webhook.pagseguro_invalid_payload', 'Missing order identifiers', 200, rawBody);
+        return res.status(200).json({ status: 'INVALID_PAYLOAD' });
+    }
+
+    if (await isAlreadyProcessed(supabaseAdmin, webhookEventId)) {
+        return res.status(200).json({ status: 'ALREADY_PROCESSED', orderId: providerOrderId });
+    }
+
+    const { order, checkout } = await loadOrderAndCheckout(supabaseAdmin, localOrderId);
+    if (!order || !checkout) {
+        await logWebhook(supabaseAdmin, webhookEventId, 'PagBank order not found', 200, rawBody);
+        return res.status(200).json({ status: 'ORDER_NOT_FOUND' });
+    }
+
+    const allowedGatewayIds = [checkout.gateway_id, checkout.backup_gateway_id].filter(Boolean).map(String);
+    const { data: candidateGateways } = await supabaseAdmin
+        .from('gateways')
+        .select('*')
+        .in('id', allowedGatewayIds)
+        .eq('user_id', order.user_id)
+        .eq('active', true)
+        .eq('name', 'pagseguro');
+
+    const gatewayRecord = candidateGateways?.find((gateway: any) => checkoutAllowsGateway(checkout, gateway.id)) || null;
+    if (!gatewayRecord) {
+        await logWebhook(supabaseAdmin, webhookEventId, 'PagBank gateway not found', 200, rawBody);
+        return res.status(200).json({ status: 'GATEWAY_NOT_FOUND' });
+    }
+
+    const validationToken = decrypt(gatewayRecord.webhook_secret || gatewayRecord.private_key || '').trim();
+    const signatureHeader = req.headers['x-authenticity-token'];
+    const isSandboxGateway = String(gatewayRecord?.config?.environment || '').trim().toLowerCase() === 'sandbox';
+    const signatureIsValid = verifyPagSeguroSignature(rawBody, validationToken, signatureHeader);
+    const signatureMissing = !signatureHeader || (Array.isArray(signatureHeader) ? !signatureHeader[0] : !signatureHeader);
+
+    if (!signatureIsValid && !(isSandboxGateway && signatureMissing)) {
+        await logWebhook(supabaseAdmin, 'webhook.pagseguro_invalid_signature', 'INVALID_SIGNATURE', 401, rawBody);
+        return res.status(401).json({ status: 'INVALID_SIGNATURE' });
+    }
+
+    if (!webhookOwnershipMatches(order, checkout, gatewayRecord)) {
+        await logWebhook(supabaseAdmin, `${webhookEventId}_ownership_rejected`, 'PagBank ownership rejected', 200, rawBody);
+        return res.status(200).json({ status: 'OWNERSHIP_REJECTED' });
+    }
+
+    const rawResponse = buildSafePagSeguroRawResponse(payload);
+    const { data: existingPayment } = await supabaseAdmin
+        .from('payments')
+        .select('id,user_id')
+        .eq('order_id', order.id)
+        .eq('gateway_id', gatewayRecord.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+    const updates = [
+        supabaseAdmin
+            .from('orders')
+            .update({
+                status: localStatus,
+                payment_id: providerOrderId,
+            })
+            .eq('id', order.id)
+            .eq('user_id', order.user_id),
+    ];
+
+    if (existingPayment?.id) {
+        updates.push(
+            supabaseAdmin
+                .from('payments')
+                .update({
+                    status: localStatus,
+                    transaction_id: providerOrderId,
+                    raw_response: rawResponse,
+                    user_id: order.user_id,
+                })
+                .eq('id', existingPayment.id)
+                .eq('order_id', order.id)
+        );
+    } else {
+        updates.push(
+            supabaseAdmin
+                .from('payments')
+                .insert({
+                    id: crypto.randomUUID(),
+                    order_id: order.id,
+                    gateway_id: gatewayRecord.id,
+                    status: localStatus,
+                    transaction_id: providerOrderId,
+                    raw_response: rawResponse,
+                    user_id: order.user_id,
+                    created_at: new Date().toISOString(),
+                })
+        );
+    }
+
+    await Promise.all(updates);
+
+    if (localStatus === 'paid') {
+        await fulfillOrder(supabaseAdmin, {
+            orderId: order.id,
+            email: order?.customer_email,
+            name: order?.customer_name,
+        });
+        try {
+            const origin = `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host}`;
+            await sendOrderAccessEmail(supabaseAdmin, {
+                orderId: order.id,
+                origin,
+                email: order?.customer_email,
+                name: order?.customer_name,
+            });
+        } catch (emailError: any) {
+            console.error('[PagSeguro Hub] Business email fallback failed:', emailError?.message || emailError);
+        }
+    }
+
+    await logWebhook(supabaseAdmin, webhookEventId, `PagBank ${providerStatus}: ${order.id}`, 200, rawBody);
+    return res.status(200).json({ status: 'OK', providerStatus, localStatus });
 }
 
 // --- CENTRAL ---

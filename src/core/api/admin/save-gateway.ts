@@ -23,6 +23,10 @@ function parseBody(req: VercelRequest) {
   return req.body;
 }
 
+function normalizeGatewayProvider(value: unknown) {
+  return String(value || '').trim().toLowerCase();
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
@@ -63,7 +67,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(429).json({ error: 'Too many requests' });
     }
 
-    const { id, name, public_key, private_key, webhook_secret, config, user_id, provider, active } = body;
+    const {
+      id,
+      name,
+      public_key,
+      private_key,
+      webhook_secret,
+      config,
+      user_id,
+      provider,
+      active,
+      clear_private_key,
+      clear_public_key,
+      clear_webhook_secret,
+    } = body;
+    const normalizedProvider = normalizeGatewayProvider(provider || name);
 
     if (user_id !== user.id) {
       await logAuthzEvent({
@@ -95,14 +113,61 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return val.split(':').length === 3;
     };
 
-    // Encrypt sensitive data (Fase 11C)
-    const encryptedPrivateKey = (private_key && !isAlreadyEncrypted(private_key)) ? encrypt(private_key) : private_key;
-    const encryptedWebhookSecret = (webhook_secret && !isAlreadyEncrypted(webhook_secret)) ? encrypt(webhook_secret) : webhook_secret;
+    let existingGateway: {
+      id: string;
+      user_id: string;
+      private_key?: string | null;
+      webhook_secret?: string | null;
+      provider?: string | null;
+      name?: string | null;
+    } | null = null;
+
+    if (id) {
+      const { data: gatewayById, error: existingGatewayError } = await supabaseAdmin
+        .from('gateways')
+        .select('id,user_id,private_key,webhook_secret,provider,name')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (existingGatewayError) throw existingGatewayError;
+      if (!gatewayById) return res.status(404).json({ error: 'Gateway not found' });
+
+      existingGateway = gatewayById;
+    } else if (normalizedProvider) {
+      const { data: ownedGateways, error: lookupError } = await supabaseAdmin
+        .from('gateways')
+        .select('id,user_id,private_key,webhook_secret,provider,name,created_at')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (lookupError) throw lookupError;
+
+      existingGateway = (ownedGateways || []).find((gateway: any) => {
+        const providerMatch = normalizeGatewayProvider(gateway?.provider) === normalizedProvider;
+        const nameMatch = normalizeGatewayProvider(gateway?.name) === normalizedProvider;
+        return providerMatch || nameMatch;
+      }) || null;
+    }
+
+    const resolveSecretToPersist = (
+      incomingValue: unknown,
+      existingValue?: string | null,
+      shouldClear: boolean = false
+    ) => {
+      if (shouldClear) return null;
+      const rawValue = typeof incomingValue === 'string' ? incomingValue.trim() : '';
+      if (!rawValue) return existingValue || null;
+      return isAlreadyEncrypted(rawValue) ? rawValue : encrypt(rawValue);
+    };
+
+    // Keep existing encrypted secrets when the UI leaves the field blank.
+    const encryptedPrivateKey = resolveSecretToPersist(private_key, existingGateway?.private_key, Boolean(clear_private_key));
+    const encryptedWebhookSecret = resolveSecretToPersist(webhook_secret, existingGateway?.webhook_secret, Boolean(clear_webhook_secret));
 
     const gatewayData = {
       name: provider || name,
       provider: provider || name,
-      public_key,
+      public_key: clear_public_key ? null : public_key,
       private_key: encryptedPrivateKey,
       webhook_secret: encryptedWebhookSecret,
       config: config || {},
@@ -111,18 +176,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
 
     let result;
+    const targetGatewayId = id || existingGateway?.id || null;
 
-    if (id) {
+    if (targetGatewayId) {
       // Update existing
-      const { data: existingGateway, error: existingGatewayError } = await supabaseAdmin
-        .from('gateways')
-        .select('id,user_id')
-        .eq('id', id)
-        .maybeSingle();
-
-      if (existingGatewayError) throw existingGatewayError;
-      if (!existingGateway) return res.status(404).json({ error: 'Gateway not found' });
-
       if (existingGateway.user_id && existingGateway.user_id !== user.id) {
         await logAuthzEvent({
           supabaseAdmin,
@@ -144,7 +201,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       result = await supabaseAdmin
         .from('gateways')
         .update(gatewayData)
-        .eq('id', id);
+        .eq('id', targetGatewayId);
     } else {
       // Create new
       result = await supabaseAdmin
@@ -167,8 +224,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         metadata: {
           user_id,
           provider: provider || name,
-          gateway_id: id || null,
-          action: id ? 'update' : 'create',
+          gateway_id: targetGatewayId,
+          action: targetGatewayId ? 'update' : 'create',
           reason: 'database_write_failed',
           code: result.error.code || null,
         },
@@ -186,8 +243,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       metadata: {
         user_id,
         provider: provider || name,
-        gateway_id: id || null,
-        action: id ? 'update' : 'create',
+        gateway_id: targetGatewayId,
+        action: targetGatewayId ? 'update' : 'create',
         active: active ?? true,
         changed_fields: {
           public_key: !!public_key,

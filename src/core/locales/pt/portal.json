@@ -34,6 +34,7 @@
   },
   "sidebar": {
     "dashboard": "Dashboard",
+    "demo": "Ver o Sistema",
     "access_data": "Dados de Acesso",
     "installation": "Instalação",
     "tutorials": "Tutoriais",
@@ -92,6 +93,67 @@
     },
     "limited_desc": "Seu plano atual opera com 1 dominio e 3 produtos. Quando quiser escalar sem travas, faca o upgrade para o plano ilimitado.",
     "unlimited_desc": "Seu plano atual ja opera com limites liberados para crescimento e novas instalacoes.",
+    "demo": {
+      "eyebrow": "teste antes de instalar",
+      "title": "Sistema demo oficial",
+      "description": "Abra um ambiente demo guiado com as mesmas telas do produto real para simular negocio, produtos, checkout, compras e area de membros antes da instalacao definitiva.",
+      "cta": "abrir sistema demo",
+      "opening": "abrindo demo...",
+      "popup_blocked": "Permita pop-ups para abrir o sistema demo em uma nova aba.",
+      "retention": "Cada workspace demo expira e e purgado automaticamente em 24h.",
+      "error": "Nao foi possivel abrir o sistema demo agora.",
+      "bullets": {
+        "ui": "mesmas telas do produto",
+        "checkout": "checkout e compras simuladas",
+        "members": "area de membros demo",
+        "full_test": "Teste completo"
+      },
+      "launchpad": {
+        "eyebrow": "modo demo",
+        "title": "Entrada oficial do sistema demo",
+        "loading": "Conferindo sua sessao demo...",
+        "status_ready": "acesso autenticado",
+        "status_error": "acesso nao liberado",
+        "ready_intro": "Voce entrou com a mesma identidade do portal. O proximo lote vai provisionar o workspace demo isolado e abrir o admin demo automaticamente.",
+        "workspace_ready": "Seu workspace demo foi carregado com seed inicial, expiracao em 24h e reset manual para novo ciclo de testes.",
+        "no_session": "Sua sessao demo nao foi encontrada. Abra o demo novamente pelo portal.",
+        "safe_flow": "entrada segura via passport",
+        "workspace_rule": "1 workspace demo ativo por conta",
+        "retention_rule": "purge automatico em 24h",
+        "back_portal": "voltar ao portal",
+        "signed_as": "Sessao validada para {{email}}",
+        "workspace_title": "workspace provisionado",
+        "feedback_ready": "Workspace demo sincronizado com sucesso.",
+        "feedback_reset": "Workspace demo resetado com um novo seed inicial.",
+        "reset_confirm": "Isso vai apagar o estado demo atual e criar um novo workspace inicial. Deseja continuar?",
+        "labels": {
+          "workspace_id": "id do workspace",
+          "expires_at": "expira em",
+          "reset_count": "quantidade de resets",
+          "storage_prefix": "prefixo de storage"
+        },
+        "actions": {
+          "refresh": "atualizar",
+          "reset": "resetar demo"
+        },
+        "summary": {
+          "products": "produtos",
+          "checkouts": "checkouts",
+          "orders": "pedidos",
+          "member_modules": "modulos",
+          "integrations": "integracoes",
+          "domains": "dominios"
+        },
+        "sections": {
+          "products": "seed de produtos",
+          "member_area": "seed da area de membros",
+          "orders": "cenarios de pedidos",
+          "integrations": "integracoes e efeitos externos"
+        },
+        "next_title": "Proximo lote: plugar nas telas reais",
+        "next_description": "O ciclo seguinte usa este workspace provisionado para alimentar as telas de admin, checkout publico e area de membros com adapters demo, sem depender de instalacao self-hosted."
+      }
+    },
     "quick_access": {
       "eyebrow": "atalhos rapidos",
       "title": "Acesso rapido ao seu sistema",

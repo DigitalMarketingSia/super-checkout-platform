@@ -7,6 +7,11 @@ import {
   getPostPurchaseEmailTemplate,
   type PostPurchaseTemplateEventType,
 } from './postPurchaseEmailTemplates.js';
+import {
+  loadOrderMetadata,
+  mergeOrderMetadata,
+  normalizeOrderMetadata,
+} from './orderMetadata.js';
 
 type SupabaseAdmin = any;
 
@@ -344,7 +349,7 @@ export async function sendOrderAccessEmail(
 
   if (orderError || !order) throw new Error(`Order ${orderId} not found for access email.`);
 
-  const metadata = order.metadata && typeof order.metadata === 'object' ? order.metadata : {};
+  let metadata = normalizeOrderMetadata(order.metadata);
   const to = input.email || order.customer_email;
   const name = input.name || order.customer_name || 'Cliente';
   if (!to) throw new Error(`Order ${orderId} has no recipient email.`);
@@ -367,6 +372,7 @@ export async function sendOrderAccessEmail(
   });
 
   const businessName = settings?.business_name || 'Super Checkout';
+  metadata = await loadOrderMetadata(supabaseAdmin, orderId);
   const messages = buildDeliveryMessages({
     deliverables,
     customerName: name,
@@ -379,23 +385,17 @@ export async function sendOrderAccessEmail(
 
   let emailMetadata = metadata;
   const persistMetadata = async (partial: Record<string, any>) => {
-    emailMetadata = {
-      ...emailMetadata,
-      ...partial,
-    };
-    await supabaseAdmin
-      .from('orders')
-      .update({ metadata: emailMetadata })
-      .eq('id', orderId);
+    emailMetadata = await mergeOrderMetadata(supabaseAdmin, orderId, partial);
   };
 
   if (!input.force) {
     const sendingAt = new Date().toISOString();
+    const latestMetadata = await loadOrderMetadata(supabaseAdmin, orderId);
     const { data: lockRows, error: lockError } = await supabaseAdmin
       .from('orders')
       .update({
         metadata: {
-          ...metadata,
+          ...latestMetadata,
           order_completed_email_sending_at: sendingAt,
         },
       })
@@ -413,7 +413,7 @@ export async function sendOrderAccessEmail(
     }
 
     emailMetadata = {
-      ...metadata,
+      ...latestMetadata,
       order_completed_email_sending_at: sendingAt,
     };
   }

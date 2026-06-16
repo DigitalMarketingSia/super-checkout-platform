@@ -6,6 +6,7 @@ import {
 import { securityService } from '../../core/services/securityService.js';
 import { fulfillOrder } from '../../core/services/fulfillment.js';
 import { sendOrderAccessEmail } from '../../core/services/orderEmail.js';
+import { loadOrderMetadata, mergeOrderMetadata } from '../../core/services/orderMetadata.js';
 import { upsertCustomerPaymentProfile } from './customer-payment-profiles.js';
 import {
   PaymentSecurityError,
@@ -28,7 +29,7 @@ import {
 
 async function sendPaymentApprovedEmail(supabaseAdmin: any, orderId: string, order: any, productName: string) {
   try {
-    const metadata = order?.metadata && typeof order.metadata === 'object' ? order.metadata : {};
+    const metadata = await loadOrderMetadata(supabaseAdmin, orderId);
     if (metadata.payment_email_sent_at) {
       console.log(`[MP-FETCH] Payment email already sent for order ${orderId}. Skipping.`);
       return;
@@ -110,16 +111,10 @@ async function sendPaymentApprovedEmail(supabaseAdmin: any, orderId: string, ord
       return;
     }
 
-    await supabaseAdmin
-      .from('orders')
-      .update({
-        metadata: {
-          ...metadata,
-          payment_email_sent_at: new Date().toISOString(),
-          payment_email_resend_id: resendData?.id || null
-        }
-      })
-      .eq('id', orderId);
+    await mergeOrderMetadata(supabaseAdmin, orderId, {
+      payment_email_sent_at: new Date().toISOString(),
+      payment_email_resend_id: resendData?.id || null,
+    });
 
     console.log(`[MP-FETCH] Payment approved email sent for order ${orderId}.`);
   } catch (emailError: any) {

@@ -67,11 +67,13 @@ const getTrustedPassportOrigins = () => {
         platformUrls.app,
         platformUrls.portal,
         platformUrls.install,
+        platformUrls.demo,
         window.location.origin,
         import.meta.env.VITE_SUPER_CHECKOUT_MARKETING_URL,
         import.meta.env.VITE_SUPER_CHECKOUT_APP_URL,
         import.meta.env.VITE_SUPER_CHECKOUT_PORTAL_URL,
         import.meta.env.VITE_SUPER_CHECKOUT_INSTALL_URL,
+        import.meta.env.VITE_SUPER_CHECKOUT_DEMO_URL,
     ]
         .map((origin) => normalizeOrigin(origin))
         .filter(Boolean) as string[];

@@ -1,6 +1,7 @@
 
 import { Gateway, GatewayProvider, Order, OrderStatus, Payment, WebhookLog, OrderItem, InstallmentOption } from '../types';
 import { storage } from './storageService';
+import { demoDataService } from './demoDataService';
 import { MercadoPagoAdapter } from './adapters/MercadoPagoAdapter';
 import { StripeAdapter } from './adapters/StripeAdapter';
 import { emailService } from './emailService';
@@ -10,6 +11,9 @@ import i18n from '../i18n/config';
 import type { UpgradeIntentContext } from './licenseService';
 import type { UpsellGatewayCapability } from '../config/upsellCapabilities';
 import type { CheckoutTrackingAttribution } from '../utils/trackingAttribution';
+import { encryptPagSeguroCard } from '../utils/pagSeguroBrowser';
+import { getPagSeguroStatus, mapPagSeguroStatusToLocal } from '../utils/pagSeguro';
+import { dispatchDemoWebhookEvent } from './demoWebhookService';
 
 // Helper for UUID generation
 const generateUUID = () => {
@@ -213,6 +217,90 @@ class PaymentService {
     };
   }
 
+  private buildDemoWebhookPayload(
+    order: Order,
+    overrides: Record<string, unknown> = {},
+  ) {
+    const metadata = order.metadata && typeof order.metadata === 'object' ? order.metadata : {};
+    const paymentContext = metadata.payment_context && typeof metadata.payment_context === 'object'
+      ? metadata.payment_context
+      : {};
+
+    return {
+      demo: true,
+      source: 'demo',
+      workspace_mode: 'demo',
+      scenario: metadata.demo_scenario || metadata.scenario || null,
+      order_id: order.id,
+      checkout_id: order.checkout_id,
+      amount: order.total || order.amount || 0,
+      currency: paymentContext.currency || 'BRL',
+      status: order.status,
+      payment_method: order.payment_method,
+      customer: {
+        name: order.customer_name,
+        email: order.customer_email,
+        phone: order.customer_phone || null,
+        cpf: order.customer_cpf || null,
+      },
+      items: Array.isArray(order.items) ? order.items : [],
+      created_at: order.created_at,
+      ...overrides,
+    };
+  }
+
+  private async dispatchDemoLifecycleWebhook(params: {
+    event: string;
+    order: Order;
+    payloadOverrides?: Record<string, unknown>;
+    eventAliases?: string[];
+  }) {
+    try {
+      const payload = {
+        event: params.event,
+        ...this.buildDemoWebhookPayload(params.order, params.payloadOverrides),
+      };
+
+      const result = await dispatchDemoWebhookEvent({
+        event: params.event,
+        eventAliases: params.eventAliases,
+        payload,
+      });
+
+      if (result.logs.length > 0) {
+        await storage.saveWebhookLogs(result.logs);
+      }
+    } catch (error) {
+      console.warn(`[PaymentService] Demo webhook dispatch failed for ${params.event}:`, error);
+    }
+  }
+
+  private async dispatchDemoPaidWebhooks(order: Order) {
+    const purchasedAt = new Date().toISOString();
+
+    await this.dispatchDemoLifecycleWebhook({
+      event: 'pagamento.aprovado',
+      eventAliases: ['pedido.pago'],
+      order,
+      payloadOverrides: {
+        status: OrderStatus.PAID,
+        purchased_at: purchasedAt,
+      },
+    });
+
+    if (order.payment_method === 'pix') {
+      await this.dispatchDemoLifecycleWebhook({
+        event: 'pix.pago',
+        order,
+        payloadOverrides: {
+          status: OrderStatus.PAID,
+          purchased_at: purchasedAt,
+          pix_data: demoDataService.buildPixData(order.id, order.total || order.amount || 0),
+        },
+      });
+    }
+  }
+
   /**
    * MOTOR FINANCEIRO HÍBRIDO
    * Retorna parcelas dinâmicas baseadas na Moeda, Gateway e BIN do Cartão.
@@ -372,6 +460,10 @@ class PaymentService {
             await storage.createOrder(currentOrder);
           }
 
+          if (gateway.config?.demo) {
+            return await this.processDemoGateway(gateway, currentOrder, request);
+          }
+
           // Executar roteamento
           let gatewayResponse: ProcessPaymentResult;
           switch (gateway.name) {
@@ -380,6 +472,9 @@ class PaymentService {
               break;
             case GatewayProvider.STRIPE:
               gatewayResponse = await this.processStripe(gateway, currentOrder, request);
+              break;
+            case GatewayProvider.PAGSEGURO:
+              gatewayResponse = await this.processPagSeguro(gateway, currentOrder, request);
               break;
             default:
               gatewayResponse = { success: false, message: i18n.t('unknown_gateway') };
@@ -434,6 +529,191 @@ class PaymentService {
   }
 
   // --- Gateway Adapters ---
+
+  private async processDemoGateway(
+    gateway: Gateway,
+    order: Order,
+    request: ProcessPaymentRequest
+  ): Promise<ProcessPaymentResult> {
+    try {
+      const demoMember = await demoDataService.resolveOrCreateMember({
+        requestedUserId: request.customerUserId || order.customer_user_id || null,
+        email: request.customerEmail || order.customer_email,
+        fullName: request.customerName || order.customer_name,
+      });
+      const selectedScenario = await demoDataService.getSelectedScenario(order.checkout_id, request.paymentMethod);
+      const scenario = request.paymentMethod === 'pix'
+        ? (selectedScenario === 'rejected' ? 'pix_pending' : selectedScenario)
+        : selectedScenario === 'rejected'
+          ? 'rejected'
+          : 'approved';
+      const statusSignature = `demo:${order.id}`;
+      const metadata = order.metadata && typeof order.metadata === 'object' ? order.metadata : {};
+      const baseOrder: Order = {
+        ...order,
+        customer_user_id: demoMember.id,
+        customer_email: demoMember.email,
+        customer_name: request.customerName || demoMember.full_name,
+        total: order.total || order.amount,
+        metadata: {
+          ...metadata,
+          demo: true,
+          demo_scenario: scenario,
+          demo_status_signature: statusSignature,
+        },
+      };
+
+      if (request.paymentMethod === 'pix') {
+        const autoApprove = scenario === 'pix_paid' || scenario === 'approved';
+        const pendingOrder: Order = {
+          ...baseOrder,
+          status: OrderStatus.PENDING,
+          metadata: {
+            ...baseOrder.metadata,
+            demo_gateway_status: 'pending',
+            demo_auto_approve_at: autoApprove ? new Date(Date.now() + 4000).toISOString() : null,
+            order_deliverables: [],
+          },
+        };
+
+        await demoDataService.saveOrders([pendingOrder]);
+        await demoDataService.upsertPayment({
+          id: `demo-payment:${order.id}`,
+          order_id: order.id,
+          gateway_id: gateway.id,
+          status: OrderStatus.PENDING,
+          transaction_id: `demo-pix-${order.id}`,
+          raw_response: JSON.stringify({
+            demo: true,
+            scenario,
+            payment_method: request.paymentMethod,
+          }),
+          created_at: new Date().toISOString(),
+        });
+
+        await this.dispatchDemoLifecycleWebhook({
+          event: 'pedido.criado',
+          order: pendingOrder,
+          payloadOverrides: {
+            status: OrderStatus.PENDING,
+          },
+        });
+        await this.dispatchDemoLifecycleWebhook({
+          event: 'pix.gerado',
+          order: pendingOrder,
+          payloadOverrides: {
+            status: OrderStatus.PENDING,
+            pix_data: demoDataService.buildPixData(order.id, order.amount || 0),
+          },
+        });
+
+        return {
+          success: true,
+          orderId: order.id,
+          gatewayStatus: 'pending',
+          statusSignature,
+          pixData: demoDataService.buildPixData(order.id, order.amount || 0),
+          message: autoApprove ? 'pending_auto_confirm' : 'pending',
+        };
+      }
+
+      if (scenario === 'rejected') {
+        const failedOrder: Order = {
+          ...baseOrder,
+          status: OrderStatus.FAILED,
+          metadata: {
+            ...baseOrder.metadata,
+            demo_gateway_status: 'rejected',
+            demo_auto_approve_at: null,
+            order_deliverables: [],
+          },
+        };
+
+        await demoDataService.saveOrders([failedOrder]);
+        await demoDataService.upsertPayment({
+          id: `demo-payment:${order.id}`,
+          order_id: order.id,
+          gateway_id: gateway.id,
+          status: OrderStatus.FAILED,
+          transaction_id: `demo-card-${order.id}`,
+          raw_response: JSON.stringify({
+            demo: true,
+            scenario,
+            payment_method: request.paymentMethod,
+          }),
+          created_at: new Date().toISOString(),
+        });
+
+        await this.dispatchDemoLifecycleWebhook({
+          event: 'pedido.criado',
+          order: failedOrder,
+          payloadOverrides: {
+            status: OrderStatus.PENDING,
+          },
+        });
+        await this.dispatchDemoLifecycleWebhook({
+          event: 'pagamento.rejeitado',
+          order: failedOrder,
+          payloadOverrides: {
+            status: OrderStatus.FAILED,
+          },
+        });
+
+        return {
+          success: false,
+          orderId: order.id,
+          gatewayStatus: 'rejected',
+          message: 'Pagamento demo recusado pelo cenario selecionado.',
+        };
+      }
+
+      const approvedOrder: Order = {
+        ...baseOrder,
+        status: OrderStatus.PENDING,
+        metadata: {
+          ...baseOrder.metadata,
+          demo_gateway_status: 'approved',
+          demo_auto_approve_at: null,
+        },
+      };
+
+      await demoDataService.saveOrders([approvedOrder]);
+      await demoDataService.upsertPayment({
+        id: `demo-payment:${order.id}`,
+        order_id: order.id,
+        gateway_id: gateway.id,
+        status: OrderStatus.PAID,
+        transaction_id: `demo-card-${order.id}`,
+        raw_response: JSON.stringify({
+          demo: true,
+          scenario,
+          payment_method: request.paymentMethod,
+        }),
+        created_at: new Date().toISOString(),
+      });
+      await this.dispatchDemoLifecycleWebhook({
+        event: 'pedido.criado',
+        order: approvedOrder,
+        payloadOverrides: {
+          status: OrderStatus.PENDING,
+        },
+      });
+      await demoDataService.markOrderPaid(order.id);
+
+      return {
+        success: true,
+        orderId: order.id,
+        gatewayStatus: 'approved',
+        statusSignature,
+      };
+    } catch (error: any) {
+      console.error('[PaymentService] Demo gateway error:', error);
+      return {
+        success: false,
+        message: error?.message || 'Falha ao processar pagamento demo.',
+      };
+    }
+  }
 
   private async processMercadoPago(
     gateway: Gateway,
@@ -625,6 +905,136 @@ class PaymentService {
     if (/^3[47]/.test(clean)) return 'amex';
     if (/^6/.test(clean)) return 'elo';
     return 'master';
+  }
+
+  private mapPagSeguroOrderStatus(status: string): OrderStatus {
+    const normalized = mapPagSeguroStatusToLocal(status);
+    switch (normalized) {
+      case 'paid':
+        return OrderStatus.PAID;
+      case 'failed':
+        return OrderStatus.FAILED;
+      case 'refunded':
+        return OrderStatus.REFUNDED;
+      case 'canceled':
+        return OrderStatus.CANCELED;
+      default:
+        return OrderStatus.PENDING;
+    }
+  }
+
+  private async processPagSeguro(
+    gateway: Gateway,
+    order: Order,
+    request: ProcessPaymentRequest
+  ): Promise<ProcessPaymentResult> {
+    try {
+      if (String(request.currency || '').trim().toUpperCase() !== 'BRL') {
+        throw new Error('O PagBank esta disponivel apenas para checkouts em BRL.');
+      }
+
+      const payerDocument = String(request.customerCpf || '').replace(/\D/g, '');
+      if (payerDocument.length !== 11 && payerDocument.length !== 14) {
+        throw new Error('O PagBank exige um CPF ou CNPJ valido para concluir a compra.');
+      }
+
+      if (request.paymentMethod === 'boleto') {
+        throw new Error('O boleto do PagBank sera habilitado quando o checkout coletar endereco de cobranca completo.');
+      }
+
+      let encryptedCard: string | undefined;
+      if (request.paymentMethod === 'credit_card') {
+        if (!gateway.public_key) {
+          throw new Error('PagBank public key missing in settings.');
+        }
+
+        if (!request.cardData) {
+          throw new Error(i18n.t('card_data_required'));
+        }
+
+        encryptedCard = await encryptPagSeguroCard({
+          publicKey: gateway.public_key,
+          holder: request.cardData.holderName || request.customerName,
+          number: request.cardData.number,
+          expMonth: request.cardData.expiryMonth,
+          expYear: request.cardData.expiryYear,
+          securityCode: request.cardData.cvc,
+        });
+      }
+
+      const response = await fetch('/api/payments?action=pagseguro', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          checkoutId: order.checkout_id,
+          orderId: order.id,
+          gatewayId: gateway.id,
+          paymentMethod: request.paymentMethod,
+          encryptedCard,
+          installments: request.installments || 1,
+          selectedBumpIds: request.selectedBumps,
+          customerEmail: order.customer_email,
+          customerName: order.customer_name,
+          customerPhone: order.customer_phone,
+          customerCpf: order.customer_cpf,
+          originalOrderId: request.originalOrderId,
+          total: order.amount || 0,
+        }),
+      });
+
+      const responseText = await response.text();
+      let result: any = {};
+
+      try {
+        result = responseText ? JSON.parse(responseText) : {};
+      } catch (parseError) {
+        console.error('[PaymentService] Failed to parse PagBank response:', responseText);
+        throw new Error(`Invalid PagBank response (Status ${response.status}).`);
+      }
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || result.message || 'Erro ao processar pagamento no PagBank.');
+      }
+
+      const paymentResponse = result.data;
+      const providerStatus = result.status || getPagSeguroStatus(paymentResponse);
+      const newPayment: Payment = {
+        id: generateUUID(),
+        order_id: order.id,
+        gateway_id: gateway.id,
+        status: this.mapPagSeguroOrderStatus(providerStatus),
+        transaction_id: String(paymentResponse?.id || order.id),
+        raw_response: JSON.stringify(paymentResponse),
+        created_at: new Date().toISOString()
+      };
+
+      try {
+        await this.savePayment(newPayment);
+      } catch (saveError) {
+        console.warn('[PaymentService] PagBank payment save failed:', saveError);
+      }
+
+      const localStatus = this.mapPagSeguroOrderStatus(providerStatus);
+      if (localStatus === OrderStatus.FAILED || localStatus === OrderStatus.CANCELED) {
+        return {
+          success: false,
+          message: paymentResponse?.charges?.[0]?.payment_response?.message || i18n.t('payment_rejected')
+        };
+      }
+
+      return {
+        success: true,
+        gatewayStatus: providerStatus,
+        statusSignature: result.statusSignature,
+        pixData: result.pixData,
+      };
+    } catch (error: any) {
+      console.error('[PaymentService] PagBank error:', error);
+      return {
+        success: false,
+        message: translatePaymentError(undefined, undefined, error.message || 'Failed to process with PagBank')
+      };
+    }
   }
 
   private async processStripe(
@@ -1003,8 +1413,7 @@ class PaymentService {
       created_at: new Date().toISOString()
     };
 
-    const logs = await storage.getWebhookLogs();
-    await storage.saveWebhookLogs([newLog, ...logs]);
+    await storage.saveWebhookLogs([newLog]);
   }
 }
 

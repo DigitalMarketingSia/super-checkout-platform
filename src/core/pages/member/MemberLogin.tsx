@@ -7,6 +7,8 @@ import { Lock, ArrowRight, Mail, User } from 'lucide-react';
 import { getApiUrl } from '../../utils/apiUtils';
 import { supabase } from '../../services/supabase';
 import { useTranslation } from 'react-i18next';
+import { getRuntimeMode } from '../../config/runtimeMode';
+import { demoDataService } from '../../services/demoDataService';
 
 export const MemberLogin = ({ forcedSlug }: { forcedSlug?: string }) => {
     const { t } = useTranslation('member');
@@ -22,6 +24,7 @@ export const MemberLogin = ({ forcedSlug }: { forcedSlug?: string }) => {
     const [recovering, setRecovering] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
+    const isDemoRuntime = getRuntimeMode() === 'demo';
 
     useEffect(() => {
         if (slug) {
@@ -66,6 +69,12 @@ export const MemberLogin = ({ forcedSlug }: { forcedSlug?: string }) => {
         setSuccess('');
 
         try {
+            if (isDemoRuntime) {
+                await demoDataService.loginMember(email, password, slug);
+                navigate(getSafeRedirectPath(), { replace: true });
+                return;
+            }
+
             // Fase 15.3 — Rate-limited login via Vercel Serverless proxy
             const loginResponse = await fetch(getApiUrl('/api/auth/login'), {
                 method: 'POST',
@@ -125,6 +134,11 @@ export const MemberLogin = ({ forcedSlug }: { forcedSlug?: string }) => {
         setSuccess('');
 
         try {
+            if (isDemoRuntime) {
+                setSuccess('No modo demo, o acesso do aluno e liberado automaticamente apos a compra fake.');
+                return;
+            }
+
             const response = await fetch('/api/system?action=member-password-reset', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

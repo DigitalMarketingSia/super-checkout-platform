@@ -3,6 +3,7 @@ import { Lock, AlertTriangle } from 'lucide-react';
 import { supabase } from '../services/supabase';
 import { getEnv } from '../utils/env';
 import { Loading } from './ui/Loading';
+import { isDemoHostname } from '../config/runtimeMode';
 
 interface LicenseGuardProps {
     children: React.ReactNode;
@@ -29,6 +30,8 @@ export const LicenseGuard: React.FC<LicenseGuardProps> = ({ children }) => {
             const publicBypassRoutes = [
                 '/installer',
                 '/activate',
+                '/passport',
+                '/demo',
                 '/register',
                 '/update-password',
                 '/privacy-policy',
@@ -49,6 +52,12 @@ export const LicenseGuard: React.FC<LicenseGuardProps> = ({ children }) => {
 
             // BYPASS FOR PUBLIC/INSTALLER ROUTES: never lock auth, installer, or checkout entry points
             if (shouldBypassRoute) {
+                setIsValid(true);
+                setLoading(false);
+                return;
+            }
+
+            if (isDemoHostname(window.location.hostname)) {
                 setIsValid(true);
                 setLoading(false);
                 return;

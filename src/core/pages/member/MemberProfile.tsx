@@ -4,6 +4,8 @@ import { useAuth } from '../../context/AuthContext';
 import { storage } from '../../services/storageService';
 import { supabase } from '../../services/supabase';
 import { MemberArea, AccessGrant } from '../../types';
+import { getRuntimeMode } from '../../config/runtimeMode';
+import { demoDataService } from '../../services/demoDataService';
 import {
     AlertCircle,
     Calendar,
@@ -53,6 +55,11 @@ export const MemberProfile = () => {
     const { t } = useTranslation('member');
     const navigate = useNavigate();
     const { memberArea } = useOutletContext<MemberAreaContextType>();
+    const isDemoRuntime = getRuntimeMode() === 'demo';
+    const demoMemberUser = isDemoRuntime ? demoDataService.getCurrentMemberUser() : null;
+    const demoMemberProfile = isDemoRuntime ? demoDataService.getCurrentMemberProfile() : null;
+    const effectiveUser = demoMemberUser || user;
+    const effectiveProfile = demoMemberProfile || profile;
     const [accessGrants, setAccessGrants] = useState<AccessGrant[]>([]);
     const [loading, setLoading] = useState(true);
     const [passwordLoading, setPasswordLoading] = useState(false);
@@ -62,12 +69,12 @@ export const MemberProfile = () => {
     const [orderCustomerName, setOrderCustomerName] = useState('');
 
     const displayName = getUsableName(
-        profile?.full_name,
-        user?.user_metadata?.full_name,
-        user?.user_metadata?.name,
+        effectiveProfile?.full_name,
+        effectiveUser?.user_metadata?.full_name,
+        effectiveUser?.user_metadata?.name,
         orderCustomerName,
     ) || t('profile.user', 'Usuario');
-    const initials = String(displayName || user?.email || 'US').slice(0, 2).toUpperCase();
+    const initials = String(displayName || effectiveUser?.email || 'US').slice(0, 2).toUpperCase();
 
     const displayGrants = useMemo<DisplayGrant[]>(() => {
         const productGrants = new Map<string, DisplayGrant>();
@@ -103,21 +110,31 @@ export const MemberProfile = () => {
 
     useEffect(() => {
         loadData();
-    }, [user?.id]);
+    }, [effectiveUser?.id]);
 
     const loadData = async () => {
         try {
+            const latestOrderPromise = effectiveUser?.id
+                ? (
+                    isDemoRuntime
+                        ? demoDataService.getOrders().then((orders) => ({
+                            data: orders
+                                .filter((order) => order.customer_user_id === effectiveUser.id)
+                                .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())[0] || null,
+                        }))
+                        : supabase
+                            .from('orders')
+                            .select('customer_name')
+                            .eq('customer_user_id', effectiveUser.id)
+                            .order('created_at', { ascending: false })
+                            .limit(1)
+                            .maybeSingle()
+                )
+                : Promise.resolve({ data: null });
+
             const [grants, latestOrder] = await Promise.all([
                 storage.getAccessGrants(),
-                user?.id
-                    ? supabase
-                        .from('orders')
-                        .select('customer_name')
-                        .eq('customer_user_id', user.id)
-                        .order('created_at', { ascending: false })
-                        .limit(1)
-                        .maybeSingle()
-                    : Promise.resolve({ data: null }),
+                latestOrderPromise,
             ]);
 
             setAccessGrants(grants);
@@ -132,6 +149,16 @@ export const MemberProfile = () => {
     };
 
     const handleLogout = async () => {
+        if (isDemoRuntime && demoMemberUser) {
+            demoDataService.clearMemberSession();
+            if (memberArea) {
+                navigate(`/app/${memberArea.slug}/login`);
+            } else {
+                navigate('/login');
+            }
+            return;
+        }
+
         await signOut();
         if (memberArea) {
             navigate(`/app/${memberArea.slug}/login`);
@@ -161,10 +188,20 @@ export const MemberProfile = () => {
         setPasswordMessage(null);
 
         try {
+            if (isDemoRuntime && demoMemberUser) {
+                setNewPassword('');
+                setConfirmPassword('');
+                setPasswordMessage({
+                    type: 'success',
+                    text: 'Senha demo atualizada em modo simulado.',
+                });
+                return;
+            }
+
             const { error } = await supabase.auth.updateUser({
                 password: newPassword,
                 data: {
-                    ...user?.user_metadata,
+                    ...effectiveUser?.user_metadata,
                     requires_password_setup: false,
                 },
             });
@@ -212,7 +249,7 @@ export const MemberProfile = () => {
                                 {initials}
                             </div>
                             <h2 className="text-xl font-bold text-white mb-1">{displayName}</h2>
-                            <p className="text-gray-400 text-sm break-all">{user?.email}</p>
+                            <p className="text-gray-400 text-sm break-all">{effectiveUser?.email}</p>
                         </div>
 
                         <button
@@ -234,7 +271,7 @@ export const MemberProfile = () => {
                                 <label className="block text-xs text-gray-500 uppercase mb-1">{t('profile.email', 'Email')}</label>
                                 <div className="flex items-center gap-2 text-gray-300 bg-black/20 p-3 rounded-lg border border-white/10 break-all">
                                     <Mail className="w-4 h-4 text-gray-500" />
-                                    {user?.email}
+                                    {effectiveUser?.email}
                                 </div>
                             </div>
 

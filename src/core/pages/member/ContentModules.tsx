@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useOutletContext, useNavigate, useParams } from 'react-router-dom';
-import { storage, supabase } from '../../services/storageService';
+import { storage } from '../../services/storageService';
 import { Content, MemberArea, Module, AccessGrant } from '../../types';
 import { Play, ArrowLeft, FileText } from 'lucide-react';
 import { useAccessControl } from '../../hooks/useAccessControl';
@@ -32,13 +32,8 @@ export const ContentModules = () => {
         setLoading(true);
         try {
             if (id) {
-                // Fetch content details
-                const { data: contentData } = await supabase
-                    .from('contents')
-                    .select('*')
-                    .eq('id', id)
-                    .single();
-
+                const contents = await storage.getContents(memberArea?.id);
+                const contentData = contents.find((entry) => entry.id === id) || null;
                 setContent(contentData);
 
                 // Fetch modules

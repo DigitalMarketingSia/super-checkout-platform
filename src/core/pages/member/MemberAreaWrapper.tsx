@@ -4,6 +4,8 @@ import { MemberAreaLayout } from './MemberAreaLayout';
 import { storage } from '../../services/storageService';
 import { MemberArea } from '../../types';
 import { Loader2 } from 'lucide-react';
+import { getRuntimeMode } from '../../config/runtimeMode';
+import { demoDataService } from '../../services/demoDataService';
 
 export const MemberAreaWrapper = ({ forcedSlug }: { forcedSlug?: string }) => {
     const { slug: paramSlug } = useParams<{ slug: string }>();
@@ -11,15 +13,34 @@ export const MemberAreaWrapper = ({ forcedSlug }: { forcedSlug?: string }) => {
     const navigate = useNavigate();
     const [memberArea, setMemberArea] = useState<MemberArea | null>(null);
     const [loading, setLoading] = useState(true);
+    const isDemoRuntime = getRuntimeMode() === 'demo';
 
     useEffect(() => {
         const loadMemberArea = async () => {
             console.log('[Wrapper] Loading Member Area for slug:', slug);
 
             const params = new URLSearchParams(window.location.search);
+            const demoMemberTicket = params.get('demo_member_ticket');
             const loginToken = params.get('login_token');
             const authToken = params.get('auth_token');
             const authEmail = params.get('auth_email');
+
+            if (isDemoRuntime && demoMemberTicket) {
+                try {
+                    const demoIdentity = await demoDataService.consumeMemberAccessTicket(demoMemberTicket);
+                    if (!demoIdentity) {
+                        console.warn('[Wrapper] Demo member ticket invalid or expired');
+                    } else {
+                        console.log('[Wrapper] Demo member session restored:', demoIdentity.user.id);
+                    }
+                } catch (ticketError) {
+                    console.error('[Wrapper] Demo member ticket error:', ticketError);
+                } finally {
+                    params.delete('demo_member_ticket');
+                    const cleanUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '') + window.location.hash;
+                    window.history.replaceState({}, document.title, cleanUrl);
+                }
+            }
 
             // NEW: Server-side auto-login (login_token from purchase emails)
             if (loginToken) {
@@ -102,7 +123,7 @@ export const MemberAreaWrapper = ({ forcedSlug }: { forcedSlug?: string }) => {
         };
 
         loadMemberArea();
-    }, [slug, navigate]);
+    }, [isDemoRuntime, slug, navigate]);
 
     if (loading) {
         return (

@@ -13,11 +13,14 @@ import { storage } from '../../services/storageService';
 import { Checkout, Gateway, Order, Product } from '../../types';
 import { getApiUrl } from '../../utils/apiUtils';
 import { translatePaymentError } from '../../utils/errorTranslator';
+import { getRuntimeMode } from '../../config/runtimeMode';
+import { demoDataService } from '../../services/demoDataService';
 
 const getUpsellOrderSessionKey = (orderId?: string) => `upsell-original-order:${orderId || 'unknown'}`;
 const getUpsellPixSessionKey = (orderId?: string) => `upsell-pix-context:${orderId || 'unknown'}`;
 const toPixQrImageSrc = (value?: string | null) => {
     if (!value) return '';
+    if (/^https?:\/\//i.test(value)) return value;
     return value.startsWith('data:image') ? value : `data:image/png;base64,${value}`;
 };
 
@@ -224,6 +227,8 @@ export const UpsellPage = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const { t } = useTranslation('public');
+    const runtimeMode = getRuntimeMode();
+    const isDemoRuntime = runtimeMode === 'demo';
     const originalStatusSignature = new URLSearchParams(location.search).get('sig') || '';
     const appendOriginalSignature = useCallback((path: string) => {
         if (!originalStatusSignature) return path;
@@ -306,9 +311,14 @@ export const UpsellPage = () => {
                     console.warn('[UpsellPage] Failed to restore original order context:', storageError);
                 }
                 if (!order) {
-                    const response = await supabase.from('orders').select('*').eq('id', orderId).single();
-                    if (response.error || !response.data) throw response.error || new Error('Order not found');
-                    order = response.data;
+                    if (isDemoRuntime) {
+                        order = await demoDataService.getOrderById(orderId);
+                        if (!order) throw new Error('Order not found');
+                    } else {
+                        const response = await supabase.from('orders').select('*').eq('id', orderId).single();
+                        if (response.error || !response.data) throw response.error || new Error('Order not found');
+                        order = response.data;
+                    }
                 }
                 const mappedOrder: Order = { ...order, amount: order.total || order.amount };
                 setOriginalOrder(mappedOrder);
@@ -336,7 +346,7 @@ export const UpsellPage = () => {
             }
         };
         load();
-    }, [orderId, navigate, t, buildUpsellThankYouTarget]);
+    }, [buildUpsellThankYouTarget, isDemoRuntime, navigate, orderId, t]);
 
     useEffect(() => {
         if (gateway?.name === 'stripe' && gateway.public_key) {
@@ -498,23 +508,30 @@ export const UpsellPage = () => {
         try {
             let isPaid = false;
 
-            if (pixStatusSignature) {
-                const response = await fetch(getApiUrl(`/api/check-status?orderId=${encodeURIComponent(pixOrderId)}&sig=${encodeURIComponent(pixStatusSignature)}&t=${Date.now()}`));
-                const contentType = response.headers.get('content-type');
-                if (response.ok && contentType && contentType.includes('application/json')) {
-                    const payload = await response.json().catch(() => null);
-                    const nextStatus = String(payload?.status || '').toLowerCase();
+            if (isDemoRuntime) {
+                const nextStatus = String(await demoDataService.getOrderStatus(pixOrderId) || '').toLowerCase();
+                if (nextStatus === 'paid' || nextStatus === 'approved') {
+                    isPaid = true;
+                }
+            } else {
+                if (pixStatusSignature) {
+                    const response = await fetch(getApiUrl(`/api/check-status?orderId=${encodeURIComponent(pixOrderId)}&sig=${encodeURIComponent(pixStatusSignature)}&t=${Date.now()}`));
+                    const contentType = response.headers.get('content-type');
+                    if (response.ok && contentType && contentType.includes('application/json')) {
+                        const payload = await response.json().catch(() => null);
+                        const nextStatus = String(payload?.status || '').toLowerCase();
+                        if (nextStatus === 'paid' || nextStatus === 'approved') {
+                            isPaid = true;
+                        }
+                    }
+                }
+
+                if (!isPaid) {
+                    const { data } = await supabase.from('orders').select('status').eq('id', pixOrderId).single();
+                    const nextStatus = String(data?.status || '').toLowerCase();
                     if (nextStatus === 'paid' || nextStatus === 'approved') {
                         isPaid = true;
                     }
-                }
-            }
-
-            if (!isPaid) {
-                const { data } = await supabase.from('orders').select('status').eq('id', pixOrderId).single();
-                const nextStatus = String(data?.status || '').toLowerCase();
-                if (nextStatus === 'paid' || nextStatus === 'approved') {
-                    isPaid = true;
                 }
             }
 
@@ -525,7 +542,7 @@ export const UpsellPage = () => {
         } catch (statusError) {
             console.error('[UpsellPage] Failed to verify Pix upsell status:', statusError);
         }
-    }, [buildUpsellThankYouTarget, pixOrderId, pixRedirectTarget, pixStatusSignature]);
+    }, [buildUpsellThankYouTarget, isDemoRuntime, pixOrderId, pixRedirectTarget, pixStatusSignature]);
 
     useEffect(() => {
         if (!pixCode || !pixOrderId) return;
@@ -552,6 +569,7 @@ export const UpsellPage = () => {
     }, [checkPixUpsellStatus, pixCode, pixOrderId]);
 
     useEffect(() => {
+        if (isDemoRuntime) return;
         if (!pixCode || !pixOrderId || pixRedirectTarget) return;
 
         const channel = supabase
@@ -577,7 +595,7 @@ export const UpsellPage = () => {
         return () => {
             void supabase.removeChannel(channel);
         };
-    }, [buildUpsellThankYouTarget, pixCode, pixOrderId, pixRedirectTarget, pixStatusSignature]);
+    }, [buildUpsellThankYouTarget, isDemoRuntime, pixCode, pixOrderId, pixRedirectTarget, pixStatusSignature]);
 
     useEffect(() => {
         if (!pixRedirectTarget || pixRedirectedRef.current) return;

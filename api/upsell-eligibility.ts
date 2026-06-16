@@ -15,7 +15,7 @@ type UpsellOfferStrategy =
   | 'defer_offer';
 
 type UpsellGatewayCapability = {
-  gateway: 'stripe' | 'mercado_pago' | 'pix' | 'unknown';
+  gateway: 'stripe' | 'mercado_pago' | 'pagseguro' | 'pix' | 'unknown';
   original_payment_method: 'credit_card' | 'pix' | 'boleto' | 'apple_pay' | 'google_pay' | 'unknown';
   supports_saved_method: boolean;
   supports_off_session_charge: boolean;
@@ -219,6 +219,7 @@ function normalizeGatewayName(value: string | null | undefined): UpsellGatewayCa
   const normalized = String(value || '').trim().toLowerCase();
   if (normalized === 'stripe') return 'stripe';
   if (normalized === 'mercado_pago') return 'mercado_pago';
+  if (normalized === 'pagseguro' || normalized === 'pagbank') return 'pagseguro';
   if (normalized === 'pix') return 'pix';
   return 'unknown';
 }

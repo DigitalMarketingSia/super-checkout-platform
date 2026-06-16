@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Layout } from '../../components/Layout';
 import { useAuth } from '../../context/AuthContext';
+import { isDemoDataRuntime } from '../../services/demoDataService';
 import { storage } from '../../services/storageService';
 import { Checkout, Product, Gateway, Domain } from '../../types';
 import { Button } from '../../components/ui/Button';
@@ -18,6 +19,7 @@ import { UpsellModal } from '../../components/ui/UpsellModal';
 export const Checkouts = () => {
   const { t, i18n } = useTranslation(['admin', 'common', 'sidebar']);
   const navigate = useNavigate();
+  const demoRuntime = isDemoDataRuntime();
   const [checkouts, setCheckouts] = useState<Checkout[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [gateways, setGateways] = useState<Gateway[]>([]);
@@ -44,6 +46,13 @@ export const Checkouts = () => {
 
   const closeAlert = () => {
     setAlertState(prev => ({ ...prev, isOpen: false }));
+  };
+
+  const buildCheckoutPublicUrl = (checkout: Checkout) => {
+    const domain = domains.find(d => d.id === checkout.domain_id);
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const baseUrl = (domain && !isLocal && !demoRuntime) ? `https://${domain.domain}` : `${window.location.origin}/c`;
+    return `${baseUrl}/${checkout.custom_url_slug}`;
   };
 
   useEffect(() => {
@@ -180,7 +189,12 @@ export const Checkouts = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4">
-          {checkouts.map(chk => (
+          {checkouts.map(chk => {
+            const hasActiveUpsell = Boolean(
+               chk.config?.upsell?.active && String(chk.config?.upsell?.product_id || chk.upsell_product_id || '').trim()
+            );
+
+            return (
             <div key={chk.id} className="group relative bg-[#0F0F15]/40 hover:bg-[#151520]/60 border border-white/5 hover:border-primary/30 rounded-[2rem] overflow-hidden transition-all duration-300">
                <div className="p-4 lg:px-8 lg:py-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4 lg:gap-8">
                   
@@ -228,7 +242,7 @@ export const Checkouts = () => {
                             </div>
                          )}
 
-                         {((chk.upsell_product_id) || (chk.config?.upsell?.active)) && (
+                         {hasActiveUpsell && (
                             <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-blue-500/5 border border-blue-500/10 text-blue-400 whitespace-nowrap w-fit">
                                <Zap className="w-3 h-3" />
                                <span className="text-[9px] font-black uppercase tracking-widest">{t('checkouts.active_upsell')}</span>
@@ -242,10 +256,7 @@ export const Checkouts = () => {
                      <div className="flex items-center gap-2">
                         <button 
                           onClick={() => {
-                            const domain = domains.find(d => d.id === chk.domain_id);
-                            const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-                            const baseUrl = (domain && !isLocal) ? `https://${domain.domain}` : window.location.origin + '/c';
-                            const url = `${baseUrl}/${chk.custom_url_slug}`;
+                            const url = buildCheckoutPublicUrl(chk);
                             window.open(url, '_blank');
                           }}
                           className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-500 hover:text-white border border-white/5 transition-all"
@@ -255,10 +266,7 @@ export const Checkouts = () => {
                         </button>
                         <button 
                           onClick={() => {
-                             const domain = domains.find(d => d.id === chk.domain_id);
-                             const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-                             const baseUrl = (domain && !isLocal) ? `https://${domain.domain}` : window.location.origin + '/c';
-                             const url = `${baseUrl}/${chk.custom_url_slug}`;
+                             const url = buildCheckoutPublicUrl(chk);
                              navigator.clipboard.writeText(url);
                              showAlert(t('common.success'), t('checkouts.link_copied', { url }), 'success');
                           }}
@@ -288,7 +296,7 @@ export const Checkouts = () => {
 
                </div>
             </div>
-          ))}
+          )})}
         </div>
       )}
 

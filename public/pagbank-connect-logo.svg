@@ -1,0 +1,19 @@
+<svg width="440" height="160" viewBox="0 0 440 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="440" height="160" rx="24" fill="#0F172A"/>
+  <rect x="24" y="24" width="112" height="112" rx="28" fill="url(#paint0_linear)"/>
+  <path d="M54 58C54 50.268 60.268 44 68 44H92C114.091 44 132 61.909 132 84C132 106.091 114.091 124 92 124H68C60.268 124 54 117.732 54 110V58Z" fill="white" fill-opacity="0.96"/>
+  <path d="M75 69H91C99.284 69 106 75.716 106 84C106 92.284 99.284 99 91 99H75V69Z" fill="#0F172A"/>
+  <path d="M163 61H218.192C228.026 61 235.999 68.973 235.999 78.807C235.999 88.641 228.026 96.614 218.192 96.614H190.252V115H163V61Z" fill="white"/>
+  <path d="M191 83H213.365C215.925 83 218 80.925 218 78.365C218 75.806 215.925 73.731 213.365 73.731H191V83Z" fill="#0F172A"/>
+  <path d="M247 61H273.904L310.75 115H283.846L277.788 105.809H247V61ZM265.779 88.711L255.731 73.211H247V88.711H265.779Z" fill="white"/>
+  <path d="M322 61H349.25V87.346L374.365 61H407L375.212 93.019L408 115H372.885L349.25 98.096V115H322V61Z" fill="white"/>
+  <text x="163" y="138" fill="#94A3B8" font-family="Arial, Helvetica, sans-serif" font-size="18" letter-spacing="0.08em">
+    CONNECT AUTHORIZATION
+  </text>
+  <defs>
+    <linearGradient id="paint0_linear" x1="36" y1="24" x2="136" y2="136" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#22C55E"/>
+      <stop offset="1" stop-color="#0EA5E9"/>
+    </linearGradient>
+  </defs>
+</svg>

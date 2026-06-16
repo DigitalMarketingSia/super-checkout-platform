@@ -4,16 +4,18 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Loading } from '../../components/ui/Loading';
 import { MigrationRunner } from './MigrationRunner';
+import { getRuntimeMode } from '../../config/runtimeMode';
 
 export const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { user, profile, loading, signOut } = useAuth();
+    const isDemoMode = getRuntimeMode() === 'demo';
 
     if (loading) {
         return <Loading />;
     }
 
     if (!user) {
-        return <Navigate to="/login" replace />;
+        return <Navigate to={isDemoMode ? '/demo' : '/login'} replace />;
     }
 
     const effectiveRole = profile?.effective_role || profile?.role;
@@ -63,6 +65,10 @@ export const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }
                 </button>
             </div>
         );
+    }
+
+    if (isDemoMode) {
+        return <>{children}</>;
     }
 
     return (

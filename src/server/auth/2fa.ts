@@ -163,23 +163,51 @@ async function resolveStoredLoginSessionWithPublishable(
   storedSession: any,
   expectedUserId: string
 ) {
+  const fallbackUser = storedSession?.user && storedSession.user.id === expectedUserId
+    ? storedSession.user
+    : null;
   const accessToken = String(storedSession?.access_token || '');
   if (!accessToken || !anonKey) {
     return {
-      session: null,
-      user: null,
+      session: fallbackUser ? storedSession : null,
+      user: fallbackUser,
       reason: !anonKey ? 'publishable_key_missing' : 'access_token_missing',
     };
   }
 
-  const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
-    headers: {
-      apikey: anonKey,
-      Authorization: `Bearer ${accessToken}`,
-    },
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${supabaseUrl}/auth/v1/user`, {
+      headers: {
+        apikey: anonKey,
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+  } catch (error: any) {
+    if (process.env.NODE_ENV !== 'production' && fallbackUser) {
+      return {
+        session: storedSession,
+        user: fallbackUser,
+        reason: `dev_fallback_after_fetch_error:${error?.message || error}`,
+      };
+    }
+
+    return {
+      session: null,
+      user: null,
+      reason: `auth_user_fetch_failed:${error?.message || error}`,
+    };
+  }
 
   if (!response.ok) {
+    if (process.env.NODE_ENV !== 'production' && fallbackUser && response.status >= 500) {
+      return {
+        session: storedSession,
+        user: fallbackUser,
+        reason: `dev_fallback_after_auth_status_${response.status}`,
+      };
+    }
+
     return {
       session: null,
       user: null,
@@ -203,24 +231,39 @@ async function resolveStoredLoginSessionWithPublishable(
   };
 }
 
+function checkTotpCode(secret: string, code: string) {
+  try {
+    return {
+      ok: authenticator.check(code, String(secret || '').trim()),
+      error: null,
+    };
+  } catch (error: any) {
+    return {
+      ok: false,
+      error: error?.message || String(error),
+    };
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   applyCors(req, res);
 
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const action = getAction(req);
-  const supabaseUrl = getSupabaseUrl();
-  const serviceKey = getSupabaseServiceKey();
-  if (!supabaseUrl || !serviceKey) {
-    return res.status(500).json({ error: 'Server configuration missing.' });
-  }
+  try {
+    const action = getAction(req);
+    const supabaseUrl = getSupabaseUrl();
+    const serviceKey = getSupabaseServiceKey();
+    if (!supabaseUrl || !serviceKey) {
+      return res.status(500).json({ error: 'Server configuration missing.' });
+    }
 
-  const admin = createClient(supabaseUrl, serviceKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
+    const admin = createClient(supabaseUrl, serviceKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
 
-  if (action === 'setup') {
+    if (action === 'setup') {
     const token = getAuthToken(req);
     if (!token) return res.status(401).json({ error: 'Missing authorization token.' });
 
@@ -432,7 +475,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           throw secretError;
         }
 
-        if (!authenticator.check(normalizedCode, secret)) {
+        const totpCheck = checkTotpCode(secret, normalizedCode);
+        if (totpCheck.error) {
+          return res.status(500).json({
+            error: `Nao foi possivel validar o codigo localmente. ${totpCheck.error}`,
+            error_code: 'two_factor_runtime_validation_failed',
+          });
+        }
+
+        if (!totpCheck.ok) {
           const failedAttempts = attempts + 1;
           await setStatelessChallengeState(challengeId, {
             attempts: failedAttempts,
@@ -619,7 +670,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         throw secretError;
       }
 
-      if (!authenticator.check(normalizedCode, secret)) {
+      const loginTotpCheck = checkTotpCode(secret, normalizedCode);
+      if (loginTotpCheck.error) {
+        return res.status(500).json({
+          error: `Nao foi possivel validar o codigo localmente. ${loginTotpCheck.error}`,
+          error_code: 'two_factor_runtime_validation_failed',
+        });
+      }
+
+      if (!loginTotpCheck.ok) {
         const failedAttempts = attempts + 1;
         await updateChallenge(admin, challenge.id, {
           attempts: failedAttempts,
@@ -837,7 +896,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       throw secretError;
     }
 
-    if (!authenticator.check(normalizedCode, secret)) {
+    const enableTotpCheck = checkTotpCode(secret, normalizedCode);
+    if (enableTotpCheck.error) {
+      return res.status(500).json({
+        error: `Nao foi possivel validar o codigo localmente. ${enableTotpCheck.error}`,
+        error_code: 'two_factor_runtime_validation_failed',
+      });
+    }
+
+    if (!enableTotpCheck.ok) {
       await logSecurityEvent({
         supabaseUrl,
         serviceKey,
@@ -936,7 +1003,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       throw secretError;
     }
 
-    if (!authenticator.check(normalizedCode, secret)) {
+    const disableTotpCheck = checkTotpCode(secret, normalizedCode);
+    if (disableTotpCheck.error) {
+      return res.status(500).json({
+        error: `Nao foi possivel validar o codigo localmente. ${disableTotpCheck.error}`,
+        error_code: 'two_factor_runtime_validation_failed',
+      });
+    }
+
+    if (!disableTotpCheck.ok) {
       await logSecurityEvent({
         supabaseUrl,
         serviceKey,
@@ -987,5 +1062,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 
-  return res.status(404).json({ error: `Action ${action || 'unknown'} not found in 2FA controller` });
+    return res.status(404).json({ error: `Action ${action || 'unknown'} not found in 2FA controller` });
+  } catch (error: any) {
+    console.error('[2FA] Fatal runtime error:', error?.message || error);
+    const devHint = process.env.NODE_ENV !== 'production'
+      ? ` ${error?.message || error}`
+      : '';
+    return res.status(500).json({
+      error: `Nao foi possivel validar o codigo.${devHint}`,
+      error_code: 'two_factor_runtime_error',
+    });
+  }
 }

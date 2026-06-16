@@ -79,6 +79,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             return res.status(200).json(result);
         }
+
+        if (action === 'pagseguro') {
+            const { processPagSeguroPayment } = await import('../src/modules/payments/pagseguro.js');
+            console.log('[PaymentsHub] Action: pagseguro');
+
+            const protocol = req.headers['x-forwarded-proto'] || 'https';
+            const host = req.headers.host;
+            const baseUrl = `${protocol}://${host}`;
+
+            const result = await processPagSeguroPayment({
+                ...req.body,
+                baseUrl,
+                ip
+            });
+
+            if (!result.success) {
+                const { details, data, ...safeResult } = result as any;
+                return res.status(400).json(safeResult);
+            }
+
+            return res.status(200).json(result);
+        }
         
         return res.status(404).json({ error: `Action ${action} not found in Payments Controller` });
     } catch (error: any) {

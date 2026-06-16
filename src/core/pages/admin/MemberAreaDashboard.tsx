@@ -363,7 +363,7 @@ export const MemberAreaDashboard = () => {
                                             <MemberDomains
                                                 area={area}
                                                 onSave={handleSave}
-                                                onDomainChange={(domainId) => setArea({ ...area, domain_id: domainId || undefined })}
+                                                onDomainChange={(domainId) => setArea((current) => ({ ...current, domain_id: domainId || null }))}
                                             />
                                         </div>
                                     </div>
