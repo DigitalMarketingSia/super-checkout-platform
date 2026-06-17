@@ -99,20 +99,10 @@ export const TrackSlider: React.FC<TrackSliderProps> = ({ track, onItemClick, ac
             </div>
 
             <div className="relative">
-                {/* Fade-out gradient on the right when there's more content */}
-                {canScrollRight && (
-                    <div
-                        className="absolute right-0 top-0 bottom-4 w-40 md:w-64 pointer-events-none z-10"
-                        style={{
-                            background: `linear-gradient(to right, transparent, #0E1012 100%)`
-                        }}
-                    />
-                )}
-
                 <div
                     ref={scrollContainerRef}
                     onScroll={checkScroll}
-                    className="flex overflow-x-auto gap-4 pb-4 px-4 md:px-0 snap-x custom-scrollbar"
+                    className="flex overflow-x-auto gap-4 pt-4 pb-4 px-4 md:px-4 -mx-4 -mt-4 snap-x custom-scrollbar"
                 >
                     {track.items?.map((item) => (
                         <TrackItemCard
@@ -138,6 +128,16 @@ export const TrackSlider: React.FC<TrackSliderProps> = ({ track, onItemClick, ac
                         />
                     ))}
                 </div>
+
+                {/* Fade-out gradient on the right when there's more content */}
+                {canScrollRight && (
+                    <div
+                        className="absolute -right-4 -top-4 bottom-0 w-40 md:w-64 pointer-events-none z-20"
+                        style={{
+                            background: `linear-gradient(to right, transparent, #0E1012 100%)`
+                        }}
+                    />
+                )}
             </div>
 
             <ProductSalesModal

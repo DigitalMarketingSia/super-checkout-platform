@@ -41,6 +41,7 @@ export const ContentEditor = () => {
     const [uploading, setUploading] = useState(false);
     const horizontalInputRef = useRef<HTMLInputElement>(null);
     const moduleHorizontalInputRef = useRef<HTMLInputElement>(null);
+    const moduleVerticalInputRef = useRef<HTMLInputElement>(null);
 
     // Modal States
     const [alertState, setAlertState] = useState<{ isOpen: boolean; title: string; message: string; variant: 'success' | 'error' | 'info' }>({
@@ -342,6 +343,10 @@ export const ContentEditor = () => {
                     </div>
                     <div className="flex items-center gap-4">
                         <div className="hidden sm:flex flex-col items-end mr-2">
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <div className="hidden sm:flex flex-col items-end mr-2">
                              <span className="text-[10px] font-bold text-white/20 uppercase tracking-widest leading-none mb-1">{t('content_editor.integrity_status')}</span>
                              <div className="flex items-center gap-2">
                                  <span className="text-xs font-bold text-blue-500 uppercase tracking-tighter italic">{t('content_editor.secured')}</span>
@@ -351,7 +356,7 @@ export const ContentEditor = () => {
                         <Button 
                             onClick={handleSaveContent} 
                             isLoading={saving}
-                            className="px-8 py-6 rounded-2xl bg-white text-black hover:bg-white/90 font-black uppercase italic tracking-tighter transition-all flex items-center gap-3"
+                            className="px-8 py-6 rounded-2xl bg-white !text-black hover:bg-white/90 font-black uppercase italic tracking-tighter transition-all flex items-center gap-3"
                         >
                             {saving ? <Activity className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                             {t('content_editor.commit_changes')}
@@ -397,124 +402,129 @@ export const ContentEditor = () => {
                 {/* Tab: Info */}
                 <div className="animate-in fade-in duration-500">
                     {activeTab === 'info' && (
-                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-                            {/* Left Column: Visuals */}
-                            <div className="lg:col-span-4 space-y-8">
-                                <div className="bg-[#0A0A15]/40 backdrop-blur-3xl rounded-[2.5rem] border border-white/5 p-8">
-                                    <h3 className="text-xs font-black text-white italic uppercase tracking-widest mb-6 opacity-40">{t('content_editor.visual_identity')}</h3>
-                                    <div className="relative w-full aspect-video rounded-3xl bg-black/40 border border-white/10 overflow-hidden mb-6 group">
-                                        {content.image_horizontal_url ? (
-                                            <>
-                                                <img src={content.image_horizontal_url} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
-                                                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center backdrop-blur-sm">
-                                                    <Button variant="secondary" size="sm" onClick={() => horizontalInputRef.current?.click()} className="rounded-xl font-bold uppercase italic text-[10px] tracking-widest">
-                                                       {t('content_editor.replace_asset')}
-                                                    </Button>
-                                                </div>
-                                            </>
-                                        ) : (
-                                            <div className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer hover:bg-white/5 transition-colors group" onClick={() => horizontalInputRef.current?.click()}>
-                                                <Upload className="w-10 h-10 text-white/20 mb-3 group-hover:text-purple-500 transition-colors" />
-                                                <span className="text-[10px] font-black text-white/20 uppercase tracking-widest">{t('content_editor.upload_cover')}</span>
-                                            </div>
-                                        )}
-                                        {uploading && (
-                                            <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center">
-                                                <Activity className="w-8 h-8 text-purple-500 animate-spin mb-2" />
-                                                <span className="text-[10px] font-black text-white uppercase tracking-widest">{t('content_editor.uploading')}</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                    <input type="file" ref={horizontalInputRef} className="hidden" accept="image/*" onChange={(e) => handleContentImageUpload(e, 'horizontal')} />
-                                    
+                        <div className="space-y-8">
+                            <input type="file" ref={horizontalInputRef} className="hidden" accept="image/*" onChange={(e) => handleContentImageUpload(e, 'horizontal')} />
+
+                            {/* Dual-column Form Layout */}
+                            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                                {/* Left Column: Core Data */}
+                                <div className="lg:col-span-7 bg-[#0A0A15]/40 backdrop-blur-3xl rounded-[2rem] border border-white/5 p-8 space-y-6">
                                     <div>
+                                        <label className="text-[10px] font-black text-white/20 uppercase tracking-widest mb-3 block">{t('content_editor.core_title')}</label>
+                                        <input
+                                            type="text"
+                                            className="w-full bg-black/40 border border-white/10 rounded-xl px-5 py-4 text-lg font-bold text-white placeholder:text-white/10 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all italic tracking-tight"
+                                            placeholder={t('content_editor.title_placeholder')}
+                                            value={content.title}
+                                            onChange={e => setContent({ ...content, title: e.target.value })}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black text-white/20 uppercase tracking-widest mb-3 block">{t('content_editor.description_label')}</label>
+                                        <textarea
+                                            className="w-full bg-black/40 border border-white/10 rounded-xl px-5 py-4 text-sm text-white placeholder:text-white/10 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all min-h-[200px] leading-relaxed"
+                                            placeholder={t('content_editor.description_placeholder')}
+                                            value={content.description}
+                                            onChange={e => setContent({ ...content, description: e.target.value })}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Right Column: Configuration & Controls */}
+                                <div className="lg:col-span-5 bg-[#0A0A15]/40 backdrop-blur-3xl rounded-[2rem] border border-white/5 p-8 space-y-6">
+                                    <div>
+                                        <label className="text-[10px] font-black text-white/20 uppercase tracking-widest mb-3 block">{t('content_editor.cover_image_label')}</label>
+                                        <div className="relative aspect-video rounded-xl bg-black/40 border border-white/10 overflow-hidden group max-w-[320px] w-full">
+                                            {content.image_horizontal_url ? (
+                                                <>
+                                                    <img 
+                                                        src={content.image_horizontal_url} 
+                                                        className="w-full h-full object-cover" 
+                                                        alt={content.title}
+                                                    />
+                                                    <div className="absolute inset-0 z-20 bg-black/60 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center backdrop-blur-sm">
+                                                        <Button variant="secondary" size="sm" onClick={() => horizontalInputRef.current?.click()} className="rounded-xl font-bold uppercase italic text-[9px] tracking-widest !text-black bg-white hover:bg-white/90">
+                                                           {t('content_editor.replace_asset')}
+                                                        </Button>
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <div className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer hover:bg-white/5 transition-colors group z-10" onClick={() => horizontalInputRef.current?.click()}>
+                                                    <Upload className="w-8 h-8 text-white/20 mb-2 group-hover:text-purple-500 transition-colors" />
+                                                    <span className="text-[9px] font-black text-white/20 uppercase tracking-widest">{t('content_editor.upload_cover')}</span>
+                                                </div>
+                                            )}
+                                            {uploading && (
+                                                <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-30">
+                                                    <Activity className="w-6 h-6 text-purple-500 animate-spin mb-1" />
+                                                    <span className="text-[8px] font-black text-white uppercase tracking-widest">{t('content_editor.uploading')}</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="pt-2 border-t border-white/5">
                                         <label className="text-[10px] font-black text-white/20 uppercase tracking-widest mb-3 block">{t('content_editor.asset_url')}</label>
                                         <div className="relative">
                                             <Globe className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
                                             <input
                                                 type="text"
-                                                className="w-full bg-black/40 border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-sm text-white font-mono placeholder:text-white/10 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
+                                                className="w-full bg-black/40 border border-white/10 rounded-xl pl-12 pr-4 py-3 text-xs text-white font-mono placeholder:text-white/10 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
                                                 placeholder="https://assets.cdn/..."
                                                 value={content.image_horizontal_url || ''}
                                                 onChange={e => setContent({ ...content, image_horizontal_url: e.target.value, thumbnail_url: e.target.value })}
                                             />
                                         </div>
                                     </div>
-                                </div>
-                            </div>
 
-                            {/* Right Column: Meta & Access */}
-                            <div className="lg:col-span-8 space-y-10">
-                                <div className="bg-[#0A0A15]/40 backdrop-blur-3xl rounded-[2.5rem] border border-white/5 p-10 lg:p-12">
-                                    <div className="grid grid-cols-1 gap-10">
+                                    <div className="pt-4 border-t border-white/5 space-y-6">
                                         <div>
-                                            <label className="text-[10px] font-black text-white/20 uppercase tracking-widest mb-4 block">{t('content_editor.core_title')}</label>
-                                            <input
-                                                type="text"
-                                                className="w-full bg-black/40 border border-white/10 rounded-2xl px-6 py-5 text-xl font-bold text-white placeholder:text-white/10 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all italic tracking-tight"
-                                                placeholder={t('content_editor.title_placeholder')}
-                                                value={content.title}
-                                                onChange={e => setContent({ ...content, title: e.target.value })}
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="text-[10px] font-black text-white/20 uppercase tracking-widest mb-4 block">{t('content_editor.description_label')}</label>
-                                            <textarea
-                                                className="w-full bg-black/40 border border-white/10 rounded-2xl px-6 py-5 text-white placeholder:text-white/10 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all min-h-[160px] leading-relaxed"
-                                                placeholder={t('content_editor.description_placeholder')}
-                                                value={content.description}
-                                                onChange={e => setContent({ ...content, description: e.target.value })}
-                                            />
-                                        </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                            <div>
-                                                <label className="text-[10px] font-black text-white/20 uppercase tracking-widest mb-4 block flex items-center gap-2">
-                                                    <LayoutIcon className="w-3 h-3 text-purple-400" /> {t('content_editor.display_matrix')}
-                                                </label>
-                                                <div className="flex bg-black/40 border border-white/10 rounded-2xl p-1.5">
-                                                    <button 
-                                                        onClick={() => setContent({ ...content, modules_layout: 'horizontal' })}
-                                                        className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase italic transition-all ${content.modules_layout !== 'vertical' ? 'bg-white/10 text-white border border-white/10 shadow-lg' : 'text-white/30 hover:text-white'}`}
-                                                    >
-                                                        <Monitor className="w-3.5 h-3.5" /> {t('content_editor.horizontal')}
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => setContent({ ...content, modules_layout: 'vertical' })}
-                                                        className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase italic transition-all ${content.modules_layout === 'vertical' ? 'bg-white/10 text-white border border-white/10 shadow-lg' : 'text-white/30 hover:text-white'}`}
-                                                    >
-                                                        <Smartphone className="w-3.5 h-3.5" /> {t('content_editor.vertical')}
-                                                    </button>
-                                                </div>
+                                            <label className="text-[10px] font-black text-white/20 uppercase tracking-widest mb-3 block flex items-center gap-2">
+                                                <LayoutIcon className="w-3 h-3 text-purple-400" /> {t('content_editor.display_matrix')}
+                                            </label>
+                                            <div className="flex bg-black/40 border border-white/10 rounded-xl p-1">
+                                                <button 
+                                                    onClick={() => setContent({ ...content, modules_layout: 'horizontal' })}
+                                                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-[9px] font-black uppercase italic transition-all ${content.modules_layout !== 'vertical' ? 'bg-white/10 text-white border border-white/10 shadow-lg' : 'text-white/30 hover:text-white'}`}
+                                                >
+                                                    <Monitor className="w-3 h-3" /> {t('content_editor.horizontal')}
+                                                </button>
+                                                <button 
+                                                    onClick={() => setContent({ ...content, modules_layout: 'vertical' })}
+                                                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-[9px] font-black uppercase italic transition-all ${content.modules_layout === 'vertical' ? 'bg-white/10 text-white border border-white/10 shadow-lg' : 'text-white/30 hover:text-white'}`}
+                                                >
+                                                    <Smartphone className="w-3 h-3" /> {t('content_editor.vertical')}
+                                                </button>
                                             </div>
-                                            
-                                            <div>
-                                                <label className="text-[10px] font-black text-white/20 uppercase tracking-widest mb-4 block flex items-center gap-2">
-                                                    <Lock className="w-3 h-3 text-purple-400" /> {t('content_editor.gateway_logic')}
-                                                </label>
-                                                <div className="flex bg-black/40 border border-white/10 rounded-2xl p-1.5">
-                                                    <button 
-                                                        onClick={() => { setContent({ ...content, is_free: true }); setSelectedProductId(''); }}
-                                                        className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase italic transition-all ${content.is_free ? 'bg-green-500/10 text-green-400 border border-green-500/20 shadow-lg shadow-green-500/5' : 'text-white/30 hover:text-white'}`}
-                                                    >
-                                                        {t('content_editor.public_access')}
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => setContent({ ...content, is_free: false })}
-                                                        className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase italic transition-all ${!content.is_free ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20 shadow-lg shadow-purple-500/5' : 'text-white/30 hover:text-white'}`}
-                                                    >
-                                                        {t('content_editor.secured_paid')}
-                                                    </button>
-                                                </div>
+                                        </div>
+                                        
+                                        <div>
+                                            <label className="text-[10px] font-black text-white/20 uppercase tracking-widest mb-3 block flex items-center gap-2">
+                                                <Lock className="w-3 h-3 text-purple-400" /> {t('content_editor.gateway_logic')}
+                                            </label>
+                                            <div className="flex bg-black/40 border border-white/10 rounded-xl p-1">
+                                                <button 
+                                                    onClick={() => { setContent({ ...content, is_free: true }); setSelectedProductId(''); }}
+                                                    className={`flex-1 py-2.5 rounded-lg text-[9px] font-black uppercase italic transition-all ${content.is_free ? 'bg-green-500/10 text-green-400 border border-green-500/20 shadow-lg' : 'text-white/30 hover:text-white'}`}
+                                                >
+                                                    {t('content_editor.public_access')}
+                                                </button>
+                                                <button 
+                                                    onClick={() => setContent({ ...content, is_free: false })}
+                                                    className={`flex-1 py-2.5 rounded-lg text-[9px] font-black uppercase italic transition-all ${!content.is_free ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20 shadow-lg' : 'text-white/30 hover:text-white'}`}
+                                                >
+                                                    {t('content_editor.secured_paid')}
+                                                </button>
                                             </div>
                                         </div>
 
                                         {!content.is_free && (
                                             <div className="animate-in fade-in slide-in-from-top-4">
-                                                <label className="text-[10px] font-black text-white/20 uppercase tracking-widest mb-4 block">{t('content_editor.linked_offer')}</label>
+                                                <label className="text-[10px] font-black text-white/20 uppercase tracking-widest mb-3 block">{t('content_editor.linked_offer')}</label>
                                                 <select
                                                     value={selectedProductId}
                                                     onChange={(e) => setSelectedProductId(e.target.value)}
-                                                    className="w-full bg-black/40 border border-white/10 rounded-2xl px-6 py-5 text-white focus:ring-2 focus:ring-purple-500/20 outline-none transition-all font-bold appearance-none cursor-pointer"
+                                                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-xs text-white font-bold focus:ring-2 focus:ring-purple-500/20 outline-none transition-all appearance-none cursor-pointer"
                                                 >
                                                     <option value="" className="bg-gray-900 text-white/40 italic">{t('content_editor.select_product')}</option>
                                                     {products.map(product => (
@@ -658,23 +668,23 @@ export const ContentEditor = () => {
                 {isModuleModalOpen && editingModule && (
                     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
                         <div className="absolute inset-0 bg-[#0A0A15]/90 backdrop-blur-xl" onClick={() => setIsModuleModalOpen(false)} />
-                        <div className="relative bg-[#0A0A15] border border-white/10 rounded-[3rem] w-full max-w-2xl p-10 lg:p-12 shadow-2xl animate-in zoom-in-95 duration-300">
-                            <div className="flex items-center gap-3 mb-10">
-                                <div className="w-12 h-12 bg-purple-500/10 rounded-2xl flex items-center justify-center border border-purple-500/20">
-                                    <Terminal className="w-6 h-6 text-purple-400" />
+                        <div className="relative bg-[#0A0A15] border border-white/10 rounded-3xl w-full max-w-2xl p-6 lg:p-8 shadow-2xl animate-in zoom-in-95 duration-300">
+                            <div className="flex items-center gap-3 mb-6">
+                                <div className="w-10 h-10 bg-purple-500/10 rounded-xl flex items-center justify-center border border-purple-500/20">
+                                    <Terminal className="w-5 h-5 text-purple-400" />
                                 </div>
                                 <div>
-                                    <h3 className="text-3xl font-black text-white uppercase italic tracking-tighter leading-none">{t('content_editor.module_modal_title_prefix')} <span className="text-purple-500">{t('content_editor.module_modal_title_highlight')}</span></h3>
-                                    <p className="text-white/30 text-xs font-bold font-mono tracking-tight mt-1">{t('content_editor.module_modal_desc')}</p>
+                                    <h3 className="text-2xl font-black text-white uppercase italic tracking-tighter leading-none">{t('content_editor.module_modal_title_prefix')} <span className="text-purple-500">{t('content_editor.module_modal_title_highlight')}</span></h3>
+                                    <p className="text-white/30 text-[10px] font-bold font-mono tracking-tight mt-1">{t('content_editor.module_modal_desc')}</p>
                                 </div>
                             </div>
                             
-                            <div className="space-y-8">
+                            <div className="space-y-6">
                                 <div>
-                                    <label className="text-[10px] font-black text-white/20 uppercase tracking-widest mb-4 block">{t('content_editor.module_designation')}</label>
+                                    <label className="text-[10px] font-black text-white/20 uppercase tracking-widest mb-3 block">{t('content_editor.module_designation')}</label>
                                     <input
                                         type="text"
-                                        className="w-full bg-black/40 border border-white/10 rounded-2xl px-6 py-5 text-xl font-bold text-white focus:ring-2 focus:ring-purple-500/20 outline-none transition-all italic tracking-tight"
+                                        className="w-full bg-black/40 border border-white/10 rounded-xl px-5 py-4 text-lg font-bold text-white focus:ring-2 focus:ring-purple-500/20 outline-none transition-all italic tracking-tight"
                                         value={editingModule.title}
                                         onChange={e => setEditingModule({ ...editingModule, title: e.target.value })}
                                         placeholder={t('content_editor.module_title_placeholder')}
@@ -682,55 +692,101 @@ export const ContentEditor = () => {
                                     />
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-8">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
                                     <div>
-                                        <label className="text-[10px] font-black text-white/20 uppercase tracking-widest mb-4 block">{t('content_editor.module_visual_pivot')}</label>
-                                        <div className="relative aspect-video rounded-3xl bg-black/40 border border-white/10 overflow-hidden group">
-                                            {editingModule.image_horizontal_url ? (
-                                                <img src={editingModule.image_horizontal_url} className="w-full h-full object-cover" />
-                                            ) : (
-                                                <div className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer hover:bg-white/5 transition-colors" onClick={() => moduleHorizontalInputRef.current?.click()}>
-                                                    <Upload className="w-8 h-8 text-white/20" />
+                                        <label className="text-[10px] font-black text-white/20 uppercase tracking-widest mb-3 block">{t('content_editor.module_visual_label')}</label>
+                                        <div className="flex gap-4 items-start">
+                                            {/* Capa */}
+                                            <div className="flex-1 max-w-[160px]">
+                                                <span className="text-[8px] font-black text-white/40 uppercase tracking-wider block mb-1.5">{t('content_editor.cover_ratio_label')}</span>
+                                                <div className="relative aspect-video rounded-xl bg-black/40 border border-white/10 overflow-hidden group">
+                                                    {editingModule.image_horizontal_url ? (
+                                                        <>
+                                                            <img src={editingModule.image_horizontal_url} className="w-full h-full object-cover" />
+                                                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                                <button 
+                                                                    onClick={() => moduleHorizontalInputRef.current?.click()} 
+                                                                    className="bg-white text-black font-bold text-[8px] px-2 py-1 rounded-md flex items-center uppercase italic"
+                                                                    type="button"
+                                                                >
+                                                                    <Upload className="w-2.5 h-2.5 mr-1" /> {t('content_editor.replace_short')}
+                                                                </button>
+                                                            </div>
+                                                        </>
+                                                    ) : (
+                                                        <div className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer hover:bg-white/5 transition-colors" onClick={() => moduleHorizontalInputRef.current?.click()}>
+                                                            <Upload className="w-5 h-5 text-white/20 mb-1" />
+                                                            <span className="text-[8px] font-black text-white/20 uppercase tracking-widest">{t('content_editor.upload_cover_short')}</span>
+                                                        </div>
+                                                    )}
                                                 </div>
-                                            )}
+                                                <input type="file" ref={moduleHorizontalInputRef} className="hidden" accept="image/*" onChange={(e) => handleModuleImageUpload(e, editingModule.id, 'horizontal')} />
+                                            </div>
+
+                                            {/* Poster */}
+                                            <div className="flex-1 max-w-[107px]">
+                                                <span className="text-[8px] font-black text-white/40 uppercase tracking-wider block mb-1.5">{t('content_editor.poster_ratio_label')}</span>
+                                                <div className="relative aspect-[2/3] rounded-xl bg-black/40 border border-white/10 overflow-hidden group">
+                                                    {editingModule.image_vertical_url ? (
+                                                        <>
+                                                            <img src={editingModule.image_vertical_url} className="w-full h-full object-cover" />
+                                                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                                <button 
+                                                                    onClick={() => moduleVerticalInputRef.current?.click()} 
+                                                                    className="bg-white text-black font-bold text-[8px] px-2 py-1 rounded-md flex items-center uppercase italic"
+                                                                    type="button"
+                                                                >
+                                                                    <Upload className="w-2.5 h-2.5 mr-1" /> {t('content_editor.replace_short')}
+                                                                </button>
+                                                            </div>
+                                                        </>
+                                                    ) : (
+                                                        <div className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer hover:bg-white/5 transition-colors" onClick={() => moduleVerticalInputRef.current?.click()}>
+                                                            <Upload className="w-5 h-5 text-white/20 mb-1" />
+                                                            <span className="text-[8px] font-black text-white/20 uppercase tracking-widest">{t('content_editor.poster_short')}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <input type="file" ref={moduleVerticalInputRef} className="hidden" accept="image/*" onChange={(e) => handleModuleImageUpload(e, editingModule.id, 'vertical')} />
+                                            </div>
                                         </div>
-                                        <input type="file" ref={moduleHorizontalInputRef} className="hidden" accept="image/*" onChange={(e) => handleModuleImageUpload(e, editingModule.id, 'horizontal')} />
                                     </div>
+
                                     <div>
-                                        <label className="text-[10px] font-black text-white/20 uppercase tracking-widest mb-4 block">{t('content_editor.access_mode')}</label>
-                                        <div className="space-y-4">
-                                            <label className="flex items-center gap-4 group cursor-pointer">
-                                                <div className={`w-6 h-6 rounded-lg border flex items-center justify-center transition-all ${editingModule.is_free ? 'bg-purple-500 border-purple-500 shadow-[0_0_15px_rgba(147,51,234,0.3)]' : 'bg-black/40 border-white/10 group-hover:border-white/20'}`}>
+                                        <label className="text-[10px] font-black text-white/20 uppercase tracking-widest mb-3 block">{t('content_editor.access_mode')}</label>
+                                        <div className="space-y-3">
+                                            <label className="flex items-center gap-3 group cursor-pointer">
+                                                <div className={`w-5 h-5 rounded-lg border flex items-center justify-center transition-all ${editingModule.is_free ? 'bg-purple-500 border-purple-500 shadow-[0_0_15px_rgba(147,51,234,0.3)]' : 'bg-black/40 border-white/10 group-hover:border-white/20'}`}>
                                                     {editingModule.is_free && <Activity className="w-3 h-3 text-white" />}
                                                 </div>
                                                 <input type="checkbox" className="hidden" checked={editingModule.is_free || false} onChange={e => setEditingModule({ ...editingModule, is_free: e.target.checked })} />
                                                 <div>
-                                                    <span className={`text-[11px] font-black uppercase italic tracking-tight transition-colors ${editingModule.is_free ? 'text-white' : 'text-white/30'}`}>{t('content_editor.free_sequence')}</span>
+                                                    <span className={`text-[10px] font-black uppercase italic tracking-tight transition-colors ${editingModule.is_free ? 'text-white' : 'text-white/30'}`}>{t('content_editor.free_sequence')}</span>
                                                 </div>
                                             </label>
-                                            <label className="flex items-center gap-4 group cursor-pointer">
-                                                <div className={`w-6 h-6 rounded-lg border flex items-center justify-center transition-all ${editingModule.is_published !== false ? 'bg-green-500 border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.3)]' : 'bg-black/40 border-white/10 group-hover:border-white/20'}`}>
+                                            <label className="flex items-center gap-3 group cursor-pointer">
+                                                <div className={`w-5 h-5 rounded-lg border flex items-center justify-center transition-all ${editingModule.is_published !== false ? 'bg-green-500 border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.3)]' : 'bg-black/40 border-white/10 group-hover:border-white/20'}`}>
                                                     {editingModule.is_published !== false && <Activity className="w-3 h-3 text-white" />}
                                                 </div>
                                                 <input type="checkbox" className="hidden" checked={editingModule.is_published !== false} onChange={e => setEditingModule({ ...editingModule, is_published: e.target.checked })} />
                                                 <div>
-                                                    <span className={`text-[11px] font-black uppercase italic tracking-tight transition-colors ${editingModule.is_published !== false ? 'text-white' : 'text-white/30'}`}>{t('content_editor.force_deployment')}</span>
+                                                    <span className={`text-[10px] font-black uppercase italic tracking-tight transition-colors ${editingModule.is_published !== false ? 'text-white' : 'text-white/30'}`}>{t('content_editor.force_deployment')}</span>
                                                 </div>
                                             </label>
                                         </div>
                                     </div>
                                 </div>
                                 
-                                <div className="flex justify-end gap-4 mt-8">
+                                <div className="flex justify-end gap-3 mt-2">
                                     <button 
                                         onClick={() => setIsModuleModalOpen(false)}
-                                        className="px-8 py-5 rounded-2xl bg-white/5 hover:bg-white/10 text-white font-black uppercase italic tracking-tighter transition-all border border-white/5"
+                                        className="px-6 py-4 rounded-xl bg-white/5 hover:bg-white/10 text-white font-black uppercase italic tracking-tighter transition-all border border-white/5 text-xs"
                                     >
                                         {t('content_editor.abort')}
                                     </button>
                                     <button 
                                         onClick={() => handleUpdateModule(editingModule)}
-                                        className="px-10 py-5 rounded-2xl bg-white text-black font-black uppercase italic tracking-tighter transition-all shadow-xl"
+                                        className="px-8 py-4 rounded-xl bg-white !text-black font-black uppercase italic tracking-tighter transition-all shadow-xl text-xs"
                                     >
                                         {t('content_editor.sync_module')}
                                     </button>

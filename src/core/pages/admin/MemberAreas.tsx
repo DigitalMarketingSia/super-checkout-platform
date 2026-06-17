@@ -134,7 +134,7 @@ export const MemberAreas = () => {
                         <Button 
                             onClick={handleCreateArea}
                             disabled={checkingFeatures}
-                            className="bg-white text-black hover:bg-white/90 border-none px-8 py-6 rounded-xl font-black uppercase italic tracking-tighter"
+                            className="bg-white text-black hover:bg-white/90 border-none px-8 py-6 rounded-xl font-black uppercase italic tracking-tighter mx-auto"
                         >
                             {checkingFeatures ? t('member_areas_page.checking_plan') : t('member_areas_page.deploy_first')}
                         </Button>
