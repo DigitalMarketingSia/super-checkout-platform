@@ -223,6 +223,9 @@ export const LeadCRM: React.FC = () => {
     const [selectedLead, setSelectedLead] = useState<FreeUserRow | null>(null);
     const blockTransitionTimerRef = useRef<number | null>(null);
     const initialCrmMetaLoadedRef = useRef(false);
+    const hasUserSelectedSectionRef = useRef(false);
+    const autoPrivateSectionOpenedRef = useRef(false);
+    const privateRegistryRef = useRef<HTMLDivElement | null>(null);
     const hasSession = Boolean(session?.access_token);
 
     // Dashboard Metrics
@@ -267,6 +270,21 @@ export const LeadCRM: React.FC = () => {
             }
         };
     }, []);
+
+    useEffect(() => {
+        if (launchLoading || waitlistLoading || autoPrivateSectionOpenedRef.current) return;
+
+        autoPrivateSectionOpenedRef.current = true;
+
+        if (hasUserSelectedSectionRef.current) return;
+        if (launchSettings.registration_open) return;
+        if (waitlistTotalCount <= 0) return;
+
+        setCrmSection('private');
+        window.setTimeout(() => {
+            privateRegistryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 120);
+    }, [launchLoading, waitlistLoading, launchSettings.registration_open, waitlistTotalCount]);
 
     const getAuthHeaders = async () => {
         const { data } = await supabase.auth.getSession();
@@ -348,6 +366,20 @@ export const LeadCRM: React.FC = () => {
             toast.error(t('lead_crm.errors.load_approval_queue'));
         } finally {
             setApprovalLoading(false);
+        }
+    };
+
+    const openCrmSection = (section: 'public' | 'private', options?: { scroll?: boolean; markUserSelection?: boolean }) => {
+        if (options?.markUserSelection !== false) {
+            hasUserSelectedSectionRef.current = true;
+        }
+
+        setCrmSection(section);
+
+        if (options?.scroll && section === 'private') {
+            window.setTimeout(() => {
+                privateRegistryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 120);
         }
     };
 
@@ -1082,20 +1114,26 @@ export const LeadCRM: React.FC = () => {
         id,
         label,
         description,
-        icon: Icon
+        icon: Icon,
+        count,
+        attention
     }: {
         id: 'public' | 'private';
         label: string;
         description: string;
         icon: React.ElementType;
+        count: number;
+        attention?: boolean;
     }) => (
         <button
             type="button"
-            onClick={() => setCrmSection(id)}
+            onClick={() => openCrmSection(id, { scroll: id === 'private' })}
             className={`flex min-w-[240px] flex-1 items-center gap-4 rounded-2xl border px-5 py-4 text-left transition-all ${
                 crmSection === id
                     ? 'border-primary/40 bg-primary/15 text-white shadow-[0_0_24px_rgba(138,43,226,0.18)]'
-                    : 'border-white/5 bg-black/30 text-white/45 hover:border-white/15 hover:text-white'
+                    : attention
+                        ? 'border-orange-500/20 bg-orange-500/10 text-white hover:border-orange-400/40 hover:text-white'
+                        : 'border-white/5 bg-black/30 text-white/45 hover:border-white/15 hover:text-white'
             }`}
         >
             <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border ${
@@ -1103,9 +1141,23 @@ export const LeadCRM: React.FC = () => {
             }`}>
                 <Icon className="h-5 w-5" />
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
                 <p className="text-[11px] font-black uppercase italic tracking-[0.22em]">{label}</p>
                 <p className="mt-1 text-[10px] font-semibold leading-snug text-white/35">{description}</p>
+            </div>
+            <div className="flex flex-col items-end gap-2">
+                <span className={`rounded-full border px-3 py-1 text-[9px] font-black uppercase tracking-[0.18em] ${
+                    attention
+                        ? 'border-orange-400/30 bg-orange-400/10 text-orange-200'
+                        : 'border-white/10 bg-white/[0.03] text-white/40'
+                }`}>
+                    {count}
+                </span>
+                {attention && crmSection !== id && (
+                    <span className="text-[8px] font-black uppercase tracking-[0.22em] text-orange-300/80">
+                        {t('lead_crm.private.attention_badge')}
+                    </span>
+                )}
             </div>
         </button>
     );
@@ -1192,7 +1244,11 @@ export const LeadCRM: React.FC = () => {
                                 <p className="text-lg font-portal-display text-white whitespace-nowrap">{metrics.pendingSetup} <span className="text-[9px] text-gray-600 font-sans">{t('lead_crm.metrics.wait')}</span></p>
                             </div>
                         </div>
-                        <div className="bg-black/40 px-5 py-3 rounded-2xl border border-white/5 flex items-center gap-4 group hover:border-orange-500/30 transition-all shrink-0">
+                        <button
+                            type="button"
+                            onClick={() => openCrmSection('private', { scroll: true })}
+                            className="bg-black/40 px-5 py-3 rounded-2xl border border-white/5 flex items-center gap-4 group hover:border-orange-500/30 transition-all shrink-0 text-left"
+                        >
                             <div className="w-8 h-8 rounded-lg bg-orange-500/10 flex items-center justify-center text-orange-300">
                                 <MessageCircle className="w-4 h-4" />
                             </div>
@@ -1200,7 +1256,7 @@ export const LeadCRM: React.FC = () => {
                                 <p className="text-[8px] font-black uppercase tracking-widest text-orange-300/60 mb-0.5 whitespace-nowrap">{t('lead_crm.waitlist.title')}</p>
                                 <p className="text-lg font-portal-display text-white whitespace-nowrap">{metrics.waitlistCount}</p>
                             </div>
-                        </div>
+                        </button>
                     </div>
                 </div>
 
@@ -1266,17 +1322,44 @@ export const LeadCRM: React.FC = () => {
                     label={t('lead_crm.sections.public_label')}
                     description={t('lead_crm.sections.public_description')}
                     icon={Globe}
+                    count={totalCount}
                 />
                 <CrmSectionButton
                     id="private"
                     label={t('lead_crm.sections.private_label')}
                     description={t('lead_crm.sections.private_description')}
                     icon={Lock}
+                    count={waitlistTotalCount}
+                    attention={waitlistTotalCount > 0}
                 />
             </div>
 
+            {crmSection === 'public' && waitlistTotalCount > 0 && (
+                <div className="rounded-[2rem] border border-orange-500/20 bg-[linear-gradient(135deg,rgba(249,115,22,0.14),rgba(255,255,255,0.03))] p-5 backdrop-blur-2xl">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                        <div>
+                            <p className="text-[9px] font-black uppercase tracking-[0.32em] text-orange-300/80">{t('lead_crm.private.attention_badge')}</p>
+                            <h2 className="mt-2 text-xl font-black uppercase italic tracking-tighter text-white">
+                                {t('lead_crm.private.leads_waiting_title', { count: waitlistTotalCount })}
+                            </h2>
+                            <p className="mt-2 max-w-3xl text-sm font-medium leading-relaxed text-white/55">
+                                {t('lead_crm.private.leads_waiting_desc')}
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => openCrmSection('private', { scroll: true })}
+                            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-orange-400/30 bg-orange-400/10 px-5 py-4 text-[10px] font-black uppercase tracking-[0.24em] text-orange-100 transition-all hover:bg-orange-400/15"
+                        >
+                            <MessageCircle className="h-4 w-4" />
+                            {t('lead_crm.private.open_registry')}
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {crmSection === 'private' && (
-                <div className="space-y-6">
+                <div ref={privateRegistryRef} className="space-y-6">
                     <div className="rounded-[2rem] border border-white/10 bg-black/35 p-5 backdrop-blur-2xl">
                         <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
                             <div>
@@ -1455,15 +1538,44 @@ export const LeadCRM: React.FC = () => {
                                                         <td className="px-5 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-white/30">{lead.source}</td>
                                                         <td className="px-5 py-4 text-[10px] font-mono text-white/30">{new Date(lead.created_at).toLocaleString('pt-BR')}</td>
                                                         <td className="px-5 py-4">
-                                                            <div className="flex justify-center gap-2">
-                                                                <button type="button" onClick={() => handleCopyLeadField(t('lead_crm.fields.email'), lead.email)} className="h-10 w-10 rounded-xl border border-white/10 bg-black/30 text-white/35 hover:text-white" title={t('lead_crm.actions.copy_email')}>
-                                                                    <Copy className="mx-auto h-4 w-4" />
+                                                            <div className="flex flex-wrap justify-center gap-2">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => openWaitlistLeadModal(lead)}
+                                                                    className="inline-flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/10 px-3 py-2 text-[9px] font-black uppercase tracking-[0.18em] text-primary hover:bg-primary/15"
+                                                                    title={t('lead_crm.actions.lead_details')}
+                                                                >
+                                                                    <LayoutIcon className="h-3.5 w-3.5" />
+                                                                    {t('lead_crm.actions.open_lead')}
                                                                 </button>
-                                                                <button type="button" onClick={() => openWaitlistLeadModal(lead)} className="h-10 w-10 rounded-xl border border-primary/20 bg-primary/10 text-primary hover:bg-primary/15" title={t('lead_crm.actions.lead_details')}>
-                                                                    <LayoutIcon className="mx-auto h-4 w-4" />
+                                                                {leadWhatsapp && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleWaitlistWhatsAppContact(lead)}
+                                                                        className="inline-flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-[9px] font-black uppercase tracking-[0.18em] text-emerald-200 hover:bg-emerald-500/15"
+                                                                        title={t('lead_crm.actions.open_whatsapp')}
+                                                                    >
+                                                                        <Smartphone className="h-3.5 w-3.5" />
+                                                                        {t('lead_crm.actions.open_whatsapp')}
+                                                                    </button>
+                                                                )}
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleCopyLeadField(t('lead_crm.fields.email'), lead.email)}
+                                                                    className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-[9px] font-black uppercase tracking-[0.18em] text-white/60 hover:text-white"
+                                                                    title={t('lead_crm.actions.copy_email')}
+                                                                >
+                                                                    <Copy className="h-3.5 w-3.5" />
+                                                                    {t('lead_crm.actions.copy_email')}
                                                                 </button>
-                                                                <button type="button" onClick={() => handleArchiveWaitlistLead(lead)} className="h-10 w-10 rounded-xl border border-red-500/20 bg-red-500/10 text-red-300 hover:bg-red-500/15" title={t('lead_crm.actions.archive_lead')}>
-                                                                    <Trash2 className="mx-auto h-4 w-4" />
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleArchiveWaitlistLead(lead)}
+                                                                    className="inline-flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-[9px] font-black uppercase tracking-[0.18em] text-red-300 hover:bg-red-500/15"
+                                                                    title={t('lead_crm.actions.archive_lead')}
+                                                                >
+                                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                                    {t('lead_crm.actions.archive_lead')}
                                                                 </button>
                                                             </div>
                                                         </td>
