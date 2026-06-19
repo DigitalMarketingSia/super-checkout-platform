@@ -15,6 +15,7 @@ interface LaunchSettings {
     registrationOpen: boolean;
     manualApprovalEnabled: boolean;
     waitlistWhatsappGroupUrl: string | null;
+    waitlistCount: number;
 }
 
 interface WaitlistWhatsappGroup {
@@ -39,7 +40,8 @@ const memoryBuckets = new Map<string, MemoryBucket>();
 const DEFAULT_LAUNCH_SETTINGS: LaunchSettings = {
     registrationOpen: true,
     manualApprovalEnabled: false,
-    waitlistWhatsappGroupUrl: null
+    waitlistWhatsappGroupUrl: null,
+    waitlistCount: 0
 };
 const DEV_CENTRAL_API_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co/functions/v1';
 const DEV_CENTRAL_SUPABASE_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co';
@@ -472,14 +474,54 @@ async function getWaitlistWhatsappGroupLink(central: SupabaseClient) {
                 updated_at: new Date().toISOString()
             }, { onConflict: 'setting_key' });
 
-        return picked.url;
+        return {
+            id: picked.id,
+            name: picked.name,
+            url: picked.url
+        };
     }
 
     const legacyUrl = typeof settingsMap.get('waitlist_whatsapp_group_url') === 'string'
         ? String(settingsMap.get('waitlist_whatsapp_group_url')).trim()
         : '';
 
-    return legacyUrl || null;
+    return legacyUrl
+        ? {
+            id: 'legacy_waitlist_group',
+            name: 'Grupo VIP principal',
+            url: legacyUrl
+        }
+        : null;
+}
+
+async function mergeWaitlistLeadMetadata(central: SupabaseClient, email: string, metadataPatch: Record<string, unknown>) {
+    const centralAdmin = getCentralAdminClient() || central;
+    if (!centralAdmin) return null;
+
+    const { data: currentLead, error: currentError } = await centralAdmin
+        .from('registration_waitlist')
+        .select('id, email, source, metadata, created_at')
+        .eq('email', email)
+        .maybeSingle();
+
+    if (currentError) throw currentError;
+    if (!currentLead) return null;
+
+    const nextMetadata = {
+        ...(currentLead.metadata || {}),
+        ...metadataPatch,
+        updated_at: new Date().toISOString()
+    };
+
+    const { data, error } = await centralAdmin
+        .from('registration_waitlist')
+        .update({ metadata: nextMetadata })
+        .eq('id', currentLead.id)
+        .select('id, email, source, metadata, created_at')
+        .single();
+
+    if (error) throw error;
+    return data;
 }
 
 function sleep(ms: number) {
@@ -676,6 +718,14 @@ async function getLaunchSettings(central: SupabaseClient): Promise<LaunchSetting
         }
 
         const settingsMap = new Map((data || []).map((row: any) => [row.setting_key, row.value_json]));
+        const { count: waitlistCount, error: waitlistCountError } = await central
+            .from('registration_waitlist')
+            .select('id', { count: 'exact', head: true })
+            .filter('metadata->>archived_at', 'is', null);
+
+        if (waitlistCountError) {
+            console.warn(`[${SOURCE}] Failed to load waitlist count:`, waitlistCountError.message);
+        }
 
         return {
             registrationOpen: readBooleanSetting(
@@ -688,7 +738,8 @@ async function getLaunchSettings(central: SupabaseClient): Promise<LaunchSetting
             ),
             waitlistWhatsappGroupUrl: typeof settingsMap.get('waitlist_whatsapp_group_url') === 'string'
                 ? String(settingsMap.get('waitlist_whatsapp_group_url')).trim() || null
-                : null
+                : null,
+            waitlistCount: waitlistCount || 0
         };
     } catch (error: any) {
         console.warn(`[${SOURCE}] Unexpected launch settings error:`, error?.message || error);
@@ -944,7 +995,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             success: true,
             registrationOpen: settings.registrationOpen,
             manualApprovalEnabled: settings.manualApprovalEnabled,
-            waitlistWhatsappGroupUrl: settings.waitlistWhatsappGroupUrl
+            waitlistWhatsappGroupUrl: settings.waitlistWhatsappGroupUrl,
+            waitlistCount: settings.waitlistCount
         });
     }
 
@@ -995,12 +1047,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         try {
-            const groupUrl = await getWaitlistWhatsappGroupLink(central);
-            if (!groupUrl) {
+            const group = await getWaitlistWhatsappGroupLink(central);
+            if (!group) {
                 return res.status(404).json({
                     error: 'Nenhum grupo ativo configurado.',
                     error_code: 'waitlist_group_unavailable'
                 });
+            }
+
+            try {
+                const assignedAt = new Date().toISOString();
+                await mergeWaitlistLeadMetadata(central, email, {
+                    waitlist_group_id: group.id,
+                    waitlist_group_name: group.name,
+                    waitlist_group_url: group.url,
+                    waitlist_group_assigned_at: assignedAt,
+                    waitlist_group_last_opened_at: assignedAt
+                });
+            } catch (metadataError: any) {
+                console.warn(`[${SOURCE}] Waitlist group metadata sync failed:`, metadataError?.message || metadataError);
             }
 
             await logSecurityEvent({
@@ -1017,7 +1082,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             return res.status(200).json({
                 success: true,
-                waitlistGroupUrl: groupUrl
+                waitlistGroupUrl: group.url
             });
         } catch (error: any) {
             console.error(`[${SOURCE}] Waitlist group link error:`, error?.message || error);
@@ -1110,12 +1175,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (action === 'waitlist') {
         const name = String(req.body?.name || '').trim();
+        const whatsapp = String(req.body?.whatsapp || '').trim();
         const platformLegalAccepted = Boolean(req.body?.platformLegalAccepted);
 
         if (!platformLegalAccepted) {
             return res.status(400).json({
                 error: 'Voce precisa aceitar os Termos de Uso e a Politica de Privacidade da plataforma.',
                 error_code: 'platform_legal_required'
+            });
+        }
+
+        if (!whatsapp) {
+            return res.status(400).json({
+                error: 'Informe seu WhatsApp para entrar na lista de espera.',
+                error_code: 'whatsapp_required'
             });
         }
 
@@ -1176,24 +1249,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 });
             }
 
+            const waitlistMetadata = {
+                name: name || null,
+                whatsapp: whatsapp || null,
+                ip,
+                user_agent: userAgent,
+                last_join_attempt_at: acceptanceTimestamp,
+                platform_legal_acceptance: {
+                    surface: 'register',
+                    entry_point: 'waitlist',
+                    accepted_at: acceptanceTimestamp,
+                    terms_version: PLATFORM_LEGAL_VERSION,
+                    privacy_version: PLATFORM_LEGAL_VERSION,
+                    channel_email: PLATFORM_LEGAL_CONTACT_EMAIL
+                }
+            };
+
             const { error } = await central
                 .from('registration_waitlist')
                 .insert({
                     email,
                     source: 'register_launch_closed',
-                    metadata: {
-                        name: name || null,
-                        ip,
-                        user_agent: userAgent,
-                        platform_legal_acceptance: {
-                            surface: 'register',
-                            entry_point: 'waitlist',
-                            accepted_at: acceptanceTimestamp,
-                            terms_version: PLATFORM_LEGAL_VERSION,
-                            privacy_version: PLATFORM_LEGAL_VERSION,
-                            channel_email: PLATFORM_LEGAL_CONTACT_EMAIL
-                        }
-                    }
+                    metadata: waitlistMetadata
                 });
 
             const isDuplicate = Boolean(error && (
@@ -1203,6 +1280,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             if (error && !isDuplicate) {
                 throw error;
+            }
+
+            if (isDuplicate) {
+                try {
+                    await mergeWaitlistLeadMetadata(central, email, waitlistMetadata);
+                } catch (metadataError: any) {
+                    console.warn(`[${SOURCE}] Waitlist duplicate metadata sync failed:`, metadataError?.message || metadataError);
+                }
             }
 
             await logSecurityEvent({

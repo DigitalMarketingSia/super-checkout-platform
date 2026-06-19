@@ -1343,6 +1343,7 @@
       "copy_phone": "Copiar telefone",
       "copy_message": "Copiar mensagem",
       "open_email": "Abrir e-mail",
+      "open_group": "Abrir grupo",
       "open_whatsapp": "Abrir WhatsApp",
       "lead_details": "Detalhes do lead",
       "archive_lead": "Arquivar lead",
@@ -1359,7 +1360,8 @@
     "fields": {
       "email": "Email",
       "name": "Nombre",
-      "phone": "Telefone"
+      "phone": "Telefone",
+      "whatsapp_group": "Grupo de WhatsApp"
     },
     "filters": {
       "search_placeholder": "Buscar identidade do lead...",

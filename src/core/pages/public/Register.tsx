@@ -32,6 +32,7 @@ export const Register = () => {
     const [registrationOpen, setRegistrationOpen] = useState(true);
     const [manualApprovalEnabled, setManualApprovalEnabled] = useState(false);
     const [waitlistWhatsappGroupUrl, setWaitlistWhatsappGroupUrl] = useState<string | null>(null);
+    const [waitlistCount, setWaitlistCount] = useState<number | null>(null);
     const [statusLoading, setStatusLoading] = useState(true);
     const [waitlistLoading, setWaitlistLoading] = useState(false);
     const [waitlistGroupOpening, setWaitlistGroupOpening] = useState(false);
@@ -127,6 +128,7 @@ export const Register = () => {
                 setRegistrationOpen(response.registrationOpen !== false);
                 setManualApprovalEnabled(Boolean(response.manualApprovalEnabled));
                 setWaitlistWhatsappGroupUrl(response.waitlistWhatsappGroupUrl || null);
+                setWaitlistCount(typeof response.waitlistCount === 'number' ? response.waitlistCount : null);
             })
             .catch((err) => {
                 console.error('Registration status error:', err);
@@ -332,8 +334,12 @@ export const Register = () => {
             const response = await joinRegistrationWaitlist({
                 name,
                 email,
+                whatsapp,
                 platformLegalAccepted
             });
+            if (!response.alreadyJoined) {
+                setWaitlistCount(prev => typeof prev === 'number' ? prev + 1 : prev);
+            }
             setWaitlistSuccess(
                 response.alreadyJoined
                     ? 'Seu e-mail ja estava na lista. Vamos avisar quando abrirmos.'
@@ -749,7 +755,10 @@ export const Register = () => {
                                         className="w-full bg-white/[0.04] border border-white/10 rounded-2xl px-6 py-4 text-white font-bold outline-none transition-all placeholder:text-gray-700 focus:bg-white focus:text-[#020205] focus:border-white shadow-inner"
                                         placeholder="Seu nome"
                                         value={name}
-                                        onChange={e => setName(e.target.value)}
+                                        onChange={e => {
+                                            setName(e.target.value);
+                                            handleFieldActivity();
+                                        }}
                                     />
                                 </div>
 
@@ -761,8 +770,28 @@ export const Register = () => {
                                         className="w-full bg-white/[0.04] border border-white/10 rounded-2xl px-6 py-4 text-white font-bold outline-none transition-all placeholder:text-gray-700 focus:bg-white focus:text-[#020205] focus:border-white shadow-inner"
                                         placeholder="seu@email.com"
                                         value={email}
-                                        onChange={e => setEmail(e.target.value)}
+                                        onChange={e => {
+                                            setEmail(e.target.value);
+                                            handleFieldActivity();
+                                        }}
                                     />
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">{t('register.whatsapp_label')}</label>
+                                    <div className="relative group">
+                                        <PhoneInput
+                                            required
+                                            variant="dark"
+                                            className="w-full bg-white/[0.04] border border-white/10 rounded-2xl pl-[100px] pr-6 py-5 text-white font-bold outline-none transition-all placeholder:text-gray-700 focus:bg-white focus:text-[#020205] focus:border-white shadow-inner"
+                                            value={whatsapp}
+                                            onChange={e => {
+                                                setWhatsapp(e.target.value);
+                                                handleFieldActivity();
+                                            }}
+                                            placeholder={t('register.whatsapp_placeholder')}
+                                        />
+                                    </div>
                                 </div>
                             </div>
 
@@ -793,7 +822,13 @@ export const Register = () => {
 
                         <div className="mt-10 pt-8 border-t border-white/5 flex flex-col items-center gap-4">
                             <p className="text-gray-600 text-[10px] font-bold italic">
-                                <span className="text-emerald-500/50">47 pessoas</span> já estão na lista
+                                {typeof waitlistCount === 'number' ? (
+                                    <>
+                                        <span className="text-emerald-500/50">{waitlistCount} pessoas</span> já estão na lista
+                                    </>
+                                ) : (
+                                    'Entre para receber o próximo convite exclusivo.'
+                                )}
                             </p>
                             
                             <a

@@ -106,6 +106,7 @@ interface RegistrationWaitlistLead {
     source: string;
     metadata?: {
         name?: string | null;
+        whatsapp?: string | null;
         ip?: string | null;
         user_agent?: string | null;
         invite_url?: string | null;
@@ -115,6 +116,11 @@ interface RegistrationWaitlistLead {
         invite_email_id?: string | null;
         invite_last_attempt_at?: string | null;
         last_invite_error?: string | null;
+        waitlist_group_id?: string | null;
+        waitlist_group_name?: string | null;
+        waitlist_group_url?: string | null;
+        waitlist_group_assigned_at?: string | null;
+        waitlist_group_last_opened_at?: string | null;
         archived_at?: string | null;
     } | null;
     created_at: string;
@@ -514,6 +520,18 @@ export const LeadCRM: React.FC = () => {
         return lead.metadata?.name || t('lead_crm.waitlist.private_lead_default');
     };
 
+    const getWaitlistLeadWhatsapp = (lead: RegistrationWaitlistLead) => {
+        return lead.metadata?.whatsapp?.trim() || '';
+    };
+
+    const getWaitlistLeadGroupName = (lead: RegistrationWaitlistLead) => {
+        return lead.metadata?.waitlist_group_name?.trim() || '';
+    };
+
+    const getWaitlistLeadGroupUrl = (lead: RegistrationWaitlistLead) => {
+        return lead.metadata?.waitlist_group_url?.trim() || '';
+    };
+
     const getWaitlistInviteStatus = (lead: RegistrationWaitlistLead) => {
         const hasSystemDeliveryReceipt = Boolean(
             lead.metadata?.invite_status === 'sent'
@@ -702,6 +720,20 @@ export const LeadCRM: React.FC = () => {
         await updateWaitlistLeadMetadata(lead, {
             archived_at: new Date().toISOString()
         }, { closeModal: selectedWaitlistLead?.id === lead.id });
+    };
+
+    const handleWaitlistWhatsAppContact = (lead: RegistrationWaitlistLead) => {
+        const phone = getWaitlistLeadWhatsapp(lead);
+        if (!phone) {
+            toast.error(t('lead_crm.errors.whatsapp_missing'));
+            return;
+        }
+
+        const cleanPhone = phone.replace(/\D/g, '');
+        const message = encodeURIComponent(
+            t('lead_crm.messages.whatsapp_welcome', { name: getWaitlistLeadName(lead) })
+        );
+        window.open(`https://wa.me/${cleanPhone}?text=${message}`, '_blank');
     };
 
     const formatLeadDateTime = (value?: string | null) => {
@@ -1160,6 +1192,15 @@ export const LeadCRM: React.FC = () => {
                                 <p className="text-lg font-portal-display text-white whitespace-nowrap">{metrics.pendingSetup} <span className="text-[9px] text-gray-600 font-sans">{t('lead_crm.metrics.wait')}</span></p>
                             </div>
                         </div>
+                        <div className="bg-black/40 px-5 py-3 rounded-2xl border border-white/5 flex items-center gap-4 group hover:border-orange-500/30 transition-all shrink-0">
+                            <div className="w-8 h-8 rounded-lg bg-orange-500/10 flex items-center justify-center text-orange-300">
+                                <MessageCircle className="w-4 h-4" />
+                            </div>
+                            <div>
+                                <p className="text-[8px] font-black uppercase tracking-widest text-orange-300/60 mb-0.5 whitespace-nowrap">{t('lead_crm.waitlist.title')}</p>
+                                <p className="text-lg font-portal-display text-white whitespace-nowrap">{metrics.waitlistCount}</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -1391,12 +1432,20 @@ export const LeadCRM: React.FC = () => {
                                         <tbody className="divide-y divide-white/5">
                                             {waitlistLeads.map((lead) => {
                                                 const leadName = getWaitlistLeadName(lead);
+                                                const leadWhatsapp = getWaitlistLeadWhatsapp(lead);
+                                                const leadGroupName = getWaitlistLeadGroupName(lead);
                                                 const inviteStatus = getWaitlistInviteStatus(lead);
                                                 return (
                                                     <tr key={lead.id} className="bg-black/20 hover:bg-white/[0.02]">
                                                         <td className="px-5 py-4">
                                                             <p className="text-sm font-black uppercase italic text-white">{leadName}</p>
                                                             <p className="text-[11px] font-mono text-white/35">{lead.email}</p>
+                                                            {leadWhatsapp && (
+                                                                <p className="text-[10px] font-semibold text-emerald-300/60">{leadWhatsapp}</p>
+                                                            )}
+                                                            {leadGroupName && (
+                                                                <p className="text-[10px] font-semibold text-blue-300/60">{leadGroupName}</p>
+                                                            )}
                                                         </td>
                                                         <td className="px-5 py-4">
                                                             <span className={`inline-flex rounded-full border px-3 py-1 text-[8px] font-black uppercase tracking-[0.22em] ${inviteStatus.className}`}>
@@ -2026,6 +2075,17 @@ export const LeadCRM: React.FC = () => {
                                         <p className="mb-1 text-[9px] font-black uppercase tracking-[0.28em] text-white/20">{t('lead_crm.modal.entry')}</p>
                                         <p className="text-sm text-white">{formatLeadDateTime(selectedWaitlistLead.created_at)}</p>
                                     </div>
+                                    <div>
+                                        <p className="mb-1 text-[9px] font-black uppercase tracking-[0.28em] text-white/20">{t('lead_crm.fields.phone')}</p>
+                                        <p className="text-sm text-white">{getWaitlistLeadWhatsapp(selectedWaitlistLead) || t('lead_crm.defaults.not_informed')}</p>
+                                    </div>
+                                    <div>
+                                        <p className="mb-1 text-[9px] font-black uppercase tracking-[0.28em] text-white/20">{t('lead_crm.fields.whatsapp_group')}</p>
+                                        <p className="text-sm text-white">{getWaitlistLeadGroupName(selectedWaitlistLead) || t('lead_crm.defaults.not_informed')}</p>
+                                        {getWaitlistLeadGroupUrl(selectedWaitlistLead) && (
+                                            <p className="mt-1 break-all text-[11px] text-white/35">{getWaitlistLeadGroupUrl(selectedWaitlistLead)}</p>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
 
@@ -2038,6 +2098,33 @@ export const LeadCRM: React.FC = () => {
                                 >
                                     <span className="text-sm font-semibold">{t('lead_crm.actions.copy_email')}</span>
                                     <Copy className="h-4 w-4 text-white/35" />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleCopyLeadField(t('lead_crm.fields.phone'), getWaitlistLeadWhatsapp(selectedWaitlistLead))}
+                                    disabled={!getWaitlistLeadWhatsapp(selectedWaitlistLead)}
+                                    className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-left text-white/80 transition-all hover:bg-white/[0.05] disabled:opacity-40"
+                                >
+                                    <span className="text-sm font-semibold">{t('lead_crm.actions.copy_phone')}</span>
+                                    <Copy className="h-4 w-4 text-white/35" />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleWaitlistWhatsAppContact(selectedWaitlistLead)}
+                                    disabled={!getWaitlistLeadWhatsapp(selectedWaitlistLead)}
+                                    className="flex w-full items-center justify-between rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-left text-emerald-100 transition-all hover:bg-emerald-500/15 disabled:opacity-40"
+                                >
+                                    <span className="text-sm font-semibold">{t('lead_crm.actions.open_whatsapp')}</span>
+                                    <Smartphone className="h-4 w-4" />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => window.open(getWaitlistLeadGroupUrl(selectedWaitlistLead), '_blank', 'noopener,noreferrer')}
+                                    disabled={!getWaitlistLeadGroupUrl(selectedWaitlistLead)}
+                                    className="flex w-full items-center justify-between rounded-2xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-left text-cyan-100 transition-all hover:bg-cyan-500/15 disabled:opacity-40"
+                                >
+                                    <span className="text-sm font-semibold">{t('lead_crm.actions.open_group')}</span>
+                                    <Globe className="h-4 w-4" />
                                 </button>
                                 <button
                                     type="button"

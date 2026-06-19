@@ -884,6 +884,7 @@
       "copy_phone": "Copy phone",
       "copy_message": "Copy message",
       "open_email": "Open email",
+      "open_group": "Open group",
       "open_whatsapp": "Open WhatsApp",
       "lead_details": "Lead details",
       "archive_lead": "Archive lead",
@@ -900,7 +901,8 @@
     "fields": {
       "email": "Email",
       "name": "Name",
-      "phone": "Phone"
+      "phone": "Phone",
+      "whatsapp_group": "WhatsApp group"
     },
     "filters": {
       "search_placeholder": "Search lead identity...",

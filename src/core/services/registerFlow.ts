@@ -11,6 +11,7 @@ export interface RegisterApiResponse {
     registrationOpen?: boolean;
     manualApprovalEnabled?: boolean;
     waitlistWhatsappGroupUrl?: string | null;
+    waitlistCount?: number;
     approvalPending?: boolean;
     alreadyJoined?: boolean;
     waitlistGroupUrl?: string | null;
@@ -87,6 +88,7 @@ export function validateInviteToken(payload: {
 export function joinRegistrationWaitlist(payload: {
     name?: string;
     email: string;
+    whatsapp: string;
     platformLegalAccepted: boolean;
 }) {
     return postRegister({
