@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useDeferredValue, useEffect, useRef, useState } from 'react';
 import { supabase } from '../../services/supabase';
 import { CENTRAL_CONFIG } from '../../config/central';
 import { getRegisterUrl } from '../../config/platformUrls';
@@ -126,6 +126,14 @@ interface RegistrationWaitlistLead {
     created_at: string;
 }
 
+type WaitlistVisibilityFilter = 'active' | 'archived' | 'all';
+
+interface WaitlistSummary {
+    active: number;
+    archived: number;
+    all: number;
+}
+
 interface ApprovalQueueRow {
     id: string;
     email: string;
@@ -204,6 +212,10 @@ export const LeadCRM: React.FC = () => {
     const [waitlistLoading, setWaitlistLoading] = useState(true);
     const [waitlistPage, setWaitlistPage] = useState(1);
     const [waitlistTotalCount, setWaitlistTotalCount] = useState(0);
+    const [waitlistSearchTerm, setWaitlistSearchTerm] = useState('');
+    const deferredWaitlistSearchTerm = useDeferredValue(waitlistSearchTerm.trim());
+    const [waitlistVisibilityFilter, setWaitlistVisibilityFilter] = useState<WaitlistVisibilityFilter>('active');
+    const [waitlistSummary, setWaitlistSummary] = useState<WaitlistSummary | null>(null);
     const waitlistPageSize = 25;
     const [selectedWaitlistLead, setSelectedWaitlistLead] = useState<RegistrationWaitlistLead | null>(null);
     const [waitlistInviteUrl, setWaitlistInviteUrl] = useState('');
@@ -226,6 +238,7 @@ export const LeadCRM: React.FC = () => {
     const hasUserSelectedSectionRef = useRef(false);
     const autoPrivateSectionOpenedRef = useRef(false);
     const privateRegistryRef = useRef<HTMLDivElement | null>(null);
+    const previousWaitlistQueryKeyRef = useRef(`${waitlistVisibilityFilter}:${deferredWaitlistSearchTerm}`);
     const hasSession = Boolean(session?.access_token);
 
     // Dashboard Metrics
@@ -243,6 +256,7 @@ export const LeadCRM: React.FC = () => {
     const [totalCount, setTotalCount] = useState(0);
     const pageSize = 50;
     const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+    const waitlistQueryKey = `${waitlistVisibilityFilter}:${deferredWaitlistSearchTerm}`;
 
     useEffect(() => {
         if (!hasSession || initialCrmMetaLoadedRef.current) return;
@@ -250,7 +264,6 @@ export const LeadCRM: React.FC = () => {
         fetchPartners();
         fetchLaunchControls();
         fetchApprovalQueue();
-        fetchWaitlistLeads();
     }, [hasSession]);
 
     useEffect(() => {
@@ -260,8 +273,18 @@ export const LeadCRM: React.FC = () => {
 
     useEffect(() => {
         if (!hasSession || !initialCrmMetaLoadedRef.current) return;
+
+        if (previousWaitlistQueryKeyRef.current !== waitlistQueryKey) {
+            previousWaitlistQueryKeyRef.current = waitlistQueryKey;
+
+            if (waitlistPage !== 1) {
+                setWaitlistPage(1);
+                return;
+            }
+        }
+
         fetchWaitlistLeads();
-    }, [hasSession, waitlistPage]);
+    }, [hasSession, waitlistPage, waitlistQueryKey]);
 
     useEffect(() => {
         return () => {
@@ -278,13 +301,13 @@ export const LeadCRM: React.FC = () => {
 
         if (hasUserSelectedSectionRef.current) return;
         if (launchSettings.registration_open) return;
-        if (waitlistTotalCount <= 0) return;
+        if ((waitlistSummary?.active ?? metrics.waitlistCount) <= 0) return;
 
         setCrmSection('private');
         window.setTimeout(() => {
             privateRegistryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }, 120);
-    }, [launchLoading, waitlistLoading, launchSettings.registration_open, waitlistTotalCount]);
+    }, [launchLoading, waitlistLoading, launchSettings.registration_open, waitlistSummary?.active, metrics.waitlistCount]);
 
     const getAuthHeaders = async () => {
         const { data } = await supabase.auth.getSession();
@@ -392,7 +415,9 @@ export const LeadCRM: React.FC = () => {
                 body: JSON.stringify({
                     action: 'get_registration_waitlist',
                     page: waitlistPage,
-                    limit: waitlistPageSize
+                    limit: waitlistPageSize,
+                    visibility: waitlistVisibilityFilter,
+                    search: deferredWaitlistSearchTerm
                 })
             });
 
@@ -401,6 +426,18 @@ export const LeadCRM: React.FC = () => {
 
             setWaitlistLeads(result.data || []);
             setWaitlistTotalCount(result.count || 0);
+            if (result.summary) {
+                const summary = {
+                    active: Number(result.summary.active || 0),
+                    archived: Number(result.summary.archived || 0),
+                    all: Number(result.summary.all || 0)
+                };
+                setWaitlistSummary(summary);
+                setMetrics(prev => ({
+                    ...prev,
+                    waitlistCount: summary.active
+                }));
+            }
         } catch (error) {
             console.error('Error fetching registration waitlist:', error);
             toast.error(t('lead_crm.errors.load_waitlist_public'));
@@ -552,6 +589,10 @@ export const LeadCRM: React.FC = () => {
         return lead.metadata?.name || t('lead_crm.waitlist.private_lead_default');
     };
 
+    const isWaitlistLeadArchived = (lead: RegistrationWaitlistLead) => {
+        return Boolean(lead.metadata?.archived_at);
+    };
+
     const getWaitlistLeadWhatsapp = (lead: RegistrationWaitlistLead) => {
         return lead.metadata?.whatsapp?.trim() || '';
     };
@@ -565,6 +606,13 @@ export const LeadCRM: React.FC = () => {
     };
 
     const getWaitlistInviteStatus = (lead: RegistrationWaitlistLead) => {
+        if (isWaitlistLeadArchived(lead)) {
+            return {
+                label: t('lead_crm.waitlist.archived'),
+                className: 'border-zinc-500/20 bg-zinc-500/10 text-zinc-300'
+            };
+        }
+
         const hasSystemDeliveryReceipt = Boolean(
             lead.metadata?.invite_status === 'sent'
             && lead.metadata?.invite_email_provider
@@ -751,7 +799,20 @@ export const LeadCRM: React.FC = () => {
 
         await updateWaitlistLeadMetadata(lead, {
             archived_at: new Date().toISOString()
-        }, { closeModal: selectedWaitlistLead?.id === lead.id });
+        }, {
+            closeModal: selectedWaitlistLead?.id === lead.id && waitlistVisibilityFilter === 'active'
+        });
+    };
+
+    const handleRestoreWaitlistLead = async (lead: RegistrationWaitlistLead) => {
+        const confirmed = window.confirm(t('lead_crm.confirm.restore_private_lead'));
+        if (!confirmed) return;
+
+        await updateWaitlistLeadMetadata(lead, {
+            archived_at: null
+        }, {
+            closeModal: selectedWaitlistLead?.id === lead.id && waitlistVisibilityFilter === 'archived'
+        });
     };
 
     const handleWaitlistWhatsAppContact = (lead: RegistrationWaitlistLead) => {
@@ -1108,7 +1169,15 @@ export const LeadCRM: React.FC = () => {
         return matchesSearch;
     });
 
+    const activeWaitlistCount = waitlistSummary?.active ?? metrics.waitlistCount;
+    const archivedWaitlistCount = waitlistSummary?.archived ?? 0;
+    const allWaitlistCount = waitlistSummary?.all ?? activeWaitlistCount;
     const waitlistTotalPages = Math.max(1, Math.ceil(waitlistTotalCount / waitlistPageSize));
+
+    const openActivePrivateRegistry = () => {
+        setWaitlistVisibilityFilter('active');
+        openCrmSection('private', { scroll: true });
+    };
 
     const CrmSectionButton = ({
         id,
@@ -1246,7 +1315,7 @@ export const LeadCRM: React.FC = () => {
                         </div>
                         <button
                             type="button"
-                            onClick={() => openCrmSection('private', { scroll: true })}
+                            onClick={openActivePrivateRegistry}
                             className="bg-black/40 px-5 py-3 rounded-2xl border border-white/5 flex items-center gap-4 group hover:border-orange-500/30 transition-all shrink-0 text-left"
                         >
                             <div className="w-8 h-8 rounded-lg bg-orange-500/10 flex items-center justify-center text-orange-300">
@@ -1329,18 +1398,18 @@ export const LeadCRM: React.FC = () => {
                     label={t('lead_crm.sections.private_label')}
                     description={t('lead_crm.sections.private_description')}
                     icon={Lock}
-                    count={waitlistTotalCount}
-                    attention={waitlistTotalCount > 0}
+                    count={activeWaitlistCount}
+                    attention={activeWaitlistCount > 0}
                 />
             </div>
 
-            {crmSection === 'public' && waitlistTotalCount > 0 && (
+            {crmSection === 'public' && activeWaitlistCount > 0 && (
                 <div className="rounded-[2rem] border border-orange-500/20 bg-[linear-gradient(135deg,rgba(249,115,22,0.14),rgba(255,255,255,0.03))] p-5 backdrop-blur-2xl">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                         <div>
                             <p className="text-[9px] font-black uppercase tracking-[0.32em] text-orange-300/80">{t('lead_crm.private.attention_badge')}</p>
                             <h2 className="mt-2 text-xl font-black uppercase italic tracking-tighter text-white">
-                                {t('lead_crm.private.leads_waiting_title', { count: waitlistTotalCount })}
+                                {t('lead_crm.private.leads_waiting_title', { count: activeWaitlistCount })}
                             </h2>
                             <p className="mt-2 max-w-3xl text-sm font-medium leading-relaxed text-white/55">
                                 {t('lead_crm.private.leads_waiting_desc')}
@@ -1348,7 +1417,7 @@ export const LeadCRM: React.FC = () => {
                         </div>
                         <button
                             type="button"
-                            onClick={() => openCrmSection('private', { scroll: true })}
+                            onClick={openActivePrivateRegistry}
                             className="inline-flex items-center justify-center gap-2 rounded-2xl border border-orange-400/30 bg-orange-400/10 px-5 py-4 text-[10px] font-black uppercase tracking-[0.24em] text-orange-100 transition-all hover:bg-orange-400/15"
                         >
                             <MessageCircle className="h-4 w-4" />
@@ -1491,6 +1560,39 @@ export const LeadCRM: React.FC = () => {
                             </button>
                         </div>
 
+                        <div className="mb-5 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                            <div className="relative w-full xl:max-w-md group">
+                                <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/15 group-focus-within:text-orange-300 transition-colors" />
+                                <input
+                                    type="text"
+                                    placeholder={t('lead_crm.waitlist.search_placeholder')}
+                                    className="w-full rounded-2xl border border-white/10 bg-black/30 pl-11 pr-4 py-3 text-sm text-white placeholder:text-white/15 focus:outline-none focus:border-orange-400/40"
+                                    value={waitlistSearchTerm}
+                                    onChange={(event) => setWaitlistSearchTerm(event.target.value)}
+                                />
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2">
+                                {[
+                                    { key: 'active' as const, label: t('lead_crm.waitlist.active_tab'), count: activeWaitlistCount },
+                                    { key: 'archived' as const, label: t('lead_crm.waitlist.archived_tab'), count: archivedWaitlistCount },
+                                    { key: 'all' as const, label: t('lead_crm.waitlist.all_tab'), count: allWaitlistCount }
+                                ].map((option) => (
+                                    <button
+                                        key={option.key}
+                                        type="button"
+                                        onClick={() => setWaitlistVisibilityFilter(option.key)}
+                                        className={`rounded-full border px-4 py-2 text-[9px] font-black uppercase tracking-[0.22em] transition-all ${
+                                            waitlistVisibilityFilter === option.key
+                                                ? 'border-orange-400/30 bg-orange-400/15 text-orange-100'
+                                                : 'border-white/10 bg-black/30 text-white/45 hover:text-white'
+                                        }`}
+                                    >
+                                        {option.label} ({option.count})
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
                         <div className="overflow-hidden rounded-[1.5rem] border border-white/5">
                             {waitlistLoading && waitlistLeads.length === 0 ? (
                                 <div className="flex items-center justify-center py-16 text-white/25">
@@ -1518,6 +1620,7 @@ export const LeadCRM: React.FC = () => {
                                                 const leadWhatsapp = getWaitlistLeadWhatsapp(lead);
                                                 const leadGroupName = getWaitlistLeadGroupName(lead);
                                                 const inviteStatus = getWaitlistInviteStatus(lead);
+                                                const isArchivedLead = isWaitlistLeadArchived(lead);
                                                 return (
                                                     <tr key={lead.id} className="bg-black/20 hover:bg-white/[0.02]">
                                                         <td className="px-5 py-4">
@@ -1528,6 +1631,9 @@ export const LeadCRM: React.FC = () => {
                                                             )}
                                                             {leadGroupName && (
                                                                 <p className="text-[10px] font-semibold text-blue-300/60">{leadGroupName}</p>
+                                                            )}
+                                                            {isArchivedLead && (
+                                                                <p className="text-[10px] font-semibold text-zinc-300/55">{t('lead_crm.waitlist.archived_badge')}</p>
                                                             )}
                                                         </td>
                                                         <td className="px-5 py-4">
@@ -1568,15 +1674,27 @@ export const LeadCRM: React.FC = () => {
                                                                     <Copy className="h-3.5 w-3.5" />
                                                                     {t('lead_crm.actions.copy_email')}
                                                                 </button>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => handleArchiveWaitlistLead(lead)}
-                                                                    className="inline-flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-[9px] font-black uppercase tracking-[0.18em] text-red-300 hover:bg-red-500/15"
-                                                                    title={t('lead_crm.actions.archive_lead')}
-                                                                >
-                                                                    <Trash2 className="h-3.5 w-3.5" />
-                                                                    {t('lead_crm.actions.archive_lead')}
-                                                                </button>
+                                                                {isArchivedLead ? (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleRestoreWaitlistLead(lead)}
+                                                                        className="inline-flex items-center gap-2 rounded-xl border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-[9px] font-black uppercase tracking-[0.18em] text-blue-200 hover:bg-blue-500/15"
+                                                                        title={t('lead_crm.actions.restore_lead')}
+                                                                    >
+                                                                        <RefreshCw className="h-3.5 w-3.5" />
+                                                                        {t('lead_crm.actions.restore_lead')}
+                                                                    </button>
+                                                                ) : (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleArchiveWaitlistLead(lead)}
+                                                                        className="inline-flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-[9px] font-black uppercase tracking-[0.18em] text-red-300 hover:bg-red-500/15"
+                                                                        title={t('lead_crm.actions.archive_lead')}
+                                                                    >
+                                                                        <Trash2 className="h-3.5 w-3.5" />
+                                                                        {t('lead_crm.actions.archive_lead')}
+                                                                    </button>
+                                                                )}
                                                             </div>
                                                         </td>
                                                     </tr>
@@ -2247,15 +2365,27 @@ export const LeadCRM: React.FC = () => {
                                     <span className="text-sm font-semibold">{t('lead_crm.actions.copy_message')}</span>
                                     <Copy className="h-4 w-4" />
                                 </button>
-                                <button
-                                    type="button"
-                                    onClick={() => handleArchiveWaitlistLead(selectedWaitlistLead)}
-                                    disabled={waitlistLeadUpdating}
-                                    className="flex w-full items-center justify-between rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-left text-red-200 transition-all hover:bg-red-500/15 disabled:opacity-40"
-                                >
-                                    <span className="text-sm font-semibold">{t('lead_crm.actions.archive_lead')}</span>
-                                    <Trash2 className="h-4 w-4" />
-                                </button>
+                                {isWaitlistLeadArchived(selectedWaitlistLead) ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => handleRestoreWaitlistLead(selectedWaitlistLead)}
+                                        disabled={waitlistLeadUpdating}
+                                        className="flex w-full items-center justify-between rounded-2xl border border-blue-500/20 bg-blue-500/10 px-4 py-3 text-left text-blue-100 transition-all hover:bg-blue-500/15 disabled:opacity-40"
+                                    >
+                                        <span className="text-sm font-semibold">{t('lead_crm.actions.restore_lead')}</span>
+                                        <RefreshCw className="h-4 w-4" />
+                                    </button>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={() => handleArchiveWaitlistLead(selectedWaitlistLead)}
+                                        disabled={waitlistLeadUpdating}
+                                        className="flex w-full items-center justify-between rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-left text-red-200 transition-all hover:bg-red-500/15 disabled:opacity-40"
+                                    >
+                                        <span className="text-sm font-semibold">{t('lead_crm.actions.archive_lead')}</span>
+                                        <Trash2 className="h-4 w-4" />
+                                    </button>
+                                )}
                             </div>
                         </div>
 

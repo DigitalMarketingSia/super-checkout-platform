@@ -873,11 +873,17 @@
       "private_leads": "Private registry leads",
       "captured_count": "{{count}} captured leads",
       "empty": "No leads on the waitlist",
+      "search_placeholder": "Search by name, email, phone or group...",
+      "active_tab": "Active",
+      "archived_tab": "Archived",
+      "all_tab": "All",
       "private_lead": "Private lead",
       "private_lead_default": "Private lead",
       "invite_sent": "Invite sent",
       "invite_ready": "Invite ready",
-      "new": "New"
+      "new": "New",
+      "archived": "Archived",
+      "archived_badge": "Archived lead"
     },
     "actions": {
       "refresh": "Refresh",
@@ -893,6 +899,7 @@
       "open_whatsapp": "Open WhatsApp",
       "lead_details": "Lead details",
       "archive_lead": "Archive lead",
+      "restore_lead": "Restore lead",
       "generate": "Generate",
       "save_link": "Save link",
       "send_invite": "Send invite",
@@ -1029,6 +1036,7 @@
     },
     "confirm": {
       "archive_private_lead": "Archive this private lead? It leaves the main list, but the historical record is preserved.",
+      "restore_private_lead": "Restore this private lead to the main list?",
       "rejection_reason": "Rejection reason (optional):"
     },
     "partner": {
