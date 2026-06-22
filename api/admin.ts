@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import activationContentHandler from '../src/core/api/admin/activation-content.js';
 import createLicenseHandler from '../src/core/api/admin/create-license.js';
 import membersHandler from '../src/core/api/admin/members.js';
 import saveGatewayHandler from '../src/core/api/admin/save-gateway.js';
@@ -35,13 +36,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     
     res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST,DELETE');
     res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization, X-Admin-Signature, X-Admin-Timestamp');
 
     const { action } = req.query;
 
     try {
         switch (action) {
+            case 'activation-content':
+                return await activationContentHandler(req, res);
             case 'create-license':
                 return await createLicenseHandler(req, res);
             case 'members':

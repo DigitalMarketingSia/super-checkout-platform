@@ -74,15 +74,40 @@ export const ActivationContentEditor = () => {
         fetchItems();
     }, []);
 
+    const getAdminApiHeaders = async () => {
+        const { data } = await supabase.auth.getSession();
+        return {
+            'Content-Type': 'application/json',
+            ...(data.session?.access_token ? { Authorization: `Bearer ${data.session.access_token}` } : {})
+        };
+    };
+
+    const getApiErrorMessage = async (response: Response, fallback: string) => {
+        const raw = await response.text();
+        if (!raw) return fallback;
+
+        try {
+            const parsed = JSON.parse(raw);
+            return parsed.error || parsed.message || fallback;
+        } catch {
+            return raw || fallback;
+        }
+    };
+
     const fetchItems = async () => {
         setLoading(true);
         try {
-            const { data } = await supabase
-                .from('activation_content')
-                .select('*')
-                .order('order', { ascending: true });
+            const response = await fetch('/api/admin?action=activation-content', {
+                method: 'GET',
+                headers: await getAdminApiHeaders()
+            });
 
-            if (data) setItems(data);
+            if (!response.ok) {
+                throw new Error(await getApiErrorMessage(response, t('activation_content.toasts.load_error')));
+            }
+
+            const payload = await response.json();
+            setItems(Array.isArray(payload.items) ? payload.items : []);
         } catch (error) {
             console.error('Error fetching:', error);
             toast.error(t('activation_content.toasts.load_error'));
@@ -90,12 +115,11 @@ export const ActivationContentEditor = () => {
             setLoading(false);
         }
     };
-
     const handleCreate = () => {
         setEditingId('new');
         setFormData({
             title: '',
-            type: 'mixed',
+            type: 'text',
             content: '',
             description: '',
             plan_scope: 'all',
@@ -121,33 +145,50 @@ export const ActivationContentEditor = () => {
                 content_order: formData.content_order || ['video', 'text', 'file', 'image']
             };
 
-            if (editingId === 'new') {
-                await supabase.from('activation_content').insert([dataToSave]);
-                toast.success(t('activation_content.toasts.created'));
-            } else {
-                await supabase.from('activation_content').update(dataToSave).eq('id', editingId);
-                toast.success(t('activation_content.toasts.saved'));
+            const response = await fetch('/api/admin?action=activation-content', {
+                method: 'POST',
+                headers: await getAdminApiHeaders(),
+                body: JSON.stringify({
+                    ...dataToSave,
+                    id: editingId === 'new' ? undefined : editingId
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(await getApiErrorMessage(response, t('activation_content.toasts.save_error')));
             }
+
+            toast.success(editingId === 'new'
+                ? t('activation_content.toasts.created')
+                : t('activation_content.toasts.saved'));
             setEditingId(null);
-            fetchItems();
+            await fetchItems();
         } catch (error) {
             console.error('Error saving:', error);
             toast.error(t('activation_content.toasts.save_error'));
         }
     };
-
     const handleDelete = async (id: string) => {
         if (!confirm(t('activation_content.confirm_delete'))) return;
         try {
-            await supabase.from('activation_content').delete().eq('id', id);
+            const response = await fetch('/api/admin?action=activation-content', {
+                method: 'DELETE',
+                headers: await getAdminApiHeaders(),
+                body: JSON.stringify({ id })
+            });
+
+            if (!response.ok) {
+                throw new Error(await getApiErrorMessage(response, t('activation_content.toasts.delete_error')));
+            }
+
             toast.success(t('activation_content.toasts.deleted'));
             setEditingId(null);
-            fetchItems();
+            await fetchItems();
         } catch (error) {
+            console.error('Error deleting:', error);
             toast.error(t('activation_content.toasts.delete_error'));
         }
     };
-
     const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (!e.target.files || e.target.files.length === 0) return;
         const file = e.target.files[0];
@@ -675,3 +716,4 @@ export const ActivationContentEditor = () => {
         </Layout >
     );
 };
+
