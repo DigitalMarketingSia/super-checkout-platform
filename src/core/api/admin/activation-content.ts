@@ -6,6 +6,19 @@ const DEFAULT_CONTENT_ORDER = ['video', 'text', 'file', 'image'] as const;
 const ALLOWED_CONTENT_ORDER_SECTIONS = new Set(DEFAULT_CONTENT_ORDER);
 const ALLOWED_PLAN_SCOPES = new Set(['all', 'starter', 'agency', 'master']);
 
+function normalizeEmail(value?: string | null) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function getMasterAdminEmails() {
+  return new Set(
+    String(process.env.MASTER_ADMIN_EMAILS || '')
+      .split(',')
+      .map((email) => normalizeEmail(email))
+      .filter(Boolean),
+  );
+}
+
 function parseBody(req: VercelRequest) {
   if (!req.body) return {};
 
@@ -123,11 +136,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const auth = await requireApiAuth(req, res, {
     source: 'admin_activation_content',
-    allowedRoles: ['master_admin'],
+    allowedRoles: ['admin', 'owner', 'master_admin'],
   });
   if (!auth) return;
 
-  const { supabaseAdmin, user } = auth;
+  const { supabaseAdmin, user, profile, role } = auth;
+  const masterAdminEmails = getMasterAdminEmails();
+  const isSystemOwner = role === 'master_admin'
+    || (masterAdminEmails.size > 0
+      && (masterAdminEmails.has(normalizeEmail(user.email)) || masterAdminEmails.has(normalizeEmail(profile.email))));
+
+  if (!isSystemOwner) {
+    return res.status(403).json({ error: 'System owner access required.' });
+  }
+
   const body = parseBody(req);
   const bodyId = normalizeString(body.id);
   const rateLimit = enforceApiRateLimit(req, res, {
