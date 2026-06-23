@@ -10,6 +10,7 @@ import { Button } from '../../components/ui/Button';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../services/supabase';
 import { storage } from '../../services/storageService';
+import { isDemoDataRuntime } from '../../services/demoDataService';
 import { Gateway, GatewayProvider } from '../../types';
 import { sanitizeTranslationHtml } from '../../utils/sanitize';
 
@@ -70,6 +71,7 @@ const DEFAULT_PAGSEGURO_CONFIG: PagSeguroConfigState = {
 export const Gateways = () => {
   const { t } = useTranslation(['admin', 'common']);
   const { compliance, user, session } = useAuth();
+  const isDemoMode = isDemoDataRuntime();
 
   const [gateways, setGateways] = useState<Gateway[]>([]);
   const [showComplianceModal, setShowComplianceModal] = useState(false);
@@ -153,6 +155,30 @@ export const Gateways = () => {
           }
         : DEFAULT_PAGSEGURO_CONFIG
     );
+  };
+
+  const persistGatewayState = async (provider: GatewayProvider, gatewayData: Partial<Gateway>) => {
+    const existing = gateways.find((gateway) => gateway.name === provider);
+    const baseGateway = {
+      id: existing?.id,
+      name: provider,
+      public_key: gatewayData.public_key ?? existing?.public_key ?? '',
+      private_key: gatewayData.private_key ?? existing?.private_key ?? '',
+      webhook_secret: gatewayData.webhook_secret ?? existing?.webhook_secret ?? '',
+      active: gatewayData.active ?? existing?.active ?? false,
+      config: {
+        ...(existing?.config || {}),
+        ...(gatewayData.config || {}),
+        demo: true,
+      },
+    };
+
+    if (existing?.id) {
+      return storage.updateGateway({ ...baseGateway, id: existing.id });
+    }
+
+    const { id: _id, ...createPayload } = baseGateway;
+    return storage.createGateway(createPayload);
   };
 
   useEffect(() => {
@@ -269,6 +295,30 @@ export const Gateways = () => {
       };
 
       const index = gateways.findIndex(gateway => gateway.name === provider);
+
+      if (isDemoMode) {
+        await persistGatewayState(provider, {
+          public_key: gatewayData.clear_public_key ? '' : restConfig.public_key,
+          private_key: gatewayData.clear_private_key ? '' : restConfig.private_key,
+          webhook_secret: restConfig.webhook_secret,
+          active: restConfig.active,
+          config: {
+            ...gatewayData.config,
+            sync_mode: 'demo',
+            external_effect: 'simulated',
+          },
+        });
+
+        const updatedGateways = await storage.getGateways();
+        setGateways(updatedGateways);
+        syncGatewayConfigs(updatedGateways);
+        setIsModalOpen(false);
+        setActiveModalApp(null);
+        setPagbankDisconnectRequested(false);
+        setTimeout(() => showAlert(t('common.success'), 'Gateway salvo no workspace demo sem usar credenciais reais.', 'success'), 100);
+        return;
+      }
+
       const submitGatewaySave = (accessToken: string) => fetch('/api/admin?action=save-gateway', {
         method: 'POST',
         headers: {
@@ -324,6 +374,11 @@ export const Gateways = () => {
     setIsConnectingOauth(true);
     setPagbankDisconnectRequested(false);
     try {
+      if (isDemoMode) {
+        showAlert('Fluxo Bloqueado no Demo', 'A autorizacao externa do PagBank fica bloqueada no demo. Use a conexao sandbox guiada para testar a tela.', 'info');
+        return;
+      }
+
       let accessToken = await resolveAccessToken();
       const isSandbox = pagSeguroConfig.environment === 'sandbox';
       const oauthEndpoint = isSandbox
@@ -343,11 +398,12 @@ export const Gateways = () => {
       });
       const data = await res.json();
       if (!res.ok || !data.url) {
-        throw new Error(data.error || 'Erro ao iniciar autorização do PagBank');
+        throw new Error(data.error || 'Erro ao iniciar autorizacao do PagBank');
       }
       window.location.href = data.url;
     } catch (err: any) {
-      showAlert(t('common.error'), err.message || 'Erro de conexão Oauth', 'error');
+      showAlert(t('common.error'), err.message || 'Erro de conexao Oauth', 'error');
+    } finally {
       setIsConnectingOauth(false);
     }
   };
@@ -380,6 +436,27 @@ export const Gateways = () => {
     setPagbankDisconnectRequested(false);
 
     try {
+      if (isDemoMode) {
+        await persistGatewayState(GatewayProvider.PAGSEGURO, {
+          public_key: 'pagbank_sandbox_demo',
+          private_key: '',
+          webhook_secret: '',
+          active: true,
+          config: {
+            environment: 'sandbox',
+            seller_email: sellerEmail,
+            sandbox_mode: 'simulated',
+            external_effect: 'blocked',
+          },
+        });
+
+        const updatedGateways = await storage.getGateways();
+        setGateways(updatedGateways);
+        syncGatewayConfigs(updatedGateways);
+        showAlert('Sandbox Conectado', 'Conta sandbox conectada no workspace demo sem chamada externa.', 'success');
+        return;
+      }
+
       const accessToken = await resolveAccessToken();
       const res = await fetch('/api/system?action=pagbank-sandbox-connect-mock', {
         method: 'POST',

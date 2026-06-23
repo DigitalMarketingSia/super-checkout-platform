@@ -120,7 +120,7 @@
         "safe_flow": "entrada segura via passport",
         "workspace_rule": "1 workspace demo activo por cuenta",
         "retention_rule": "purga automatica en 24h",
-        "back_portal": "volver al portal",
+        "back_portal": "instalar mi entorno",
         "signed_as": "Sesion validada para {{email}}",
         "workspace_title": "workspace aprovisionado",
         "feedback_ready": "Workspace demo sincronizado con exito.",
@@ -150,8 +150,8 @@
           "orders": "escenarios de pedidos",
           "integrations": "integraciones y efectos externos"
         },
-        "next_title": "Proximo lote: conectar con las pantallas reales",
-        "next_description": "El siguiente ciclo usa este workspace aprovisionado para alimentar las pantallas de admin, checkout publico y area de miembros con adapters demo, sin depender de una instalacion self-hosted."
+        "next_title": "Listo para instalar tu entorno",
+        "next_description": "Cuando quieras salir del sandbox demo, continua al flujo comercial de activacion y sigue el recorrido oficial de licencia, instalador y setup self-hosted sin perder el contexto de la evaluacion."
       }
     },
     "quick_access": {

@@ -410,7 +410,7 @@ export const DemoWorkspaceLauncher: React.FC = () => {
                     <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
                         <div className="max-w-2xl">
                             <p className="text-[10px] font-black uppercase tracking-[0.3em] text-primary/70">
-                                FASE 38.2
+                                FASE 38.8
                             </p>
                             <h2 className="mt-3 text-2xl font-black italic uppercase tracking-tighter text-white">
                                 {t('basic_dashboard.demo.launchpad.next_title')}

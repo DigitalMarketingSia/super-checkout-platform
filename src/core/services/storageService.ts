@@ -1197,6 +1197,8 @@ class StorageService {
   }
 
   async getDomainUsage(domainId: string) {
+    if (isDemoDataRuntime()) return demoDataService.getDomainUsage(domainId);
+
     const user = await this.getUser();
     if (!user) throw new Error('No user logged in');
 
@@ -1254,6 +1256,8 @@ class StorageService {
 
 
   async createDomain(domain: Omit<Domain, 'id'>) {
+    if (isDemoDataRuntime()) return demoDataService.createDomain(domain);
+
     const user = await this.getUser();
     if (!user) throw new Error('No user logged in');
 
@@ -1280,6 +1284,11 @@ class StorageService {
   }
 
   async deleteDomain(id: string) {
+    if (isDemoDataRuntime()) {
+      await demoDataService.deleteDomain(id);
+      return;
+    }
+
     const user = await this.getUser();
     if (!user) throw new Error('No user logged in');
 
@@ -1363,6 +1372,8 @@ class StorageService {
   }
 
   async createGateway(gateway: Omit<Gateway, 'id'>) {
+    if (isDemoDataRuntime()) return demoDataService.saveGateway(gateway as Gateway);
+
     const user = await this.getUser();
     if (!user) throw new Error('No user logged in');
 
@@ -1399,6 +1410,8 @@ class StorageService {
   }
 
   async updateGateway(gateway: Gateway) {
+    if (isDemoDataRuntime()) return demoDataService.saveGateway(gateway);
+
     const user = await this.getUser();
     if (!user) throw new Error('No user logged in');
 
@@ -1752,6 +1765,8 @@ class StorageService {
   }
 
   async saveIntegration(integration: { name: string; config: any; active: boolean }) {
+    if (isDemoDataRuntime()) return demoDataService.saveIntegration(integration);
+
     const user = await this.getUser();
     if (!user) throw new Error('No user logged in');
 

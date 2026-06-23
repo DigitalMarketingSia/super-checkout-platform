@@ -4,6 +4,8 @@ import { Layout } from '../../components/Layout';
 import { Button } from '../../components/ui/Button';
 import { EmailTemplateModal } from '../../components/modals/EmailTemplateModal';
 import { useAuth } from '../../context/AuthContext';
+import { demoWorkspaceService } from '../../services/demoWorkspaceService';
+import { isDemoDataRuntime } from '../../services/demoDataService';
 import { supabase } from '../../services/supabase';
 import {
   POST_PURCHASE_EMAIL_TEMPLATES,
@@ -108,12 +110,54 @@ function getTemplateDefinition(eventType: string) {
   return BUSINESS_TEMPLATE_DEFINITION_BY_EVENT.get(eventType) || null;
 }
 
+type DemoTemplateScope = 'business' | 'system';
+
 function renderStatusBadge(template: EmailTemplate) {
   return template.isVirtual ? 'Padrao' : template.active ? 'Ativo' : 'Fallback';
 }
 
+function getDemoTemplateStorageKey(scope: DemoTemplateScope) {
+  const workspaceId = demoWorkspaceService.getCachedWorkspace()?.workspace?.id || 'shared';
+  return 'sc_demo_email_templates:' + scope + ':' + workspaceId;
+}
+
+function readDemoTemplates(scope: DemoTemplateScope): EmailTemplate[] {
+  if (typeof window === 'undefined') return [];
+
+  try {
+    const raw = window.localStorage.getItem(getDemoTemplateStorageKey(scope));
+    if (!raw) return [];
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed
+      .filter((template) => template && typeof template === 'object' && 'id' in template && 'event_type' in template)
+      .map((template) => ({
+        id: String(template.id),
+        event_type: String(template.event_type),
+        name: String(template.name || ''),
+        subject: String(template.subject || ''),
+        html_body: String(template.html_body || ''),
+        active: template.active !== false,
+        updated_at: String(template.updated_at || new Date().toISOString()),
+      }));
+  } catch (error) {
+    console.error('Error reading demo email templates:', error);
+    return [];
+  }
+}
+
+function writeDemoTemplates(scope: DemoTemplateScope, templates: EmailTemplate[]) {
+  if (typeof window === 'undefined') return;
+
+  const serialized = templates.map(({ isVirtual, ...template }) => template);
+  window.localStorage.setItem(getDemoTemplateStorageKey(scope), JSON.stringify(serialized));
+}
+
 export const Notifications = () => {
   const { profile } = useAuth();
+  const isDemoMode = isDemoDataRuntime();
   const effectiveRole = profile?.effective_role || profile?.role;
   const isOwner = effectiveRole === 'master_admin';
 
@@ -142,6 +186,16 @@ export const Notifications = () => {
   async function loadTemplates() {
     setLoading(true);
     try {
+      if (isDemoMode) {
+        const businessData = readDemoTemplates('business');
+        const systemData = readDemoTemplates('system');
+        if (isOwner) {
+          setSystemTemplates(systemData);
+        }
+        setBusinessTemplates(buildBusinessTemplateSet(businessData));
+        return;
+      }
+
       if (isOwner) {
         const { data: systemData, error: systemError } = await supabase
           .from('system_email_templates')
@@ -174,6 +228,27 @@ export const Notifications = () => {
     }
   }
 
+  async function persistDemoTemplate(payload: { template: EmailTemplate; subject: string; htmlBody: string; isSystem: boolean }) {
+    const scope: DemoTemplateScope = payload.isSystem ? 'system' : 'business';
+    const currentTemplates = readDemoTemplates(scope);
+    const nextTemplate: EmailTemplate = {
+      id: payload.template.isVirtual ? 'demo-template-' + payload.template.event_type.toLowerCase() : payload.template.id,
+      event_type: payload.template.event_type,
+      name: payload.template.name,
+      subject: payload.subject,
+      html_body: payload.htmlBody,
+      active: payload.template.active ?? true,
+      updated_at: new Date().toISOString(),
+    };
+
+    const nextTemplates = [
+      ...currentTemplates.filter((template) => template.id !== nextTemplate.id && template.event_type !== nextTemplate.event_type),
+      nextTemplate,
+    ];
+
+    writeDemoTemplates(scope, nextTemplates);
+  }
+
   function handleEdit(template: EmailTemplate) {
     setSelectedTemplate(template);
     setIsModalOpen(true);
@@ -185,6 +260,27 @@ export const Notifications = () => {
   }
 
   async function toggleStatus(template: EmailTemplate, isSystemContext: boolean) {
+    if (isDemoMode) {
+      const scope: DemoTemplateScope = isSystemContext ? 'system' : 'business';
+      const currentTemplates = readDemoTemplates(scope);
+      const nextTemplate: EmailTemplate = {
+        id: template.isVirtual ? 'demo-template-' + template.event_type.toLowerCase() : template.id,
+        event_type: template.event_type,
+        name: template.name,
+        subject: template.subject,
+        html_body: template.html_body,
+        active: !template.active,
+        updated_at: new Date().toISOString(),
+      };
+
+      writeDemoTemplates(scope, [
+        ...currentTemplates.filter((entry) => entry.id !== nextTemplate.id && entry.event_type !== nextTemplate.event_type),
+        nextTemplate,
+      ]);
+      await loadTemplates();
+      return;
+    }
+
     if (template.isVirtual) {
       handleEdit(template);
       return;
@@ -474,6 +570,7 @@ export const Notifications = () => {
         template={selectedTemplate}
         onSave={handleSave}
         isSystem={activeTab === 'system' && isOwner}
+        onPersist={isDemoMode ? persistDemoTemplate : undefined}
       />
     </Layout>
   );

@@ -21,6 +21,7 @@ interface EmailTemplateModalProps {
     template: EmailTemplate | null;
     onSave: () => void;
     isSystem?: boolean;
+    onPersist?: (payload: { template: EmailTemplate; subject: string; htmlBody: string; isSystem: boolean }) => Promise<void> | void;
 }
 
 // Variables Contract
@@ -39,7 +40,7 @@ const EVENT_VARIABLES: Record<string, string[]> = {
     UPGRADE_PARTNER: ['{{name}}', '{{partner_portal_url}}']
 };
 
-export const EmailTemplateModal: React.FC<EmailTemplateModalProps> = ({ isOpen, onClose, template, onSave, isSystem = false }) => {
+export const EmailTemplateModal: React.FC<EmailTemplateModalProps> = ({ isOpen, onClose, template, onSave, isSystem = false, onPersist }) => {
     const [subject, setSubject] = useState('');
     const [body, setBody] = useState('');
     const [loading, setLoading] = useState(false);
@@ -85,6 +86,17 @@ export const EmailTemplateModal: React.FC<EmailTemplateModalProps> = ({ isOpen, 
     const handleSave = async () => {
         setLoading(true);
         try {
+            if (onPersist) {
+                await onPersist({
+                    template,
+                    subject,
+                    htmlBody: body,
+                    isSystem,
+                });
+                onSave();
+                return;
+            }
+
             const table = isSystem ? 'system_email_templates' : 'email_templates';
 
             if (template.isVirtual) {

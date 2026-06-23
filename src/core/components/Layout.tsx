@@ -132,7 +132,7 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
                 Detalhes e reset
               </Link>
               <a href={`${platformUrls.portal}/activate`} className="text-white underline-offset-4 hover:underline">
-                Instalar sistema definitivo
+                Instalar meu ambiente
               </a>
             </div>
           </div>

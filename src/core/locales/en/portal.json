@@ -119,7 +119,7 @@
         "safe_flow": "secure passport entry",
         "workspace_rule": "1 active demo workspace per account",
         "retention_rule": "automatic 24h purge",
-        "back_portal": "back to portal",
+        "back_portal": "install my environment",
         "signed_as": "Session validated for {{email}}",
         "workspace_title": "provisioned workspace",
         "feedback_ready": "Demo workspace synced successfully.",
@@ -149,8 +149,8 @@
           "orders": "order scenarios",
           "integrations": "integrations and external effects"
         },
-        "next_title": "Next slice: wire into the real screens",
-        "next_description": "The next cycle uses this provisioned workspace to feed admin, public checkout and member area screens with demo adapters, without depending on a self-hosted installation."
+        "next_title": "Ready to install your environment",
+        "next_description": "When you are ready to leave the demo sandbox, continue to the commercial activation flow and follow the official license, installer and self-hosted setup journey without losing the evaluation context."
       }
     },
     "quick_access": {

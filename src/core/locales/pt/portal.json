@@ -120,7 +120,7 @@
         "safe_flow": "entrada segura via passport",
         "workspace_rule": "1 workspace demo ativo por conta",
         "retention_rule": "purge automatico em 24h",
-        "back_portal": "voltar ao portal",
+        "back_portal": "instalar meu ambiente",
         "signed_as": "Sessao validada para {{email}}",
         "workspace_title": "workspace provisionado",
         "feedback_ready": "Workspace demo sincronizado com sucesso.",
@@ -150,8 +150,8 @@
           "orders": "cenarios de pedidos",
           "integrations": "integracoes e efeitos externos"
         },
-        "next_title": "Proximo lote: plugar nas telas reais",
-        "next_description": "O ciclo seguinte usa este workspace provisionado para alimentar as telas de admin, checkout publico e area de membros com adapters demo, sem depender de instalacao self-hosted."
+        "next_title": "Pronto para instalar seu ambiente",
+        "next_description": "Quando quiser sair do sandbox demo, siga para a ativacao comercial e continue o fluxo oficial de licenca, instalador e setup self-hosted sem perder o contexto da avaliacao."
       }
     },
     "quick_access": {

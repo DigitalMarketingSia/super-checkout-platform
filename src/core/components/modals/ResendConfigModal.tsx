@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal } from '../ui/Modal';
 import { storage, supabase } from '../../services/storageService';
 import { emailService } from '../../services/emailService';
+import { isDemoDataRuntime } from '../../services/demoDataService';
 import { Order, OrderStatus } from '../../types';
 import { Check, Loader2, Key } from 'lucide-react';
 
@@ -11,6 +12,7 @@ interface ResendConfigModalProps {
 }
 
 export const ResendConfigModal: React.FC<ResendConfigModalProps> = ({ isOpen, onClose }) => {
+    const isDemoMode = isDemoDataRuntime();
     const [apiKey, setApiKey] = useState('');
     const [senderEmail, setSenderEmail] = useState('');
     const [saving, setSaving] = useState(false);
@@ -55,22 +57,25 @@ export const ResendConfigModal: React.FC<ResendConfigModalProps> = ({ isOpen, on
     const handleTest = async () => {
         setTesting(true);
         try {
-            // 1. Save config first
             await storage.saveIntegration({
                 name: 'resend',
                 config: { apiKey, senderEmail },
                 active: active
             });
 
-            // 2. Get current user email to send tests to
+            if (isDemoMode) {
+                const simulatedTarget = senderEmail || 'lead.demo@supercheckout.app';
+                alert(`Modo demo: simulamos 2 e-mails de teste para ${simulatedTarget} sem usar a API real do Resend.`);
+                return;
+            }
+
             const { data: { user } } = await supabase.auth.getUser();
             const targetEmail = user?.email;
 
             if (!targetEmail) {
-                throw new Error('Não foi possível identificar seu e-mail para envio dos testes.');
+                throw new Error('Nao foi possivel identificar seu e-mail para envio dos testes.');
             }
 
-            // 3. Create Mock Order
             const mockOrder: Order = {
                 id: 'teste-123',
                 checkout_id: 'chk_test',
@@ -84,14 +89,13 @@ export const ResendConfigModal: React.FC<ResendConfigModalProps> = ({ isOpen, on
                 created_at: new Date().toISOString()
             };
 
-            // 4. Send the 2 relevant email types with verification
             const [approvedSent, boletoSent] = await Promise.all([
                 emailService.sendPaymentApproved(mockOrder),
                 emailService.sendBoletoGenerated(mockOrder, 'https://exemplo.com/boleto', '12345.67890 12345.67890 12345.67890 123456')
             ]);
 
             if (!approvedSent || !boletoSent) {
-                throw new Error('Falha ao enviar e-mails. Verifique se a API Key está ativa e se o domínio de remetente é válido.');
+                throw new Error('Falha ao enviar e-mails. Verifique se a API Key esta ativa e se o dominio de remetente e valido.');
             }
 
             alert(`Sucesso! Enviamos 2 e-mails de teste para: ${targetEmail}.`);

@@ -26,6 +26,7 @@ import { useAuth } from '../../context/AuthContext';
 import { UpsellModal } from '../../components/ui/UpsellModal';
 import { useTranslation } from 'react-i18next';
 import Aurora from '../../components/ui/Aurora';
+import { demoDataService, isDemoDataRuntime } from '../../services/demoDataService';
 
 const TWO_PART_PUBLIC_SUFFIXES = new Set([
   'com.br',
@@ -65,9 +66,20 @@ const getDnsHostLabel = (recordDomain: string, selectedDomain: string) => {
   return recordDomain;
 };
 
+const buildDemoDnsRecords = (domainName: string) => {
+  const zone = getZoneDomain(domainName);
+
+  return [
+    { type: 'CNAME', domain: domainName, value: 'demo.supercheckout.app' },
+    { type: 'TXT', domain: '_sc-demo.' + zone, value: 'workspace-demo-supercheckout' },
+    { type: 'A', domain: '@', value: '76.76.21.21' }
+  ];
+};
+
 export const Domains = () => {
   const { t } = useTranslation(['admin', 'common']);
   const { isWhiteLabel, session } = useAuth();
+  const isDemoMode = isDemoDataRuntime();
   const [domains, setDomains] = useState<Domain[]>([]);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isDnsModalOpen, setIsDnsModalOpen] = useState(false);
@@ -99,6 +111,7 @@ export const Domains = () => {
 
   // DNS Records State
   const [dnsRecords, setDnsRecords] = useState<any>(null);
+  const [demoVerificationAttempts, setDemoVerificationAttempts] = useState<Record<string, number>>({});
 
   useEffect(() => {
     loadData();
@@ -129,15 +142,6 @@ export const Domains = () => {
     setError(null);
 
     try {
-      const res = await fetch('/api/domains/add', {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ domain: formData.domain })
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || t('domains.vercel_error'));
-
       const newDomainData = {
         status: DomainStatus.PENDING,
         created_at: new Date().toISOString(),
@@ -147,8 +151,19 @@ export const Domains = () => {
         usage: formData.usage
       };
 
+      if (!isDemoMode) {
+        const res = await fetch('/api/domains/add', {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ domain: formData.domain })
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || t('domains.vercel_error'));
+      }
+
       const savedDomain = await storage.createDomain(newDomainData);
-      setDomains([...domains, savedDomain]);
+      setDomains((prev) => [savedDomain, ...prev.filter((entry) => entry.id !== savedDomain.id)]);
       setIsAddModalOpen(false);
       setFormData({ domain: '', type: DomainType.CNAME, usage: DomainUsage.CHECKOUT });
       openDnsModal(savedDomain);
@@ -162,16 +177,36 @@ export const Domains = () => {
   const verifyDomain = async (id: string, domainName: string, silent = false) => {
     if (!silent) setVerifyingId(id);
     try {
-      const res = await fetch(`/api/domains/verify?domain=${encodeURIComponent(domainName)}`, {
+      if (isDemoMode) {
+        const currentDomain = domains.find((domain) => domain.id === id) || null;
+        const attempts = demoVerificationAttempts[id] || 0;
+        const shouldError = /erro|invalid|fail/i.test(domainName);
+        const shouldActivate = currentDomain?.status === DomainStatus.ACTIVE || attempts > 0;
+        const newStatus = shouldError
+          ? DomainStatus.ERROR
+          : shouldActivate
+            ? DomainStatus.ACTIVE
+            : DomainStatus.PENDING;
+
+        setDemoVerificationAttempts((prev) => ({ ...prev, [id]: attempts + 1 }));
+        const updatedDomain = await demoDataService.updateDomainStatus(id, newStatus);
+
+        if (updatedDomain) {
+          setDomains((prev) => prev.map((domain) => domain.id === id ? updatedDomain : domain));
+        }
+
+        return buildDemoDnsRecords(domainName);
+      }
+
+      const res = await fetch('/api/domains/verify?domain=' + encodeURIComponent(domainName), {
         headers: getAuthHeaders()
       });
       const data = await res.json();
 
-      let newStatus = data.verified ? DomainStatus.ACTIVE : (data.error ? DomainStatus.ERROR : DomainStatus.PENDING);
-      
-      const currentDomain = domains.find(d => d.id === id);
+      const newStatus = data.verified ? DomainStatus.ACTIVE : (data.error ? DomainStatus.ERROR : DomainStatus.PENDING);
+      const currentDomain = domains.find((domain) => domain.id === id);
       if (currentDomain && currentDomain.status !== newStatus) {
-        setDomains(prev => prev.map(d => d.id === id ? { ...d, status: newStatus } : d));
+        setDomains((prev) => prev.map((domain) => domain.id === id ? { ...domain, status: newStatus } : domain));
       }
 
       return data.dnsRecords || data.verificationChallenges || [
@@ -179,7 +214,7 @@ export const Domains = () => {
         { type: 'A', domain: '@', value: '76.76.21.21' }
       ];
     } catch (err: any) {
-      setDomains(prev => prev.map(d => d.id === id ? { ...d, status: DomainStatus.ERROR } : d));
+      setDomains((prev) => prev.map((domain) => domain.id === id ? { ...domain, status: DomainStatus.ERROR } : domain));
       return null;
     } finally {
       if (!silent) setVerifyingId(null);
@@ -217,12 +252,15 @@ export const Domains = () => {
     if (!deleteId || !deleteDomainName) return;
     setRemovingId(deleteId);
     try {
-      await fetch(`/api/domains/remove?domain=${encodeURIComponent(deleteDomainName)}`, {
-        method: 'DELETE',
-        headers: getAuthHeaders()
-      });
+      if (!isDemoMode) {
+        await fetch('/api/domains/remove?domain=' + encodeURIComponent(deleteDomainName), {
+          method: 'DELETE',
+          headers: getAuthHeaders()
+        });
+      }
+
       await storage.deleteDomain(deleteId);
-      setDomains(domains.filter(d => d.id !== deleteId));
+      setDomains((prev) => prev.filter((domain) => domain.id !== deleteId));
       setDeleteId(null);
     } catch (err) {
       setAlertModal({ isOpen: true, title: t('common.error'), message: t('domains.remove_error'), variant: 'error' });

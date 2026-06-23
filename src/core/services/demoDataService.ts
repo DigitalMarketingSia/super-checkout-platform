@@ -8,6 +8,7 @@ import {
   DomainUsage,
   Gateway,
   GatewayProvider,
+  Integration,
   Lesson,
   MemberArea,
   Module,
@@ -40,7 +41,18 @@ const DEMO_RUNTIME_KEY_PREFIX = 'demo_workspace_runtime';
 const DEMO_MEMBER_SESSION_KEY_PREFIX = 'demo_member_session';
 const DEMO_MEMBER_TICKET_TTL_MS = 30 * 60 * 1000;
 const DEMO_MEMBER_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
-const DEMO_RUNTIME_VERSION = 3;
+const DEMO_RUNTIME_VERSION = 4;
+const DEMO_RUNTIME_STORAGE_LIMIT_BYTES = 4 * 1024 * 1024;
+const DEMO_RUNTIME_MAX_ASSET_BYTES = 2 * 1024 * 1024;
+const DEMO_QUOTAS = Object.freeze({
+  products: 8,
+  checkouts: 4,
+  memberAreas: 2,
+  orders: 24,
+  domains: 6,
+  integrations: 8,
+  webhooks: 24,
+});
 
 export interface DemoOrderDeliverable {
   id: string;
@@ -125,6 +137,18 @@ interface DemoProductContentLink {
   content_id: string;
 }
 
+interface DemoQuotaSummary {
+  products: number;
+  checkouts: number;
+  memberAreas: number;
+  orders: number;
+  domains: number;
+  integrations: number;
+  webhooks: number;
+  storageBytes: number;
+  storageLimitBytes: number;
+}
+
 interface DemoRuntimeState {
   version: number;
   workspace_id: string;
@@ -145,6 +169,9 @@ interface DemoRuntimeState {
   product_content_links: DemoProductContentLink[];
   tracks: Track[];
   track_items: TrackItem[];
+  domains: Domain[];
+  gateways: Gateway[];
+  integrations: Integration[];
   webhooks: WebhookConfig[];
   webhook_logs: WebhookLog[];
 }
@@ -155,11 +182,16 @@ const getWorkspacePayload = async (): Promise<DemoWorkspaceResponse | null> => {
   const cached = demoWorkspaceService.getCachedWorkspace();
 
   if (cached?.workspace?.status === 'active') {
+    sweepDemoRuntimeStorage(cached.workspace.id);
     return cached;
   }
 
   try {
-    return await demoWorkspaceService.ensureWorkspace();
+    const ensured = await demoWorkspaceService.ensureWorkspace();
+    if (ensured?.workspace?.id) {
+      sweepDemoRuntimeStorage(ensured.workspace.id);
+    }
+    return ensured;
   } catch (error) {
     console.warn('[DemoData] Workspace unavailable:', error);
     return cached;
@@ -331,6 +363,9 @@ const buildEmptyRuntimeState = (workspace: DemoWorkspace): DemoRuntimeState => (
   product_content_links: buildDefaultDemoProductContentLinks(workspace),
   tracks: buildDefaultDemoTracks(workspace),
   track_items: buildDefaultDemoTrackItems(workspace),
+  domains: buildDefaultDemoDomains(workspace),
+  gateways: buildDefaultDemoGateways(),
+  integrations: buildDefaultDemoIntegrations(workspace),
   webhooks: [],
   webhook_logs: [],
 });
@@ -491,6 +526,94 @@ const normalizeDemoWebhookLogs = (logs: unknown): WebhookLog[] =>
         .filter((log) => Boolean(log.id) && Boolean(log.event))
         .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())
     : [];
+
+const estimateSerializedSize = (value: unknown) => {
+  try {
+    return new TextEncoder().encode(JSON.stringify(value)).length;
+  } catch {
+    return 0;
+  }
+};
+
+const buildQuotaSummary = (state: DemoRuntimeState): DemoQuotaSummary => ({
+  products: state.products.length,
+  checkouts: state.checkouts.length,
+  memberAreas: state.member_areas.length,
+  orders: state.orders.length,
+  domains: state.domains.length,
+  integrations: state.integrations.length,
+  webhooks: state.webhooks.length,
+  storageBytes: estimateSerializedSize(state),
+  storageLimitBytes: DEMO_RUNTIME_STORAGE_LIMIT_BYTES,
+});
+
+const assertCollectionQuota = (nextCount: number, limit: number, label: string) => {
+  if (nextCount > limit) {
+    throw new Error(`Limite do demo atingido para ${label}. Remova itens antigos ou resete o workspace para continuar.`);
+  }
+};
+
+const assertDemoAssetSize = (file: File) => {
+  if (file.size > DEMO_RUNTIME_MAX_ASSET_BYTES) {
+    throw new Error('O arquivo excede o limite do demo. Use arquivos menores ou resete o workspace para continuar.');
+  }
+};
+
+const sweepDemoRuntimeStorage = (activeWorkspaceId?: string | null) => {
+  if (typeof window === 'undefined') return;
+
+  const activeId = String(activeWorkspaceId || '').trim();
+  const runtimePrefix = `${DEMO_RUNTIME_KEY_PREFIX}:`;
+  const memberPrefix = `${DEMO_MEMBER_SESSION_KEY_PREFIX}:`;
+  const runtimeKeysToRemove = [];
+  const memberKeysToRemove = [];
+
+  for (let index = 0; index < window.localStorage.length; index += 1) {
+    const key = window.localStorage.key(index);
+    if (!key || !key.startsWith(runtimePrefix)) continue;
+
+    const workspaceId = key.slice(runtimePrefix.length);
+    const raw = window.localStorage.getItem(key);
+    if (!raw) {
+      runtimeKeysToRemove.push(key);
+      memberKeysToRemove.push(`${memberPrefix}${workspaceId}`);
+      continue;
+    }
+
+    try {
+      const parsed = JSON.parse(raw) as Partial<DemoRuntimeState> | null;
+      const expiresAt = parsed?.expires_at ? new Date(String(parsed.expires_at)).getTime() : Number.NaN;
+      const expired = !Number.isFinite(expiresAt) || expiresAt <= Date.now();
+      const staleWorkspace = Boolean(activeId) && workspaceId !== activeId;
+
+      if (expired || staleWorkspace) {
+        runtimeKeysToRemove.push(key);
+        memberKeysToRemove.push(`${memberPrefix}${workspaceId}`);
+      }
+    } catch {
+      runtimeKeysToRemove.push(key);
+      memberKeysToRemove.push(`${memberPrefix}${workspaceId}`);
+    }
+  }
+
+  for (const key of runtimeKeysToRemove) {
+    window.localStorage.removeItem(key);
+  }
+
+  for (let index = 0; index < window.sessionStorage.length; index += 1) {
+    const key = window.sessionStorage.key(index);
+    if (!key || !key.startsWith(memberPrefix)) continue;
+
+    const workspaceId = key.slice(memberPrefix.length);
+    if (!activeId || workspaceId !== activeId || memberKeysToRemove.includes(key)) {
+      memberKeysToRemove.push(key);
+    }
+  }
+
+  for (const key of new Set(memberKeysToRemove)) {
+    window.sessionStorage.removeItem(key);
+  }
+};
 
 const buildDemoMemberUser = (member: { id: string; email: string; full_name: string; created_at?: string; updated_at?: string }): User => ({
   id: member.id,
@@ -691,6 +814,9 @@ const loadRuntimeState = (workspace: DemoWorkspace): DemoRuntimeState => {
       product_content_links: normalizeDemoProductContentLinks(workspace, parsed.product_content_links),
       tracks: normalizeDemoTracks(workspace, parsed.tracks),
       track_items: normalizeDemoTrackItems(workspace, parsed.track_items),
+      domains: normalizeDemoDomains(workspace, parsed.domains),
+      gateways: normalizeDemoGateways(parsed.gateways),
+      integrations: normalizeDemoIntegrations(workspace, parsed.integrations),
       webhooks: normalizeDemoWebhooks(parsed.webhooks),
       webhook_logs: normalizeDemoWebhookLogs(parsed.webhook_logs),
     };
@@ -709,15 +835,26 @@ const persistRuntimeState = (workspace: DemoWorkspace, state: DemoRuntimeState) 
     expires_at: workspace.expires_at,
   };
 
-  window.localStorage.setItem(getRuntimeStorageKey(workspace.id), JSON.stringify(payload));
+  const serialized = JSON.stringify(payload);
+  const serializedBytes = estimateSerializedSize(payload);
+  if (serializedBytes > DEMO_RUNTIME_STORAGE_LIMIT_BYTES) {
+    throw new Error('O workspace demo atingiu o limite de armazenamento local. Remova arquivos pesados ou resete o ambiente para continuar.');
+  }
+
+  window.localStorage.setItem(getRuntimeStorageKey(workspace.id), serialized);
 };
 
 const clearRuntimeStateSync = (workspaceId?: string | null) => {
   if (typeof window === 'undefined') return;
 
   const targetWorkspaceId = String(workspaceId || getCachedWorkspaceSync()?.id || '').trim();
-  if (!targetWorkspaceId) return;
+  if (!targetWorkspaceId) {
+    sweepDemoRuntimeStorage(null);
+    return;
+  }
+
   window.localStorage.removeItem(getRuntimeStorageKey(targetWorkspaceId));
+  window.sessionStorage.removeItem(getMemberSessionStorageKey(targetWorkspaceId));
 };
 
 const dedupeRuntimeOrders = (seedOrders: Order[], runtimeOrders: Order[]) => {
@@ -801,12 +938,9 @@ const mapCheckout = (workspace: DemoWorkspace): Checkout[] => {
 
 const mapDomain = (workspace: DemoWorkspace, state?: DemoRuntimeState): Domain[] => {
   const primaryCheckout = state?.checkouts[0] || buildDefaultDemoCheckouts(workspace)[0];
-  const primaryArea = getPrimaryMemberArea(
-    state || buildEmptyRuntimeState(workspace),
-    workspace,
-  );
+  const primaryArea = state?.member_areas?.[0] || sanitizeMemberAreaForRuntime(mapMemberArea(workspace));
 
-  return workspace.seed_payload.domains.map((domain) => ({
+  return workspace.seed_payload.domains.map((domain) => sanitizeDomainForRuntime({
     id: domain.id,
     user_id: workspace.owner_user_id,
     domain: domain.host,
@@ -832,13 +966,61 @@ const mapGateway = (): Gateway[] => [
     config: {
       demo: true,
       environment: 'demo',
-      provider_label: 'Gateway ficticio',
+      provider_label: 'Gateway demo oficial',
       max_installments: 12,
       min_installment_value: 5,
       interest_rate: 0,
     },
   },
+  {
+    id: 'demo-gateway-stripe',
+    name: GatewayProvider.STRIPE,
+    public_key: 'pk_demo_checkout',
+    private_key: '',
+    webhook_secret: '',
+    active: false,
+    config: {
+      demo: true,
+      environment: 'demo',
+      provider_label: 'Stripe sandbox guiado',
+      max_installments: 12,
+      min_installment_value: 5,
+      interest_rate: 2.99,
+    },
+  },
+  {
+    id: 'demo-gateway-pagseguro',
+    name: GatewayProvider.PAGSEGURO,
+    public_key: '',
+    private_key: '',
+    webhook_secret: '',
+    active: false,
+    config: {
+      demo: true,
+      environment: 'sandbox',
+      provider_label: 'PagBank sandbox guiado',
+      max_installments: 12,
+      min_installment_value: 5,
+    },
+  },
 ];
+
+const mapIntegrations = (workspace: DemoWorkspace): Integration[] =>
+  workspace.seed_payload.integrations.map((integration) => ({
+    id: integration.id,
+    name: integration.category === 'email' ? 'resend' : integration.provider,
+    active: integration.status !== 'blocked_demo',
+    created_at: workspace.created_at,
+    config: {
+      demo: true,
+      category: integration.category,
+      provider: integration.provider,
+      status: integration.status,
+      note: integration.note,
+      apiKey: integration.category === 'email' ? 're_demo_workspace' : undefined,
+      senderEmail: integration.category === 'email' ? workspace.seed_payload.business.support_email : undefined,
+    },
+  }));
 
 const mapOrderStatus = (status: DemoWorkspace['seed_payload']['orders'][number]['status']) => {
   if (status === 'paid') return OrderStatus.PAID;
@@ -1061,6 +1243,39 @@ function sanitizeMemberAreaForRuntime(area: MemberArea): MemberArea {
   };
 }
 
+function sanitizeDomainForRuntime(domain: Domain): Domain {
+  return {
+    ...domain,
+    type: domain.type || DomainType.CNAME,
+    status: domain.status || DomainStatus.PENDING,
+    usage: domain.usage || DomainUsage.SYSTEM,
+    created_at: String(domain.created_at || new Date().toISOString()),
+  };
+}
+
+function sanitizeGatewayForRuntime(gateway: Gateway): Gateway {
+  return {
+    ...gateway,
+    public_key: String(gateway.public_key || ''),
+    private_key: String(gateway.private_key || ''),
+    webhook_secret: String(gateway.webhook_secret || ''),
+    active: gateway.active !== false,
+    config: gateway.config ? { ...gateway.config, demo: true } : { demo: true },
+  };
+}
+
+function sanitizeIntegrationForRuntime(integration: Integration): Integration {
+  return {
+    ...integration,
+    name: String(integration.name || '').trim(),
+    config: integration.config && typeof integration.config === 'object'
+      ? { ...integration.config, demo: true }
+      : { demo: true },
+    active: integration.active !== false,
+    created_at: String(integration.created_at || new Date().toISOString()),
+  };
+}
+
 function sanitizeTrackForRuntime(track: Track): Track {
   const { items, ...rest } = track;
 
@@ -1135,6 +1350,18 @@ function buildDefaultDemoTrackItems(workspace: DemoWorkspace): TrackItem[] {
   }];
 }
 
+function buildDefaultDemoDomains(workspace: DemoWorkspace): Domain[] {
+  return mapDomain(workspace).map((domain) => sanitizeDomainForRuntime(domain));
+}
+
+function buildDefaultDemoGateways(): Gateway[] {
+  return mapGateway().map((gateway) => sanitizeGatewayForRuntime(gateway));
+}
+
+function buildDefaultDemoIntegrations(workspace: DemoWorkspace): Integration[] {
+  return mapIntegrations(workspace).map((integration) => sanitizeIntegrationForRuntime(integration));
+}
+
 function normalizeDemoProducts(workspace: DemoWorkspace, input: unknown): Product[] {
   if (!Array.isArray(input)) return buildDefaultDemoProducts(workspace);
 
@@ -1201,6 +1428,30 @@ function normalizeDemoTrackItems(workspace: DemoWorkspace, input: unknown): Trac
   return input
     .filter((item) => item && typeof item === 'object' && 'id' in item)
     .map((item) => sanitizeTrackItemForRuntime(item as TrackItem));
+}
+
+function normalizeDemoDomains(workspace: DemoWorkspace, input: unknown): Domain[] {
+  if (!Array.isArray(input)) return buildDefaultDemoDomains(workspace);
+
+  return input
+    .filter((item) => item && typeof item === 'object' && 'id' in item)
+    .map((item) => sanitizeDomainForRuntime(item as Domain));
+}
+
+function normalizeDemoGateways(input: unknown): Gateway[] {
+  if (!Array.isArray(input)) return buildDefaultDemoGateways();
+
+  return input
+    .filter((item) => item && typeof item === 'object' && 'id' in item)
+    .map((item) => sanitizeGatewayForRuntime(item as Gateway));
+}
+
+function normalizeDemoIntegrations(workspace: DemoWorkspace, input: unknown): Integration[] {
+  if (!Array.isArray(input)) return buildDefaultDemoIntegrations(workspace);
+
+  return input
+    .filter((item) => item && typeof item === 'object' && 'id' in item)
+    .map((item) => sanitizeIntegrationForRuntime(item as Integration));
 }
 
 function getPrimaryMemberArea(state: DemoRuntimeState, workspace: DemoWorkspace): MemberArea | null {
@@ -1699,7 +1950,10 @@ export const demoDataService = {
 
     const state = reconcileRuntimeState(workspace, loadRuntimeState(workspace));
     persistRuntimeState(workspace, state);
-    return mapDomain(workspace, state);
+    return state.domains
+      .slice()
+      .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())
+      .map((domain) => sanitizeDomainForRuntime(domain));
   },
 
   async getDomainByHostname(hostname: string): Promise<Domain | null> {
@@ -1709,7 +1963,12 @@ export const demoDataService = {
   },
 
   async getGateways(): Promise<Gateway[]> {
-    return mapGateway();
+    const workspace = await getWorkspace();
+    if (!workspace) return [];
+
+    const state = reconcileRuntimeState(workspace, loadRuntimeState(workspace));
+    persistRuntimeState(workspace, state);
+    return state.gateways.map((gateway) => sanitizeGatewayForRuntime(gateway));
   },
 
   async getPublicGateway(id: string): Promise<Gateway | null> {
@@ -1793,6 +2052,11 @@ export const demoDataService = {
         demo: true,
       },
     };
+    const exists = state.orders.some((entry) => entry.id === runtimeOrder.id);
+
+    if (!exists) {
+      assertCollectionQuota(state.orders.length + 1, DEMO_QUOTAS.orders, 'pedidos');
+    }
 
     persistRuntimeState(workspace, {
       ...state,
@@ -1805,9 +2069,12 @@ export const demoDataService = {
     if (!workspace) return;
 
     const state = reconcileRuntimeState(workspace, loadRuntimeState(workspace));
+    const nextOrders = upsertBatchById(state.orders, orders);
+    assertCollectionQuota(nextOrders.length, DEMO_QUOTAS.orders, 'pedidos');
+
     persistRuntimeState(workspace, {
       ...state,
-      orders: upsertBatchById(state.orders, orders),
+      orders: nextOrders,
     });
   },
 
@@ -2091,6 +2358,11 @@ export const demoDataService = {
       ...product,
       id: product.id || createRuntimeId('demo-product'),
     } as Product);
+    const exists = state.products.some((entry) => entry.id === nextProduct.id);
+
+    if (!exists) {
+      assertCollectionQuota(state.products.length + 1, DEMO_QUOTAS.products, 'produtos');
+    }
 
     persistRuntimeState(workspace, {
       ...state,
@@ -2136,10 +2408,12 @@ export const demoDataService = {
   },
 
   async uploadProductImage(file: File): Promise<string> {
+    assertDemoAssetSize(file);
     return readFileAsDataUrl(file);
   },
 
   async uploadProductDeliverable(file: File) {
+    assertDemoAssetSize(file);
     const dataUrl = await readFileAsDataUrl(file);
     return {
       path: dataUrl,
@@ -2163,6 +2437,11 @@ export const demoDataService = {
       id: checkout.id || createRuntimeId('demo-checkout'),
       user_id: checkout.user_id || workspace.owner_user_id,
     } as Checkout);
+    const exists = state.checkouts.some((entry) => entry.id === nextCheckout.id);
+
+    if (!exists) {
+      assertCollectionQuota(state.checkouts.length + 1, DEMO_QUOTAS.checkouts, 'checkouts');
+    }
 
     persistRuntimeState(workspace, {
       ...state,
@@ -2209,6 +2488,7 @@ export const demoDataService = {
   },
 
   async uploadCheckoutBanner(file: File): Promise<string> {
+    assertDemoAssetSize(file);
     return readFileAsDataUrl(file);
   },
 
@@ -2293,10 +2573,12 @@ export const demoDataService = {
   },
 
   async uploadContentThumbnail(file: File): Promise<string> {
+    assertDemoAssetSize(file);
     return readFileAsDataUrl(file);
   },
 
   async uploadContentImage(file: File): Promise<string> {
+    assertDemoAssetSize(file);
     return readFileAsDataUrl(file);
   },
 
@@ -2360,6 +2642,7 @@ export const demoDataService = {
   },
 
   async uploadModuleImage(file: File): Promise<string> {
+    assertDemoAssetSize(file);
     return readFileAsDataUrl(file);
   },
 
@@ -2427,6 +2710,7 @@ export const demoDataService = {
   },
 
   async uploadLessonImage(file: File): Promise<string> {
+    assertDemoAssetSize(file);
     return readFileAsDataUrl(file);
   },
 
@@ -2473,6 +2757,11 @@ export const demoDataService = {
       owner_id: area.owner_id || workspace.owner_user_id,
       created_at: area.created_at || new Date().toISOString(),
     } as MemberArea);
+    const exists = state.member_areas.some((entry) => entry.id === nextArea.id);
+
+    if (!exists) {
+      assertCollectionQuota(state.member_areas.length + 1, DEMO_QUOTAS.memberAreas, 'areas de membros');
+    }
 
     persistRuntimeState(workspace, {
       ...state,
@@ -2536,18 +2825,22 @@ export const demoDataService = {
   },
 
   async uploadMemberAreaLogo(file: File): Promise<string> {
+    assertDemoAssetSize(file);
     return readFileAsDataUrl(file);
   },
 
   async uploadMemberAreaFavicon(file: File): Promise<string> {
+    assertDemoAssetSize(file);
     return readFileAsDataUrl(file);
   },
 
   async uploadMemberAreaLoginImage(file: File): Promise<string> {
+    assertDemoAssetSize(file);
     return readFileAsDataUrl(file);
   },
 
   async uploadMemberAreaBanner(file: File): Promise<string> {
+    assertDemoAssetSize(file);
     return readFileAsDataUrl(file);
   },
 
@@ -2769,17 +3062,196 @@ export const demoDataService = {
     };
   },
 
-  async getIntegration(name: string) {
-    if (name === 'resend') {
-      return {
-        id: 'demo-integration-resend',
-        name: 'resend',
-        active: true,
-        config: { api_key: 're_demo123456789' },
-        created_at: new Date().toISOString(),
-      };
+  async getQuotaSummary(): Promise<DemoQuotaSummary | null> {
+    const workspace = await getWorkspace();
+    if (!workspace) return null;
+
+    const state = reconcileRuntimeState(workspace, loadRuntimeState(workspace));
+    persistRuntimeState(workspace, state);
+    return buildQuotaSummary(state);
+  },
+
+  async getDomainUsage(domainId: string) {
+    const workspace = await getWorkspace();
+    if (!workspace) {
+      return { checkouts: [], memberAreas: [] };
     }
-    return null;
+
+    const state = reconcileRuntimeState(workspace, loadRuntimeState(workspace));
+    persistRuntimeState(workspace, state);
+
+    return {
+      checkouts: state.checkouts
+        .filter((checkout) => checkout.domain_id === domainId)
+        .map((checkout) => ({ id: checkout.id, name: checkout.name })),
+      memberAreas: state.member_areas
+        .filter((area) => area.domain_id === domainId)
+        .map((area) => ({ id: area.id, name: area.name })),
+    };
+  },
+
+  async createDomain(domain: Omit<Domain, 'id'>) {
+    const workspace = await getWorkspace();
+    if (!workspace) throw new Error('Workspace demo indisponivel.');
+
+    const state = reconcileRuntimeState(workspace, loadRuntimeState(workspace));
+    const normalizedDomain = String(domain.domain || '').trim().toLowerCase();
+
+    if (!normalizedDomain) {
+      throw new Error('Informe um dominio valido para continuar.');
+    }
+
+    if (state.domains.some((entry) => entry.domain.trim().toLowerCase() === normalizedDomain)) {
+      throw new Error('Este dominio demo ja existe neste workspace.');
+    }
+
+    assertCollectionQuota(state.domains.length + 1, DEMO_QUOTAS.domains, 'dominios');
+
+    const primaryCheckout = state.checkouts[0] || null;
+    const primaryMemberArea = state.member_areas[0] || null;
+    const nextDomain = sanitizeDomainForRuntime({
+      ...domain,
+      id: createRuntimeId('demo-domain'),
+      user_id: workspace.owner_user_id,
+      domain: normalizedDomain,
+      checkout_id: domain.checkout_id || (domain.usage === DomainUsage.CHECKOUT ? primaryCheckout?.id : undefined),
+      slug: domain.slug || (domain.usage === DomainUsage.CHECKOUT
+        ? primaryCheckout?.custom_url_slug
+        : primaryMemberArea?.slug),
+      status: domain.status || DomainStatus.PENDING,
+      created_at: domain.created_at || new Date().toISOString(),
+    });
+
+    persistRuntimeState(workspace, {
+      ...state,
+      domains: upsertById(state.domains, nextDomain),
+    });
+
+    return nextDomain;
+  },
+
+  async updateDomainStatus(domainId: string, status: DomainStatus) {
+    const workspace = await getWorkspace();
+    if (!workspace) return null;
+
+    const state = reconcileRuntimeState(workspace, loadRuntimeState(workspace));
+    const current = state.domains.find((entry) => entry.id === domainId);
+    if (!current) return null;
+
+    const nextDomain = sanitizeDomainForRuntime({
+      ...current,
+      status,
+    });
+
+    persistRuntimeState(workspace, {
+      ...state,
+      domains: upsertById(state.domains, nextDomain),
+    });
+
+    return nextDomain;
+  },
+
+  async deleteDomain(domainId: string) {
+    const workspace = await getWorkspace();
+    if (!workspace) return;
+
+    const state = reconcileRuntimeState(workspace, loadRuntimeState(workspace));
+
+    persistRuntimeState(workspace, {
+      ...state,
+      domains: state.domains.filter((domain) => domain.id !== domainId),
+      checkouts: state.checkouts.map((checkout) => (
+        checkout.domain_id === domainId
+          ? sanitizeCheckoutForRuntime({ ...checkout, domain_id: null })
+          : checkout
+      )),
+      member_areas: state.member_areas.map((area) => (
+        area.domain_id === domainId
+          ? sanitizeMemberAreaForRuntime({ ...area, domain_id: null })
+          : area
+      )),
+    });
+  },
+
+  async saveGateway(gateway: Partial<Gateway> & { name: GatewayProvider; id?: string }) {
+    const workspace = await getWorkspace();
+    if (!workspace) throw new Error('Workspace demo indisponivel.');
+
+    const state = reconcileRuntimeState(workspace, loadRuntimeState(workspace));
+    const existing = state.gateways.find((entry) => entry.id === gateway.id || entry.name === gateway.name) || null;
+
+    const nextGateway = sanitizeGatewayForRuntime({
+      ...(existing || {
+        id: gateway.id || createRuntimeId('demo-gateway-' + gateway.name),
+        name: gateway.name,
+        public_key: '',
+        private_key: '',
+        webhook_secret: '',
+        active: false,
+        config: {},
+      }),
+      ...gateway,
+      id: gateway.id || existing?.id || createRuntimeId('demo-gateway-' + gateway.name),
+      name: gateway.name,
+      public_key: gateway.public_key ?? existing?.public_key ?? '',
+      private_key: gateway.private_key || existing?.private_key || '',
+      webhook_secret: gateway.webhook_secret || existing?.webhook_secret || '',
+      active: gateway.active ?? existing?.active ?? false,
+      config: {
+        ...(existing?.config || {}),
+        ...((gateway.config && typeof gateway.config === 'object') ? gateway.config : {}),
+        demo: true,
+      },
+    } as Gateway);
+
+    persistRuntimeState(workspace, {
+      ...state,
+      gateways: upsertById(state.gateways, nextGateway),
+    });
+
+    return nextGateway;
+  },
+
+  async getIntegration(name: string) {
+    const workspace = await getWorkspace();
+    if (!workspace) return null;
+
+    const state = reconcileRuntimeState(workspace, loadRuntimeState(workspace));
+    persistRuntimeState(workspace, state);
+    const normalizedName = String(name || '').trim().toLowerCase();
+
+    return state.integrations.find((integration) => integration.name.trim().toLowerCase() === normalizedName) || null;
+  },
+
+  async saveIntegration(integration: { name: string; config: any; active: boolean }) {
+    const workspace = await getWorkspace();
+    if (!workspace) throw new Error('Workspace demo indisponivel.');
+
+    const state = reconcileRuntimeState(workspace, loadRuntimeState(workspace));
+    const existing = state.integrations.find((entry) => entry.name === integration.name) || null;
+
+    if (!existing) {
+      assertCollectionQuota(state.integrations.length + 1, DEMO_QUOTAS.integrations, 'integracoes');
+    }
+
+    const nextIntegration = sanitizeIntegrationForRuntime({
+      id: existing?.id || createRuntimeId('demo-integration-' + integration.name),
+      name: integration.name,
+      active: integration.active,
+      created_at: existing?.created_at || new Date().toISOString(),
+      config: {
+        ...(existing?.config && typeof existing.config === 'object' ? existing.config : {}),
+        ...(integration.config && typeof integration.config === 'object' ? integration.config : {}),
+        demo: true,
+      },
+    } as Integration);
+
+    persistRuntimeState(workspace, {
+      ...state,
+      integrations: upsertById(state.integrations, nextIntegration),
+    });
+
+    return nextIntegration;
   },
 
   async getWebhooks() {
@@ -2796,9 +3268,10 @@ export const demoDataService = {
     if (!workspace) return [];
 
     const state = reconcileRuntimeState(workspace, loadRuntimeState(workspace));
-    const nextWebhooks = normalizeDemoWebhooks(
-      upsertBatchById(state.webhooks, items).slice(0, 24),
-    );
+    const mergedWebhooks = upsertBatchById(state.webhooks, items);
+    assertCollectionQuota(mergedWebhooks.length, DEMO_QUOTAS.webhooks, 'webhooks');
+
+    const nextWebhooks = normalizeDemoWebhooks(mergedWebhooks.slice(0, DEMO_QUOTAS.webhooks));
 
     persistRuntimeState(workspace, {
       ...state,
