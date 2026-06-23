@@ -14,7 +14,7 @@ import {
   resolveFeatureAccess,
 } from './featureAccess';
 import { demoDataService, isDemoDataRuntime } from './demoDataService';
-import { supabase } from './supabase';
+import { publicSupabase, supabase } from './supabase';
 export { supabase };
 
 import { User } from '@supabase/supabase-js';
@@ -356,7 +356,7 @@ class StorageService {
       } else if (files && files.length > 0) {
         console.log('Arquivos encontrados no caminho legado:', files);
       } else {
-        console.warn('Nenhum arquivo encontrado também no caminho legado.');
+        console.warn('Nenhum arquivo encontrado tambÃƒÂ©m no caminho legado.');
       }
     } else {
       console.log('Arquivos encontrados:', files);
@@ -372,7 +372,7 @@ class StorageService {
         .remove(filesToRemove);
 
       if (removeError) {
-        console.error('Erro ao remover arquivos (Provavel erro de RLS/Permissão):', removeError);
+        console.error('Erro ao remover arquivos (Provavel erro de RLS/PermissÃƒÂ£o):', removeError);
       } else {
         console.log('Arquivos removidos com sucesso');
       }
@@ -742,7 +742,7 @@ class StorageService {
       return checkouts.find((checkout) => checkout.domain_id === domainId && (!slug || checkout.custom_url_slug === slug)) || null;
     }
 
-    let query = supabase
+    let query = publicSupabase
       .from('checkouts')
       .select('*')
       .eq('domain_id', domainId)
@@ -807,7 +807,7 @@ class StorageService {
     const user = await this.getUser();
     if (!user) throw new Error('No user logged in');
 
-    console.log('Iniciando exclusão do checkout:', id);
+    console.log('Iniciando exclusÃƒÂ£o do checkout:', id);
 
     // 1. Limpar Storage (Bucket 'checkouts')
     // Lista arquivos na pasta do checkout
@@ -817,7 +817,7 @@ class StorageService {
 
     if (listError) {
       console.error('Erro ao listar arquivos do checkout:', listError);
-      // Não interrompe, tenta deletar o registro mesmo assim
+      // NÃƒÂ£o interrompe, tenta deletar o registro mesmo assim
     } else if (files && files.length > 0) {
       const filesToRemove = files.map(f => `${id}/${f.name}`);
       console.log('Removendo arquivos do checkout:', filesToRemove);
@@ -1022,7 +1022,7 @@ class StorageService {
       return areas.find((area) => area.domain_id === domainId) || null;
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await publicSupabase
       .from('member_areas')
       .select('*')
       .eq('domain_id', domainId)
@@ -1072,7 +1072,7 @@ class StorageService {
     // If hostname is 'www.foo.com', we check 'foo.com'
 
     // Use .in() to find any matching record
-    const { data, error } = await supabase
+    const { data, error } = await publicSupabase
       .from('domains')
       .select('*')
       .in('domain', variations)

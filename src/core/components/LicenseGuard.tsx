@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Lock, AlertTriangle } from 'lucide-react';
-import { supabase } from '../services/supabase';
+import { publicSupabase, supabase } from '../services/supabase';
 import { getEnv } from '../utils/env';
 import { Loading } from './ui/Loading';
 import { isDemoHostname } from '../config/runtimeMode';
@@ -78,6 +78,15 @@ export const LicenseGuard: React.FC<LicenseGuardProps> = ({ children }) => {
                     return;
                 }
 
+                const { data: sessionData } = await supabase.auth.getSession();
+                const expiresAt = sessionData.session?.expires_at;
+                if (expiresAt && expiresAt * 1000 <= Date.now()) {
+                    console.warn('[LicenseGuard] Expired Supabase session detected during bootstrap. Clearing stale auth state.');
+                    await supabase.auth.signOut().catch((signOutError) => {
+                        console.warn('[LicenseGuard] Failed to clear expired session during bootstrap:', signOutError);
+                    });
+                }
+
                 // 1. SECURITY: Query domains table (Source of Truth)
                 const variations = [
                     CURRENT_DOMAIN,
@@ -87,7 +96,7 @@ export const LicenseGuard: React.FC<LicenseGuardProps> = ({ children }) => {
                     `www.${CURRENT_DOMAIN}`
                 ];
 
-                const { data: domainData, error: domainError } = await supabase
+                const { data: domainData, error: domainError } = await publicSupabase
                     .from('domains')
                     .select('type, status, usage')
                     .in('domain', variations)
@@ -109,39 +118,39 @@ export const LicenseGuard: React.FC<LicenseGuardProps> = ({ children }) => {
                     // Detailed Error for Debugging
                     const debugInfo = JSON.stringify(domainError, null, 2);
                     const errMsg = domainError?.message || domainError?.code || 'Unknown Error';
-                    throw new Error(`Erro ao verificar domínio (DB): ${errMsg} - ${debugInfo}`);
+                    throw new Error(`Erro ao verificar domÃ­nio (DB): ${errMsg} - ${debugInfo}`);
                 }
 
                 // 2. DECISION LOGIC
                 if (domainData) {
-                    console.log(`[LicenseGuard] 🔍 Domain Found: Type=${domainData.type}, Status=${domainData.status}`);
+                    console.log(`[LicenseGuard] ðŸ” Domain Found: Type=${domainData.type}, Status=${domainData.status}`);
 
                     // 3. ALLOW CUSTOM DOMAINS (Registered & Active)
                     if (domainData.type !== 'installation') {
                         if (domainData.status === 'active' || domainData.status === 'verified') {
-                            console.log('[LicenseGuard] ✅ ALLOW: Custom domain is active.');
+                            console.log('[LicenseGuard] âœ… ALLOW: Custom domain is active.');
                             setIsValid(true);
                             setLoading(false);
                             return;
                         } else {
-                            console.warn('[LicenseGuard] ⚠️ BLOCK: Custom domain found but not active.');
+                            console.warn('[LicenseGuard] âš ï¸ BLOCK: Custom domain found but not active.');
                             setIsValid(false);
-                            setMessage('Domínio pendente de verificação.');
+                            setMessage('DomÃ­nio pendente de verificaÃ§Ã£o.');
                             setLoading(false);
                             return;
                         }
                     }
                 } else {
-                    console.warn(`[LicenseGuard] ⚠️ Domain '${CURRENT_DOMAIN}' not found in DB. Attempting remote validation as fallback...`);
+                    console.warn(`[LicenseGuard] âš ï¸ Domain '${CURRENT_DOMAIN}' not found in DB. Attempting remote validation as fallback...`);
                 }
 
                 // 4. VALIDATE LICENSE FOR INSTALLATION DOMAIN
-                console.log('[LicenseGuard] 🔒 Installation Domain detected. Proceeding to license validation...');
+                console.log('[LicenseGuard] ðŸ”’ Installation Domain detected. Proceeding to license validation...');
 
                 // Get Installation ID from DB (The Anchor)
                 let installationId = localStorage.getItem('installation_id');
                 if (!installationId) {
-                    const { data: configData } = await supabase
+                    const { data: configData } = await publicSupabase
                         .from('app_config')
                         .select('value')
                         .eq('key', 'installation_id')
@@ -155,7 +164,7 @@ export const LicenseGuard: React.FC<LicenseGuardProps> = ({ children }) => {
                         localStorage.setItem('installation_id', installationId); // Cache it
                     } else {
                         // FALLBACK: If DB is empty (rare), generate one locally to allow binding
-                        console.warn('[LicenseGuard] ⚠️ No installation_id in DB. Generating fallback...');
+                        console.warn('[LicenseGuard] âš ï¸ No installation_id in DB. Generating fallback...');
                         installationId = crypto.randomUUID();
                         localStorage.setItem('installation_id', installationId);
                     }
@@ -191,7 +200,7 @@ export const LicenseGuard: React.FC<LicenseGuardProps> = ({ children }) => {
                 console.log('[LicenseGuard] Server Response:', data);
 
                 if (data?.valid) {
-                    console.log('[LicenseGuard] ✅ License VALID');
+                    console.log('[LicenseGuard] âœ… License VALID');
                     setIsValid(true);
                     if (data?.usage_type) localStorage.setItem('license_usage_type', data.usage_type);
                     if (data?.role) localStorage.setItem('license_role', data.role);
@@ -201,19 +210,19 @@ export const LicenseGuard: React.FC<LicenseGuardProps> = ({ children }) => {
                         setInstallationId(data.installation_id); // Update Authority
                     }
                 } else {
-                    console.log('[LicenseGuard] ❌ License INVALID');
+                    console.log('[LicenseGuard] âŒ License INVALID');
                     
                     // DEV BYPASS: If on localhost, we allow access even if center says invalid
                     // (prevents lockouts during dev when center is strict about domain binding)
                     if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-                        console.warn('[LicenseGuard] 🔓 LOCALHOST DETECTED: Bypassing invalid license check for development.');
+                        console.warn('[LicenseGuard] ðŸ”“ LOCALHOST DETECTED: Bypassing invalid license check for development.');
                         setIsValid(true);
                         setLoading(false);
                         return;
                     }
 
                     setIsValid(false);
-                    setMessage(data?.message || 'Licença inválida.');
+                    setMessage(data?.message || 'LicenÃ§a invÃ¡lida.');
 
                     // If revoked, clear critical data to prevent loop but allowing installer to run if needed
                     if (data?.message?.includes('revoked')) {
@@ -232,7 +241,7 @@ export const LicenseGuard: React.FC<LicenseGuardProps> = ({ children }) => {
                     setMessage('Modo Dev (Erro desconhecido)');
                 } else {
                     setIsValid(false);
-                    setMessage(`Erro de validação: ${error.message}`);
+                    setMessage(`Erro de validaÃ§Ã£o: ${error.message}`);
                 }
             } finally {
                 setLoading(false);
@@ -256,7 +265,7 @@ export const LicenseGuard: React.FC<LicenseGuardProps> = ({ children }) => {
                     <h1 className="text-2xl font-bold text-white mb-2">Acesso Bloqueado</h1>
                     <p className="text-gray-400 mb-6">
                         {message === 'Missing key or domain'
-                            ? 'Esta instalação não possui uma licença configurada.'
+                            ? 'Esta instalaÃ§Ã£o nÃ£o possui uma licenÃ§a configurada.'
                             : message}
                     </p>
 
@@ -283,7 +292,7 @@ export const LicenseGuard: React.FC<LicenseGuardProps> = ({ children }) => {
 
                         <button
                             onClick={() => {
-                                if (confirm('Isso irá limpar as configurações locais. Deseja continuar?')) {
+                                if (confirm('Isso irÃ¡ limpar as configuraÃ§Ãµes locais. Deseja continuar?')) {
                                     localStorage.removeItem('installer_license_key');
                                     localStorage.removeItem('installer_supabase_url');
                                     localStorage.removeItem('installer_supabase_anon_key');
@@ -294,7 +303,7 @@ export const LicenseGuard: React.FC<LicenseGuardProps> = ({ children }) => {
                             }}
                             className="w-full py-3 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white rounded-xl transition-colors font-medium text-sm"
                         >
-                            Resetar Instalação (Limpar Dados)
+                            Resetar InstalaÃ§Ã£o (Limpar Dados)
                         </button>
                     </div>
                 </div>

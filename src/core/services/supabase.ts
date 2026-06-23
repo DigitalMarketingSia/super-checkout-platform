@@ -1,4 +1,3 @@
-
 import { createClient } from '@supabase/supabase-js';
 
 import { getEnv } from '../utils/env';
@@ -10,10 +9,11 @@ const SUPABASE_SERVICE_KEY = getEnv('SUPABASE_SERVICE_ROLE_KEY');
 // Initialize with valid keys OR dummy values to prevent crash
 // If keys are missing, the client will fail network requests but the UI can still load (for Installer)
 const finalUrl = SUPABASE_URL || 'https://placeholder.supabase.co';
-const finalKey = (typeof window === 'undefined' && SUPABASE_SERVICE_KEY) ? SUPABASE_SERVICE_KEY : (SUPABASE_ANON_KEY || 'placeholder-key');
+const finalPublicKey = SUPABASE_ANON_KEY || 'placeholder-key';
+const finalKey = (typeof window === 'undefined' && SUPABASE_SERVICE_KEY) ? SUPABASE_SERVICE_KEY : finalPublicKey;
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  console.warn('[Supabase] Credenciais não encontradas. O app pode estar em modo de Instalação.');
+  console.warn('[Supabase] Credenciais nao encontradas. O app pode estar em modo de Instalacao.');
 }
 
 // Custom storage adapter to bypass navigator.locks which causes deadlocks in some environments
@@ -32,6 +32,14 @@ const customStorage = {
   },
 };
 
+const browserGlobalOptions = typeof window === 'undefined'
+  ? {}
+  : {
+    global: {
+      fetch: (input: RequestInfo | URL, init?: RequestInit) => fetch(input, init)
+    }
+  };
+
 // Configure client based on environment
 const clientOptions = typeof window === 'undefined'
   ? {
@@ -44,22 +52,28 @@ const clientOptions = typeof window === 'undefined'
   : {
     auth: {
       persistSession: true,
-      storage: customStorage, // Use custom storage to avoid locking
+      storage: customStorage,
       autoRefreshToken: true,
       detectSessionInUrl: true,
     },
-    // Explicitly set realtime options to fallback to polling if websockets fail
     realtime: {
       params: {
         eventsPerSecond: 10
       }
     },
-    // Force Fetch implementation to ensure proper header handling on Vercel/proxies
-    global: {
-      fetch: (input, init?) => fetch(input, init)
-    }
+    ...browserGlobalOptions,
   };
 
+const publicClientOptions = {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false,
+    detectSessionInUrl: false,
+  },
+  ...browserGlobalOptions,
+};
+
 export const supabase = createClient(finalUrl, finalKey, clientOptions);
+export const publicSupabase = createClient(finalUrl, finalPublicKey, publicClientOptions);
 export const CLIENT_INSTANCE_ID = `instance_${Math.random().toString(36).slice(2, 9)}`;
 console.log('[Supabase Service] Initialized client:', CLIENT_INSTANCE_ID);
