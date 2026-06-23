@@ -10,6 +10,7 @@ import {
   GatewayProvider,
   Integration,
   Lesson,
+  LessonResource,
   MemberArea,
   Module,
   Order,
@@ -44,6 +45,21 @@ const DEMO_MEMBER_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
 const DEMO_RUNTIME_VERSION = 4;
 const DEMO_RUNTIME_STORAGE_LIMIT_BYTES = 4 * 1024 * 1024;
 const DEMO_RUNTIME_MAX_ASSET_BYTES = 2 * 1024 * 1024;
+const DEMO_LEGACY_PLACEHOLDER_TEXT = 'Conteudo temporario do workspace demo.';
+const DEMO_LESSON_RESOURCE_IMAGE = '/logo.png';
+const DEMO_SUPPLEMENTARY_PDF_URL = 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf';
+const DEMO_EXTERNAL_LINKS = Object.freeze({
+  app: 'https://app.supercheckout.app/',
+  site: 'https://supercheckout.app/',
+  portal: 'https://portal.supercheckout.app/',
+  docs: 'https://developer.mozilla.org/',
+});
+const DEMO_YOUTUBE_URLS = Object.freeze([
+  'https://www.youtube.com/watch?v=M7lc1UVf-VE',
+  'https://www.youtube.com/watch?v=aqz-KE-bpKQ',
+  'https://www.youtube.com/watch?v=ScMzIvxBSi4',
+  'https://www.youtube.com/watch?v=jNQXAC9IVRw',
+]);
 const DEMO_QUOTAS = Object.freeze({
   products: 8,
   checkouts: 4,
@@ -175,6 +191,142 @@ interface DemoRuntimeState {
   webhooks: WebhookConfig[];
   webhook_logs: WebhookLog[];
 }
+
+interface DemoLessonTemplate {
+  title: string;
+  content_type: Lesson['content_type'];
+  video_url?: string;
+  content_text?: string;
+  file_url?: string;
+  content_order?: string[];
+  gallery?: Array<Omit<LessonResource, 'id'>>;
+}
+
+const createDemoGalleryItem = (
+  title: string,
+  linkUrl: string,
+  buttonText = 'Acessar recurso',
+): Omit<LessonResource, 'id'> => ({
+  title,
+  image_url: DEMO_LESSON_RESOURCE_IMAGE,
+  link_url: linkUrl,
+  button_text: buttonText,
+});
+
+const DEMO_LESSON_BLUEPRINTS: DemoLessonTemplate[][] = [
+  [
+    {
+      title: 'Boas-vindas ao ambiente demo',
+      content_type: 'video',
+      video_url: DEMO_YOUTUBE_URLS[0],
+      file_url: DEMO_SUPPLEMENTARY_PDF_URL,
+      content_order: ['video', 'text', 'file', 'gallery'],
+      content_text: 'Esta primeira aula mostra como um aluno encontra video, texto, material complementar e uma galeria de recursos no mesmo player.\n\nUse este conteudo para validar a experiencia completa do demo logo no primeiro acesso.',
+      gallery: [
+        createDemoGalleryItem('Abrir o app principal', DEMO_EXTERNAL_LINKS.app, 'Abrir app'),
+        createDemoGalleryItem('Ver pagina institucional', DEMO_EXTERNAL_LINKS.site, 'Abrir site'),
+        createDemoGalleryItem('Ir para o portal comercial', DEMO_EXTERNAL_LINKS.portal, 'Abrir portal'),
+      ],
+    },
+    {
+      title: 'Como navegar pela area de membros',
+      content_type: 'video',
+      video_url: DEMO_YOUTUBE_URLS[1],
+      content_order: ['text', 'video', 'gallery'],
+      content_text: 'Aqui o foco e testar navegacao entre modulos, aulas e progresso visual.\n\nTroque de aula no menu lateral e veja como o layout responde em um conteudo com video e recursos adicionais.',
+      gallery: [
+        createDemoGalleryItem('Guia de navegacao web', DEMO_EXTERNAL_LINKS.docs, 'Ler guia'),
+        createDemoGalleryItem('Voltar para o app', DEMO_EXTERNAL_LINKS.app, 'Abrir app'),
+      ],
+    },
+    {
+      title: 'Material complementar e link externo',
+      content_type: 'file',
+      file_url: DEMO_SUPPLEMENTARY_PDF_URL,
+      content_order: ['text', 'file', 'gallery'],
+      content_text: 'Nem toda aula precisa comecar com video. Este exemplo deixa o texto como destaque e usa o bloco de material complementar para abrir um PDF externo.\n\nA galeria abaixo pode servir para bonus, templates, checklists ou links de apoio.',
+      gallery: [
+        createDemoGalleryItem('Referencias para estudo', DEMO_EXTERNAL_LINKS.docs, 'Abrir referencia'),
+        createDemoGalleryItem('Site da marca', DEMO_EXTERNAL_LINKS.site, 'Abrir site'),
+        createDemoGalleryItem('Demo do app', DEMO_EXTERNAL_LINKS.app, 'Abrir demo'),
+      ],
+    },
+    {
+      title: 'Resumo rapido do fluxo do aluno',
+      content_type: 'text',
+      video_url: DEMO_YOUTUBE_URLS[2],
+      content_order: ['text', 'gallery', 'video'],
+      content_text: 'Resumo do que o aluno enxerga no demo: acesso liberado, aulas com formatos mistos e recursos complementares clicaveis.\n\nNo produto real voce pode trocar estes exemplos por aulas gravadas, SOPs, PDFs e galerias da sua oferta.',
+      gallery: [
+        createDemoGalleryItem('Abrir o portal comercial', DEMO_EXTERNAL_LINKS.portal, 'Ver portal'),
+        createDemoGalleryItem('Explorar a plataforma', DEMO_EXTERNAL_LINKS.site, 'Conhecer mais'),
+      ],
+    },
+  ],
+  [
+    {
+      title: 'Oferta principal e liberacao de acesso',
+      content_type: 'video',
+      video_url: DEMO_YOUTUBE_URLS[3],
+      file_url: DEMO_EXTERNAL_LINKS.portal,
+      content_order: ['video', 'text', 'file'],
+      content_text: 'Esta aula reforca a parte comercial do demo. O lead consegue testar a compra fake e depois comparar como o acesso aparece do lado do aluno.\n\nO bloco de material complementar aqui funciona como um atalho para qualquer link externo relevante.',
+    },
+    {
+      title: 'Order bump e upsell na pratica',
+      content_type: 'text',
+      file_url: DEMO_EXTERNAL_LINKS.site,
+      content_order: ['text', 'gallery', 'file'],
+      content_text: 'Use esta aula para explicar ofertas complementares, order bumps e produtos extras liberados apos a compra principal.\n\nA galeria funciona bem para depoimentos, mockups, comparativos e atalhos para paginas externas.',
+      gallery: [
+        createDemoGalleryItem('Resumo comercial', DEMO_EXTERNAL_LINKS.site, 'Abrir resumo'),
+        createDemoGalleryItem('Voltar para o app demo', DEMO_EXTERNAL_LINKS.app, 'Abrir demo'),
+      ],
+    },
+    {
+      title: 'Checkout, thank-you e acesso imediato',
+      content_type: 'video',
+      video_url: DEMO_YOUTUBE_URLS[0],
+      file_url: DEMO_SUPPLEMENTARY_PDF_URL,
+      content_order: ['video', 'text', 'file'],
+      content_text: 'Este bloco simula uma aula orientada ao operacional do funil: checkout, pagina de confirmacao e redirecionamento para a area de membros.\n\nTambem serve para validar o comportamento do botao de recurso externo.',
+    },
+    {
+      title: 'Automacoes e acompanhamentos',
+      content_type: 'text',
+      content_order: ['text', 'gallery'],
+      content_text: 'Aqui voce pode testar uma aula mais parecida com um playbook ou checklist interno.\n\nEsse formato funciona bem para processos, integracoes, observacoes e comandos passo a passo.',
+      gallery: [
+        createDemoGalleryItem('Documentacao tecnica', DEMO_EXTERNAL_LINKS.docs, 'Abrir docs'),
+        createDemoGalleryItem('Portal comercial', DEMO_EXTERNAL_LINKS.portal, 'Abrir portal'),
+        createDemoGalleryItem('Site principal', DEMO_EXTERNAL_LINKS.site, 'Abrir site'),
+      ],
+    },
+    {
+      title: 'Experiencia do aluno com recursos extras',
+      content_type: 'video',
+      video_url: DEMO_YOUTUBE_URLS[1],
+      file_url: DEMO_EXTERNAL_LINKS.docs,
+      content_order: ['video', 'text', 'gallery', 'file'],
+      content_text: 'Mais um exemplo completo para validar como o player organiza recursos mistos dentro da mesma aula.\n\nEsse padrao ajuda o lead a entender rapidamente a capacidade da area de membros sem precisar configurar nada antes.',
+      gallery: [
+        createDemoGalleryItem('App principal', DEMO_EXTERNAL_LINKS.app, 'Abrir app'),
+        createDemoGalleryItem('Material de apoio', DEMO_EXTERNAL_LINKS.docs, 'Abrir material'),
+      ],
+    },
+    {
+      title: 'Produto complementar bloqueado',
+      content_type: 'text',
+      file_url: DEMO_EXTERNAL_LINKS.app,
+      content_order: ['text', 'gallery', 'file'],
+      content_text: 'Esta aula conversa com o comportamento de bloqueio refinado na sidebar. Ela ajuda a demonstrar como um produto complementar pode ser oferecido sem confundir a arvore principal de aulas.\n\nAo navegar pelo conteudo atual, o lead entende o que ja comprou e o que ainda pode desbloquear.',
+      gallery: [
+        createDemoGalleryItem('Abrir o checkout demo', DEMO_EXTERNAL_LINKS.app, 'Ver checkout'),
+        createDemoGalleryItem('Conhecer a oferta principal', DEMO_EXTERNAL_LINKS.site, 'Ver oferta'),
+      ],
+    },
+  ],
+];
 
 export const isDemoDataRuntime = () => getRuntimeMode() === 'demo';
 
@@ -1114,6 +1266,92 @@ const mapContents = (workspace: DemoWorkspace): Content[] => {
   }];
 };
 
+const cloneDemoLessonGallery = (
+  moduleId: string,
+  lessonIndex: number,
+  resources?: Array<Omit<LessonResource, 'id'>>,
+): LessonResource[] | undefined => {
+  if (!Array.isArray(resources) || resources.length === 0) return undefined;
+
+  return resources.map((resource, resourceIndex) => ({
+    id: moduleId + '-lesson-' + (lessonIndex + 1) + '-resource-' + (resourceIndex + 1),
+    title: resource.title,
+    image_url: resource.image_url,
+    link_url: resource.link_url,
+    button_text: resource.button_text,
+  }));
+};
+
+const getDemoLessonTemplate = (moduleTitle: string, moduleIndex: number, lessonIndex: number): DemoLessonTemplate => {
+  const predefinedTemplate = DEMO_LESSON_BLUEPRINTS[moduleIndex]?.[lessonIndex];
+  if (predefinedTemplate) return predefinedTemplate;
+
+  return {
+    title: moduleTitle + ' - Aula ' + (lessonIndex + 1),
+    content_type: 'video',
+    video_url: DEMO_YOUTUBE_URLS[(moduleIndex + lessonIndex) % DEMO_YOUTUBE_URLS.length],
+    file_url: DEMO_SUPPLEMENTARY_PDF_URL,
+    content_order: ['video', 'text', 'file', 'gallery'],
+    content_text: 'Esta aula demo foi gerada para preencher modulos extras sem deixar o player vazio.\n\nTroque este conteudo por videos, textos, materiais e links reais quando quiser personalizar o ambiente.',
+    gallery: [
+      createDemoGalleryItem('Abrir o app', DEMO_EXTERNAL_LINKS.app, 'Abrir app'),
+      createDemoGalleryItem('Abrir o site', DEMO_EXTERNAL_LINKS.site, 'Abrir site'),
+    ],
+  };
+};
+
+const buildDemoLesson = (
+  workspace: DemoWorkspace,
+  module: DemoWorkspace['seed_payload']['member_area']['modules'][number],
+  moduleIndex: number,
+  lessonIndex: number,
+  associatedProduct: Product,
+): Lesson => {
+  const template = getDemoLessonTemplate(module.title, moduleIndex, lessonIndex);
+
+  return {
+    id: module.id + '-lesson-' + (lessonIndex + 1),
+    module_id: module.id,
+    title: template.title,
+    content_type: template.content_type,
+    video_url: template.video_url,
+    content_text: template.content_text,
+    file_url: template.file_url,
+    order_index: lessonIndex,
+    is_free: moduleIndex === 0 && lessonIndex === 0,
+    created_at: workspace.created_at,
+    image_url: template.video_url ? undefined : DEMO_LESSON_RESOURCE_IMAGE,
+    gallery: cloneDemoLessonGallery(module.id, lessonIndex, template.gallery),
+    associated_product: associatedProduct,
+    content_order: Array.isArray(template.content_order) ? [...template.content_order] : undefined,
+    is_published: true,
+  };
+};
+
+const isLegacyDemoPlaceholderLesson = (lesson: Lesson): boolean => {
+  const normalizedTitle = String(lesson.title || '').trim();
+  const normalizedText = String(lesson.content_text || '').trim();
+  const hasGallery = Array.isArray(lesson.gallery) && lesson.gallery.length > 0;
+  const hasRichContent = Boolean(lesson.video_url || lesson.file_url || hasGallery);
+  const hasCustomOrder = Array.isArray(lesson.content_order) && lesson.content_order.length > 0;
+
+  return /^Aula demo \d+$/i.test(normalizedTitle)
+    && lesson.content_type === 'text'
+    && normalizedText === DEMO_LEGACY_PLACEHOLDER_TEXT
+    && !hasRichContent
+    && !hasCustomOrder;
+};
+
+const upgradeLegacyDemoLesson = (lesson: Lesson, defaultLesson: Lesson): Lesson => ({
+  ...defaultLesson,
+  id: lesson.id || defaultLesson.id,
+  module_id: lesson.module_id || defaultLesson.module_id,
+  order_index: typeof lesson.order_index === 'number' ? lesson.order_index : defaultLesson.order_index,
+  is_free: lesson.is_free ?? defaultLesson.is_free,
+  created_at: lesson.created_at || defaultLesson.created_at,
+  is_published: lesson.is_published ?? defaultLesson.is_published,
+});
+
 const mapModules = (workspace: DemoWorkspace): Module[] => {
   const associatedProduct = buildAssociatedMainProduct(workspace);
 
@@ -1121,24 +1359,20 @@ const mapModules = (workspace: DemoWorkspace): Module[] => {
     id: module.id,
     content_id: getContentId(workspace),
     title: module.title,
-    description: `${module.lesson_count} aulas demo`,
+    description: module.lesson_count + ' aulas demo com video, materiais e links externos.',
     order_index: index,
     created_at: workspace.created_at,
     image_vertical_url: '/logo.png',
     image_horizontal_url: '/logo.png',
     is_free: index === 0,
     associated_product: associatedProduct,
-    lessons: Array.from({ length: module.lesson_count }, (_, lessonIndex) => ({
-      id: `${module.id}-lesson-${lessonIndex + 1}`,
-      module_id: module.id,
-      title: `Aula demo ${lessonIndex + 1}`,
-      content_type: 'text' as const,
-      content_text: 'Conteudo temporario do workspace demo.',
-      order_index: lessonIndex,
-      is_free: index === 0 && lessonIndex === 0,
-      created_at: workspace.created_at,
-      associated_product: associatedProduct,
-    })),
+    lessons: Array.from({ length: module.lesson_count }, (_, lessonIndex) => buildDemoLesson(
+      workspace,
+      module,
+      index,
+      lessonIndex,
+      associatedProduct,
+    )),
   }));
 };
 
@@ -1395,11 +1629,65 @@ function normalizeDemoContents(workspace: DemoWorkspace, input: unknown): Conten
 }
 
 function normalizeDemoModules(workspace: DemoWorkspace, input: unknown): Module[] {
-  if (!Array.isArray(input)) return buildDefaultDemoModules(workspace);
+  const defaultModules = mapModules(workspace);
+  if (!Array.isArray(input)) return defaultModules.map((module) => sanitizeModuleForRuntime(module));
 
-  return input
-    .filter((item) => item && typeof item === 'object' && 'id' in item)
-    .map((item) => sanitizeModuleForRuntime(item as Module));
+  const inputModules = input.filter((item) => item && typeof item === 'object' && 'id' in item) as Module[];
+  const inputModulesById = new Map(inputModules.map((module) => [String(module.id || '').trim(), module]));
+  const defaultModuleIds = new Set(defaultModules.map((module) => module.id));
+
+  const mergedModules = defaultModules.map((defaultModule) => {
+    const existingModule = inputModulesById.get(defaultModule.id);
+    if (!existingModule) return sanitizeModuleForRuntime(defaultModule);
+
+    const existingLessons = Array.isArray(existingModule.lessons)
+      ? existingModule.lessons
+          .filter((lesson) => lesson && typeof lesson === 'object' && 'id' in lesson)
+          .map((lesson) => sanitizeLessonForRuntime(lesson as Lesson))
+      : [];
+
+    const existingLessonsById = new Map(existingLessons.map((lesson) => [lesson.id, lesson]));
+    const existingLessonsByOrder = new Map(existingLessons.map((lesson) => [lesson.order_index, lesson]));
+    const defaultLessons = Array.isArray(defaultModule.lessons) ? defaultModule.lessons : [];
+
+    const mergedLessons = defaultLessons.map((defaultLesson) => {
+      const existingLesson = existingLessonsById.get(defaultLesson.id)
+        || existingLessonsByOrder.get(defaultLesson.order_index);
+
+      if (!existingLesson) return sanitizeLessonForRuntime(defaultLesson);
+      if (isLegacyDemoPlaceholderLesson(existingLesson)) {
+        return sanitizeLessonForRuntime(upgradeLegacyDemoLesson(existingLesson, defaultLesson));
+      }
+
+      return existingLesson;
+    });
+
+    const extraLessons = existingLessons.filter((lesson) => !defaultLessons.some((defaultLesson) => (
+      defaultLesson.id === lesson.id || defaultLesson.order_index === lesson.order_index
+    )));
+
+    return sanitizeModuleForRuntime({
+      ...defaultModule,
+      ...existingModule,
+      id: defaultModule.id,
+      content_id: String(existingModule.content_id || defaultModule.content_id),
+      title: String(existingModule.title || defaultModule.title),
+      description: String(existingModule.description || defaultModule.description || ''),
+      order_index: typeof existingModule.order_index === 'number' ? existingModule.order_index : defaultModule.order_index,
+      created_at: String(existingModule.created_at || defaultModule.created_at),
+      image_vertical_url: existingModule.image_vertical_url || defaultModule.image_vertical_url,
+      image_horizontal_url: existingModule.image_horizontal_url || defaultModule.image_horizontal_url,
+      is_free: existingModule.is_free ?? defaultModule.is_free,
+      associated_product: existingModule.associated_product || defaultModule.associated_product,
+      lessons: [...mergedLessons, ...extraLessons].sort((left, right) => (left.order_index || 0) - (right.order_index || 0)),
+    });
+  });
+
+  const extraModules = inputModules
+    .filter((module) => !defaultModuleIds.has(String(module.id || '').trim()))
+    .map((module) => sanitizeModuleForRuntime(module));
+
+  return [...mergedModules, ...extraModules].sort((left, right) => (left.order_index || 0) - (right.order_index || 0));
 }
 
 function normalizeDemoProductContentLinks(workspace: DemoWorkspace, input: unknown): DemoProductContentLink[] {

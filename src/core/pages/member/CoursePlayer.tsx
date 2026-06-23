@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { storage } from '../../services/storageService';
 import { Content, Module, Lesson, MemberArea, AccessGrant } from '../../types';
-import { ChevronLeft, CheckCircle, Circle, FileText, Download, ChevronDown, ChevronUp, PanelLeftClose, Search, Play, ChevronRight, Menu } from 'lucide-react';
+import { ChevronLeft, CheckCircle, Circle, FileText, Download, ChevronDown, ChevronUp, PanelLeftClose, Search, Play, ChevronRight, Lock, Menu } from 'lucide-react';
 import { useAccessControl } from '../../hooks/useAccessControl';
 import { ProductSalesModal } from '../../components/member/ProductSalesModal';
 import { IconSidebar } from '../../components/member/IconSidebar';
@@ -25,7 +25,7 @@ export const CoursePlayer = ({ forcedSlug }: { forcedSlug?: string } = {}) => {
     const [currentLesson, setCurrentLesson] = useState<Lesson | null>(null);
     const [progressMap, setProgressMap] = useState<Record<string, boolean>>({});
     const [accessGrants, setAccessGrants] = useState<AccessGrant[]>([]);
-    const { handleAccess } = useAccessControl(accessGrants);
+    const { handleAccess, checkAccess } = useAccessControl(accessGrants);
     const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -74,7 +74,7 @@ export const CoursePlayer = ({ forcedSlug }: { forcedSlug?: string } = {}) => {
             }
 
             if (!currentMemberArea && isCustomDomain) {
-                throw new Error(t('course.errors.member_area_not_found', 'Área de membros não encontrada para este domínio.'));
+                throw new Error(t('course.errors.member_area_not_found', 'ÃƒÂrea de membros nÃƒÂ£o encontrada para este domÃƒÂ­nio.'));
             }
 
             // 2. Resolve Content & Area
@@ -90,7 +90,7 @@ export const CoursePlayer = ({ forcedSlug }: { forcedSlug?: string } = {}) => {
 
             if (!targetContent) {
                 console.error(`Content not found: ${contentId}`);
-                throw new Error(t('course.errors.content_not_found', 'Conteúdo não encontrado.'));
+                throw new Error(t('course.errors.content_not_found', 'ConteÃƒÂºdo nÃƒÂ£o encontrado.'));
             }
 
             // If we just discovered the area from the content, filter the list properly
@@ -362,7 +362,7 @@ export const CoursePlayer = ({ forcedSlug }: { forcedSlug?: string } = {}) => {
                 <div className="flex flex-col md:flex-row items-center justify-between gap-6 pt-8 border-t border-white/10 pb-8">
                     <div className="w-full md:w-auto">
                         <h1 className="text-2xl font-bold text-white mb-1">{currentLesson.title}</h1>
-                        <p className="text-gray-400 text-sm">{t('course.module_label', 'Módulo')}: {modules.find(m => m.id === currentLesson.module_id)?.title}</p>
+                        <p className="text-gray-400 text-sm">{t('course.module_label', 'MÃƒÂ³dulo')}: {modules.find(m => m.id === currentLesson.module_id)?.title}</p>
                     </div>
 
                     <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end">
@@ -393,11 +393,11 @@ export const CoursePlayer = ({ forcedSlug }: { forcedSlug?: string } = {}) => {
                         >
                             {progressMap[currentLesson.id] ? (
                                 <>
-                                    <CheckCircle className="w-5 h-5" /> {t('course.completed', 'Concluída')}
+                                    <CheckCircle className="w-5 h-5" /> {t('course.completed', 'ConcluÃƒÂ­da')}
                                 </>
                             ) : (
                                 <>
-                                    <Circle className="w-5 h-5" /> {t('course.mark_completed', 'Marcar como concluída')}
+                                    <Circle className="w-5 h-5" /> {t('course.mark_completed', 'Marcar como concluÃƒÂ­da')}
                                 </>
                             )}
                         </button>
@@ -475,7 +475,7 @@ export const CoursePlayer = ({ forcedSlug }: { forcedSlug?: string } = {}) => {
                                 <input
                                     id="search-input"
                                     type="text"
-                                    placeholder={t('course.search_placeholder', 'Buscar conteúdo')}
+                                    placeholder={t('course.search_placeholder', 'Buscar conteÃƒÂºdo')}
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                     className="w-full bg-[#1a1e26] border-none rounded-lg py-2 pl-9 pr-4 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-white/20 transition-all"
@@ -493,32 +493,58 @@ export const CoursePlayer = ({ forcedSlug }: { forcedSlug?: string } = {}) => {
                         <div className="flex-1 overflow-y-auto custom-scrollbar">
                             {filteredContents.map((c) => {
                                 const isCurrentContent = c.id === content?.id;
+                                const accessAction = checkAccess(c);
+                                const isLockedContent = !isCurrentContent && accessAction === 'SALES_MODAL';
                                 const imageUrl = c.image_url || c.associated_product?.imageUrl || c.associated_product?.image_url;
-                                // Use product name if available, else content title
-                                const displayTitle = c.associated_product?.name || c.title;
+                                const displayTitle = isLockedContent
+                                    ? (c.associated_product?.name || c.title)
+                                    : c.title;
+                                const secondaryTitle = isLockedContent && c.associated_product?.name && c.associated_product.name !== c.title
+                                    ? c.title
+                                    : null;
 
                                 return (
                                     <div key={c.id} className="border-b border-white/5 last:mb-0">
                                         <div
-                                            className={`p-4 cursor-pointer hover:bg-white/5 flex items-center justify-between ${isCurrentContent ? 'bg-[#1a1e26]/50' : ''}`}
+                                            className={`p-4 cursor-pointer transition-all flex items-center justify-between gap-3 ${isCurrentContent
+                                                ? 'bg-[#1a1e26]/50'
+                                                : isLockedContent
+                                                    ? 'bg-[#161922] hover:bg-[#1d1822]'
+                                                    : 'hover:bg-white/5'
+                                                }`}
                                             onClick={() => handleContentSelect(c)}
                                         >
-                                            <div className="flex items-center gap-3">
+                                            <div className="flex items-center gap-3 min-w-0">
                                                 {imageUrl ? (
-                                                    <img src={imageUrl} className="w-10 h-10 rounded-lg object-cover" />
+                                                    <img src={imageUrl} className={`w-10 h-10 rounded-lg object-cover ${isLockedContent ? 'opacity-80' : ''}`} />
                                                 ) : (
-                                                    <div className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center">
-                                                        <FileText size={16} />
+                                                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isLockedContent ? 'bg-red-500/10 text-red-300 border border-red-500/20' : 'bg-white/10'}`}>
+                                                        {isLockedContent ? <Lock size={16} /> : <FileText size={16} />}
                                                     </div>
                                                 )}
                                                 <div className="flex-1 min-w-0">
-                                                    <h3 className={`text-sm font-bold truncate leading-tight ${isCurrentContent ? 'text-white' : 'text-gray-400'}`}
+                                                    <h3 className={`text-sm font-bold truncate leading-tight ${isCurrentContent ? 'text-white' : isLockedContent ? 'text-white' : 'text-gray-400'}`}
                                                         style={isCurrentContent ? { color: primaryColor } : {}}
                                                     >
                                                         {displayTitle}
                                                     </h3>
+                                                    {secondaryTitle && (
+                                                        <p className="text-[10px] text-gray-500 truncate mt-0.5">{secondaryTitle}</p>
+                                                    )}
                                                     {!isCurrentContent && (
-                                                        <p className="text-[10px] text-gray-500 uppercase tracking-wide">{t('course.click_to_access', 'Clique para acessar')}</p>
+                                                        <div className="mt-1 flex items-center gap-2 flex-wrap">
+                                                            {isLockedContent ? (
+                                                                <>
+                                                                    <span className="inline-flex items-center gap-1 rounded-full border border-red-500/20 bg-red-500/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-red-300">
+                                                                        <Lock className="w-3 h-3" />
+                                                                        {t('course.locked_badge', 'Bloqueado')}
+                                                                    </span>
+                                                                    <p className="text-[10px] text-gray-500 uppercase tracking-wide">{t('course.click_to_unlock', 'Clique para desbloquear')}</p>
+                                                                </>
+                                                            ) : (
+                                                                <p className="text-[10px] text-gray-500 uppercase tracking-wide">{t('course.click_to_access', 'Clique para acessar')}</p>
+                                                            )}
+                                                        </div>
                                                     )}
                                                 </div>
                                             </div>
@@ -529,10 +555,20 @@ export const CoursePlayer = ({ forcedSlug }: { forcedSlug?: string } = {}) => {
                                                     <ChevronDown size={16} style={{ color: primaryColor }} />
                                                 )
                                             ) : (
-                                                <ChevronRight size={16} className="text-gray-600" />
+                                                <div className="flex items-center gap-2 flex-shrink-0">
+                                                    {isLockedContent && (
+                                                        <span className="hidden md:inline-flex rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white/80">
+                                                            {t('course.unlock_cta', 'Desbloquear')}
+                                                        </span>
+                                                    )}
+                                                    {isLockedContent ? (
+                                                        <Lock size={14} className="text-red-300" />
+                                                    ) : (
+                                                        <ChevronRight size={16} className="text-gray-600" />
+                                                    )}
+                                                </div>
                                             )}
                                         </div>
-
                                         {isCurrentContent && isContentExpanded && (
                                             <div className="relative ml-4 pl-4 pt-4 pb-2 space-y-4 border-l border-white/10">
                                                 {filteredModules.map((module, index) => (
@@ -558,7 +594,7 @@ export const CoursePlayer = ({ forcedSlug }: { forcedSlug?: string } = {}) => {
                                                                         className="text-[10px] font-bold uppercase tracking-wider mb-1 inline-block px-1.5 py-0.5 rounded bg-black/40 backdrop-blur-sm border border-white/10"
                                                                         style={{ color: primaryColor, borderColor: `${primaryColor}40` }}
                                                                     >
-                                                                        {t('course.module_number', 'Módulo {{number}}', { number: modules.findIndex(m => m.id === module.id) + 1 })}
+                                                                        {t('course.module_number', 'MÃƒÂ³dulo {{number}}', { number: modules.findIndex(m => m.id === module.id) + 1 })}
                                                                     </span>
                                                                     <h3 className="text-base md:text-lg font-bold text-white leading-tight drop-shadow-md">{module.title}</h3>
                                                                 </div>
@@ -573,6 +609,8 @@ export const CoursePlayer = ({ forcedSlug }: { forcedSlug?: string } = {}) => {
                                                                 {module.lessons?.map((lesson, lIndex) => {
                                                                     const isActive = currentLesson?.id === lesson.id;
                                                                     const isCompleted = progressMap[lesson.id];
+                                                                    const lessonAction = checkAccess(lesson, { content: content || undefined, module });
+                                                                    const isLockedLesson = lessonAction === 'SALES_MODAL';
                                                                     let thumbnailUrl = lesson.image_url;
                                                                     if (!thumbnailUrl && lesson.video_url) {
                                                                         const videoId = lesson.video_url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?]+)/)?.[1];
@@ -587,39 +625,54 @@ export const CoursePlayer = ({ forcedSlug }: { forcedSlug?: string } = {}) => {
                                                                             onClick={() => handleLessonSelect(lesson)}
                                                                             className={`group w-full text-left p-2 flex items-center gap-3 rounded-xl transition-all border ${isActive
                                                                                 ? 'shadow-lg relative z-10'
-                                                                                : 'bg-transparent hover:bg-[#1a1e26] border-transparent'
+                                                                                : isLockedLesson
+                                                                                    ? 'bg-[#141820] border-white/5 hover:bg-[#1a1e26] hover:border-red-500/20'
+                                                                                    : 'bg-transparent hover:bg-[#1a1e26] border-transparent'
                                                                                 }`}
                                                                             style={isActive ? {
                                                                                 backgroundColor: `${primaryColor}15`,
                                                                                 borderColor: primaryColor,
                                                                             } : {}}
                                                                         >
-                                                                            <div className="relative w-16 aspect-video flex-shrink-0 bg-gray-800 rounded-lg overflow-hidden shadow-sm">
+                                                                            <div className={`relative w-16 aspect-video flex-shrink-0 bg-gray-800 rounded-lg overflow-hidden shadow-sm ${isLockedLesson && !isActive ? 'ring-1 ring-red-500/20' : ''}`}>
                                                                                 {thumbnailUrl ? (
-                                                                                    <img src={thumbnailUrl} className={`w-full h-full object-cover transition-opacity ${isActive ? 'opacity-40' : 'opacity-80 group-hover:opacity-100'}`} alt="" />
+                                                                                    <img src={thumbnailUrl} className={`w-full h-full object-cover transition-opacity ${isActive ? 'opacity-40' : isLockedLesson ? 'opacity-50 grayscale' : 'opacity-80 group-hover:opacity-100'}`} alt="" />
                                                                                 ) : (
                                                                                     <div className="w-full h-full flex items-center justify-center text-gray-600">
                                                                                         <FileText size={14} />
                                                                                     </div>
                                                                                 )}
 
-                                                                                {isActive && (
+                                                                                {isActive ? (
                                                                                     <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 backdrop-blur-[1px]">
                                                                                         <Play size={10} className="text-white fill-white" />
                                                                                     </div>
-                                                                                )}
+                                                                                ) : isLockedLesson ? (
+                                                                                    <div className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-[1px]">
+                                                                                        <Lock className="w-3.5 h-3.5 text-white" />
+                                                                                    </div>
+                                                                                ) : null}
                                                                             </div>
 
                                                                             <div className="flex-1 min-w-0 py-0.5">
-                                                                                <p className={`text-xs font-medium line-clamp-2 leading-snug ${isActive ? 'text-white' : 'text-gray-400 group-hover:text-white'}`}>
+                                                                                <p className={`text-xs font-medium line-clamp-2 leading-snug ${isActive ? 'text-white' : isLockedLesson ? 'text-gray-200' : 'text-gray-400 group-hover:text-white'}`}>
                                                                                     {lesson.title}
                                                                                 </p>
+                                                                                {isLockedLesson && !isActive && (
+                                                                                    <p className="mt-1 text-[9px] font-bold uppercase tracking-wide text-red-300">
+                                                                                        {t('course.locked_lesson_hint', 'Aula bloqueada')}
+                                                                                    </p>
+                                                                                )}
                                                                             </div>
 
                                                                             <div className="flex-shrink-0 pr-1">
                                                                                 {isCompleted ? (
                                                                                     <div className="bg-green-500/20 rounded-full p-0.5">
                                                                                         <CheckCircle className="w-3 h-3 text-green-500 fill-green-500/20" />
+                                                                                    </div>
+                                                                                ) : isLockedLesson && !isActive ? (
+                                                                                    <div className="bg-red-500/10 rounded-full p-1">
+                                                                                        <Lock className="w-3 h-3 text-red-300" />
                                                                                     </div>
                                                                                 ) : (
                                                                                     <div className={`w-3 h-3 rounded-full border-2 ${isActive ? 'border-white/20' : 'border-gray-700/50'}`} />
@@ -629,7 +682,7 @@ export const CoursePlayer = ({ forcedSlug }: { forcedSlug?: string } = {}) => {
                                                                     );
                                                                 })}
                                                                 {(!module.lessons || module.lessons.length === 0) && (
-                                                                    <div className="p-4 text-xs text-gray-500 text-center">{t('course.empty_module', 'Nenhuma aula neste módulo.')}</div>
+                                                                    <div className="p-4 text-xs text-gray-500 text-center">{t('course.empty_module', 'Nenhuma aula neste mÃƒÂ³dulo.')}</div>
                                                                 )}
                                                             </div>
                                                         )}
