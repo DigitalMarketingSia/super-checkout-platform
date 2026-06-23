@@ -57,6 +57,16 @@ const DEMO_EXTERNAL_LINKS = Object.freeze({
   docs: 'https://developer.mozilla.org/',
 });
 const DEMO_YOUTUBE_URLS = Object.freeze([
+  'https://youtu.be/X-_eMAaPv5I?si=Ps4VU7gKHCVIET8x',
+  'https://youtu.be/exQKEte8cmQ?si=sSVAeQlH3eCRAhJU',
+  'https://youtu.be/EKjCC4PwjFo?si=Do-qlCrK6L669wAd',
+  'https://youtu.be/Xc8zxE9pB4w?si=jgfxUIAfhsczUnqV',
+  'https://youtu.be/wqTZuEQ2P-s?si=FynRBk9MAWNiPcut',
+  'https://youtu.be/4C43hMGm-6U?si=NYOUesSS3G4inqo9',
+  'https://youtu.be/d2ECtM9Ahq4?si=NS_FU5DqW0Ql2zOt',
+  'https://youtu.be/IUTmJ_ZYDRg?si=IxHXqSHjUd79eRQt',
+]);
+const LEGACY_DEMO_YOUTUBE_URLS = Object.freeze([
   'https://www.youtube.com/watch?v=M7lc1UVf-VE',
   'https://www.youtube.com/watch?v=aqz-KE-bpKQ',
   'https://www.youtube.com/watch?v=ScMzIvxBSi4',
@@ -874,10 +884,18 @@ const buildDemoTrackBlueprints = (workspace: DemoWorkspace): DemoTrackBlueprint[
 
   return [
     {
+      id: memberAreaId + '-track-lessons',
+      title: 'Aulas em destaque',
+      type: 'lessons',
+      position: 0,
+      card_style: 'horizontal',
+      item_ids: lessonIds.slice(0, 8),
+    },
+    {
       id: memberAreaId + '-track-contents',
       title: 'Conteudos para explorar',
       type: 'contents',
-      position: 0,
+      position: 1,
       card_style: 'horizontal',
       item_ids: contentBlueprints.map((content) => content.id),
     },
@@ -885,7 +903,7 @@ const buildDemoTrackBlueprints = (workspace: DemoWorkspace): DemoTrackBlueprint[
       id: memberAreaId + '-track-free-contents',
       title: 'Acesso gratuito',
       type: 'contents',
-      position: 1,
+      position: 2,
       card_style: 'vertical',
       item_ids: freeContentIds,
     },
@@ -893,17 +911,9 @@ const buildDemoTrackBlueprints = (workspace: DemoWorkspace): DemoTrackBlueprint[
       id: memberAreaId + '-track-modules',
       title: 'Modulos em poster',
       type: 'modules',
-      position: 2,
+      position: 3,
       card_style: 'vertical',
       item_ids: moduleIds,
-    },
-    {
-      id: memberAreaId + '-track-lessons',
-      title: 'Aulas em destaque',
-      type: 'lessons',
-      position: 3,
-      card_style: 'horizontal',
-      item_ids: lessonIds.slice(0, 8),
     },
     {
       id: memberAreaId + '-track-products',
@@ -1682,6 +1692,61 @@ const upgradeLegacyDemoLesson = (lesson: Lesson, defaultLesson: Lesson): Lesson 
   is_published: lesson.is_published ?? defaultLesson.is_published,
 });
 
+const areDemoLessonResourcesEquivalent = (
+  left?: LessonResource[],
+  right?: LessonResource[],
+): boolean => {
+  const normalizedLeft = Array.isArray(left) ? left : [];
+  const normalizedRight = Array.isArray(right) ? right : [];
+  if (normalizedLeft.length !== normalizedRight.length) return false;
+
+  return normalizedLeft.every((resource, index) => {
+    const other = normalizedRight[index];
+    return Boolean(other)
+      && String(resource.title || '').trim() === String(other.title || '').trim()
+      && String(resource.image_url || '').trim() === String(other.image_url || '').trim()
+      && String(resource.link_url || '').trim() === String(other.link_url || '').trim()
+      && String(resource.button_text || '').trim() === String(other.button_text || '').trim();
+  });
+};
+
+const areDemoLessonContentOrdersEquivalent = (
+  left?: string[],
+  right?: string[],
+): boolean => {
+  const normalizedLeft = Array.isArray(left) ? left : [];
+  const normalizedRight = Array.isArray(right) ? right : [];
+  if (normalizedLeft.length !== normalizedRight.length) return false;
+
+  return normalizedLeft.every((entry, index) => entry === normalizedRight[index]);
+};
+
+const isLegacyDemoSeedVideoUrl = (videoUrl?: string | null): boolean => {
+  const normalizedVideoUrl = String(videoUrl || '').trim();
+  return normalizedVideoUrl.length === 0 || LEGACY_DEMO_YOUTUBE_URLS.includes(normalizedVideoUrl);
+};
+
+const shouldRefreshRichDemoLesson = (lesson: Lesson, defaultLesson: Lesson): boolean => (
+  isLegacyDemoSeedVideoUrl(lesson.video_url)
+  && String(lesson.title || '').trim() === String(defaultLesson.title || '').trim()
+  && lesson.content_type === defaultLesson.content_type
+  && String(lesson.content_text || '').trim() === String(defaultLesson.content_text || '').trim()
+  && String(lesson.file_url || '').trim() === String(defaultLesson.file_url || '').trim()
+  && areDemoLessonContentOrdersEquivalent(lesson.content_order, defaultLesson.content_order)
+  && areDemoLessonResourcesEquivalent(lesson.gallery, defaultLesson.gallery)
+  && String(lesson.video_url || '').trim() !== String(defaultLesson.video_url || '').trim()
+);
+
+const refreshRichDemoLesson = (lesson: Lesson, defaultLesson: Lesson): Lesson => ({
+  ...defaultLesson,
+  id: lesson.id || defaultLesson.id,
+  module_id: lesson.module_id || defaultLesson.module_id,
+  order_index: typeof lesson.order_index === 'number' ? lesson.order_index : defaultLesson.order_index,
+  is_free: lesson.is_free ?? defaultLesson.is_free,
+  created_at: lesson.created_at || defaultLesson.created_at,
+  is_published: lesson.is_published ?? defaultLesson.is_published,
+});
+
 const mapModules = (workspace: DemoWorkspace): Module[] => {
   const productsById = new Map(getDemoProductsFromWorkspace(workspace).map((product) => [product.id, product]));
   const contentBlueprints = buildDemoContentBlueprints(workspace);
@@ -2016,6 +2081,9 @@ function normalizeDemoModules(workspace: DemoWorkspace, input: unknown): Module[
       if (isLegacyDemoPlaceholderLesson(existingLesson)) {
         return sanitizeLessonForRuntime(upgradeLegacyDemoLesson(existingLesson, defaultLesson));
       }
+      if (shouldRefreshRichDemoLesson(existingLesson, defaultLesson)) {
+        return sanitizeLessonForRuntime(refreshRichDemoLesson(existingLesson, defaultLesson));
+      }
 
       return existingLesson;
     });
@@ -2064,12 +2132,37 @@ function normalizeDemoProductContentLinks(workspace: DemoWorkspace, input: unkno
 }
 
 function normalizeDemoTracks(workspace: DemoWorkspace, input: unknown): Track[] {
-  return mergeDefaultDemoRecords(
-    buildDefaultDemoTracks(workspace),
-    input,
-    sanitizeTrackForRuntime,
-    (left, right) => (left.position || 0) - (right.position || 0),
-  );
+  const defaults = buildDefaultDemoTracks(workspace);
+  if (!Array.isArray(input)) {
+    return defaults.sort((left, right) => (left.position || 0) - (right.position || 0));
+  }
+
+  const existing = input
+    .filter((item) => item && typeof item === 'object' && 'id' in item)
+    .map((item) => sanitizeTrackForRuntime(item as Track));
+  const existingById = new Map(existing.map((track) => [String(track.id || '').trim(), track]));
+  const defaultIds = new Set(defaults.map((track) => String(track.id || '').trim()));
+
+  const merged = defaults.map((defaultTrack) => {
+    const existingTrack = existingById.get(String(defaultTrack.id || '').trim());
+    if (!existingTrack) return defaultTrack;
+
+    return sanitizeTrackForRuntime({
+      ...defaultTrack,
+      ...existingTrack,
+      id: defaultTrack.id,
+      member_area_id: String(existingTrack.member_area_id || defaultTrack.member_area_id),
+      title: String(existingTrack.title || defaultTrack.title),
+      type: existingTrack.type || defaultTrack.type,
+      position: defaultTrack.position,
+      is_visible: existingTrack.is_visible ?? defaultTrack.is_visible,
+      created_at: String(existingTrack.created_at || defaultTrack.created_at),
+      card_style: existingTrack.card_style || defaultTrack.card_style,
+    });
+  });
+
+  const extras = existing.filter((track) => !defaultIds.has(String(track.id || '').trim()));
+  return [...merged, ...extras].sort((left, right) => (left.position || 0) - (right.position || 0));
 }
 
 function normalizeDemoTrackItems(workspace: DemoWorkspace, input: unknown): TrackItem[] {

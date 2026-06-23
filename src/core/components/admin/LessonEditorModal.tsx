@@ -33,6 +33,14 @@ interface LessonEditorModalProps {
 
 type LessonEditorTab = 'config' | 'video' | 'text' | 'material' | 'gallery' | 'preview';
 
+const getYoutubeEmbedUrl = (url?: string | null): string | null => {
+    if (!url) return null;
+
+    const videoId = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/ ]{11})/i)?.[1];
+    return videoId ? `https://www.youtube.com/embed/${videoId}` : url;
+};
+
+
 export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({ isOpen, onClose, onSave, lesson }) => {
     const { t } = useTranslation(['admin', 'common']);
     const [editedLesson, setEditedLesson] = useState<Lesson>(lesson);
@@ -153,11 +161,11 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({ isOpen, on
                 </div>
             );
         }
-        const ytMatch = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/ ]{11})/i);
-        if (ytMatch && ytMatch[1]) {
+        const embedUrl = getYoutubeEmbedUrl(url);
+        if (embedUrl && embedUrl !== url) {
             return (
                 <div className="relative aspect-video max-w-md mx-auto w-full rounded-2xl overflow-hidden bg-black mt-2 shadow-xl border border-white/5">
-                    <iframe className="absolute inset-0 w-full h-full" src={`https://www.youtube.com/embed/${ytMatch[1]}`} frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
+                    <iframe className="absolute inset-0 w-full h-full" src={embedUrl} frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
                 </div>
             );
         }
@@ -483,7 +491,7 @@ export const LessonEditorModal: React.FC<LessonEditorModalProps> = ({ isOpen, on
                                                 return editedLesson.video_url ? (
                                                     <div className="aspect-video bg-black rounded-xl overflow-hidden shadow-2xl border border-white/10 w-full">
                                                         <iframe
-                                                            src={editedLesson.video_url.replace('watch?v=', 'embed/')}
+                                                            src={getYoutubeEmbedUrl(editedLesson.video_url) || editedLesson.video_url}
                                                             className="w-full h-full"
                                                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                                             allowFullScreen

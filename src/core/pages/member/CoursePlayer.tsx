@@ -8,6 +8,13 @@ import { ProductSalesModal } from '../../components/member/ProductSalesModal';
 import { IconSidebar } from '../../components/member/IconSidebar';
 import { useTranslation } from 'react-i18next';
 
+const getYoutubeEmbedUrl = (url?: string | null): string | null => {
+    if (!url) return null;
+
+    const videoId = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?]+)/)?.[1];
+    return videoId ? `https://www.youtube.com/embed/${videoId}` : url;
+};
+
 export const CoursePlayer = ({ forcedSlug }: { forcedSlug?: string } = {}) => {
     const { slug, id } = useParams<{ slug: string; id: string }>();
     const navigate = useNavigate();
@@ -273,7 +280,7 @@ export const CoursePlayer = ({ forcedSlug }: { forcedSlug?: string } = {}) => {
                     return currentLesson.video_url ? (
                         <div key="video" className="aspect-video bg-black rounded-xl overflow-hidden shadow-2xl border border-white/10 w-full">
                             <iframe
-                                src={currentLesson.video_url.replace('watch?v=', 'embed/')}
+                                src={getYoutubeEmbedUrl(currentLesson.video_url) || currentLesson.video_url}
                                 className="w-full h-full"
                                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                 allowFullScreen
