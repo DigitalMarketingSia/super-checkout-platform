@@ -47,6 +47,8 @@ const DEMO_RUNTIME_STORAGE_LIMIT_BYTES = 4 * 1024 * 1024;
 const DEMO_RUNTIME_MAX_ASSET_BYTES = 2 * 1024 * 1024;
 const DEMO_LEGACY_PLACEHOLDER_TEXT = 'Conteudo temporario do workspace demo.';
 const DEMO_LESSON_RESOURCE_IMAGE = '/logo.png';
+const DEMO_MEMBER_POSTER_IMAGE = '/logo.png';
+const DEMO_MEMBER_COVER_IMAGE = '/print-flow.png';
 const DEMO_SUPPLEMENTARY_PDF_URL = 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf';
 const DEMO_EXTERNAL_LINKS = Object.freeze({
   app: 'https://app.supercheckout.app/',
@@ -328,6 +330,132 @@ const DEMO_LESSON_BLUEPRINTS: DemoLessonTemplate[][] = [
   ],
 ];
 
+interface DemoModuleBlueprint {
+  id: string;
+  title: string;
+  description: string;
+  is_free?: boolean;
+  image_vertical_url?: string;
+  image_horizontal_url?: string;
+  lessons: DemoLessonTemplate[];
+}
+
+interface DemoContentBlueprint {
+  id: string;
+  title: string;
+  description: string;
+  type: Content['type'];
+  isFree: boolean;
+  associatedProductId?: string;
+  thumbnailUrl: string;
+  imageVerticalUrl: string;
+  imageHorizontalUrl: string;
+  modulesLayout: 'vertical' | 'horizontal';
+  modules: DemoModuleBlueprint[];
+}
+
+interface DemoTrackBlueprint {
+  id: string;
+  title: string;
+  type: Track['type'];
+  position: number;
+  card_style: 'vertical' | 'horizontal';
+  item_ids: string[];
+}
+
+const DEMO_FREE_WELCOME_LESSONS: DemoLessonTemplate[] = [
+  {
+    title: 'Tour guiado do demo',
+    content_type: 'video',
+    video_url: DEMO_YOUTUBE_URLS[0],
+    file_url: DEMO_SUPPLEMENTARY_PDF_URL,
+    content_order: ['video', 'text', 'file'],
+    content_text: 'Conteudo gratuito para o lead explorar o player, os recursos e a navegacao do aluno.',
+  },
+  {
+    title: 'Trilhas, modulos e produtos',
+    content_type: 'text',
+    file_url: DEMO_EXTERNAL_LINKS.docs,
+    content_order: ['text', 'gallery', 'file'],
+    content_text: 'Resumo rapido da estrutura do demo com trilhas horizontais, verticais e ofertas bloqueadas.',
+    gallery: [
+      createDemoGalleryItem('Abrir guia', DEMO_EXTERNAL_LINKS.docs, 'Abrir guia'),
+      createDemoGalleryItem('Abrir portal', DEMO_EXTERNAL_LINKS.portal, 'Abrir portal'),
+    ],
+  },
+  {
+    title: 'Checklist de teste',
+    content_type: 'video',
+    video_url: DEMO_YOUTUBE_URLS[2],
+    content_order: ['text', 'video'],
+    content_text: 'Abra os conteudos gratuitos, navegue nas trilhas e teste os cards bloqueados.',
+  },
+];
+
+const DEMO_ORDER_BUMP_LESSONS: DemoLessonTemplate[] = [
+  {
+    title: 'Scripts do order bump',
+    content_type: 'text',
+    file_url: DEMO_SUPPLEMENTARY_PDF_URL,
+    content_order: ['text', 'gallery', 'file'],
+    content_text: 'Entrega curta para mostrar um complemento de compra dentro da area de membros.',
+    gallery: [
+      createDemoGalleryItem('Modelos rapidos', DEMO_EXTERNAL_LINKS.site, 'Ver modelos'),
+      createDemoGalleryItem('Apoio tecnico', DEMO_EXTERNAL_LINKS.docs, 'Abrir docs'),
+    ],
+  },
+  {
+    title: 'Bullets de conversao',
+    content_type: 'video',
+    video_url: DEMO_YOUTUBE_URLS[1],
+    content_order: ['video', 'text'],
+    content_text: 'Exemplo visual de conteudo extra vendido como bump.',
+  },
+];
+
+const DEMO_UPSELL_LESSONS: DemoLessonTemplate[] = [
+  {
+    title: 'Templates premium',
+    content_type: 'video',
+    video_url: DEMO_YOUTUBE_URLS[3],
+    file_url: DEMO_SUPPLEMENTARY_PDF_URL,
+    content_order: ['video', 'text', 'file'],
+    content_text: 'Conteudo premium para representar o upsell do demo.',
+  },
+  {
+    title: 'Biblioteca de campanhas',
+    content_type: 'text',
+    content_order: ['text', 'gallery'],
+    content_text: 'Galeria com referencias e mockups para reforcar a oferta premium.',
+    gallery: [
+      createDemoGalleryItem('Abrir app', DEMO_EXTERNAL_LINKS.app, 'Abrir app'),
+      createDemoGalleryItem('Abrir site', DEMO_EXTERNAL_LINKS.site, 'Abrir site'),
+    ],
+  },
+];
+
+const DEMO_FREE_PRODUCT_LESSONS: DemoLessonTemplate[] = [
+  {
+    title: 'Starter kit gratuito',
+    content_type: 'video',
+    video_url: DEMO_YOUTUBE_URLS[1],
+    file_url: DEMO_SUPPLEMENTARY_PDF_URL,
+    content_order: ['video', 'text', 'file'],
+    content_text: 'Produto gratuito dentro do demo para mostrar uma oferta aberta convivendo com as pagas.',
+  },
+  {
+    title: 'Recursos rapidos',
+    content_type: 'text',
+    file_url: DEMO_EXTERNAL_LINKS.docs,
+    content_order: ['text', 'gallery', 'file'],
+    content_text: 'Links e materiais simples para primeira vitoria do aluno.',
+    gallery: [
+      createDemoGalleryItem('Checklist', DEMO_EXTERNAL_LINKS.portal, 'Abrir checklist'),
+      createDemoGalleryItem('Guia', DEMO_EXTERNAL_LINKS.docs, 'Abrir guia'),
+    ],
+  },
+];
+
 export const isDemoDataRuntime = () => getRuntimeMode() === 'demo';
 
 const getWorkspacePayload = async (): Promise<DemoWorkspaceResponse | null> => {
@@ -537,6 +665,14 @@ const getMainDemoProductRecord = (workspace: DemoWorkspace) =>
 const getScenarioStateKey = (checkoutId: string, paymentMethod: string) => `${checkoutId}:${paymentMethod}`;
 
 const getContentId = (workspace: DemoWorkspace) => `${workspace.seed_payload.member_area.id}-content`;
+const getDemoFreeProductId = (workspace: DemoWorkspace) => `${workspace.seed_payload.member_area.id}-product-free-starter`;
+const getDemoContentIds = (workspace: DemoWorkspace) => ({
+  main: getContentId(workspace),
+  freeWelcome: `${workspace.seed_payload.member_area.id}-content-free-welcome`,
+  orderBump: `${workspace.seed_payload.member_area.id}-content-order-bump`,
+  upsell: `${workspace.seed_payload.member_area.id}-content-upsell`,
+  freeProduct: `${workspace.seed_payload.member_area.id}-content-free-product`,
+});
 
 const createProductGrantId = (userId: string, productId: string) => `demo-grant-product:${userId}:${productId}`;
 const createContentGrantId = (userId: string, contentId: string) => `demo-grant-content:${userId}:${contentId}`;
@@ -553,10 +689,10 @@ const mapProduct = (workspace: DemoWorkspace, product: DemoWorkspaceProduct): Pr
       ? 'Produto principal do workspace demo. Use esta tela como faria no seu ambiente real.'
       : 'Oferta complementar simulada para demonstrar bumps, upsells e entregas.',
   active: product.status === 'active',
-  imageUrl: '/logo.png',
+  imageUrl: product.kind === 'main' ? DEMO_MEMBER_COVER_IMAGE : DEMO_MEMBER_POSTER_IMAGE,
   price_real: product.price_brl,
   price_fake: Math.round(product.price_brl * 1.8),
-  sku: `DEMO-${product.kind.toUpperCase()}`,
+  sku: 'DEMO-' + product.kind.toUpperCase(),
   category: workspace.seed_payload.business.niche,
   delivery_file_path: null,
   delivery_file_name: null,
@@ -567,19 +703,217 @@ const mapProduct = (workspace: DemoWorkspace, product: DemoWorkspaceProduct): Pr
   member_area_action: 'checkout',
   member_area_checkout_id: workspace.seed_payload.checkouts[0]?.id || '',
   checkout_slug: workspace.seed_payload.checkouts[0]?.slug || '',
-  checkout_url: workspace.seed_payload.checkouts[0]?.slug ? `/c/${workspace.seed_payload.checkouts[0].slug}` : '',
-  redirect_link: workspace.seed_payload.checkouts[0]?.slug ? `/c/${workspace.seed_payload.checkouts[0].slug}` : '',
+  checkout_url: workspace.seed_payload.checkouts[0]?.slug ? '/c/' + workspace.seed_payload.checkouts[0].slug : '',
+  redirect_link: workspace.seed_payload.checkouts[0]?.slug ? '/c/' + workspace.seed_payload.checkouts[0].slug : '',
   member_area_id: workspace.seed_payload.member_area.id,
   currency: 'BRL',
   ...getProductKindFlags(product),
 });
 
-const getDemoProductsFromWorkspace = (workspace: DemoWorkspace): Product[] =>
-  workspace.seed_payload.products.map((product) => mapProduct(workspace, product));
+const buildDemoFreeProduct = (workspace: DemoWorkspace): Product => ({
+  id: getDemoFreeProductId(workspace),
+  name: 'Starter Kit Gratuito',
+  description: 'Produto gratuito do demo para mostrar uma oferta aberta dentro da area de membros.',
+  active: true,
+  imageUrl: DEMO_MEMBER_COVER_IMAGE,
+  price_real: 0,
+  price_fake: 29,
+  sku: 'DEMO-FREE-STARTER',
+  category: workspace.seed_payload.business.niche,
+  delivery_file_path: null,
+  delivery_file_name: null,
+  delivery_file_mime_type: null,
+  delivery_file_size_bytes: null,
+  visible_in_member_area: true,
+  for_sale: true,
+  member_area_action: 'checkout',
+  member_area_checkout_id: workspace.seed_payload.checkouts[0]?.id || '',
+  checkout_slug: workspace.seed_payload.checkouts[0]?.slug || '',
+  checkout_url: workspace.seed_payload.checkouts[0]?.slug ? '/c/' + workspace.seed_payload.checkouts[0].slug : '',
+  redirect_link: workspace.seed_payload.checkouts[0]?.slug ? '/c/' + workspace.seed_payload.checkouts[0].slug : '',
+  member_area_id: workspace.seed_payload.member_area.id,
+  currency: 'BRL',
+});
+
+const getDemoProductsFromWorkspace = (workspace: DemoWorkspace): Product[] => ([
+  ...workspace.seed_payload.products.map((product) => mapProduct(workspace, product)),
+  buildDemoFreeProduct(workspace),
+]);
 
 const buildAssociatedMainProduct = (workspace: DemoWorkspace) => {
   const mainProduct = getMainDemoProductRecord(workspace);
   return mainProduct ? mapProduct(workspace, mainProduct) : undefined;
+};
+
+const buildDemoContentBlueprints = (workspace: DemoWorkspace): DemoContentBlueprint[] => {
+  const contentIds = getDemoContentIds(workspace);
+  const mainProduct = getMainDemoProductRecord(workspace);
+  const orderBumpProduct = workspace.seed_payload.products.find((product) => product.kind === 'order_bump');
+  const upsellProduct = workspace.seed_payload.products.find((product) => product.kind === 'upsell');
+  const premiumModules = workspace.seed_payload.member_area.modules.map((module, moduleIndex) => ({
+    id: module.id,
+    title: module.title,
+    description: module.lesson_count + ' aulas demo com video, materiais e links externos.',
+    is_free: moduleIndex === 0,
+    image_vertical_url: DEMO_MEMBER_POSTER_IMAGE,
+    image_horizontal_url: DEMO_MEMBER_COVER_IMAGE,
+    lessons: Array.from({ length: module.lesson_count }, (_, lessonIndex) => getDemoLessonTemplate(module.title, moduleIndex, lessonIndex)),
+  }));
+
+  return [
+    {
+      id: contentIds.freeWelcome,
+      title: 'Comece por Aqui Gratuitamente',
+      description: 'Conteudo livre para testar a experiencia do aluno sem compra.',
+      type: 'course',
+      isFree: true,
+      thumbnailUrl: DEMO_MEMBER_COVER_IMAGE,
+      imageVerticalUrl: DEMO_MEMBER_POSTER_IMAGE,
+      imageHorizontalUrl: DEMO_MEMBER_COVER_IMAGE,
+      modulesLayout: 'horizontal',
+      modules: [{
+        id: contentIds.freeWelcome + '-module-tour',
+        title: 'Tour guiado do demo',
+        description: 'Visao geral do ambiente.',
+        is_free: true,
+        image_vertical_url: DEMO_MEMBER_POSTER_IMAGE,
+        image_horizontal_url: DEMO_MEMBER_COVER_IMAGE,
+        lessons: DEMO_FREE_WELCOME_LESSONS,
+      }],
+    },
+    {
+      id: contentIds.main,
+      title: workspace.seed_payload.member_area.name,
+      description: 'Conteudo principal do workspace demo.',
+      type: 'course',
+      isFree: false,
+      associatedProductId: mainProduct?.id,
+      thumbnailUrl: DEMO_MEMBER_COVER_IMAGE,
+      imageVerticalUrl: DEMO_MEMBER_POSTER_IMAGE,
+      imageHorizontalUrl: DEMO_MEMBER_COVER_IMAGE,
+      modulesLayout: 'horizontal',
+      modules: premiumModules,
+    },
+    ...(orderBumpProduct ? [{
+      id: contentIds.orderBump,
+      title: orderBumpProduct.name,
+      description: 'Conteudo complementar do order bump.',
+      type: 'pack' as const,
+      isFree: false,
+      associatedProductId: orderBumpProduct.id,
+      thumbnailUrl: DEMO_MEMBER_COVER_IMAGE,
+      imageVerticalUrl: DEMO_MEMBER_POSTER_IMAGE,
+      imageHorizontalUrl: DEMO_MEMBER_COVER_IMAGE,
+      modulesLayout: 'vertical' as const,
+      modules: [{
+        id: contentIds.orderBump + '-module-scripts',
+        title: 'Scripts e materiais de apoio',
+        description: 'Entrega curta e complementar.',
+        image_vertical_url: DEMO_MEMBER_POSTER_IMAGE,
+        image_horizontal_url: DEMO_MEMBER_COVER_IMAGE,
+        lessons: DEMO_ORDER_BUMP_LESSONS,
+      }],
+    }] : []),
+    ...(upsellProduct ? [{
+      id: contentIds.upsell,
+      title: upsellProduct.name,
+      description: 'Conteudo premium do upsell demo.',
+      type: 'pack' as const,
+      isFree: false,
+      associatedProductId: upsellProduct.id,
+      thumbnailUrl: DEMO_MEMBER_COVER_IMAGE,
+      imageVerticalUrl: DEMO_MEMBER_POSTER_IMAGE,
+      imageHorizontalUrl: DEMO_MEMBER_COVER_IMAGE,
+      modulesLayout: 'vertical' as const,
+      modules: [{
+        id: contentIds.upsell + '-module-premium',
+        title: 'Templates e playbooks premium',
+        description: 'Biblioteca premium.',
+        image_vertical_url: DEMO_MEMBER_POSTER_IMAGE,
+        image_horizontal_url: DEMO_MEMBER_COVER_IMAGE,
+        lessons: DEMO_UPSELL_LESSONS,
+      }],
+    }] : []),
+    {
+      id: contentIds.freeProduct,
+      title: 'Starter Kit Gratuito',
+      description: 'Conteudo gratuito entregue como produto dentro do demo.',
+      type: 'ebook',
+      isFree: true,
+      associatedProductId: getDemoFreeProductId(workspace),
+      thumbnailUrl: DEMO_MEMBER_COVER_IMAGE,
+      imageVerticalUrl: DEMO_MEMBER_POSTER_IMAGE,
+      imageHorizontalUrl: DEMO_MEMBER_COVER_IMAGE,
+      modulesLayout: 'vertical',
+      modules: [{
+        id: contentIds.freeProduct + '-module-starter',
+        title: 'Biblioteca gratuita de aquecimento',
+        description: 'Recursos simples para primeira vitoria.',
+        is_free: true,
+        image_vertical_url: DEMO_MEMBER_POSTER_IMAGE,
+        image_horizontal_url: DEMO_MEMBER_COVER_IMAGE,
+        lessons: DEMO_FREE_PRODUCT_LESSONS,
+      }],
+    },
+  ];
+};
+
+const buildDemoTrackBlueprints = (workspace: DemoWorkspace): DemoTrackBlueprint[] => {
+  const memberAreaId = workspace.seed_payload.member_area.id;
+  const contentBlueprints = buildDemoContentBlueprints(workspace);
+  const freeContentIds = contentBlueprints.filter((content) => content.isFree).map((content) => content.id);
+  const moduleIds = contentBlueprints.flatMap((content) => content.modules.map((module) => module.id));
+  const lessonIds = contentBlueprints.flatMap((content) => content.modules.flatMap((module) => module.lessons.map((_, lessonIndex) => module.id + '-lesson-' + (lessonIndex + 1))));
+  const seedProducts = workspace.seed_payload.products;
+  const productIds = [
+    seedProducts.find((product) => product.kind === 'main')?.id,
+    seedProducts.find((product) => product.kind === 'order_bump')?.id,
+    seedProducts.find((product) => product.kind === 'upsell')?.id,
+    getDemoFreeProductId(workspace),
+  ].filter(Boolean) as string[];
+
+  return [
+    {
+      id: memberAreaId + '-track-contents',
+      title: 'Conteudos para explorar',
+      type: 'contents',
+      position: 0,
+      card_style: 'horizontal',
+      item_ids: contentBlueprints.map((content) => content.id),
+    },
+    {
+      id: memberAreaId + '-track-free-contents',
+      title: 'Acesso gratuito',
+      type: 'contents',
+      position: 1,
+      card_style: 'vertical',
+      item_ids: freeContentIds,
+    },
+    {
+      id: memberAreaId + '-track-modules',
+      title: 'Modulos em poster',
+      type: 'modules',
+      position: 2,
+      card_style: 'vertical',
+      item_ids: moduleIds,
+    },
+    {
+      id: memberAreaId + '-track-lessons',
+      title: 'Aulas em destaque',
+      type: 'lessons',
+      position: 3,
+      card_style: 'horizontal',
+      item_ids: lessonIds.slice(0, 8),
+    },
+    {
+      id: memberAreaId + '-track-products',
+      title: 'Produtos desta area',
+      type: 'products',
+      position: 4,
+      card_style: 'horizontal',
+      item_ids: productIds,
+    },
+  ].filter((track) => track.item_ids.length > 0);
 };
 
 const normalizeMembers = (workspace: DemoWorkspace, members: unknown): DemoRuntimeMember[] => {
@@ -1245,25 +1579,24 @@ const mapMemberArea = (workspace: DemoWorkspace): MemberArea => ({
 });
 
 const mapContents = (workspace: DemoWorkspace): Content[] => {
-  const associatedProduct = buildAssociatedMainProduct(workspace);
+  const contentBlueprints = buildDemoContentBlueprints(workspace);
 
-  return [{
-    id: getContentId(workspace),
-    title: workspace.seed_payload.member_area.name,
-    description: 'Conteudo demo criado para testar a experiencia de criador e aluno.',
-    thumbnail_url: '/logo.png',
-    type: 'course',
+  return contentBlueprints.map((contentBlueprint) => ({
+    id: contentBlueprint.id,
+    title: contentBlueprint.title,
+    description: contentBlueprint.description,
+    thumbnail_url: contentBlueprint.thumbnailUrl,
+    type: contentBlueprint.type,
     member_area_id: workspace.seed_payload.member_area.id,
     author_id: workspace.owner_user_id,
     created_at: workspace.created_at,
     updated_at: workspace.updated_at,
-    modules_count: workspace.seed_payload.member_area.modules.length,
-    image_vertical_url: '/logo.png',
-    image_horizontal_url: '/logo.png',
-    modules_layout: 'horizontal',
-    is_free: false,
-    associated_product: associatedProduct,
-  }];
+    modules_count: contentBlueprint.modules.length,
+    image_vertical_url: contentBlueprint.imageVerticalUrl,
+    image_horizontal_url: contentBlueprint.imageHorizontalUrl,
+    modules_layout: contentBlueprint.modulesLayout,
+    is_free: contentBlueprint.isFree,
+  }));
 };
 
 const cloneDemoLessonGallery = (
@@ -1292,41 +1625,38 @@ const getDemoLessonTemplate = (moduleTitle: string, moduleIndex: number, lessonI
     video_url: DEMO_YOUTUBE_URLS[(moduleIndex + lessonIndex) % DEMO_YOUTUBE_URLS.length],
     file_url: DEMO_SUPPLEMENTARY_PDF_URL,
     content_order: ['video', 'text', 'file', 'gallery'],
-    content_text: 'Esta aula demo foi gerada para preencher modulos extras sem deixar o player vazio.\n\nTroque este conteudo por videos, textos, materiais e links reais quando quiser personalizar o ambiente.',
+    content_text: 'Aula demo adicional para manter o player preenchido e pronto para teste.',
     gallery: [
-      createDemoGalleryItem('Abrir o app', DEMO_EXTERNAL_LINKS.app, 'Abrir app'),
-      createDemoGalleryItem('Abrir o site', DEMO_EXTERNAL_LINKS.site, 'Abrir site'),
+      createDemoGalleryItem('Abrir app', DEMO_EXTERNAL_LINKS.app, 'Abrir app'),
+      createDemoGalleryItem('Abrir site', DEMO_EXTERNAL_LINKS.site, 'Abrir site'),
     ],
   };
 };
 
-const buildDemoLesson = (
+const buildDemoLessonFromTemplate = (
   workspace: DemoWorkspace,
-  module: DemoWorkspace['seed_payload']['member_area']['modules'][number],
-  moduleIndex: number,
+  moduleId: string,
   lessonIndex: number,
-  associatedProduct: Product,
-): Lesson => {
-  const template = getDemoLessonTemplate(module.title, moduleIndex, lessonIndex);
-
-  return {
-    id: module.id + '-lesson-' + (lessonIndex + 1),
-    module_id: module.id,
-    title: template.title,
-    content_type: template.content_type,
-    video_url: template.video_url,
-    content_text: template.content_text,
-    file_url: template.file_url,
-    order_index: lessonIndex,
-    is_free: moduleIndex === 0 && lessonIndex === 0,
-    created_at: workspace.created_at,
-    image_url: template.video_url ? undefined : DEMO_LESSON_RESOURCE_IMAGE,
-    gallery: cloneDemoLessonGallery(module.id, lessonIndex, template.gallery),
-    associated_product: associatedProduct,
-    content_order: Array.isArray(template.content_order) ? [...template.content_order] : undefined,
-    is_published: true,
-  };
-};
+  template: DemoLessonTemplate,
+  associatedProduct: Product | undefined,
+  isFree: boolean,
+): Lesson => ({
+  id: moduleId + '-lesson-' + (lessonIndex + 1),
+  module_id: moduleId,
+  title: template.title,
+  content_type: template.content_type,
+  video_url: template.video_url,
+  content_text: template.content_text,
+  file_url: template.file_url,
+  order_index: lessonIndex,
+  is_free: isFree,
+  created_at: workspace.created_at,
+  image_url: template.video_url ? undefined : DEMO_MEMBER_COVER_IMAGE,
+  gallery: cloneDemoLessonGallery(moduleId, lessonIndex, template.gallery),
+  associated_product: associatedProduct,
+  content_order: Array.isArray(template.content_order) ? [...template.content_order] : undefined,
+  is_published: true,
+});
 
 const isLegacyDemoPlaceholderLesson = (lesson: Lesson): boolean => {
   const normalizedTitle = String(lesson.title || '').trim();
@@ -1353,26 +1683,35 @@ const upgradeLegacyDemoLesson = (lesson: Lesson, defaultLesson: Lesson): Lesson 
 });
 
 const mapModules = (workspace: DemoWorkspace): Module[] => {
-  const associatedProduct = buildAssociatedMainProduct(workspace);
+  const productsById = new Map(getDemoProductsFromWorkspace(workspace).map((product) => [product.id, product]));
+  const contentBlueprints = buildDemoContentBlueprints(workspace);
 
-  return workspace.seed_payload.member_area.modules.map((module, index) => ({
-    id: module.id,
-    content_id: getContentId(workspace),
-    title: module.title,
-    description: module.lesson_count + ' aulas demo com video, materiais e links externos.',
-    order_index: index,
-    created_at: workspace.created_at,
-    image_vertical_url: '/logo.png',
-    image_horizontal_url: '/logo.png',
-    is_free: index === 0,
-    associated_product: associatedProduct,
-    lessons: Array.from({ length: module.lesson_count }, (_, lessonIndex) => buildDemoLesson(
-      workspace,
-      module,
-      index,
-      lessonIndex,
-      associatedProduct,
-    )),
+  return contentBlueprints.flatMap((contentBlueprint) => contentBlueprint.modules.map((moduleBlueprint, moduleIndex) => {
+    const associatedProduct = contentBlueprint.associatedProductId
+      ? productsById.get(contentBlueprint.associatedProductId)
+      : undefined;
+    const moduleIsFree = contentBlueprint.isFree || Boolean(moduleBlueprint.is_free);
+
+    return {
+      id: moduleBlueprint.id,
+      content_id: contentBlueprint.id,
+      title: moduleBlueprint.title,
+      description: moduleBlueprint.description,
+      order_index: moduleIndex,
+      created_at: workspace.created_at,
+      image_vertical_url: moduleBlueprint.image_vertical_url || DEMO_MEMBER_POSTER_IMAGE,
+      image_horizontal_url: moduleBlueprint.image_horizontal_url || DEMO_MEMBER_COVER_IMAGE,
+      is_free: moduleIsFree,
+      associated_product: associatedProduct,
+      lessons: moduleBlueprint.lessons.map((template, lessonIndex) => buildDemoLessonFromTemplate(
+        workspace,
+        moduleBlueprint.id,
+        lessonIndex,
+        template,
+        associatedProduct,
+        moduleIsFree || contentBlueprint.isFree,
+      )),
+    } satisfies Module;
   }));
 };
 
@@ -1549,39 +1888,35 @@ function buildDefaultDemoModules(workspace: DemoWorkspace): Module[] {
 }
 
 function buildDefaultDemoProductContentLinks(workspace: DemoWorkspace): DemoProductContentLink[] {
-  const contentId = getContentId(workspace);
-  return buildDefaultDemoProducts(workspace).map((product) => ({
-    product_id: product.id,
-    content_id: contentId,
-  }));
+  return buildDemoContentBlueprints(workspace)
+    .filter((content) => Boolean(content.associatedProductId))
+    .map((content) => ({
+      product_id: String(content.associatedProductId),
+      content_id: content.id,
+    }));
 }
 
 function buildDefaultDemoTracks(workspace: DemoWorkspace): Track[] {
-  const memberAreaId = workspace.seed_payload.member_area.id;
-
-  return [{
-    id: `${memberAreaId}-track-contents`,
-    member_area_id: memberAreaId,
-    title: 'Continue do ponto em que parou',
-    type: 'contents',
-    position: 0,
+  return buildDemoTrackBlueprints(workspace).map((track) => sanitizeTrackForRuntime({
+    id: track.id,
+    member_area_id: workspace.seed_payload.member_area.id,
+    title: track.title,
+    type: track.type,
+    position: track.position,
     is_visible: true,
     created_at: workspace.created_at,
-    card_style: 'horizontal',
-  }];
+    card_style: track.card_style,
+  }));
 }
 
 function buildDefaultDemoTrackItems(workspace: DemoWorkspace): TrackItem[] {
-  const memberAreaId = workspace.seed_payload.member_area.id;
-  const contentId = getContentId(workspace);
-
-  return [{
-    id: `${memberAreaId}-track-contents:${contentId}`,
-    track_id: `${memberAreaId}-track-contents`,
-    item_id: contentId,
-    position: 0,
+  return buildDemoTrackBlueprints(workspace).flatMap((track) => track.item_ids.map((itemId, position) => sanitizeTrackItemForRuntime({
+    id: track.id + ':' + itemId,
+    track_id: track.id,
+    item_id: itemId,
+    position,
     created_at: workspace.created_at,
-  }];
+  })));
 }
 
 function buildDefaultDemoDomains(workspace: DemoWorkspace): Domain[] {
@@ -1596,12 +1931,35 @@ function buildDefaultDemoIntegrations(workspace: DemoWorkspace): Integration[] {
   return mapIntegrations(workspace).map((integration) => sanitizeIntegrationForRuntime(integration));
 }
 
-function normalizeDemoProducts(workspace: DemoWorkspace, input: unknown): Product[] {
-  if (!Array.isArray(input)) return buildDefaultDemoProducts(workspace);
+function mergeDefaultDemoRecords<T extends { id: string }>(
+  defaults: T[],
+  input: unknown,
+  sanitize: (item: T) => T,
+  sortComparer?: (left: T, right: T) => number,
+): T[] {
+  if (!Array.isArray(input)) {
+    const sanitizedDefaults = defaults.map((item) => sanitize(item));
+    return sortComparer ? sanitizedDefaults.sort(sortComparer) : sanitizedDefaults;
+  }
 
-  return input
+  const existing = input
     .filter((item) => item && typeof item === 'object' && 'id' in item)
-    .map((item) => sanitizeProductForRuntime(item as Product));
+    .map((item) => sanitize(item as T));
+  const existingById = new Map(existing.map((item) => [String(item.id || '').trim(), item]));
+  const defaultIds = new Set(defaults.map((item) => String(item.id || '').trim()));
+  const merged = defaults.map((item) => existingById.get(String(item.id || '').trim()) || sanitize(item));
+  const extras = existing.filter((item) => !defaultIds.has(String(item.id || '').trim()));
+  const combined = [...merged, ...extras];
+
+  return sortComparer ? combined.sort(sortComparer) : combined;
+}
+
+function normalizeDemoProducts(workspace: DemoWorkspace, input: unknown): Product[] {
+  return mergeDefaultDemoRecords(
+    buildDefaultDemoProducts(workspace),
+    input,
+    sanitizeProductForRuntime,
+  );
 }
 
 function normalizeDemoCheckouts(workspace: DemoWorkspace, input: unknown): Checkout[] {
@@ -1621,11 +1979,11 @@ function normalizeDemoMemberAreas(workspace: DemoWorkspace, input: unknown): Mem
 }
 
 function normalizeDemoContents(workspace: DemoWorkspace, input: unknown): Content[] {
-  if (!Array.isArray(input)) return buildDefaultDemoContents(workspace);
-
-  return input
-    .filter((item) => item && typeof item === 'object' && 'id' in item)
-    .map((item) => sanitizeContentForRuntime(item as Content));
+  return mergeDefaultDemoRecords(
+    buildDefaultDemoContents(workspace),
+    input,
+    sanitizeContentForRuntime,
+  );
 }
 
 function normalizeDemoModules(workspace: DemoWorkspace, input: unknown): Module[] {
@@ -1691,31 +2049,36 @@ function normalizeDemoModules(workspace: DemoWorkspace, input: unknown): Module[
 }
 
 function normalizeDemoProductContentLinks(workspace: DemoWorkspace, input: unknown): DemoProductContentLink[] {
-  if (!Array.isArray(input)) return buildDefaultDemoProductContentLinks(workspace);
+  const defaults = buildDefaultDemoProductContentLinks(workspace);
+  if (!Array.isArray(input)) return defaults;
 
-  return input
+  const existing = input
     .filter((item) => item && typeof item === 'object')
     .map((item: any) => ({
       product_id: String(item.product_id || '').trim(),
       content_id: String(item.content_id || '').trim(),
     }))
     .filter((item) => Boolean(item.product_id) && Boolean(item.content_id));
+
+  return upsertProductContentLinks(defaults, existing);
 }
 
 function normalizeDemoTracks(workspace: DemoWorkspace, input: unknown): Track[] {
-  if (!Array.isArray(input)) return buildDefaultDemoTracks(workspace);
-
-  return input
-    .filter((item) => item && typeof item === 'object' && 'id' in item)
-    .map((item) => sanitizeTrackForRuntime(item as Track));
+  return mergeDefaultDemoRecords(
+    buildDefaultDemoTracks(workspace),
+    input,
+    sanitizeTrackForRuntime,
+    (left, right) => (left.position || 0) - (right.position || 0),
+  );
 }
 
 function normalizeDemoTrackItems(workspace: DemoWorkspace, input: unknown): TrackItem[] {
-  if (!Array.isArray(input)) return buildDefaultDemoTrackItems(workspace);
-
-  return input
-    .filter((item) => item && typeof item === 'object' && 'id' in item)
-    .map((item) => sanitizeTrackItemForRuntime(item as TrackItem));
+  return mergeDefaultDemoRecords(
+    buildDefaultDemoTrackItems(workspace),
+    input,
+    sanitizeTrackItemForRuntime,
+    (left, right) => (left.position || 0) - (right.position || 0),
+  );
 }
 
 function normalizeDemoDomains(workspace: DemoWorkspace, input: unknown): Domain[] {
@@ -1797,9 +2160,15 @@ function decorateModule(module: Module, state: DemoRuntimeState): Module {
 }
 
 function getFlattenedLessons(state: DemoRuntimeState): Lesson[] {
-  return state.modules.flatMap((module) =>
-    (module.lessons || []).map((lesson) => sanitizeLessonForRuntime(lesson)),
-  );
+  return state.modules.flatMap((module) => {
+    const decoratedModule = decorateModule(module, state);
+
+    return (decoratedModule.lessons || []).map((lesson) => ({
+      ...sanitizeLessonForRuntime(lesson),
+      associated_product: lesson.associated_product || decoratedModule.associated_product,
+      module: decoratedModule,
+    }));
+  });
 }
 
 function buildTrackWithItemsFromState(
@@ -1850,6 +2219,47 @@ function buildTrackWithItemsFromState(
     ...sanitizeTrackForRuntime(track),
     items,
   };
+}
+
+function buildImplicitComplimentaryGrants(userId: string, state: DemoRuntimeState): AccessGrant[] {
+  const complimentaryProducts = state.products
+    .filter((product) => Number(product.price_real || 0) <= 0)
+    .map((product) => decorateProduct(product, state));
+  const contentsById = new Map(state.contents.map((content) => [content.id, decorateContent(content, state)]));
+  const grants: AccessGrant[] = [];
+
+  for (const product of complimentaryProducts) {
+    grants.push({
+      id: createProductGrantId(userId, product.id),
+      user_id: userId,
+      content_id: null,
+      product_id: product.id,
+      granted_at: new Date().toISOString(),
+      status: 'active',
+      product,
+    });
+
+    const linkedContentIds = state.product_content_links
+      .filter((link) => link.product_id === product.id)
+      .map((link) => link.content_id);
+
+    for (const contentId of linkedContentIds) {
+      const content = contentsById.get(contentId);
+      if (!content) continue;
+
+      grants.push({
+        id: createContentGrantId(userId, content.id),
+        user_id: userId,
+        content_id: content.id,
+        product_id: undefined,
+        granted_at: new Date().toISOString(),
+        status: 'active',
+        content,
+      });
+    }
+  }
+
+  return grants;
 }
 
 function buildMemberAccessUrl(workspace: DemoWorkspace, state: DemoRuntimeState) {
@@ -2405,13 +2815,19 @@ export const demoDataService = {
     const productsById = new Map(state.products.map((product) => [product.id, decorateProduct(product, state)]));
     const contentsById = new Map(state.contents.map((content) => [content.id, decorateContent(content, state)]));
 
-    return state.access_grants
+    const persistedGrants = state.access_grants
       .filter((grant) => !userId || grant.user_id === userId)
       .map((grant) => ({
         ...grant,
         product: grant.product || (grant.product_id ? productsById.get(grant.product_id) : undefined),
         content: grant.content || (grant.content_id ? contentsById.get(grant.content_id) : undefined),
       }));
+
+    if (!userId) {
+      return persistedGrants;
+    }
+
+    return buildImplicitComplimentaryGrants(userId, state).reduce((acc, grant) => upsertById(acc, grant), persistedGrants);
   },
 
   async createAccessGrant(grant: Omit<AccessGrant, 'id' | 'granted_at'>) {
