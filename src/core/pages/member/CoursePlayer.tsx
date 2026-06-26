@@ -64,6 +64,15 @@ const getModuleCoverImage = (module: Module, targetContent: Content) => {
   );
 };
 
+const getModuleSlimImage = (module: Module) => {
+  return (
+    module.image_horizontal_url ||
+    module.image_vertical_url ||
+    getProductImage(module.associated_product) ||
+    ""
+  );
+};
+
 const formatLessonDuration = (duration?: number) => {
   if (!duration || duration <= 0) return null;
   if (duration >= 60) {
@@ -711,6 +720,7 @@ export const CoursePlayer = ({ forcedSlug }: { forcedSlug?: string } = {}) => {
               ? Math.round((completedLessons / moduleLessons.length) * 100)
               : 0;
           const moduleCover = getModuleCoverImage(module, targetContent);
+          const moduleSlimImage = getModuleSlimImage(module);
           return (
             <div
               key={module.id}
@@ -734,116 +744,160 @@ export const CoursePlayer = ({ forcedSlug }: { forcedSlug?: string } = {}) => {
                   }}
                 />
               )}
-              <button
-                type="button"
-                onClick={() => handleModuleSelect(module)}
-                className={`relative flex w-full flex-col overflow-hidden text-left transition-all p-4 ${isExpanded ? "bg-white/[0.015]" : "hover:bg-white/[0.015]"}`}
-              >
-                <div className="relative w-full">
-                  <div className="flex flex-wrap items-center gap-2">
+              {!isExpanded ? (
+                <button
+                  type="button"
+                  onClick={() => handleModuleSelect(module)}
+                  className="relative flex w-full h-12 items-center justify-between overflow-hidden text-left transition-all pr-4 hover:bg-white/[0.015]"
+                >
+                  {/* Bloco da miniatura / fallback na extrema esquerda */}
+                  <div className="shrink-0 w-16 h-full relative overflow-hidden bg-[#1A1E26] flex items-center justify-center border-r border-white/5">
+                    {moduleSlimImage ? (
+                      <img
+                        src={moduleSlimImage}
+                        alt={module.title}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-sm font-black text-white/30 font-mono tracking-tighter">
+                        {String(moduleIndex + 1).padStart(2, "0")}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-3 min-w-0 flex-1 ml-3">
+                    {/* Número compactado */}
                     <span
-                      className="inline-flex rounded-full border px-2.5 py-0.5 text-[9px] font-black uppercase tracking-[0.18em] backdrop-blur-sm"
-                      style={{
-                        borderColor: isExpanded ? `${primaryColor}40` : "rgba(255,255,255,0.08)",
-                        color: isExpanded ? primaryColor : "rgba(255,255,255,0.6)",
-                        backgroundColor: isExpanded ? `${primaryColor}12` : "rgba(255,255,255,0.02)",
-                      }}
+                      className="shrink-0 text-[10px] font-black uppercase tracking-[0.14em]"
+                      style={{ color: primaryColor }}
                     >
-                      {t("course.module_label", "Módulo")}{" "}
-                      {String(moduleIndex + 1).padStart(2, "0")}
+                      Mód {String(moduleIndex + 1).padStart(2, "0")}
                     </span>
+                    
+                    {/* Título do Módulo */}
+                    <p className="text-xs font-bold text-white/90 truncate pr-2">
+                      {module.title}
+                    </p>
+
                     {isModuleFree && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-green-500/20 border border-green-500/30 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-green-400">
+                      <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-green-500/20 border border-green-500/30 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.12em] text-green-400">
                         {t("track.free", "Gratuito")}
                       </span>
                     )}
+                  </div>
+
+                  <div className="flex items-center gap-2.5 shrink-0">
                     {!isLockedModule && completedLessons > 0 && (
+                      <span className="text-[10px] font-mono font-bold text-white/40">
+                        {completedLessons}/{moduleLessons.length}
+                      </span>
+                    )}
+                    {isLockedModule ? (
+                      <Lock size={11} className="text-white/30" />
+                    ) : (
+                      <ChevronDown size={13} className="text-white/30" />
+                    )}
+                  </div>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => handleModuleSelect(module)}
+                  className="relative flex w-full flex-col overflow-hidden text-left transition-all p-4 bg-white/[0.015]"
+                >
+                  <div className="relative w-full">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span
-                        className="inline-flex rounded-full border border-white/5 bg-white/[0.02] px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-white/50"
-                      >
-                        {completedLessons}/{moduleLessons.length}{" "}
-                        {t("course.completed", "Concluída")}
-                      </span>
-                    )}
-                  </div>
-
-                  <p
-                    className="mt-2.5 text-sm font-bold leading-snug text-white/90 transition-colors line-clamp-2"
-                    style={isExpanded ? { color: primaryColor } : undefined}
-                  >
-                    {module.title}
-                  </p>
-
-                  <div className="mt-3 flex items-center justify-between text-[10px] text-gray-500 font-bold uppercase tracking-[0.14em]">
-                    <span>
-                      {t("course.lesson_count", "{{count}} aulas", {
-                        count: moduleLessons.length,
-                      })}
-                    </span>
-                    {!isLockedModule && (
-                      <span>
-                        {moduleProgress}% {t("course.progress_label", "Progresso")}
-                      </span>
-                    )}
-                  </div>
-
-                  {!isLockedModule && (
-                    <div className="mt-2 h-[3px] overflow-hidden rounded-full bg-white/5">
-                      <div
-                        className="h-full rounded-full transition-all duration-300"
+                        className="inline-flex rounded-full border px-2.5 py-0.5 text-[9px] font-black uppercase tracking-[0.18em] backdrop-blur-sm"
                         style={{
-                          width: `${moduleProgress}%`,
-                          backgroundColor: primaryColor,
+                          borderColor: `${primaryColor}40`,
+                          color: primaryColor,
+                          backgroundColor: `${primaryColor}12`,
                         }}
-                      />
+                      >
+                        {t("course.module_label", "Módulo")}{" "}
+                        {String(moduleIndex + 1).padStart(2, "0")}
+                      </span>
+                      {isModuleFree && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-green-500/20 border border-green-500/30 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-green-400">
+                          {t("track.free", "Gratuito")}
+                        </span>
+                      )}
+                      {!isLockedModule && completedLessons > 0 && (
+                        <span
+                          className="inline-flex rounded-full border border-white/5 bg-white/[0.02] px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-white/50"
+                        >
+                          {completedLessons}/{moduleLessons.length}{" "}
+                          {t("course.completed", "Concluída")}
+                        </span>
+                      )}
                     </div>
-                  )}
 
-                  <div className="mt-3.5 flex items-center justify-between gap-2 border-t border-white/5 pt-3">
-                    <p className="text-[9px] uppercase tracking-[0.14em] text-gray-500">
-                      {isLockedModule
-                        ? t("course.click_to_unlock", "Clique para desbloquear")
-                        : isExpanded
-                          ? t("course.lessons_opened", "Aulas abertas")
-                          : t(
-                              "course.expand_lessons",
-                              "Clique para abrir as aulas",
-                            )}
+                    <p
+                      className="mt-2.5 text-sm font-bold leading-snug text-white/90 transition-colors line-clamp-2"
+                      style={{ color: primaryColor }}
+                    >
+                      {module.title}
                     </p>
 
-                    {isLockedModule ? (
-                      <span
-                        className="rounded-full border px-2.5 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-white/90"
-                        style={{
-                          borderColor: `${primaryColor}3D`,
-                          backgroundColor: `${primaryColor}18`,
-                        }}
-                      >
-                        {t("course.unlock_cta", "Desbloquear")}
+                    <div className="mt-3 flex items-center justify-between text-[10px] text-gray-500 font-bold uppercase tracking-[0.14em]">
+                      <span>
+                        {t("course.lesson_count", "{{count}} aulas", {
+                          count: moduleLessons.length,
+                        })}
                       </span>
-                    ) : (
-                      <div
-                        className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/5 bg-white/[0.02] text-white/60 transition-colors"
-                        style={
-                          isExpanded
-                            ? {
-                                borderColor: `${primaryColor}20`,
-                                color: primaryColor,
-                                backgroundColor: `${primaryColor}08`,
-                              }
-                            : undefined
-                        }
-                      >
-                        {isExpanded ? (
-                          <ChevronUp size={14} />
-                        ) : (
-                          <ChevronDown size={14} />
-                        )}
+                      {!isLockedModule && (
+                        <span>
+                          {moduleProgress}% {t("course.progress_label", "Progresso")}
+                        </span>
+                      )}
+                    </div>
+
+                    {!isLockedModule && (
+                      <div className="mt-2 h-[3px] overflow-hidden rounded-full bg-white/5">
+                        <div
+                          className="h-full rounded-full transition-all duration-300"
+                          style={{
+                            width: `${moduleProgress}%`,
+                            backgroundColor: primaryColor,
+                          }}
+                        />
                       </div>
                     )}
+
+                    <div className="mt-3.5 flex items-center justify-between gap-2 border-t border-white/5 pt-3">
+                      <p className="text-[9px] uppercase tracking-[0.14em] text-gray-500">
+                        {isLockedModule
+                          ? t("course.click_to_unlock", "Clique para desbloquear")
+                          : t("course.lessons_opened", "Aulas abertas")}
+                      </p>
+
+                      {isLockedModule ? (
+                        <span
+                          className="rounded-full border px-2.5 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-white/90"
+                          style={{
+                            borderColor: `${primaryColor}3D`,
+                            backgroundColor: `${primaryColor}18`,
+                          }}
+                        >
+                          {t("course.unlock_cta", "Desbloquear")}
+                        </span>
+                      ) : (
+                        <div
+                          className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/5 bg-white/[0.02] text-white/60 transition-colors"
+                          style={{
+                            borderColor: `${primaryColor}20`,
+                            color: primaryColor,
+                            backgroundColor: `${primaryColor}08`,
+                          }}
+                        >
+                          <ChevronUp size={14} />
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </button>
+                </button>
+              )}
 
               {isExpanded && (
                 <div
