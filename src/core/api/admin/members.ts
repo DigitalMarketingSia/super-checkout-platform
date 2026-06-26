@@ -64,6 +64,24 @@ function getMemberAccessUrl(req: VercelRequest, memberAreaSlug?: string) {
         : `${baseUrl}/login`;
 }
 
+async function findAuthUserByEmail(supabaseAdmin: SupabaseClient, email: string) {
+    const normalizedEmail = normalizeEmail(email);
+    if (!normalizedEmail) return null;
+
+    const perPage = 100;
+    for (let page = 1; page <= 100; page += 1) {
+        const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage });
+        if (error) throw error;
+
+        const user = data?.users?.find((candidate: any) => normalizeEmail(candidate.email) === normalizedEmail);
+        if (user) return user;
+
+        if (!data?.users || data.users.length < perPage) break;
+    }
+
+    return null;
+}
+
 async function logMemberAuthzEvent(params: {
     auth: ApiAuthContext;
     req: VercelRequest;
@@ -615,29 +633,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 if (createError) {
                     if (createError.message?.toLowerCase().includes('already')) {
-                        const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers({
-                            page: 1,
-                            perPage: 1000,
-                        });
+                        let foundUser: any = null;
+                        try {
+                            foundUser = await findAuthUserByEmail(supabaseAdmin, email);
+                        } catch (listError: any) {
+                            console.error('[admin_members] Auth recovery lookup failed:', listError?.message || listError);
+                            return res.status(500).json({ error: 'Internal Server Error' });
+                        }
 
-                        const foundUser = users?.find((candidate: any) => candidate.email?.toLowerCase() === email);
-
-                        if (listError || !foundUser) {
-                            console.error('[admin_members] Auth recovery failed:', listError?.message || 'user not found');
+                        if (!foundUser) {
+                            console.error('[admin_members] Auth recovery failed:', 'user not found');
                             return res.status(500).json({ error: 'Internal Server Error' });
                         }
 
                         userId = foundUser.id;
 
-                        const { error: profileInsertError } = await supabaseAdmin.from('profiles').insert({
+                        const { error: profileInsertError } = await supabaseAdmin.from('profiles').upsert({
                             id: userId,
                             email,
                             full_name: name || email.split('@')[0],
                             role: 'member',
-                        });
+                            updated_at: new Date().toISOString(),
+                        }, { onConflict: 'id' });
 
                         if (profileInsertError) {
-                            console.error('[admin_members] Profile recovery insert failed:', profileInsertError.message);
+                            console.error('[admin_members] Profile recovery upsert failed:', profileInsertError.message);
                             return res.status(500).json({ error: 'Internal Server Error' });
                         }
                     } else {
@@ -650,11 +670,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                     const { error: roleUpdateError } = await supabaseAdmin
                         .from('profiles')
-                        .update({ role: 'member' })
-                        .eq('id', userId);
+                        .upsert({
+                            id: userId,
+                            email,
+                            full_name: name || email.split('@')[0],
+                            role: 'member',
+                            updated_at: new Date().toISOString(),
+                        }, { onConflict: 'id' });
 
                     if (roleUpdateError) {
-                        console.error('[admin_members] Failed to force member role:', roleUpdateError.message);
+                        console.error('[admin_members] Failed to upsert member profile:', roleUpdateError.message);
+                        return res.status(500).json({ error: 'Internal Server Error' });
                     }
                 }
             }
@@ -817,14 +843,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (profile) {
                     targetId = profile.id;
                 } else {
-                    const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers({
-                        page: 1,
-                        perPage: 1000,
-                    });
-
-                    if (!listError && users) {
-                        const found = users.find((candidate: any) => candidate.email?.toLowerCase() === email);
-                        if (found) targetId = found.id;
+                    try {
+                        const found = await findAuthUserByEmail(supabaseAdmin, email);
+                        if (found?.id) targetId = found.id;
+                    } catch (listError: any) {
+                        console.error('[admin_members] Delete lookup failed:', listError?.message || listError);
+                        return res.status(500).json({ error: 'Internal Server Error' });
                     }
                 }
             }
@@ -856,17 +880,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             console.log('Promoting user to admin:', maskEmail(email));
 
-            const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers({
-                page: 1,
-                perPage: 1000,
-            });
-
-            if (listError || !users) {
-                console.error('[admin_members] List users error:', listError?.message);
+            let targetUser: any = null;
+            try {
+                targetUser = await findAuthUserByEmail(supabaseAdmin, email);
+            } catch (listError: any) {
+                console.error('[admin_members] List users error:', listError?.message || listError);
                 return res.status(500).json({ error: 'Internal Server Error' });
             }
 
-            const targetUser = users.find((candidate: any) => candidate.email?.toLowerCase() === email);
             if (!targetUser?.id) return res.status(404).json({ error: 'Member not found' });
 
             const hasAccess = await memberHasAccessInArea(supabaseAdmin, targetUser.id, memberAreaId);
