@@ -80,7 +80,7 @@ export const MemberDashboard = () => {
 
                     const appLink = isCustomDomain ? '' : (memberArea ? `/app/${memberArea.slug}` : '/app');
 
-                    // Navigate to first content
+                    // Open directly in the course player so the module tree stays in the lesson screen
                     navigate(`${appLink}/course/${firstContentId}`);
                 } else {
                     alert(t('dashboard.alerts.product_without_content', 'Este produto ainda não tem conteúdo disponível.'));
@@ -107,9 +107,9 @@ export const MemberDashboard = () => {
 
                 console.log('Navigating to:', appLink);
                 if (item.content) {
-                    navigate(`${appLink}/content/${item.content.id}`);
+                    navigate(`${appLink}/course/${item.content.id}`);
                 } else if (item.module) {
-                    navigate(`${appLink}/course/${item.module.content_id}`);
+                    navigate(`${appLink}/course/${item.module.content_id}?module_id=${item.module.id}`);
                 } else if (item.lesson) {
                     // Navigate to Course Player with Content ID and Lesson ID
                     const module = Array.isArray(item.lesson.module) ? item.lesson.module[0] : item.lesson.module;

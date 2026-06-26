@@ -17,25 +17,49 @@ interface IconButtonProps {
     isActive?: boolean;
     disabled?: boolean;
     color?: string;
+    noActiveBg?: boolean;
 }
 
-const IconButton: React.FC<IconButtonProps> = ({ icon: Icon, label, to, onClick, isActive, disabled, color }) => {
+const IconButton: React.FC<IconButtonProps> = ({ icon: Icon, label, to, onClick, isActive, disabled, color, noActiveBg }) => {
+    const [isHovered, setIsHovered] = React.useState(false);
+
     const content = (
         <div className="relative group">
             <button
                 onClick={onClick}
                 disabled={disabled}
+                onMouseEnter={() => setIsHovered(true)}
+                onMouseLeave={() => setIsHovered(false)}
                 className={`
                     w-12 h-12 rounded-xl flex items-center justify-center
                     transition-all duration-200
-                    ${isActive
-                        ? 'bg-white/10 text-white shadow-lg'
+                    ${isActive && !noActiveBg
+                        ? 'text-white shadow-lg'
                         : disabled
                             ? 'text-gray-600 cursor-not-allowed'
-                            : 'text-gray-400 hover:text-white hover:bg-white/10'
+                            : 'text-gray-400 hover:text-white'
                     }
                 `}
-                style={isActive && color ? { backgroundColor: `${color}20`, color: color, borderColor: color, border: '1px solid' } : { color: color }}
+                style={(() => {
+                    if (disabled) return {};
+                    const styles: React.CSSProperties = {};
+                    
+                    if (isActive || isHovered) {
+                        styles.color = color || '#fff';
+                    } else {
+                        styles.color = 'rgba(156, 163, 175, 1)';
+                    }
+
+                    if (isActive && !noActiveBg) {
+                        styles.backgroundColor = color ? `${color}20` : 'rgba(255, 255, 255, 0.1)';
+                        styles.borderColor = color ? `${color}40` : 'rgba(255, 255, 255, 0.2)';
+                        styles.border = '1px solid';
+                    } else if (isHovered) {
+                        styles.backgroundColor = color ? `${color}15` : 'rgba(255, 255, 255, 0.08)';
+                    }
+                    
+                    return styles;
+                })()}
             >
                 <Icon className="w-5 h-5" />
             </button>
@@ -76,7 +100,7 @@ export const IconSidebar: React.FC<IconSidebarProps> = ({ onToggleMenu, isMenuOp
     };
 
     return (
-        <div className="fixed left-0 top-0 z-[100] bg-[#0E1012] border-white/10 
+        <div className="fixed left-0 top-0 z-[100] bg-[#1A1E26] border-white/10 
             /* Mobile: Horizontal Top Bar */
             w-full h-16 flex flex-row items-center justify-between px-4 border-b
             /* Desktop: Vertical Left Sidebar */
@@ -103,6 +127,8 @@ export const IconSidebar: React.FC<IconSidebarProps> = ({ onToggleMenu, isMenuOp
                     label="Início"
                     to={`${appLink}/`}
                     isActive={isActive('/')}
+                    color={primaryColor}
+                    noActiveBg={true}
                 />
 
                 {/* Vitrine (Products for Sale) */}
@@ -111,6 +137,7 @@ export const IconSidebar: React.FC<IconSidebarProps> = ({ onToggleMenu, isMenuOp
                     label="Vitrine"
                     to={`${appLink}/products`}
                     isActive={isActive('/products')}
+                    color={primaryColor}
                 />
 
                 {/* My Products */}
@@ -119,6 +146,7 @@ export const IconSidebar: React.FC<IconSidebarProps> = ({ onToggleMenu, isMenuOp
                     label="Meus Produtos"
                     to={`${appLink}/my-products`}
                     isActive={isActive('/my-products')}
+                    color={primaryColor}
                 />
 
                 <div className="hidden md:block flex-1"></div>
@@ -129,6 +157,7 @@ export const IconSidebar: React.FC<IconSidebarProps> = ({ onToggleMenu, isMenuOp
                     label="Perfil"
                     to={`${appLink}/profile`}
                     isActive={isActive('/profile')}
+                    color={primaryColor}
                 />
             </div>
         </div>

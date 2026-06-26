@@ -53,7 +53,7 @@ export const MyProducts: React.FC = () => {
 
             if (productContents.length > 0) {
                 const firstContentId = productContents[0];
-                // Navigate to course player
+                // Open directly in the lesson player with the module tree available in the sidebar
                 const path = slug
                     ? `/app/${slug}/course/${firstContentId}`
                     : `/course/${firstContentId}`;

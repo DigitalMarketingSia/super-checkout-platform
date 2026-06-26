@@ -35,7 +35,10 @@ function mapProductRecord(record: any, overrides: Partial<Product> = {}): Produc
     price_fake: record.price_fake,
     sku: record.sku,
     category: record.category,
+    currency: record.currency,
     redirect_link: record.redirect_link,
+    checkout_slug: record.checkout_slug,
+    checkout_url: record.checkout_url,
     delivery_file_path: record.delivery_file_path ?? null,
     delivery_file_name: record.delivery_file_name ?? null,
     delivery_file_mime_type: record.delivery_file_mime_type ?? null,
@@ -50,6 +53,26 @@ function mapProductRecord(record: any, overrides: Partial<Product> = {}): Produc
     member_area_id: record.member_area_id,
     ...overrides,
   };
+}
+
+function resolveProductCheckoutUrl(record: any): string | undefined {
+  const checkout = Array.isArray(record?.checkouts) ? record.checkouts[0] : record?.checkouts;
+  if ((!record?.member_area_action || record.member_area_action === 'checkout') && checkout?.custom_url_slug) {
+    return checkout.domains?.domain
+      ? `https://${checkout.domains.domain}/${checkout.custom_url_slug}`
+      : `${typeof window !== 'undefined' ? window.location.origin : ''}/c/${checkout.custom_url_slug}`;
+  }
+
+  return record?.checkout_url || record?.redirect_link || undefined;
+}
+
+function mapMemberAreaProductRecord(record: any): Product {
+  const checkoutUrl = resolveProductCheckoutUrl(record);
+
+  return mapProductRecord(record, {
+    redirect_link: checkoutUrl || record.redirect_link,
+    checkout_url: checkoutUrl || record.checkout_url,
+  });
 }
 
 /**
@@ -1885,7 +1908,13 @@ class StorageService {
       .from('contents')
       .select(`
         *,
-        modules(count)
+        modules(count),
+        product_contents(
+          products!product_contents_product_id_fkey(
+            *,
+            checkouts:member_area_checkout_id(id, custom_url_slug, domain_id, domains:domain_id(domain))
+          )
+        )
       `)
       .order('created_at', { ascending: false });
 
@@ -1900,10 +1929,17 @@ class StorageService {
       return [];
     }
 
-    return (data || []).map((c: any) => ({
-      ...c,
-      modules_count: c.modules?.[0]?.count || 0
-    }));
+    return (data || []).map((c: any) => {
+      const relatedProduct = Array.isArray(c.product_contents)
+        ? c.product_contents[0]?.products
+        : c.product_contents?.products;
+
+      return {
+        ...c,
+        associated_product: relatedProduct ? mapMemberAreaProductRecord(relatedProduct) : undefined,
+        modules_count: c.modules?.[0]?.count || 0
+      };
+    });
   }
 
   async createContent(content: Omit<Content, 'id' | 'created_at' | 'updated_at'> & { id?: string }, productId?: string) {
@@ -2034,7 +2070,19 @@ class StorageService {
 
     const { data, error } = await supabase
       .from('modules')
-      .select('*, lessons(*)')
+      .select(`
+        *,
+        lessons(*),
+        content:contents!modules_content_id_fkey(
+          *,
+          product_contents(
+            products!product_contents_product_id_fkey(
+              *,
+              checkouts:member_area_checkout_id(id, custom_url_slug, domain_id, domains:domain_id(domain))
+            )
+          )
+        )
+      `)
       .eq('content_id', contentId)
       .order('order_index', { ascending: true });
 
@@ -2044,10 +2092,44 @@ class StorageService {
     }
 
     // Sort lessons inside modules
-    const modules = data.map((m: any) => ({
-      ...m,
-      lessons: m.lessons?.sort((a: any, b: any) => a.order_index - b.order_index) || []
-    }));
+    const modules = data.map((m: any) => {
+      const relatedContent = Array.isArray(m.content) ? m.content[0] : m.content;
+      const relatedProduct = Array.isArray(relatedContent?.product_contents)
+        ? relatedContent.product_contents[0]?.products
+        : relatedContent?.product_contents?.products;
+      const associatedProduct = relatedProduct ? mapMemberAreaProductRecord(relatedProduct) : undefined;
+      const normalizedContent = relatedContent
+        ? {
+            ...relatedContent,
+            associated_product: associatedProduct,
+          }
+        : undefined;
+
+      return {
+        ...m,
+        associated_product: associatedProduct,
+        content: normalizedContent,
+        lessons: (m.lessons || [])
+          .sort((a: any, b: any) => a.order_index - b.order_index)
+          .map((lesson: any) => ({
+            ...lesson,
+            associated_product: associatedProduct,
+            module: {
+              id: m.id,
+              content_id: m.content_id,
+              title: m.title,
+              description: m.description,
+              order_index: m.order_index,
+              created_at: m.created_at,
+              image_vertical_url: m.image_vertical_url,
+              image_horizontal_url: m.image_horizontal_url,
+              is_free: m.is_free,
+              associated_product: associatedProduct,
+              content: normalizedContent,
+            }
+          }))
+      };
+    });
 
     return modules as Module[];
   }
