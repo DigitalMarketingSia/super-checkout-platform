@@ -49,6 +49,7 @@ const DEMO_LEGACY_PLACEHOLDER_TEXT = 'Conteudo temporario do workspace demo.';
 const DEMO_LESSON_RESOURCE_IMAGE = '/logo.png';
 const DEMO_MEMBER_POSTER_IMAGE = '/logo.png';
 const DEMO_MEMBER_COVER_IMAGE = '/print-flow.png';
+const DEMO_MEMBER_AREA_BANNER_IMAGE = '/capa area de membros demo.png';
 const DEMO_SUPPLEMENTARY_PDF_URL = 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf';
 const DEMO_EXTERNAL_LINKS = Object.freeze({
   app: 'https://app.supercheckout.app/',
@@ -1581,6 +1582,7 @@ const mapMemberArea = (workspace: DemoWorkspace): MemberArea => ({
   layout_mode: 'module',
   card_style: 'standard',
   allow_free_signup: false,
+  banner_url: DEMO_MEMBER_AREA_BANNER_IMAGE,
   banner_title: 'Bem-vindo ao ambiente demo',
   banner_description: 'Este acesso de aluno e temporario e sera apagado automaticamente em 24h.',
   banner_button_text: 'Continuar assistindo',
@@ -1870,6 +1872,7 @@ function sanitizeMemberAreaForRuntime(area: MemberArea): MemberArea {
   return {
     ...area,
     domain_id: area.domain_id ?? null,
+    banner_url: area.banner_url || DEMO_MEMBER_AREA_BANNER_IMAGE,
     sidebar_config: Array.isArray(area.sidebar_config)
       ? area.sidebar_config.map((item) => ({
           ...item,
