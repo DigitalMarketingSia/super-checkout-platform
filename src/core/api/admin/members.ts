@@ -221,6 +221,73 @@ async function deleteMemberAreaAccess(supabaseAdmin: SupabaseClient, userId: str
     if (failed?.error) throw failed.error;
 }
 
+function isMissingAccessGrantConflictConstraint(error: { message?: string | null; code?: string | null } | null | undefined) {
+    const message = String(error?.message || '').toLowerCase();
+    return error?.code === '42P10'
+        || message.includes('no unique or exclusion constraint matching the on conflict specification');
+}
+
+async function grantProductAccess(
+    supabaseAdmin: SupabaseClient,
+    userId: string,
+    productIds: string[],
+) {
+    if (productIds.length === 0) return;
+
+    const nowIso = new Date().toISOString();
+    const grants = productIds.map((productId) => ({
+        user_id: userId,
+        product_id: productId,
+        status: 'active',
+        granted_at: nowIso,
+    }));
+
+    const { error: upsertError } = await supabaseAdmin
+        .from('access_grants')
+        .upsert(grants, { onConflict: 'user_id, product_id' });
+
+    if (!upsertError) return;
+    if (!isMissingAccessGrantConflictConstraint(upsertError)) throw upsertError;
+
+    const { data: existingRows, error: existingError } = await supabaseAdmin
+        .from('access_grants')
+        .select('id,product_id')
+        .eq('user_id', userId)
+        .in('product_id', productIds);
+
+    if (existingError) throw existingError;
+
+    const existingProductIds = new Set(
+        (existingRows || []).map((row: any) => String(row.product_id || '')).filter(Boolean),
+    );
+    const missingProductIds = productIds.filter((productId) => !existingProductIds.has(productId));
+
+    if (existingProductIds.size > 0) {
+        const { error: updateError } = await supabaseAdmin
+            .from('access_grants')
+            .update({ status: 'active', granted_at: nowIso })
+            .eq('user_id', userId)
+            .in('product_id', Array.from(existingProductIds));
+
+        if (updateError) throw updateError;
+    }
+
+    if (missingProductIds.length > 0) {
+        const fallbackRows = missingProductIds.map((productId) => ({
+            user_id: userId,
+            product_id: productId,
+            status: 'active',
+            granted_at: nowIso,
+        }));
+
+        const { error: insertError } = await supabaseAdmin
+            .from('access_grants')
+            .insert(fallbackRows);
+
+        if (insertError) throw insertError;
+    }
+}
+
 async function requireOwnedMemberArea(
     auth: ApiAuthContext,
     req: VercelRequest,
@@ -688,19 +755,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (!userId) return res.status(500).json({ error: 'Internal Server Error' });
 
             if (productIds.length > 0) {
-                const grants = productIds.map((pid: string) => ({
-                    user_id: userId,
-                    product_id: pid,
-                    status: 'active',
-                    granted_at: new Date().toISOString(),
-                }));
-
-                const { error: grantError } = await supabaseAdmin
-                    .from('access_grants')
-                    .upsert(grants, { onConflict: 'user_id, product_id' });
-
-                if (grantError) {
-                    console.error('[admin_members] Error granting access:', grantError.message);
+                try {
+                    await grantProductAccess(supabaseAdmin, userId, productIds);
+                } catch (grantError: any) {
+                    console.error('[admin_members] Error granting access:', grantError?.message || grantError);
                     return res.status(500).json({ error: 'Internal Server Error' });
                 }
             }

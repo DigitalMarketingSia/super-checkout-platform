@@ -81,6 +81,64 @@ async function insertAppEventOnce(
   }
 }
 
+function isMissingAccessGrantConflictConstraint(error: { message?: string | null; code?: string | null } | null | undefined) {
+  const message = String(error?.message || '').toLowerCase();
+  return error?.code === '42P10'
+    || message.includes('no unique or exclusion constraint matching the on conflict specification');
+}
+
+async function grantAccessRowsWithFallback(
+  supabaseAdmin: SupabaseAdmin,
+  rows: Array<Record<string, any>>,
+  conflictColumn: 'product_id' | 'content_id',
+) {
+  if (rows.length === 0) return { grantedCount: 0 };
+
+  const onConflict = conflictColumn === 'product_id' ? 'user_id,product_id' : 'user_id,content_id';
+  const { error: upsertError } = await supabaseAdmin
+    .from('access_grants')
+    .upsert(rows, { onConflict });
+
+  if (!upsertError) return { grantedCount: rows.length };
+  if (!isMissingAccessGrantConflictConstraint(upsertError)) throw upsertError;
+
+  const userId = String(rows[0]?.user_id || '');
+  const keyValues = Array.from(new Set(rows.map((row) => String(row[conflictColumn] || '')).filter(Boolean)));
+
+  const { data: existingRows, error: existingError } = await supabaseAdmin
+    .from('access_grants')
+    .select(`id,${conflictColumn}`)
+    .eq('user_id', userId)
+    .in(conflictColumn, keyValues);
+
+  if (existingError) throw existingError;
+
+  const existingKeys = new Set(
+    (existingRows || []).map((row: any) => String(row[conflictColumn] || '')).filter(Boolean),
+  );
+  const missingRows = rows.filter((row) => !existingKeys.has(String(row[conflictColumn] || '')));
+
+  if (existingKeys.size > 0) {
+    const { error: updateError } = await supabaseAdmin
+      .from('access_grants')
+      .update({ status: 'active', granted_at: rows[0].granted_at })
+      .eq('user_id', userId)
+      .in(conflictColumn, Array.from(existingKeys));
+
+    if (updateError) throw updateError;
+  }
+
+  if (missingRows.length > 0) {
+    const { error: insertError } = await supabaseAdmin
+      .from('access_grants')
+      .insert(missingRows);
+
+    if (insertError) throw insertError;
+  }
+
+  return { grantedCount: rows.length };
+}
+
 async function consumeUpgradeIntent(params: {
   token: string;
   orderId: string;
@@ -362,17 +420,16 @@ export async function fulfillOrder(
     if (!memberAccessProductIds.has(productId)) continue;
     const grantedAt = new Date().toISOString();
 
-    const { error } = await supabaseAdmin.from('access_grants').upsert({
-      user_id: userId,
-      product_id: productId,
-      status: 'active',
-      granted_at: grantedAt,
-    }, { onConflict: 'user_id,product_id' });
-
-    if (error) {
-      console.warn(`[FulfillmentService] Failed to grant product ${productId}:`, error.message);
-    } else {
+    try {
+      await grantAccessRowsWithFallback(supabaseAdmin, [{
+        user_id: userId,
+        product_id: productId,
+        status: 'active',
+        granted_at: grantedAt,
+      }], 'product_id');
       accessGrantedCount += 1;
+    } catch (error: any) {
+      console.warn(`[FulfillmentService] Failed to grant product ${productId}:`, error?.message || error);
     }
 
     const { data: linkedContents, error: linkedContentsError } = await supabaseAdmin
@@ -401,14 +458,11 @@ export async function fulfillOrder(
       continue;
     }
 
-    const { error: contentGrantError } = await supabaseAdmin
-      .from('access_grants')
-      .upsert(contentGrants, { onConflict: 'user_id,content_id' });
-
-    if (contentGrantError) {
-      console.warn(`[FulfillmentService] Failed to grant contents for product ${productId}:`, contentGrantError.message);
-    } else {
+    try {
+      await grantAccessRowsWithFallback(supabaseAdmin, contentGrants, 'content_id');
       accessGrantedCount += contentGrants.length;
+    } catch (contentGrantError: any) {
+      console.warn(`[FulfillmentService] Failed to grant contents for product ${productId}:`, contentGrantError?.message || contentGrantError);
     }
   }
 

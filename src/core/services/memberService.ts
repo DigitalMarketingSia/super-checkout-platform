@@ -18,6 +18,79 @@ async function getAdminApiHeaders() {
     };
 }
 
+function isMissingAccessGrantConflictConstraint(error: { message?: string | null; code?: string | null } | null | undefined) {
+    const message = String(error?.message || '').toLowerCase();
+    return error?.code === '42P10'
+        || message.includes('no unique or exclusion constraint matching the on conflict specification');
+}
+
+async function grantProductAccessWithFallback(userId: string, productIds: string[]) {
+    if (productIds.length === 0) return [];
+
+    const grantedAt = new Date().toISOString();
+    const grants = productIds.map((productId) => ({
+        user_id: userId,
+        product_id: productId,
+        status: 'active',
+        granted_at: grantedAt,
+    }));
+
+    const upsertResult = await supabase
+        .from('access_grants')
+        .upsert(grants, { onConflict: 'user_id, product_id' })
+        .select();
+
+    if (!upsertResult.error) return upsertResult.data || [];
+    if (!isMissingAccessGrantConflictConstraint(upsertResult.error)) throw upsertResult.error;
+
+    const { data: existingRows, error: existingError } = await supabase
+        .from('access_grants')
+        .select('id,product_id')
+        .eq('user_id', userId)
+        .in('product_id', productIds);
+
+    if (existingError) throw existingError;
+
+    const existingProductIds = new Set(
+        (existingRows || []).map((row: any) => String(row.product_id || '')).filter(Boolean),
+    );
+    const missingProductIds = productIds.filter((productId) => !existingProductIds.has(productId));
+
+    if (existingProductIds.size > 0) {
+        const { error: updateError } = await supabase
+            .from('access_grants')
+            .update({ status: 'active', granted_at: grantedAt })
+            .eq('user_id', userId)
+            .in('product_id', Array.from(existingProductIds));
+
+        if (updateError) throw updateError;
+    }
+
+    if (missingProductIds.length > 0) {
+        const { error: insertError } = await supabase
+            .from('access_grants')
+            .insert(
+                missingProductIds.map((productId) => ({
+                    user_id: userId,
+                    product_id: productId,
+                    status: 'active',
+                    granted_at: grantedAt,
+                })),
+            );
+
+        if (insertError) throw insertError;
+    }
+
+    const { data: finalRows, error: finalError } = await supabase
+        .from('access_grants')
+        .select('*')
+        .eq('user_id', userId)
+        .in('product_id', productIds);
+
+    if (finalError) throw finalError;
+    return finalRows || [];
+}
+
 export const memberService = {
     /**
      * Get all members (profiles) with optional filtering
@@ -267,26 +340,13 @@ export const memberService = {
 
     async grantAccess(userId: string, productIds: string[]) {
         console.log(`Attempting to grant access for user ${userId} to products:`, productIds);
-        // This assumes product-based access
-        const grants = productIds.map(pid => ({
-            user_id: userId,
-            product_id: pid,
-            status: 'active',
-            granted_at: new Date().toISOString()
-        }));
-
-        // Start of a "transaction" via RPC if possible, or just sequential inserts
-        // We use upsert to avoid duplicates
-        const { data, error } = await supabase
-            .from('access_grants')
-            .upsert(grants, { onConflict: 'user_id, product_id' })
-            .select();
-
-        if (error) {
+        try {
+            const data = await grantProductAccessWithFallback(userId, productIds);
+            console.log('Access granted successfully:', data);
+        } catch (error) {
             console.error('Supabase error granting access:', error);
             throw error;
         }
-        console.log('Access granted successfully:', data);
 
         // Log activity
         this.logActivity(userId, 'access_granted', { productIds });
