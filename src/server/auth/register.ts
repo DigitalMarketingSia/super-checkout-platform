@@ -1433,7 +1433,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 });
             }
 
-            const accountStatus = launchSettings.manualApprovalEnabled ? 'pending_approval' : 'active';
+            const approvalPending = launchSettings.manualApprovalEnabled && !invite.valid;
+            const accountStatus = approvalPending ? 'pending_approval' : 'active';
             const redirectPath = `${portalBaseUrl}/activate`;
             const existingAuthUser = await findCentralAuthUserByEmail(email);
 
@@ -1552,7 +1553,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
 
                     await logSecurityEvent({
-                        eventType: 'register_signup_success',
+                        eventType: approvalPending
+                            ? 'register_signup_pending_approval'
+                            : 'register_signup_success',
                         severity: 'INFO',
                         ip,
                         userAgent,
@@ -1571,7 +1574,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                     return res.status(200).json({
                         success: true,
-                        approvalPending: launchSettings.manualApprovalEnabled,
+                        approvalPending,
                         inviteValid: invite.valid,
                         inviteExpiresAt: invite.expiresAt
                     });
@@ -1754,7 +1757,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             await logSecurityEvent({
-                eventType: launchSettings.manualApprovalEnabled
+                eventType: approvalPending
                     ? 'register_signup_pending_approval'
                     : 'register_signup_success',
                 severity: 'INFO',
@@ -1774,7 +1777,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             return res.status(200).json({
                 success: true,
-                approvalPending: launchSettings.manualApprovalEnabled,
+                approvalPending,
                 inviteValid: invite.valid,
                 inviteExpiresAt: invite.expiresAt
             });
