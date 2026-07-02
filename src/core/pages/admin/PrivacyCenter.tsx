@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Clock3,
   Database,
@@ -22,28 +23,10 @@ import type {
   PrivacyRequestType,
 } from '../../types';
 
-const REQUEST_TYPE_LABELS: Record<PrivacyRequestType, string> = {
-  access: 'Acesso',
-  correction: 'Correcao',
-  deletion: 'Exclusao',
-  anonymization: 'Anonimizacao',
-  objection: 'Oposicao',
-  portability: 'Portabilidade',
-  revocation: 'Revogacao',
-};
-
-const STATUS_LABELS: Record<PrivacyRequestStatus, string> = {
-  open: 'Aberta',
-  in_review: 'Em analise',
-  fulfilled: 'Concluida',
-  rejected: 'Recusada',
-};
-
-const formatDateTime = (value?: string | null) => {
-  if (!value) return 'nao informado';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'nao informado';
-  return date.toLocaleString('pt-BR');
+const resolveDateLocale = (language: string) => {
+  if (language.startsWith('es')) return 'es-ES';
+  if (language.startsWith('en')) return 'en-US';
+  return 'pt-BR';
 };
 
 const downloadJson = (fileName: string, payload: unknown) => {
@@ -59,6 +42,7 @@ const downloadJson = (fileName: string, payload: unknown) => {
 };
 
 export const PrivacyCenter = () => {
+  const { t, i18n } = useTranslation('admin');
   const [dashboard, setDashboard] = useState<PrivacyDashboardSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -74,6 +58,32 @@ export const PrivacyCenter = () => {
   });
   const [requestDrafts, setRequestDrafts] = useState<Record<string, { status: PrivacyRequestStatus; resolutionNotes: string }>>({});
   const [policyDrafts, setPolicyDrafts] = useState<Record<string, { retentionDays: number; active: boolean; notes: string }>>({});
+
+  const dateLocale = resolveDateLocale(i18n.language);
+
+  const requestTypeLabels: Record<PrivacyRequestType, string> = {
+    access: t('privacy_center.request_types.access'),
+    correction: t('privacy_center.request_types.correction'),
+    deletion: t('privacy_center.request_types.deletion'),
+    anonymization: t('privacy_center.request_types.anonymization'),
+    objection: t('privacy_center.request_types.objection'),
+    portability: t('privacy_center.request_types.portability'),
+    revocation: t('privacy_center.request_types.revocation'),
+  };
+
+  const statusLabels: Record<PrivacyRequestStatus, string> = {
+    open: t('privacy_center.statuses.open'),
+    in_review: t('privacy_center.statuses.in_review'),
+    fulfilled: t('privacy_center.statuses.fulfilled'),
+    rejected: t('privacy_center.statuses.rejected'),
+  };
+
+  const formatDateTime = (value?: string | null) => {
+    if (!value) return t('privacy_center.not_informed');
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return t('privacy_center.not_informed');
+    return date.toLocaleString(dateLocale);
+  };
 
   const refresh = async () => {
     setLoading(true);
@@ -104,7 +114,7 @@ export const PrivacyCenter = () => {
         ),
       );
     } catch (error: any) {
-      toast.error(error?.message || 'Falha ao carregar o centro de privacidade.');
+      toast.error(error?.message || t('privacy_center.toasts.load_error'));
     } finally {
       setLoading(false);
     }
@@ -138,7 +148,7 @@ export const PrivacyCenter = () => {
         subjectDocument: requestForm.subjectDocument,
         notes: requestForm.notes,
       });
-      toast.success('Solicitacao registrada.');
+      toast.success(t('privacy_center.toasts.request_created'));
       setRequestForm({
         requestType: 'access',
         subjectEmail: '',
@@ -149,7 +159,7 @@ export const PrivacyCenter = () => {
       });
       await refresh();
     } catch (error: any) {
-      toast.error(error?.message || 'Nao foi possivel registrar a solicitacao.');
+      toast.error(error?.message || t('privacy_center.toasts.request_create_error'));
     } finally {
       setSubmitting(false);
     }
@@ -157,7 +167,7 @@ export const PrivacyCenter = () => {
 
   const handleExport = async () => {
     if (!requestForm.subjectEmail.trim()) {
-      toast.error('Informe o e-mail do titular para exportar.');
+      toast.error(t('privacy_center.toasts.subject_email_required'));
       return;
     }
 
@@ -166,9 +176,9 @@ export const PrivacyCenter = () => {
       const payload = await privacyOpsService.exportSubject(requestForm.subjectEmail);
       const safeEmail = requestForm.subjectEmail.toLowerCase().replace(/[^a-z0-9@._-]+/g, '-');
       downloadJson(`privacy-export-${safeEmail}.json`, payload);
-      toast.success('Exportacao concluida.');
+      toast.success(t('privacy_center.toasts.export_success'));
     } catch (error: any) {
-      toast.error(error?.message || 'Nao foi possivel exportar os dados do titular.');
+      toast.error(error?.message || t('privacy_center.toasts.export_error'));
     } finally {
       setExporting(false);
     }
@@ -185,10 +195,10 @@ export const PrivacyCenter = () => {
         status: draft.status,
         resolutionNotes: draft.resolutionNotes,
       });
-      toast.success('Solicitacao atualizada.');
+      toast.success(t('privacy_center.toasts.request_updated'));
       await refresh();
     } catch (error: any) {
-      toast.error(error?.message || 'Falha ao atualizar a solicitacao.');
+      toast.error(error?.message || t('privacy_center.toasts.request_update_error'));
     } finally {
       setSubmitting(false);
     }
@@ -206,10 +216,10 @@ export const PrivacyCenter = () => {
         active: draft.active,
         notes: draft.notes,
       });
-      toast.success(`Politica ${policy.table_name} atualizada.`);
+      toast.success(t('privacy_center.toasts.policy_updated', { table: policy.table_name }));
       await refresh();
     } catch (error: any) {
-      toast.error(error?.message || 'Falha ao salvar politica de retencao.');
+      toast.error(error?.message || t('privacy_center.toasts.policy_update_error'));
     } finally {
       setSubmitting(false);
     }
@@ -220,12 +230,14 @@ export const PrivacyCenter = () => {
     try {
       const result = await privacyOpsService.runCleanup(tableName);
       const totalRows = (result.results || []).reduce((sum, run) => sum + Number(run.rows_affected || 0), 0);
-      toast.success(tableName
-        ? `Cleanup executado em ${tableName}. ${totalRows} linha(s) afetada(s).`
-        : `Cleanup executado. ${totalRows} linha(s) afetada(s).`);
+      toast.success(
+        tableName
+          ? t('privacy_center.toasts.cleanup_success_table', { table: tableName, count: totalRows })
+          : t('privacy_center.toasts.cleanup_success_all', { count: totalRows }),
+      );
       await refresh();
     } catch (error: any) {
-      toast.error(error?.message || 'Falha ao executar cleanup.');
+      toast.error(error?.message || t('privacy_center.toasts.cleanup_error'));
     } finally {
       setRunningCleanup(null);
     }
@@ -241,12 +253,12 @@ export const PrivacyCenter = () => {
                 <ShieldCheck className="w-6 h-6 text-primary" />
               </div>
               <div>
-                <h1 className="text-4xl font-portal-display text-white uppercase tracking-tight">Privacidade</h1>
-                <p className="text-[10px] uppercase tracking-[0.28em] font-black text-gray-500">LGPD operacional</p>
+                <h1 className="text-4xl font-portal-display text-white uppercase tracking-tight">{t('privacy_center.title')}</h1>
+                <p className="text-[10px] uppercase tracking-[0.28em] font-black text-gray-500">{t('privacy_center.badge')}</p>
               </div>
             </div>
             <p className="text-sm text-gray-400 max-w-3xl">
-              Registre direitos do titular, exporte dados consolidados e execute retencao com trilha auditavel.
+              {t('privacy_center.subtitle')}
             </p>
           </div>
 
@@ -255,25 +267,25 @@ export const PrivacyCenter = () => {
             className="px-6 py-3 rounded-2xl bg-white/5 hover:bg-white/10 text-white border border-white/10 font-black uppercase tracking-widest text-[10px] flex items-center gap-2"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            Atualizar painel
+            {t('privacy_center.refresh_panel')}
           </Button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
           <div className="rounded-[2rem] border border-white/5 bg-[#0A0A15]/60 p-6">
-            <p className="text-[10px] uppercase tracking-[0.25em] font-black text-gray-500">Solicitacoes abertas</p>
+            <p className="text-[10px] uppercase tracking-[0.25em] font-black text-gray-500">{t('privacy_center.summary.open_requests')}</p>
             <p className="mt-3 text-3xl font-black text-white">{summary.openRequests}</p>
           </div>
           <div className="rounded-[2rem] border border-white/5 bg-[#0A0A15]/60 p-6">
-            <p className="text-[10px] uppercase tracking-[0.25em] font-black text-gray-500">Total registrado</p>
+            <p className="text-[10px] uppercase tracking-[0.25em] font-black text-gray-500">{t('privacy_center.summary.total_records')}</p>
             <p className="mt-3 text-3xl font-black text-white">{summary.totalRequests}</p>
           </div>
           <div className="rounded-[2rem] border border-white/5 bg-[#0A0A15]/60 p-6">
-            <p className="text-[10px] uppercase tracking-[0.25em] font-black text-gray-500">Politicas ativas</p>
+            <p className="text-[10px] uppercase tracking-[0.25em] font-black text-gray-500">{t('privacy_center.summary.active_policies')}</p>
             <p className="mt-3 text-3xl font-black text-white">{summary.activePolicies}</p>
           </div>
           <div className="rounded-[2rem] border border-white/5 bg-[#0A0A15]/60 p-6">
-            <p className="text-[10px] uppercase tracking-[0.25em] font-black text-gray-500">Ultimo cleanup</p>
+            <p className="text-[10px] uppercase tracking-[0.25em] font-black text-gray-500">{t('privacy_center.summary.last_cleanup')}</p>
             <p className="mt-3 text-sm font-bold text-white">{formatDateTime(summary.lastCleanupAt)}</p>
           </div>
         </div>
@@ -283,72 +295,72 @@ export const PrivacyCenter = () => {
             <div className="flex items-center gap-3">
               <FileText className="w-5 h-5 text-primary" />
               <div>
-                <h2 className="text-lg font-bold text-white">Direitos do titular</h2>
-                <p className="text-xs text-gray-500">Registro interno, exportacao e acompanhamento</p>
+                <h2 className="text-lg font-bold text-white">{t('privacy_center.subject_rights.title')}</h2>
+                <p className="text-xs text-gray-500">{t('privacy_center.subject_rights.subtitle')}</p>
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <label className="space-y-2">
-                <span className="text-[10px] uppercase tracking-[0.24em] font-black text-gray-500">Tipo</span>
+                <span className="text-[10px] uppercase tracking-[0.24em] font-black text-gray-500">{t('privacy_center.form.request_type')}</span>
                 <select
                   value={requestForm.requestType}
                   onChange={(event) => setRequestForm((current) => ({ ...current, requestType: event.target.value as PrivacyRequestType }))}
                   className="w-full rounded-xl bg-black/30 border border-white/10 px-4 py-3 text-sm text-white"
                 >
-                  {Object.entries(REQUEST_TYPE_LABELS).map(([value, label]) => (
+                  {Object.entries(requestTypeLabels).map(([value, label]) => (
                     <option key={value} value={value}>{label}</option>
                   ))}
                 </select>
               </label>
 
               <label className="space-y-2">
-                <span className="text-[10px] uppercase tracking-[0.24em] font-black text-gray-500">E-mail do titular</span>
+                <span className="text-[10px] uppercase tracking-[0.24em] font-black text-gray-500">{t('privacy_center.form.subject_email')}</span>
                 <input
                   value={requestForm.subjectEmail}
                   onChange={(event) => setRequestForm((current) => ({ ...current, subjectEmail: event.target.value }))}
                   className="w-full rounded-xl bg-black/30 border border-white/10 px-4 py-3 text-sm text-white"
-                  placeholder="cliente@exemplo.com"
+                  placeholder={t('privacy_center.placeholders.subject_email')}
                 />
               </label>
 
               <label className="space-y-2">
-                <span className="text-[10px] uppercase tracking-[0.24em] font-black text-gray-500">Nome</span>
+                <span className="text-[10px] uppercase tracking-[0.24em] font-black text-gray-500">{t('privacy_center.form.subject_name')}</span>
                 <input
                   value={requestForm.subjectName}
                   onChange={(event) => setRequestForm((current) => ({ ...current, subjectName: event.target.value }))}
                   className="w-full rounded-xl bg-black/30 border border-white/10 px-4 py-3 text-sm text-white"
-                  placeholder="Nome do titular"
+                  placeholder={t('privacy_center.placeholders.subject_name')}
                 />
               </label>
 
               <label className="space-y-2">
-                <span className="text-[10px] uppercase tracking-[0.24em] font-black text-gray-500">Telefone</span>
+                <span className="text-[10px] uppercase tracking-[0.24em] font-black text-gray-500">{t('privacy_center.form.subject_phone')}</span>
                 <input
                   value={requestForm.subjectPhone}
                   onChange={(event) => setRequestForm((current) => ({ ...current, subjectPhone: event.target.value }))}
                   className="w-full rounded-xl bg-black/30 border border-white/10 px-4 py-3 text-sm text-white"
-                  placeholder="Opcional"
+                  placeholder={t('privacy_center.placeholders.optional')}
                 />
               </label>
 
               <label className="space-y-2 sm:col-span-2">
-                <span className="text-[10px] uppercase tracking-[0.24em] font-black text-gray-500">Documento</span>
+                <span className="text-[10px] uppercase tracking-[0.24em] font-black text-gray-500">{t('privacy_center.form.subject_document')}</span>
                 <input
                   value={requestForm.subjectDocument}
                   onChange={(event) => setRequestForm((current) => ({ ...current, subjectDocument: event.target.value }))}
                   className="w-full rounded-xl bg-black/30 border border-white/10 px-4 py-3 text-sm text-white"
-                  placeholder="Opcional"
+                  placeholder={t('privacy_center.placeholders.optional')}
                 />
               </label>
 
               <label className="space-y-2 sm:col-span-2">
-                <span className="text-[10px] uppercase tracking-[0.24em] font-black text-gray-500">Notas internas</span>
+                <span className="text-[10px] uppercase tracking-[0.24em] font-black text-gray-500">{t('privacy_center.form.internal_notes')}</span>
                 <textarea
                   value={requestForm.notes}
                   onChange={(event) => setRequestForm((current) => ({ ...current, notes: event.target.value }))}
                   className="min-h-[120px] w-full rounded-xl bg-black/30 border border-white/10 px-4 py-3 text-sm text-white"
-                  placeholder="Contexto, canal de contato e evidencias recebidas."
+                  placeholder={t('privacy_center.placeholders.internal_notes')}
                 />
               </label>
             </div>
@@ -360,7 +372,7 @@ export const PrivacyCenter = () => {
                 className="px-6 py-3 rounded-2xl bg-primary text-white border-none font-black uppercase tracking-widest text-[10px] flex items-center gap-2"
               >
                 {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                Registrar solicitacao
+                {t('privacy_center.actions.register_request')}
               </Button>
               <Button
                 onClick={() => void handleExport()}
@@ -368,13 +380,13 @@ export const PrivacyCenter = () => {
                 className="px-6 py-3 rounded-2xl bg-white/5 hover:bg-white/10 text-white border border-white/10 font-black uppercase tracking-widest text-[10px] flex items-center gap-2"
               >
                 {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                Exportar titular
+                {t('privacy_center.actions.export_subject')}
               </Button>
             </div>
 
             {!dashboard?.scope_account_id && (
               <p className="text-xs text-amber-300">
-                O painel nao conseguiu resolver uma conta unica para vincular novas solicitacoes. Revise a sessao ou a configuracao da instalacao.
+                {t('privacy_center.scope_warning')}
               </p>
             )}
           </section>
@@ -384,8 +396,8 @@ export const PrivacyCenter = () => {
               <div className="flex items-center gap-3">
                 <Clock3 className="w-5 h-5 text-primary" />
                 <div>
-                  <h2 className="text-lg font-bold text-white">Fila de atendimento</h2>
-                  <p className="text-xs text-gray-500">Solicitacoes recentes do titular</p>
+                  <h2 className="text-lg font-bold text-white">{t('privacy_center.queue.title')}</h2>
+                  <p className="text-xs text-gray-500">{t('privacy_center.queue.subtitle')}</p>
                 </div>
               </div>
             </div>
@@ -402,11 +414,14 @@ export const PrivacyCenter = () => {
                     <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-3">
                       <div>
                         <p className="text-xs font-black uppercase tracking-[0.24em] text-primary">
-                          {REQUEST_TYPE_LABELS[request.request_type]}
+                          {requestTypeLabels[request.request_type]}
                         </p>
                         <h3 className="text-lg font-bold text-white mt-1">{request.subject_email}</h3>
                         <p className="text-xs text-gray-500 mt-1">
-                          Criada em {formatDateTime(request.created_at)}{request.subject_name ? ` • ${request.subject_name}` : ''}
+                          {t('privacy_center.queue.created_at', {
+                            date: formatDateTime(request.created_at),
+                            name: request.subject_name ? ` • ${request.subject_name}` : '',
+                          })}
                         </p>
                       </div>
 
@@ -422,7 +437,7 @@ export const PrivacyCenter = () => {
                           }))}
                           className="w-full rounded-xl bg-[#101018] border border-white/10 px-4 py-3 text-sm text-white"
                         >
-                          {Object.entries(STATUS_LABELS).map(([value, label]) => (
+                          {Object.entries(statusLabels).map(([value, label]) => (
                             <option key={value} value={value}>{label}</option>
                           ))}
                         </select>
@@ -430,9 +445,9 @@ export const PrivacyCenter = () => {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-gray-300">
-                      <div><span className="text-gray-500">Telefone:</span> {request.subject_phone || 'nao informado'}</div>
-                      <div><span className="text-gray-500">Documento:</span> {request.subject_document || 'nao informado'}</div>
-                      <div className="md:col-span-2"><span className="text-gray-500">Notas:</span> {request.notes || 'sem contexto adicional'}</div>
+                      <div><span className="text-gray-500">{t('privacy_center.queue.phone_label')}</span> {request.subject_phone || t('privacy_center.not_informed')}</div>
+                      <div><span className="text-gray-500">{t('privacy_center.queue.document_label')}</span> {request.subject_document || t('privacy_center.not_informed')}</div>
+                      <div className="md:col-span-2"><span className="text-gray-500">{t('privacy_center.queue.notes_label')}</span> {request.notes || t('privacy_center.no_additional_context')}</div>
                     </div>
 
                     <textarea
@@ -445,13 +460,13 @@ export const PrivacyCenter = () => {
                         },
                       }))}
                       className="min-h-[110px] w-full rounded-xl bg-[#101018] border border-white/10 px-4 py-3 text-sm text-white"
-                      placeholder="Documente decisao, resposta enviada e evidencias."
+                      placeholder={t('privacy_center.placeholders.resolution_notes')}
                     />
 
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <p className="text-xs text-gray-500">
-                        Status atual: <span className="text-white font-bold">{STATUS_LABELS[request.status]}</span>
-                        {request.fulfilled_at ? ` • concluida em ${formatDateTime(request.fulfilled_at)}` : ''}
+                        {t('privacy_center.queue.current_status', { status: statusLabels[request.status] })}
+                        {request.fulfilled_at ? t('privacy_center.queue.fulfilled_at', { date: formatDateTime(request.fulfilled_at) }) : ''}
                       </p>
                       <Button
                         onClick={() => void handleUpdateRequest(request)}
@@ -459,7 +474,7 @@ export const PrivacyCenter = () => {
                         className="px-5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white border border-white/10 font-black uppercase tracking-widest text-[10px] flex items-center gap-2"
                       >
                         {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                        Salvar
+                        {t('common.save')}
                       </Button>
                     </div>
                   </div>
@@ -468,7 +483,7 @@ export const PrivacyCenter = () => {
 
               {!loading && (dashboard?.requests || []).length === 0 && (
                 <div className="rounded-2xl border border-dashed border-white/10 p-8 text-center text-sm text-gray-500">
-                  Nenhuma solicitacao registrada nesta instalacao.
+                  {t('privacy_center.queue.empty')}
                 </div>
               )}
             </div>
@@ -480,8 +495,8 @@ export const PrivacyCenter = () => {
             <div className="flex items-center gap-3">
               <Database className="w-5 h-5 text-primary" />
               <div>
-                <h2 className="text-lg font-bold text-white">Retencao e purge</h2>
-                <p className="text-xs text-gray-500">Politicas operacionais com execucao manual e registro server-side</p>
+                <h2 className="text-lg font-bold text-white">{t('privacy_center.retention.title')}</h2>
+                <p className="text-xs text-gray-500">{t('privacy_center.retention.subtitle')}</p>
               </div>
             </div>
 
@@ -491,7 +506,7 @@ export const PrivacyCenter = () => {
               className="px-6 py-3 rounded-2xl bg-red-500/10 hover:bg-red-500/20 text-red-300 border border-red-500/20 font-black uppercase tracking-widest text-[10px] flex items-center gap-2"
             >
               {runningCleanup === 'all' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-              Executar cleanup geral
+              {t('privacy_center.actions.run_global_cleanup')}
             </Button>
           </div>
 
@@ -507,11 +522,11 @@ export const PrivacyCenter = () => {
                 <div key={policy.id} className="rounded-2xl border border-white/5 bg-black/20 p-4 grid grid-cols-1 xl:grid-cols-[1.2fr_160px_160px_1fr_auto] gap-4 items-start">
                   <div>
                     <p className="text-xs font-black uppercase tracking-[0.24em] text-primary">{policy.table_name}</p>
-                    <p className="text-sm text-gray-400 mt-2">{policy.notes || 'Sem observacao operacional.'}</p>
+                    <p className="text-sm text-gray-400 mt-2">{policy.notes || t('privacy_center.retention.default_policy_notes')}</p>
                   </div>
 
                   <label className="space-y-2">
-                    <span className="text-[10px] uppercase tracking-[0.24em] font-black text-gray-500">Dias</span>
+                    <span className="text-[10px] uppercase tracking-[0.24em] font-black text-gray-500">{t('privacy_center.retention.days_label')}</span>
                     <input
                       type="number"
                       min={1}
@@ -528,7 +543,7 @@ export const PrivacyCenter = () => {
                   </label>
 
                   <label className="space-y-2">
-                    <span className="text-[10px] uppercase tracking-[0.24em] font-black text-gray-500">Ativa</span>
+                    <span className="text-[10px] uppercase tracking-[0.24em] font-black text-gray-500">{t('privacy_center.retention.active_label')}</span>
                     <label className="flex items-center gap-3 rounded-xl bg-[#101018] border border-white/10 px-4 py-3 text-sm text-white">
                       <input
                         type="checkbox"
@@ -541,12 +556,12 @@ export const PrivacyCenter = () => {
                           },
                         }))}
                       />
-                      <span>{draft.active ? 'Sim' : 'Nao'}</span>
+                      <span>{draft.active ? t('privacy_center.yes') : t('privacy_center.no')}</span>
                     </label>
                   </label>
 
                   <label className="space-y-2">
-                    <span className="text-[10px] uppercase tracking-[0.24em] font-black text-gray-500">Notas</span>
+                    <span className="text-[10px] uppercase tracking-[0.24em] font-black text-gray-500">{t('privacy_center.retention.notes_label')}</span>
                     <input
                       value={draft.notes}
                       onChange={(event) => setPolicyDrafts((current) => ({
@@ -566,7 +581,7 @@ export const PrivacyCenter = () => {
                       disabled={submitting}
                       className="px-5 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-white border border-white/10 font-black uppercase tracking-widest text-[10px]"
                     >
-                      Salvar
+                      {t('common.save')}
                     </Button>
                     <Button
                       onClick={() => void handleCleanup(policy.table_name)}
@@ -574,7 +589,7 @@ export const PrivacyCenter = () => {
                       className="px-5 py-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-300 border border-red-500/20 font-black uppercase tracking-widest text-[10px] flex items-center gap-2"
                     >
                       {runningCleanup === policy.table_name ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                      Limpar
+                      {t('privacy_center.actions.clean')}
                     </Button>
                   </div>
                 </div>
@@ -583,22 +598,22 @@ export const PrivacyCenter = () => {
           </div>
 
           <div className="pt-4 border-t border-white/5 space-y-3">
-            <h3 className="text-sm font-bold text-white">Historico recente</h3>
+            <h3 className="text-sm font-bold text-white">{t('privacy_center.history.title')}</h3>
             <div className="space-y-2">
               {(dashboard?.runs || []).slice(0, 10).map((run) => (
                 <div key={run.id} className="rounded-xl border border-white/5 bg-black/20 px-4 py-3 flex flex-col md:flex-row md:items-center justify-between gap-2 text-sm">
                   <div>
                     <span className="font-bold text-white">{run.table_name}</span>
-                    <span className="text-gray-500"> • cutoff {formatDateTime(run.cutoff_at)}</span>
+                    <span className="text-gray-500">{t('privacy_center.history.cutoff', { date: formatDateTime(run.cutoff_at) })}</span>
                   </div>
                   <div className="text-gray-400">
-                    {run.rows_affected} linha(s) • {formatDateTime(run.created_at)}
+                    {t('privacy_center.history.rows_affected', { count: run.rows_affected })} • {formatDateTime(run.created_at)}
                   </div>
                 </div>
               ))}
               {!loading && (dashboard?.runs || []).length === 0 && (
                 <div className="rounded-xl border border-dashed border-white/10 p-6 text-center text-sm text-gray-500">
-                  Nenhum cleanup registrado ainda.
+                  {t('privacy_center.history.empty')}
                 </div>
               )}
             </div>

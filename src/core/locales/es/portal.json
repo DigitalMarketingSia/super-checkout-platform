@@ -18,14 +18,16 @@
     "identity_confirmed": "Identidad Confirmada"
   },
   "banners": {
-    "highlights": "ilimitados socio",
+    "highlights": "ilimitados socio desbloqueo vitalicio",
+    "preparing": "Preparando...",
+    "auto_apply_note": "upgrade aplicado automaticamente en esta cuenta",
     "upgrade_domains": {
-      "name": "Plan de Dominios Ilimitados",
-      "description": "Elimine todos los límites de dominios y obtenga acceso de por vida al ecosistema de Super Checkout."
+      "name": "Desbloqueo Vitalicio",
+      "description": "Productos ilimitados. Checkouts ilimitados. Dominios ilimitados. Áreas de miembros ilimitadas."
     },
     "whitelabel": {
-      "name": "Plan de Dominios Ilimitados",
-      "description": "Elimine todos los límites de dominios y obtenga acceso de por vida al ecosistema de Super Checkout."
+      "name": "Desbloqueo Vitalicio",
+      "description": "Productos ilimitados. Checkouts ilimitados. Dominios ilimitados. Áreas de miembros ilimitadas."
     },
     "saas": {
       "name": "Plan de Socio",
@@ -51,6 +53,18 @@
     "span": "PORTAL",
     "desc": "Configura tu licencia, gestiona instalaciones y accede al ecosistema de Super Checkout en un entorno premium de alto rendimiento."
   },
+  "portal_shell": {
+    "loading": "Cargando portal",
+    "access_blocked_title": "Acceso bloqueado",
+    "access_blocked_description": "Tu acceso al portal fue bloqueado por el equipo interno. Mientras el bloqueo esté activo, esta sesión no puede usar el portal.",
+    "rejected_title": "Registro no aprobado",
+    "rejected_description": "Tu cuenta fue revisada, pero no fue liberada en este ciclo. Si lo necesitas, habla con el equipo para una nueva evaluación.",
+    "pending_approval_title": "Registro en revisión",
+    "pending_approval_description": "Tu correo ya fue confirmado. Ahora falta la aprobación manual del equipo interno para liberar el portal.",
+    "blocked_at": "Bloqueado en",
+    "internal_note": "Nota interna",
+    "refresh_status": "Actualizar estado"
+  },
   "basic_dashboard": {
     "eyebrow": "modo basico",
     "title": "Panel operativo esencial",
@@ -58,13 +72,20 @@
     "primary_cta": {
       "license": "liberar mi licencia",
       "install": "generar instalacion",
-      "install_subtext": "Gere tu instalação gratuita"
+      "install_subtext": "Genera tu instalación gratuita",
+      "recommended": "Empieza aquí",
+      "unlock_label": "Paso inicial",
+      "unlock_subtext": "Activa tu base gratuita para continuar",
+      "install_hint": "Abrir la instalación guiada ahora",
+      "license_hint": "Liberar acceso y seguir a la instalación"
     },
     "cards": {
       "installation_key": "clave de instalacion",
       "installation_link": "link de instalacion",
       "installation_status": "estado de la instalacion",
-      "current_limits": "limites del plan actual"
+      "current_limits": "limites del plan actual",
+      "operations_center": "centro de operaciones",
+      "operational_logs": "logs operativos"
     },
     "actions": {
       "copy_key": "copiar clave",
@@ -75,7 +96,8 @@
       "renew_link": "renovar link",
       "generate_link": "generar link",
       "view_installation": "ver instalacion",
-      "unlock_unlimited": "desbloquear ilimitado"
+      "unlock_unlimited": "desbloquear ilimitado",
+      "upgrade_plan": "Hacer Upgrade"
     },
     "empty_key": "Tu licencia gratuita todavia no fue generada. Usa la pestana de datos de acceso para liberar la clave ahora.",
     "empty_link": "Todavia no se genero ningun link seguro en esta sesion. Genera un link temporal cuando quieras instalar o reinstalar.",
@@ -91,6 +113,11 @@
       "domains": "dominios",
       "products": "productos"
     },
+    "logs": {
+      "core_engine_synced": "Core Engine: Sincronizado",
+      "license_validated": "Licencia: Validada en Cloud",
+      "domains_monitored": "Dominios: Monitoreo Activo"
+    },
     "limited_desc": "Tu plan actual funciona con 1 dominio y 3 productos. Cuando quieras escalar sin limites, haz upgrade al plan ilimitado.",
     "unlimited_desc": "Tu plan actual ya funciona con limites liberados para crecer y crear nuevas instalaciones.",
     "demo": {
@@ -98,6 +125,9 @@
       "title": "Sistema demo oficial",
       "description": "Abre un entorno demo guiado con las mismas pantallas del producto para simular negocio, productos, checkout, compras y area de miembros antes de la instalacion final.",
       "cta": "abrir sistema demo",
+      "cta_title": "Abrir sistema demo",
+      "cta_hint": "Abre el entorno guiado en una nueva pestaña sin salir del portal.",
+      "cta_support": "Abrir en una nueva pestaña",
       "opening": "abriendo demo...",
       "popup_blocked": "Permite pop-ups para abrir el sistema demo en una nueva pestaña.",
       "retention": "Cada workspace demo expira y se elimina automaticamente despues de 24 horas.",
@@ -172,12 +202,19 @@
   "plan_info": {
     "title": "Estado del Ecosistema",
     "profile": "Perfil de la Cuenta",
+    "free_account": "Cuenta Gratuita",
+    "whitelabel": "WHITELABEL",
     "unlimited": "Dominios Ilimitados",
     "partner": "Socio",
     "current_status": "Estado Actual",
     "active": "Activo",
     "inactive": "Inactivo",
-    "member_since": "Miembro Desde"
+    "member_since": "Miembro Desde",
+    "date_unavailable": "Fecha no disponible",
+    "no_license": "Sin licencia",
+    "pending": "Pendiente",
+    "action_required": "Acción necesaria",
+    "generate_license_prompt": "Abre la pestaña Datos de Acceso para generar tu licencia gratuita."
   },
   "license": {
     "title": "Credenciales de Acceso",
@@ -206,9 +243,9 @@
     "copy_link": "Copiar Enlace",
     "link_copied": "¡Enlace copiado!",
     "reset_emergency": "Restablecer Configuraciones (Emergencia)",
-    "scaling_title": "¿Escalando el Negocio?",
-    "limit_nudge": "Has alcanzado el límite de 1 dominio. Desbloquea dominios ilimitados ahora.",
-    "upgrade_button": "Hacer Upgrade ⚡",
+    "scaling_title": "Desbloqueo Vitalicio",
+    "limit_nudge": "Productos ilimitados. Checkouts ilimitados. Dominios ilimitados. Áreas de miembros ilimitadas.",
+    "upgrade_button": "Desbloquear Ahora ⚡",
     "token_error": "Token no devuelto por la función.",
     "generic_error": "Error al generar enlace de instalación.",
     "revoke_error": "Error al revocar la instalación."
@@ -217,6 +254,13 @@
     "title": "Tutoriales",
     "no_tutorials": "No se encontraron tutoriales para su plan.",
     "streaming": "Streaming",
+    "types": {
+      "video": "Video",
+      "text": "Texto",
+      "link": "Enlace",
+      "file": "Archivo",
+      "image": "Imagen"
+    },
     "master_feature": "Domina esta funcionalidad con nuestra guía detallada.",
     "start_now": "Empezar Ahora",
     "back_to_tutorials": "Volver a tutoriales",
@@ -297,9 +341,19 @@
     "config_desc": "Cobre pela configuração estratégica do sistema. É um serviço extra que você também lucra 100%.",
     "upgrade_commission": "Comissões de Upgrade (25%)",
     "upgrade_calc": "10 Upgrades x R$ 36,75",
+    "earnings_cards": {
+      "installations_title": "Instalaciones",
+      "installations_desc": "10 Clientes x R$ 97",
+      "configurations_title": "Configuraciones",
+      "configurations_desc": "10 Servicios x R$ 47",
+      "fixed_bonus": "25% fijo"
+    },
+    "estimated_profit_label": "TU GANANCIA ESTIMADA",
+    "estimated_profit_hint": "Ganancia potencial con apenas 20 atenciones + upgrades",
     "passive_income_title": "RENDA PASSIVA AUTOMÁTICA",
     "passive_income_highlight": "GANHE SEM FAZER NADA",
     "passive_income_desc": "Ganhe 25% de cada upgrade que tus leads fizerem. Mesmo que eles contratem sozinhos depois da tu indicação. Plan: R$ 147,00 / Lucro: R$ 36,75",
+    "passive_income_chip": "Genera ganancias mientras duermes",
     "vip_plan": {
       "title": "PLANO PARCEIRO ELITE",
       "price": "297",
@@ -345,6 +399,7 @@
     "showing_leads": "Mostrando {{count}} de {{total}} leads",
     "installations_ecosystem": "Ecosistema de Instalaciones",
     "owner": "Propietario",
+    "hostname": "Hostname",
     "no_installations": "No hay instalaciones técnicas vinculadas.",
     "technical_view": "Vista Técnica",
     "online": "En línea",
@@ -354,9 +409,18 @@
     "loading": "CARGANDO..."
   },
   "simulator": {
+    "badge": "Simulador Partner",
     "title": "Simulador de Ganancias",
     "partner": "del Socio",
     "description": "Simule sus ganancias potenciales al promocionar el ecosistema y realizar servicios de instalación y configuración.",
+    "total_label": "Total:",
+    "total_leads_value": "{{value}} LEADS",
+    "total_clients_value": "{{value}} INSTALARON",
+    "total_upgrades_value": "{{value}} UPGRADES",
+    "fixed_commission_label": "Comisión fija: 25%",
+    "commission_info": "La tasa de comisión sobre upgrades al plan Ilimitado (R$ 147) es fija en 25% para todos los socios acreditados.",
+    "toggle_to_percent": "👉 Cambiar a %",
+    "toggle_to_absolute": "👉 Cambiar a número",
     "presets": {
       "conservador": "Conservador",
       "moderado": "Moderado",
@@ -393,5 +457,20 @@
       "cta": "Empezar Ahora"
     },
     "legal_disclaimer": "Esta es una simulación basada en proyecciones. Los resultados reales dependen exclusivamente de su esfuerzo, estrategia de tráfico y mercado de actuación. No garantizamos ganancias financieras fijas."
+  },
+  "generate_license_gate": {
+    "title_prefix": "Licencia",
+    "title_highlight": "Pendiente",
+    "description": "{{name}}, necesitas generar una licencia gratuita para continuar con la instalación y el acceso a los datos.",
+    "fallback_name": "Campeón",
+    "accept_terms_required": "Debes aceptar los términos de uso.",
+    "accept_prefix": "Acepto los",
+    "terms_link": "términos de uso",
+    "and_privacy": "y la",
+    "privacy_link": "política de privacidad",
+    "platform_suffix": "de la plataforma en la versión {{version}}. Canal oficial: {{channel}}",
+    "button": "Generar Licencia Gratis",
+    "activate_error": "Error al activar la licencia",
+    "connection_error": "Error de conexión"
   }
 }

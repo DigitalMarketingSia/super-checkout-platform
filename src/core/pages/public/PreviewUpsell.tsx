@@ -1,27 +1,10 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link2, MonitorSmartphone, Sparkles } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { UpsellModal } from '../../components/ui/UpsellModal';
 
 type OfferSlug = 'unlimited_domains' | 'partner_rights' | 'whitelabel';
-
-const OFFER_OPTIONS: Array<{ slug: OfferSlug; label: string; note: string }> = [
-    {
-        slug: 'unlimited_domains',
-        label: 'Licenca Vitalicia Elite',
-        note: 'Ancora comercial de upgrade_domains.',
-    },
-    {
-        slug: 'partner_rights',
-        label: 'Licenca Comercial / Parceiro',
-        note: 'Versao focada em operacao comercial.',
-    },
-    {
-        slug: 'whitelabel',
-        label: 'Upgrade White Label Elite',
-        note: 'Camada premium para validacao de copy e CTA.',
-    },
-];
 
 const DEFAULT_OFFER: OfferSlug = 'unlimited_domains';
 
@@ -34,10 +17,28 @@ const normalizeOfferSlug = (value: string | null): OfferSlug => {
 };
 
 export const PreviewUpsell = () => {
+    const { t } = useTranslation('public');
     const [searchParams, setSearchParams] = useSearchParams();
 
     const offerSlug = normalizeOfferSlug(searchParams.get('offer'));
     const isOpen = searchParams.get('open') !== '0';
+    const offerOptions: Array<{ slug: OfferSlug; label: string; note: string }> = [
+        {
+            slug: 'unlimited_domains',
+            label: t('preview_upsell.offers.unlimited_domains.label'),
+            note: t('preview_upsell.offers.unlimited_domains.note'),
+        },
+        {
+            slug: 'partner_rights',
+            label: t('preview_upsell.offers.partner_rights.label'),
+            note: t('preview_upsell.offers.partner_rights.note'),
+        },
+        {
+            slug: 'whitelabel',
+            label: t('preview_upsell.offers.whitelabel.label'),
+            note: t('preview_upsell.offers.whitelabel.note'),
+        },
+    ];
 
     const updatePreview = (next: Partial<{ offer: OfferSlug; open: boolean }>) => {
         const params = new URLSearchParams(searchParams);
@@ -63,16 +64,16 @@ export const PreviewUpsell = () => {
                     <div className="flex items-center gap-2 text-emerald-300">
                         <Sparkles className="h-4 w-4" />
                         <span className="text-[10px] font-black uppercase tracking-[0.28em]">
-                            Preview Publico
+                            {t('preview_upsell.badge')}
                         </span>
                     </div>
 
                     <h1 className="mt-4 text-3xl font-black italic tracking-[-0.04em] text-white sm:text-4xl">
-                        Laboratorio do Modal de Upgrade
+                        {t('preview_upsell.title')}
                     </h1>
 
                     <p className="mt-3 max-w-lg text-sm leading-relaxed text-white/65 sm:text-base">
-                        Esta pagina replica o design atual do modal para voce validar alteracoes sem depender de sincronizar a conta do cliente.
+                        {t('preview_upsell.description')}
                     </p>
 
                     <div className="mt-6 rounded-[1.5rem] border border-emerald-400/15 bg-emerald-400/[0.05] p-4">
@@ -80,17 +81,21 @@ export const PreviewUpsell = () => {
                             <MonitorSmartphone className="mt-0.5 h-5 w-5 shrink-0 text-emerald-300" />
                             <div>
                                 <p className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-200/80">
-                                    Como usar
+                                    {t('preview_upsell.how_to_use_title')}
                                 </p>
                                 <p className="mt-2 text-sm leading-relaxed text-white/70">
-                                    Abra esta rota localmente em <span className="font-mono text-white">/preview/upsell</span> e, se quiser, publique o mesmo caminho no deploy para revisar o layout em producao.
+                                    {t('preview_upsell.how_to_use_body.before')}
+                                    {' '}
+                                    <span className="font-mono text-white">/preview/upsell</span>
+                                    {' '}
+                                    {t('preview_upsell.how_to_use_body.after')}
                                 </p>
                             </div>
                         </div>
                     </div>
 
                     <div className="mt-6 space-y-3">
-                        {OFFER_OPTIONS.map((option) => {
+                        {offerOptions.map((option) => {
                             const active = option.slug === offerSlug;
 
                             return (
@@ -115,7 +120,7 @@ export const PreviewUpsell = () => {
                                         <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] ${
                                             active ? 'bg-emerald-400/15 text-emerald-200' : 'bg-white/8 text-white/50'
                                         }`}>
-                                            {active ? 'Ativo' : 'Visualizar'}
+                                            {active ? t('preview_upsell.active_badge') : t('preview_upsell.preview_badge')}
                                         </span>
                                     </div>
                                 </button>
@@ -128,13 +133,13 @@ export const PreviewUpsell = () => {
                             onClick={() => updatePreview({ open: true })}
                             className="flex-1 rounded-[1.2rem] bg-gradient-to-r from-emerald-500 via-green-400 to-lime-300 px-4 py-3 text-xs font-black uppercase tracking-[0.18em] text-[#07110c] transition hover:brightness-105"
                         >
-                            Abrir modal
+                            {t('preview_upsell.open_modal')}
                         </button>
                         <button
                             onClick={() => updatePreview({ open: false })}
                             className="flex-1 rounded-[1.2rem] border border-white/10 bg-white/[0.03] px-4 py-3 text-xs font-black uppercase tracking-[0.18em] text-white/75 transition hover:bg-white/[0.06] hover:text-white"
                         >
-                            Fechar modal
+                            {t('preview_upsell.close_modal')}
                         </button>
                     </div>
 
@@ -142,7 +147,7 @@ export const PreviewUpsell = () => {
                         <div className="flex items-center gap-2 text-white/70">
                             <Link2 className="h-4 w-4" />
                             <span className="text-[10px] font-black uppercase tracking-[0.2em]">
-                                Link de validacao
+                                {t('preview_upsell.validation_link')}
                             </span>
                         </div>
                         <p className="mt-3 break-all rounded-xl bg-white/[0.04] px-3 py-3 font-mono text-xs text-emerald-200/90">
@@ -155,13 +160,13 @@ export const PreviewUpsell = () => {
                     <div className="flex h-full items-center justify-center px-10 py-12">
                         <div className="w-full max-w-2xl rounded-[2rem] border border-dashed border-white/10 bg-white/[0.02] p-8 text-center">
                             <p className="text-[10px] font-black uppercase tracking-[0.3em] text-white/35">
-                                Canvas de contexto
+                                {t('preview_upsell.canvas_badge')}
                             </p>
                             <h2 className="mt-4 text-2xl font-black italic tracking-[-0.04em] text-white/90">
-                                O modal abre sobre este plano de fundo
+                                {t('preview_upsell.canvas_title')}
                             </h2>
                             <p className="mt-3 text-sm leading-relaxed text-white/55">
-                                Mantive esta area propositalmente limpa para facilitar sua leitura de espacamento, contraste, corte lateral e hierarquia visual.
+                                {t('preview_upsell.canvas_description')}
                             </p>
                         </div>
                     </div>

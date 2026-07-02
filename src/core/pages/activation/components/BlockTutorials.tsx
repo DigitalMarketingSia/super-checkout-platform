@@ -86,6 +86,14 @@ export const BlockTutorials: React.FC<BlockTutorialsProps> = ({ planType }) => {
         return null;
     };
 
+    const getTypeLabel = (tutorial: Tutorial, videoUrl: string) => {
+        if (tutorial.video_url || tutorial.type === 'video' || videoUrl) {
+            return t('tutorials.streaming');
+        }
+
+        return t(`tutorials.types.${tutorial.type}`);
+    };
+
     if (loading) return (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-pulse">
             {[1, 2, 3].map(i => <div key={i} className="h-48 bg-white/5 rounded-2xl" />)}
@@ -103,8 +111,6 @@ export const BlockTutorials: React.FC<BlockTutorialsProps> = ({ planType }) => {
         const currentIndex = tutorials.findIndex(t => t.id === selectedTutorial.id);
         const prevTutorial = currentIndex > 0 ? tutorials[currentIndex - 1] : null;
         const nextTutorial = currentIndex < tutorials.length - 1 ? tutorials[currentIndex + 1] : null;
-
-        console.log('Nav Debug:', { currentIndex, prev: prevTutorial?.title, next: nextTutorial?.title });
 
         return (
             <TutorialViewer
@@ -155,7 +161,7 @@ export const BlockTutorials: React.FC<BlockTutorialsProps> = ({ planType }) => {
 
                             {/* Type Badge */}
                             <div className="absolute top-4 right-4 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-xl border border-white/10 text-[10px] font-black uppercase tracking-widest text-white/90">
-                                {(tutorial.video_url || tutorial.type === 'video' || videoUrl) ? t('tutorials.streaming') : tutorial.type}
+                                {getTypeLabel(tutorial, videoUrl)}
                             </div>
                         </div>
 

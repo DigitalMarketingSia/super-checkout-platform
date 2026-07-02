@@ -1433,8 +1433,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 });
             }
 
-            const approvalPending = launchSettings.manualApprovalEnabled && !invite.valid;
-            const accountStatus = approvalPending ? 'pending_approval' : 'active';
+            // Official launch rule: open public signup is always automatic.
+            // Closed launch uses waitlist + invite, not a post-confirmation approval gate.
+            const approvalPending = false;
+            const accountStatus: SignupPersistenceParams['accountStatus'] = 'active';
             const redirectPath = `${portalBaseUrl}/activate`;
             const existingAuthUser = await findCentralAuthUserByEmail(email);
 

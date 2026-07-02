@@ -452,18 +452,21 @@ export const MemberAreaLayout: React.FC<MemberAreaLayoutProps> = ({ children, me
 
             {/* Footer */}
             <footer className="py-12 px-4 md:px-12 text-center text-gray-500 text-sm bg-black/50 mt-auto flex flex-col items-center justify-center gap-2">
-                <p>Copyright © {new Date().getFullYear()} {memberArea?.name || t('layout.member_area_fallback')}</p>
+                <p>{t('layout.footer_copyright', {
+                    year: new Date().getFullYear(),
+                    name: memberArea?.name || t('layout.member_area_fallback'),
+                })}</p>
 
                 <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-[11px] text-gray-400">
                     <a href={termsHref} target="_blank" rel="noreferrer" className="hover:text-white transition-colors">
-                        Termos de Compra ({termsDocumentInfo.version})
+                        {t('layout.footer_terms_of_purchase')} ({termsDocumentInfo.version})
                     </a>
                     <a href={privacyHref} target="_blank" rel="noreferrer" className="hover:text-white transition-colors">
-                        Politica de Privacidade ({privacyDocumentInfo.version})
+                        {t('layout.footer_privacy_policy')} ({privacyDocumentInfo.version})
                     </a>
                     {legalContact && (
                         <span className="text-gray-500">
-                            Contato legal: {legalContact}
+                            {t('layout.footer_legal_contact', { contact: legalContact })}
                         </span>
                     )}
                 </div>

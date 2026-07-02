@@ -208,6 +208,177 @@
     "main_member_area_desc": "Main Member Area Desc",
     "sales_settings_title": "Sales Settings Title"
   },
+  "offers": {
+    "title": "Offers",
+    "subtitle": "Create pricing plans for your products.",
+    "badge": "Strategy lab",
+    "create_btn": "New offer",
+    "no_offers": "No offers found",
+    "unknown_product": "Unknown product",
+    "create_success": "Offer created successfully.",
+    "create_error": "Error creating offer.",
+    "delete_success": "Offer deleted successfully.",
+    "delete_error": "Error deleting offer.",
+    "labels": {
+      "offer_name": "Offer name",
+      "linked_product": "Linked product",
+      "plan_value": "Plan value"
+    },
+    "period": {
+      "month": "Month",
+      "year": "Year"
+    },
+    "type": {
+      "recurring": "Recurring",
+      "one_time": "One-time purchase"
+    },
+    "form": {
+      "modal_title": "New pricing setup",
+      "name_label": "Offer name (internal)",
+      "name_placeholder": "Ex: Black Friday 2024",
+      "product_label": "Link to product",
+      "product_placeholder": "Select...",
+      "price_label": "Charged amount",
+      "cycle_type_label": "Cycle type",
+      "cycle_type_subscription": "Subscription",
+      "billing_frequency_label": "Billing frequency",
+      "billing_frequency_monthly": "Monthly",
+      "billing_frequency_yearly": "Yearly",
+      "submit": "Create strategy"
+    },
+    "delete": {
+      "title": "Delete plan",
+      "message": "Are you sure you want to remove this pricing strategy? This action cannot be undone.",
+      "confirm": "Confirm deletion",
+      "cancel": "Keep offer"
+    }
+  },
+  "notifications": {
+    "hero": {
+      "badge": "Intelligence center",
+      "title_prefix": "Notification",
+      "title_highlight": "center",
+      "subtitle_owner": "Orchestrate the communication across your ecosystem. The business flow now highlights only the templates that are actually used after purchase.",
+      "subtitle_user": "Customize your customer experience. Configure approved purchase, direct delivery, member area, and manual access templates.",
+      "status_label": "Center status",
+      "status_online": "System online"
+    },
+    "tabs": {
+      "system": "SYSTEM (OWNER)",
+      "business": "BUSINESS (CLIENTS)"
+    },
+    "loading": "Loading settings...",
+    "status": {
+      "default": "Default",
+      "fallback": "Fallback"
+    },
+    "actions": {
+      "edit": "Edit",
+      "edit_content": "Edit content",
+      "use_system_fallback": "Use system fallback",
+      "activate_template": "Activate template"
+    },
+    "system": {
+      "template_label": "Email template",
+      "empty": "No template trail found.",
+      "flow_banner": "Outbound flow: emails transmitted by your license to your customers."
+    },
+    "business": {
+      "default_purpose": "Business transactional template.",
+      "fallback_notice": "Approved purchase works as a fallback when there is no specific delivery email. Direct delivery and member area replace the generic confirmation and send only the real accesses generated on the server.",
+      "post_purchase_title": "Post-purchase",
+      "post_purchase_subtitle": "These are the 3 unique templates in the delivery flow after payment.",
+      "manual_access_notice": "Manual student access is separate from the post-purchase flow. It is only used when you manually resend access to a member.",
+      "flow_banner": "Business flow: templates actually used in post-purchase and manual student access."
+    },
+    "templates": {
+      "common": {
+        "greeting": "Hello, {{name}}.",
+        "signature": "Sincerely,<br/>{{businessName}} Team"
+      },
+      "order_completed": {
+        "name": "Approved purchase",
+        "purpose": "Confirms payment when there is no specific delivery email to send.",
+        "subject": "Your order {{orderId}} was approved",
+        "body": {
+          "title": "Approved purchase",
+          "payment_confirmed": "Your payment was confirmed and order {{orderId}} is approved.",
+          "items": "Purchase items: {{productNames}}."
+        }
+      },
+      "order_direct_delivery": {
+        "name": "Direct delivery",
+        "purpose": "Delivers links and materials released after purchase.",
+        "subject": "Your materials are available",
+        "body": {
+          "title": "Your materials are available",
+          "delivery_ready": "The purchase for order {{orderId}} was approved. Access your materials below."
+        }
+      },
+      "order_member_access": {
+        "name": "Member area delivery",
+        "purpose": "Delivers access to areas and content unlocked by the purchase.",
+        "subject": "Your access has been released",
+        "body": {
+          "title": "Your access has been released",
+          "access_ready": "The purchase for order {{orderId}} was approved. Enter the unlocked area below."
+        }
+      },
+      "access_granted": {
+        "name": "Manual student access",
+        "purpose": "Used only when you manually resend access to a student who has already been released.",
+        "subject": "Your access has been released",
+        "body": {
+          "title": "Your access has been released",
+          "manual_release": "Your manual access has been released. Enter using the link below.",
+          "cta": "Open member area"
+        }
+      }
+    }
+  },
+  "email_template_modal": {
+    "title": "Edit template",
+    "view_modes": {
+      "visual": "Visual",
+      "code": "Code",
+      "preview": "Preview"
+    },
+    "variables": {
+      "title": "Variable injector",
+      "description": "Click to insert into the editor:",
+      "insert_title": "Click to insert {{variable}}"
+    },
+    "notices": {
+      "purchase_confirmation": "This template confirms the approved purchase only when the order does not generate a specific delivery email. It does not send access links or delivery buttons.",
+      "deliverables_prefix": "The real buttons appear in the send through",
+      "deliverables_suffix": "When the message is sent to the customer, the system injects this block on the server with the links released for that order."
+    },
+    "fields": {
+      "subject_label": "Email subject",
+      "subject_placeholder": "Ex: Your order was approved",
+      "visual_label": "Message (visual)",
+      "html_label": "Email HTML",
+      "html_placeholder": "<h1>Hello...</h1>",
+      "html_badge": "HTML editor"
+    },
+    "preview": {
+      "title": "Email preview",
+      "badge": "Preview mode",
+      "note": "This is a visual preview. Variables were replaced with mock data.",
+      "mock": {
+        "customer_name": "John Smith",
+        "product_names": "Super Checkout Course",
+        "business_name": "Demo Store",
+        "deliverable_hint": "Your access is available.",
+        "deliverable_cta": "Access now",
+        "plan_name": "Pro Plan"
+      }
+    },
+    "save": "Save changes",
+    "errors": {
+      "save": "Error saving template"
+    }
+  },
   "orders": {
     "title": "Orders & CRM",
     "subtitle": "Sales overview and customer management",
@@ -271,6 +442,47 @@
       "canceled": "Canceled",
       "refunded": "Refunded"
     },
+    "modals": {
+      "alerts": {
+        "resend_success": "Access email resent successfully!",
+        "resend_error": "We could not resend the email. Please try again later.",
+        "resend_missing_paid_order": "No approved order was found for this customer."
+      },
+      "payment_methods": {
+        "boleto": "Boleto",
+        "apple_pay": "Apple Pay",
+        "google_pay": "Google Pay"
+      },
+      "order_details": {
+        "title": "Order Details",
+        "payment": "Payment",
+        "customer_info": "Customer Information",
+        "full_name": "Full name",
+        "email": "Email",
+        "tax_id": "Tax ID",
+        "phone": "Phone",
+        "items_title": "Order Items",
+        "quantity_short": "Qty.",
+        "total": "Total",
+        "order_total": "Order total",
+        "transaction_id": "Transaction ID",
+        "resend_access_email": "Resend access email",
+        "product_fallback": "this product",
+        "whatsapp_message": "Hi {{name}}, I saw that you purchased {{product}}. Can I help with anything?",
+        "whatsapp_title": "Open WhatsApp chat",
+        "copy_email_title": "Copy email"
+      },
+      "customer_details": {
+        "title": "Customer Details",
+        "customer_since": "Customer since {{date}} (based on the latest order)",
+        "contact_info": "Contact Information",
+        "registered_name_hint": "Name registered in checkout",
+        "not_informed": "Not informed",
+        "whatsapp_label": "WhatsApp",
+        "resend_access_email": "Resend access email",
+        "no_products": "No products found for this customer."
+      }
+    },
     "pagination": {
       "info": "Page {{current}} of {{total}} • Showing {{shown}} de {{filtered}} records",
       "previous": "Previous",
@@ -323,7 +535,11 @@
   "domains": {
     "title": "Domains",
     "subtitle": "Connect your custom domains.",
+    "network_control": "Network control",
     "add_btn": "Add Domain",
+    "empty_subtitle": "Connect a domain to customize your ecosystem.",
+    "sync": "Sync",
+    "remove": "Remove",
     "tabs": {
       "all": "All",
       "checkout": "Checkout",
@@ -355,6 +571,7 @@
       "usage_system_desc": "Ex: admin.mysite.com",
       "domain_label": "Domain (without http/https)",
       "placeholder": "pay.mysite.com",
+      "domain_hint": "Your domain must point to our servers for automatic activation.",
       "add_btn": "Add"
     },
     "dns_modal": {
@@ -362,6 +579,15 @@
       "config_title": "DNS Config",
       "active_desc": "Your domain is active and working.",
       "config_desc": "Configure your provider to connect the domain.",
+      "status_active": "Active and protected network",
+      "status_syncing": "Infrastructure syncing",
+      "global_status": "Global node status",
+      "loading_scan": "Scanning global DNS...",
+      "host_name": "Host / name",
+      "value_destination": "Value / destination",
+      "copy": "Copy",
+      "propagation_title": "Propagation protocol",
+      "propagation_desc": "After configuring your provider (Cloudflare, GoDaddy, etc), global nodes may take up to 24 hours to fully sync the new infrastructure.",
       "needed_records": "Required DNS records:",
       "fetch_error": "Could not retrieve records.",
       "close": "Close",
@@ -394,6 +620,22 @@
     "remove_error": "Error removing domain",
     "limit": "Limit",
     "domain_plural": "Domain Plural"
+  },
+  "setup_wizard": {
+    "title": "Required setup",
+    "subtitle": "Register the public identity of your business. This does not create automatic legal validation or change LGPD status to verified.",
+    "business_name_label": "Business Name (Public)",
+    "business_name_placeholder": "Ex: John's Store, Tech Agency",
+    "business_name_hint": "This name will appear on the checkout and in emails sent to your customers.",
+    "support_email_label": "Support Email",
+    "support_email_placeholder": "support@yourcompany.com",
+    "terms_text": "I declare that I am responsible for the sales made through this account and that the identity published on the checkout reflects the current business operation.",
+    "terms_notice": "The acceptance above records a self-declaration. Compliance remains pending until your own operational review.",
+    "agree_terms_error": "You must agree to the responsibility terms.",
+    "save_error": "Error saving settings.",
+    "saving": "Saving...",
+    "submit": "Register identity",
+    "footer_note": "Your name and contact details will be displayed publicly in the checkout footer for consumer security."
   },
   "active": "Active",
   "installations_label": "Installations",
@@ -506,49 +748,114 @@
       "products": "Linked Products"
     },
     "custom_domain": "Custom Domain",
-    "domains_heading": {
-      "prefix": "Custom",
-      "highlight": "domains",
-      "subtitle": "Configure external mapping"
-    },
-    "appearance": "Appearance and Settings",
+      "domains_heading": {
+        "prefix": "Custom",
+        "highlight": "domains",
+        "subtitle": "Configure external mapping"
+      },
+      "domains_loading": "Resolving DNS nodes...",
+      "domains_mapping_label": "Mapping node configuration",
+      "domains_default_gateway": "System default gateway (super-checkout.net)",
+      "domains_save_hint": "Commit changes via the global save button above",
+      "domains_status_active": "Status: active",
+      "domains_status_verified": "Node verified",
+      "domains_status_passive": "Status: passive",
+      "domains_status_core": "Using core domain",
+      "domains_no_nodes": "No nodes found",
+      "domains_configure_tab": "Configure in domains tab",
+      "domains_engine": "Network mapping engine v4.0",
+      "appearance": "Appearance and Settings",
     "appearance_desc": "Customize the visual identity of your portal.",
     "save_changes": "Save Changes",
+    "studio_title_prefix": "Appearance &",
+    "studio_title_highlight": "UX Control",
+    "studio_subtitle": "Fine-tune your academy identity",
     "visual_identity": "Visual Identity",
+    "visual_identity_subtitle": "Core portal attributes and assets",
+    "visual_identity_number": "01 // IDENTITY",
     "portal_name": "Portal Name",
     "portal_name_placeholder": "Ex: Jean's Academy",
     "slug_url": "Slug (URL)",
     "slug_desc": "Portal access address.",
+    "slug_placeholder": "academy-slug",
     "portal_logo": "Portal Logo",
     "choose_logo": "Choose Logo",
     "logo_desc": "Recommended: 200x200px (PNG)",
     "favicon": "Favicon",
+    "favicon_asset": "Favicon asset",
     "choose_favicon": "Choose Favicon",
     "favicon_desc": "Recommended: 32x32px (ICO/PNG)",
+    "no_asset": "No asset",
+    "default_asset": "Default",
     "colors": "Colors",
+    "colors_number": "05 // COLOR",
     "primary_color": "Primary Color",
     "primary_color_desc": "Used in buttons, links, and highlights.",
+    "chrome_palette_title": "Chrome palette",
+    "chrome_palette_subtitle": "Primary accent and portal branding",
+    "hex_code": "Hex code",
     "upload_error": "Upload Error",
     "upload_error_details": "Could not upload. Details: ",
     "banner": "Top Banner (Showcase)",
+    "showcase_title": "Portal showcase",
+    "showcase_subtitle": "Main banner and call-to-action",
+    "showcase_number": "02 // SHOWCASE",
     "banner_image": "Banner Image",
     "no_image": "No image",
     "change_image": "Change Image",
+    "deploy_banner_asset": "Deploy banner asset",
+    "upload_new_banner": "Upload new discovery banner",
     "banner_desc": "Recommended: 1920x600px (PNG/JPG). This image will appear at the top of the members area.",
     "banner_title": "Banner Title",
     "banner_title_placeholder": "Ex: Welcome to the Community",
     "banner_description": "Banner Description",
     "banner_description_placeholder": "Ex: Learn everything about digital marketing with our exclusive courses.",
-    "button_text": "Button Text",
-    "button_text_placeholder": "Ex: Start Now",
-    "button_link": "Button Link",
+    "cta_control": "Call to action control",
+      "button_text": "Button Text",
+      "button_text_placeholder": "Ex: Start Now",
+      "button_preview_fallback": "Action",
+      "button_link": "Button Link",
+    "button_link_deep": "Destination URL / deep link",
     "button_link_placeholder": "Ex: /course/123 or https://...",
     "menu_links": "Menu Links",
+    "menu_links_subtitle": "External references and menu mapping",
+    "menu_links_number": "03 // LINKS",
     "menu_links_desc": "Add external links that will appear in the \"Links\" dropdown menu.",
     "faq": "FAQ (Frequently Asked Questions)",
+    "faq_knowledge_title": "Knowledge base",
+    "faq_subtitle": "Frequently asked questions",
+    "faq_number": "04 // FAQ",
     "faq_desc": "Manage the questions and answers that will appear on the FAQ page.",
+    "links_manager": {
+      "add_title": "Add New Link",
+      "title_placeholder": "Name (e.g. Instagram)",
+      "url_placeholder": "URL (https://...)",
+      "add_button": "Add Link",
+      "active_label": "Active",
+      "empty": "No links registered.",
+      "icon_labels": {
+        "instagram": "Instagram",
+        "facebook": "Facebook",
+        "youtube": "YouTube",
+        "tiktok": "TikTok",
+        "whatsapp": "WhatsApp",
+        "globe": "Website",
+        "link": "Link"
+      }
+    },
+    "faq_manager": {
+      "add_title": "Add New Question",
+      "question_placeholder": "Question",
+      "answer_placeholder": "Answer",
+      "add_button": "Add FAQ",
+      "active_label": "Active",
+      "empty": "No questions registered."
+    },
     "preview": "Preview",
     "preview_desc": "Simplified view",
+    "portal_simulator": "Portal simulator",
+    "reality_sync_active": "Reality sync active",
+    "assets_optimized": "Assets optimized",
     "course_example": "Example Course",
     "success_save": "Settings saved!",
     "error_save": "Error saving.",
@@ -729,6 +1036,146 @@
     "footer": {
       "database_stable": "Database synced",
       "showing_entities": "Showing {{count}} students"
+    },
+    "modals": {
+      "add_member": {
+        "title": "Add New Member",
+        "success": "Member added successfully!",
+        "full_name": "Full Name",
+        "full_name_placeholder": "Ex: John Smith",
+        "email_label": "Email",
+        "email_placeholder": "Ex: john@email.com",
+        "grant_products": "Grant Product Access",
+        "no_products": "No products registered.",
+        "save": "Save Member",
+        "welcome_notice": "A welcome email will be sent automatically.",
+        "create_error": "Error creating member."
+      },
+      "access_logs": {
+        "title": "Access Logs: {{name}}",
+        "loading": "Loading history...",
+        "empty": "No access logs were found for this user.",
+        "date_time": "Date / Time",
+        "domain": "Domain",
+        "status": "Status",
+        "ip": "IP",
+        "allowed": "Allowed",
+        "denied": "Denied",
+        "description": "Showing the latest 50 activity records. The logs show Super Checkout activation and validation attempts on the customer's domains."
+      },
+      "send_email": {
+        "title": "Send Email to Lead",
+        "presets_title": "Quick Templates",
+        "subject": "Subject",
+        "message": "Message",
+        "subject_placeholder": "Select a template",
+        "message_placeholder": "Select an approved template",
+        "select_template_error": "Select an approved template",
+        "send_success": "Email sent successfully!",
+        "send_error": "Error sending email",
+        "cancel": "Cancel",
+        "send_now": "Send Now",
+        "presets": {
+          "welcome_label": "Welcome / Onboarding",
+          "welcome_subject": "Welcome to Super Checkout!",
+          "welcome_body": "Hello, {{name}}!\n\nWelcome to Super Checkout. We're happy to have you with us!\n\nWe noticed you just created your free account. The next step is to configure your first domain and payment gateway.\n\nNeed help getting started? Just reply to this email.\n\nBest regards,\nSuper Checkout Team",
+          "help_label": "Setup Help",
+          "help_subject": "Need a hand with the setup?",
+          "help_body": "Hello, {{name}}!\n\nI noticed that you still haven't finished setting up your domain or gateway in Super Checkout.\n\nThis step is essential so you can start selling. If you're running into any technical difficulty, our team is here to help.\n\nCan we schedule a quick conversation?\n\nBest!"
+        }
+      },
+      "details": {
+        "close": "Close",
+        "member_since": "Since {{date}}",
+        "load_error_title": "Error loading data",
+        "quick_actions": "Quick Actions",
+        "recent_activity": "Recent Activity",
+        "no_recent_activity": "No activity recorded.",
+        "granted_access": "Granted Access",
+        "grant_access": "+ Grant Access...",
+        "tabs": {
+          "overview": "Overview",
+          "products": "Products & Access",
+          "orders": "Purchase History",
+          "history": "Activity Log"
+        },
+        "summary": {
+          "last_access": "Last Access",
+          "active_products": "Active Products",
+          "never": "Never"
+        },
+        "actions": {
+          "send_password_reset": "Send Password Reset",
+          "resend_welcome_email": "Resend Welcome Email",
+          "reactivate_access": "Reactivate Access",
+          "suspend_access": "Suspend Access"
+        },
+        "table": {
+          "release_date": "Release Date",
+          "expires_at": "Expires on",
+          "id": "ID",
+          "date": "Date",
+          "gateway": "Gateway"
+        },
+        "statuses": {
+          "active": "Active",
+          "inactive": "Inactive",
+          "disabled": "Disabled"
+        },
+        "fallbacks": {
+          "unknown_product": "Unknown Product",
+          "lifetime": "Lifetime",
+          "no_products": "No products granted to this user.",
+          "no_orders": "No purchases found for this user.",
+          "no_history": "No history available."
+        },
+        "events": {
+          "login": "System Access",
+          "member_area_access_changed_to_suspended": "Member Area Access Suspended",
+          "member_area_access_changed_to_active": "Member Area Access Reactivated",
+          "member_area_access_removed": "Removed from Member Area",
+          "status_changed_to_suspended": "Account Suspended",
+          "status_changed_to_active": "Account Activated",
+          "status_changed_to_disabled": "Account Disabled",
+          "access_granted": "Access Granted",
+          "access_revoked": "Access Revoked",
+          "create": "Member Created",
+          "update": "Data Updated",
+          "delete": "Member Deleted"
+        },
+        "metadata": {
+          "by_admin": "by Admin",
+          "via_method": "via {{method}}",
+          "method_password": "Password",
+          "products_count": "Products: {{count}}",
+          "product_id": "Product ID: {{id}}",
+          "action": "Action: {{action}}",
+          "recovery_mode": "(Recovery Mode)"
+        },
+        "alerts": {
+          "grant_success": "Access granted successfully!",
+          "grant_error": "Error granting access: {{message}}",
+          "revoke_success": "Access revoked successfully!",
+          "revoke_error": "Error revoking access: {{message}}",
+          "suspend_success": "Member suspended successfully.",
+          "activate_success": "Member reactivated successfully.",
+          "password_reset_success": "Password reset email sent.",
+          "welcome_email_success": "Access email resent successfully!",
+          "action_error": "Error executing action: {{message}}",
+          "load_error": "Error loading data: {{message}}",
+          "unknown_error": "Unknown error"
+        },
+        "confirm": {
+          "suspend_title": "Suspend Member",
+          "activate_title": "Reactivate Member",
+          "grant_title": "Grant Access",
+          "revoke_title": "Revoke Access",
+          "suspend_message": "Are you sure you want to suspend this member? They will lose access immediately.",
+          "activate_message": "Do you want to reactivate this member's access?",
+          "grant_message": "Do you want to grant access to this product for this user?",
+          "revoke_message": "Do you want to revoke access to this product?"
+        }
+      }
     }
   },
   "free_user_details": {
@@ -1102,6 +1549,8 @@
   "system_updates": {
     "title": "System Updates",
     "subtitle": "Manage versions, updates and professional features.",
+    "header_description": "Installed versions, database health, and code sync via GitHub.",
+    "loading_syncing_core": "Syncing core...",
     "version": {
       "title": "Version Status"
     },
@@ -1112,7 +1561,63 @@
       "last_check": "Last check today"
     },
     "actions": {
-      "check_now": "Check now"
+      "check_now": "Check now",
+      "check_database": "Check database",
+      "checking": "Checking...",
+      "testing": "Testing..."
+    },
+    "version_card": {
+      "title": "Installed versions",
+      "system_code": "System code",
+      "database": "Database"
+    },
+    "audit_card": {
+      "title": "Database audit",
+      "run": "Audit",
+      "run_title": "Run database audit",
+      "description": "Validates essential installation tables and columns such as license, account, gateways, templates, and update logs.",
+      "validated": "Structure validated",
+      "adjustment_needed": "Adjustment needed",
+      "not_run": "Audit not run yet",
+      "not_run_desc": "Click the magnifier to check whether the database has the expected minimum structure.",
+      "compatible_schema": "Database compatible with schema v{{version}}. No critical drift found."
+    },
+    "db_status_card": {
+      "title": "Database status",
+      "update_available": "Update available",
+      "synced": "Database synced",
+      "schema_ready": "Schema v{{version}} ready",
+      "unverified_desc": "The system could not verify the real schema state. Review the audit before applying any migration.",
+      "pending_desc": "Code and database are separate stages. This button applies the approved missing migrations to Supabase for this installation.",
+      "updating": "Updating...",
+      "update_database": "Update database",
+      "copying_sql": "Copying SQL...",
+      "copy_manual_sql": "Copy manual SQL",
+      "copy_manual_sql_desc": "If the automatic executor fails, copy the approved SQL and run it manually in the Supabase SQL Editor."
+    },
+    "features_panel": {
+      "title": "Licensed features",
+      "subtitle": "Active features in this installation",
+      "license_synced": "License synced",
+      "loading": "Loading features...",
+      "active": "Active",
+      "blocked": "Blocked"
+    },
+    "history": {
+      "title": "Update history",
+      "subtitle": "Code syncs, commits, and backups",
+      "empty": "No sync recorded",
+      "empty_desc": "History records synchronizations performed after fix v1.1.7. Run Sync Code again to create the first local record.",
+      "status_success": "Success",
+      "status_failure": "Failure",
+      "action_database": "Database",
+      "action_rollback": "Rollback",
+      "action_code": "Code",
+      "code_backup": "Code backup: {{branch}}",
+      "verification_logged": "Recorded verification",
+      "commit": "Commit",
+      "files": "Files",
+      "manual": "Manual"
     },
     "features": {
       "title": "Modules & Features",
@@ -1137,8 +1642,19 @@
       "info_new": "Connect your GitHub to receive automatic updates and system fixes.",
       "install_app": "Install App on GitHub",
       "info": "Info",
-      "save": "Save Configuração",
+      "save": "Save configuration",
       "test": "Test"
+    },
+    "github_widget": {
+      "title": "Update via GitHub",
+      "connected": "GitHub connected",
+      "not_connected": "GitHub not connected",
+      "sync_code": "Sync code",
+      "sync_code_desc": "Sync Code only changes repository files. The database only changes when you confirm Update Database.",
+      "connect_desc": "Connect the GitHub App to this installation repository to receive code updates.",
+      "connect_cta": "Connect GitHub App",
+      "technical_settings": "Technical settings",
+      "repository_name": "Repository name"
     },
     "health": {
       "title": "Schema Integrity",
@@ -1148,7 +1664,12 @@
       "status_drift": "Drift Detected ({{count}})",
       "drift_table_missing": "Missing table: {{name}}",
       "drift_column_missing": "Missing column: {{column}} in table {{table}}",
-      "last_check": "Last check"
+      "last_check": "Last check",
+      "server_configuration_error": "Server-side audit failed due to configuration.",
+      "migration_pending": "Approved migrations are pending.",
+      "migration_state_unverified": "Could not verify the real schema state.",
+      "version_mismatch": "Recorded version diverges from schema: {{current}} vs {{expected}}",
+      "verify_schema": "Check {{name}}"
     },
     "snapshots": {
       "title": "Snapshot History",
@@ -1168,6 +1689,48 @@
       "title": "Automatic Backup",
       "description": "The system will create a database and code snapshot before applying any update via GitHub.",
       "active_protection": "Active Protection"
+    },
+    "backup_shield": {
+      "title": "Operational safety",
+      "description": "Before syncing changed files, the system creates a code backup branch. Database changes continue through separate migrations and audits."
+    },
+    "dialogs": {
+      "update_db_title": "Update database",
+      "update_db_message": "This only applies the approved missing migrations for this system version in Supabase. Sync Code and Vercel deploy remain separate stages.",
+      "apply_schema": "Apply schema",
+      "sync_code_title": "Sync code",
+      "sync_code_message": "This will copy the official files to this installation repository. When changes exist, a backup branch will be created before the commit. After that, wait for the Vercel deploy.",
+      "confirm_sync": "Confirm sync",
+      "rollback_title": "Rollback code",
+      "rollback_message": "Are you sure you want to revert the code to this backup? This action creates a new repository state and should be followed by a Vercel deploy.",
+      "rollback_warning_title": "Rollback warning",
+      "rollback_warning_message": "Only code files will be reverted. Structural database changes must be handled through migrations or separately validated SQL.",
+      "execute_rollback": "Execute rollback"
+    },
+    "toasts": {
+      "finishing_github_integration": "Finishing GitHub integration...",
+      "github_connected": "GitHub connected successfully!",
+      "read_state_error": "Could not read the system state.",
+      "db_updates_available": "Database updates (up to v{{version}}) available.",
+      "schema_unverified_before_migration": "Could not verify the real schema state. Run the audit and review the installation before applying migrations.",
+      "db_synced": "Database synchronized with schema v{{version}}.",
+      "sync_code_no_db_change": "Sync Code does not change the database. Use Update Database separately.",
+      "files_synced": "{{count}} files synchronized. Wait for the Vercel deploy and reload the page.",
+      "no_new_files_found": "No new files found in the official repository.",
+      "code_synced_use_update_db": "The code is already synchronized. Use Update Database to apply the pending schema.",
+      "history_not_recorded": "Synchronization completed, but local history could not be recorded.",
+      "sync_failed": "Synchronization failed.",
+      "rollback_success": "System rolled back successfully!",
+      "rollback_failed": "Rollback failed.",
+      "migration_failed_with_version": "Migration v{{version}}: {{message}}",
+      "apply_schema_failed": "Failed to apply the schema.",
+      "db_updated_versions": "Database updated: {{versions}}.",
+      "db_already_schema": "Database is already on schema v{{version}}.",
+      "sql_copied": "Official SQL copied: {{versions}}.",
+      "copy_sql_failed": "Failed to copy official SQL.",
+      "audit_valid": "Main database structure validated!",
+      "audit_inconsistencies": "Database inconsistencies were found.",
+      "audit_failed": "Audit failed."
     }
   },
   "content_editor": {
@@ -1811,6 +2374,7 @@
     "title": "Title",
     "subtitle": "Subtitle",
     "new_integration": "New integração",
+    "demo_banner": "Demo webhooks dispatch for real from this session and this browser. All payloads are marked with",
     "tabs": {
       "outgoing": "Outgoing",
       "incoming": "Incoming",
@@ -1821,7 +2385,9 @@
     "start_integration": "Start Integration",
     "status": {
       "active": "Active",
-      "paused": "Paused"
+      "paused": "Paused",
+      "ok_short": "OK",
+      "error_short": "ERR"
     },
     "no_data": "No Data",
     "recent_log": "Recent Log",
@@ -1834,13 +2400,114 @@
     "run_curl": "Run Curl",
     "events": "Events",
     "configure_webhook": "Configure webhook",
+    "load_error": "Failed to load webhook settings.",
+    "save_success_create": "Webhook created successfully.",
+    "save_success_update": "Webhook updated successfully.",
+    "save_error": "Error saving webhook.",
+    "confirm_delete": "Are you sure you want to delete this webhook?",
+    "delete_success": "Webhook deleted.",
+    "delete_error": "Error deleting webhook.",
+    "demo_success": "Demo webhook fired successfully.",
+    "demo_partial_success": "Demo webhook was sent, but the endpoint did not confirm success.",
+    "test_success": "Webhook fired successfully.",
+    "test_error": "Error connecting to the endpoint.",
+    "testing": "Testing...",
+    "copied_clipboard": "Copied to clipboard.",
+    "validation": {
+      "name_url": "Fill in the name and endpoint URL.",
+      "events_required": "Select at least one event."
+    },
     "form": {
       "name": "Name",
       "name_placeholder": "Name Placeholder",
+      "description": "Short description",
+      "description_placeholder": "Ex: Sends demo sales to n8n",
       "endpoint_url": "Endpoint Url",
+      "endpoint_placeholder": "https://api.company.com/webhook",
+      "method": "Method",
+      "secret_optional": "Optional signature",
+      "secret_placeholder": "whsec_demo",
+      "active": "Active",
+      "paused": "Paused",
+      "saving": "Saving...",
       "save": "Save webhook"
     },
     "inspect_trace": "Inspect Trace"
+  },
+  "upgrade_intents_page": {
+    "registry": "Upgrade intent registry",
+    "title": "Upgrade intents",
+    "refresh": "Refresh",
+    "load_error": "Failed to load upgrade intents.",
+    "search_placeholder": "Search by token, email, order, license, or plan",
+    "loading": "Loading intents...",
+    "empty": "No intent found.",
+    "filters": {
+      "all": "All"
+    },
+    "stats": {
+      "total": "Total",
+      "open": "Open",
+      "consumed": "Consumed",
+      "attention": "Attention",
+      "expired": "Expired"
+    },
+    "status": {
+      "attention": "Attention",
+      "created": "Created",
+      "opened": "Opened",
+      "paid": "Paid",
+      "consumed": "Consumed",
+      "expired": "Expired",
+      "canceled": "Canceled",
+      "failed": "Failed"
+    },
+    "table": {
+      "status": "Status",
+      "token": "Token",
+      "plan": "Plan",
+      "payer": "Payer",
+      "order": "Order",
+      "source": "Source",
+      "created": "Created",
+      "expires": "Expires",
+      "actions": "Actions"
+    },
+    "labels": {
+      "token": "Token",
+      "order": "Order",
+      "link": "Link",
+      "reconciliation_packet": "Reconciliation packet"
+    },
+    "actions": {
+      "copy_checkout_link": "Copy checkout link",
+      "copy_packet": "Copy reconciliation packet",
+      "open_link": "Open link"
+    },
+    "toast": {
+      "copied": "{{label}} copied."
+    }
+  },
+  "system_webhooks": {
+    "title": "System webhooks",
+    "subtitle": "Global configuration for administrative events (Owner).",
+    "security_title": "High-security area",
+    "security_line_one": "The System Webhook receives",
+    "security_emphasis": "ALL",
+    "security_line_two": "platform data, including license keys and installation tokens.",
+    "security_warning": "Never configure this to a public URL or to unknown third parties.",
+    "destination_label": "Destination URL (system scope)",
+    "edit": "Edit",
+    "view": "View",
+    "configured_server": "Configured on server",
+    "save": "Save changes",
+    "save_requires_confirmation": "(requires confirmation)",
+    "events_title": "Dispatched events",
+    "alert_disabled": "For security reasons, changing System Webhooks via the panel is temporarily disabled. Use the CLI or contact support to change the SYSTEM_WEBHOOK_URL variable.",
+    "events": {
+      "license_created": "New license generated (Admin or Sale)",
+      "coming_soon": "Coming soon"
+    }
   },
   "system_licenses": {
     "title_main": "Title Main",
@@ -1925,6 +2592,166 @@
       "title_highlight": "Endpoints",
       "active_sync_loop": "Active synchronization loop",
       "cluster_size": "Cluster size:"
+    }
+  },
+  "privacy_center": {
+    "title": "Privacy",
+    "badge": "Operational LGPD",
+    "subtitle": "Register data subject rights, export consolidated data, and run retention with an auditable trail.",
+    "refresh_panel": "Refresh panel",
+    "not_informed": "not informed",
+    "no_additional_context": "no additional context",
+    "yes": "Yes",
+    "no": "No",
+    "summary": {
+      "open_requests": "Open requests",
+      "total_records": "Total recorded",
+      "active_policies": "Active policies",
+      "last_cleanup": "Last cleanup"
+    },
+    "subject_rights": {
+      "title": "Data subject rights",
+      "subtitle": "Internal record, export, and follow-up"
+    },
+    "form": {
+      "request_type": "Type",
+      "subject_email": "Data subject email",
+      "subject_name": "Name",
+      "subject_phone": "Phone",
+      "subject_document": "Document",
+      "internal_notes": "Internal notes"
+    },
+    "placeholders": {
+      "subject_email": "customer@example.com",
+      "subject_name": "Data subject name",
+      "optional": "Optional",
+      "internal_notes": "Context, contact channel, and evidence received.",
+      "resolution_notes": "Document the decision, response sent, and evidence."
+    },
+    "actions": {
+      "register_request": "Register request",
+      "export_subject": "Export subject",
+      "run_global_cleanup": "Run global cleanup",
+      "clean": "Clean"
+    },
+    "scope_warning": "The panel could not resolve a single account to link new requests. Review the session or the installation configuration.",
+    "queue": {
+      "title": "Service queue",
+      "subtitle": "Recent data subject requests",
+      "created_at": "Created at {{date}}{{name}}",
+      "phone_label": "Phone:",
+      "document_label": "Document:",
+      "notes_label": "Notes:",
+      "current_status": "Current status: {{status}}",
+      "fulfilled_at": " • fulfilled at {{date}}",
+      "empty": "No requests registered in this installation."
+    },
+    "retention": {
+      "title": "Retention and purge",
+      "subtitle": "Operational policies with manual execution and server-side logging",
+      "default_policy_notes": "No operational notes.",
+      "days_label": "Days",
+      "active_label": "Active",
+      "notes_label": "Notes"
+    },
+    "history": {
+      "title": "Recent history",
+      "cutoff": " • cutoff {{date}}",
+      "rows_affected": "{{count}} row(s)",
+      "empty": "No cleanup recorded yet."
+    },
+    "request_types": {
+      "access": "Access",
+      "correction": "Correction",
+      "deletion": "Deletion",
+      "anonymization": "Anonymization",
+      "objection": "Objection",
+      "portability": "Portability",
+      "revocation": "Revocation"
+    },
+    "statuses": {
+      "open": "Open",
+      "in_review": "In review",
+      "fulfilled": "Fulfilled",
+      "rejected": "Rejected"
+    },
+    "toasts": {
+      "load_error": "Failed to load the privacy center.",
+      "request_created": "Request registered.",
+      "request_create_error": "Could not register the request.",
+      "subject_email_required": "Enter the data subject email to export.",
+      "export_success": "Export completed.",
+      "export_error": "Could not export the data subject data.",
+      "request_updated": "Request updated.",
+      "request_update_error": "Failed to update the request.",
+      "policy_updated": "Policy {{table}} updated.",
+      "policy_update_error": "Failed to save the retention policy.",
+      "cleanup_success_table": "Cleanup executed on {{table}}. {{count}} row(s) affected.",
+      "cleanup_success_all": "Cleanup executed. {{count}} row(s) affected.",
+      "cleanup_error": "Failed to execute cleanup."
+    }
+  },
+  "partner_dashboard": {
+    "title": "Partner Hub",
+    "subtitle": "Technical management of installations and license control.",
+    "central_online": "Central online",
+    "billing_and_commissions": "Billing and commissions",
+    "total_referrals": "Total referrals",
+    "active_leads": "Active leads",
+    "active_installations": "Active installations",
+    "systems": "Systems",
+    "your_referral_link": "Your referral link",
+    "copy_access": "Copy access",
+    "my_leads": "My leads",
+    "referral_tracking": "Referral tracking",
+    "leads_count": "{{count}} leads",
+    "person_contact": "Person / contact",
+    "date": "Date",
+    "operational_action": "Operational action",
+    "empty_referrals": "No referrals registered. Share your link!",
+    "no_name": "No name",
+    "registered": "Registered",
+    "install_now": "Install now",
+    "completed": "Completed",
+    "installed_systems": "Installed systems",
+    "active_domains_and_licenses": "Active domains and licenses",
+    "domain_client": "Domain / client",
+    "expires_in": "Expires in",
+    "control": "Control",
+    "no_system_installed": "No system installed.",
+    "lifetime_batch": "Lifetime batch",
+    "activate_features": "Activate features",
+    "brand_protection_title": "Brand protection and support",
+    "brand_protection_description": "In case of support abandonment or poor technical conduct with referred clients, the partner license may be suspended or revoked by the platform after review.",
+    "modules_management_title": "Module management: {{name}}",
+    "modules_management_description": "As a master partner, you have the power to unlock premium modules for this client instantly.",
+    "syncing_central": "Syncing central...",
+    "finish_management": "Finish management",
+    "installation_assistant": "Installation assistant",
+    "searching": "Searching...",
+    "confirm": "Confirm",
+    "unknown_user": "Unidentified user",
+    "default_client_name": "Client",
+    "features": {
+      "unlimited_domains": "Unlimited domains",
+      "partner_panel": "Partner panel",
+      "crm_leads": "Lead CRM"
+    },
+    "install_modal": {
+      "description_before": "When you confirm, the system will sync with the central database to locate the",
+      "free_license": "free license",
+      "description_after": "for this client.",
+      "remote_installation_protocol_active": "Remote installation protocol active"
+    },
+    "toasts": {
+      "load_error": "Error loading partner data.",
+      "link_copied": "Link copied to the clipboard!",
+      "features_load_error": "Error loading features: {{message}}",
+      "feature_updated": "Feature updated in the central database!",
+      "feature_update_error": "Error updating: {{message}}",
+      "existing_license_found": "Existing license found! Generating access...",
+      "no_active_license_for_lead": "No active license found for this lead. Ask the client to complete the signup in the Portal first.",
+      "generic_error": "Error: {{message}}"
     }
   }
 }

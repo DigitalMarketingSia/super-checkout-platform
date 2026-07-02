@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { centralSupabase as supabase } from '../../../services/centralClient';
 import { Modal } from '../../ui/Modal';
 import { Clock, Globe, Shield, ShieldAlert, AlertCircle } from 'lucide-react';
@@ -19,7 +20,12 @@ interface AccessLogsModalProps {
     userName: string;
 }
 
+const resolveNumberLocale = (language: string) => (
+    language.startsWith('es') ? 'es-ES' : language.startsWith('en') ? 'en-US' : 'pt-BR'
+);
+
 export const AccessLogsModal: React.FC<AccessLogsModalProps> = ({ isOpen, onClose, userId, userName }) => {
+    const { t, i18n } = useTranslation('admin');
     const [logs, setLogs] = useState<AccessLog[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -33,7 +39,6 @@ export const AccessLogsModal: React.FC<AccessLogsModalProps> = ({ isOpen, onClos
         try {
             setLoading(true);
 
-            // First, get the license key for this user
             const { data: license } = await supabase
                 .from('licenses')
                 .select('key')
@@ -45,7 +50,6 @@ export const AccessLogsModal: React.FC<AccessLogsModalProps> = ({ isOpen, onClos
                 return;
             }
 
-            // Fetch logs for this license
             const { data, error } = await supabase
                 .from('access_logs')
                 .select('*')
@@ -62,32 +66,36 @@ export const AccessLogsModal: React.FC<AccessLogsModalProps> = ({ isOpen, onClos
         }
     };
 
+    const numberLocale = resolveNumberLocale(i18n.language);
+    const dateFormatter = new Intl.DateTimeFormat(numberLocale, { dateStyle: 'short' });
+    const timeFormatter = new Intl.DateTimeFormat(numberLocale, { timeStyle: 'short' });
+
     return (
         <Modal
             isOpen={isOpen}
             onClose={onClose}
-            title={`Logs de Acesso: ${userName}`}
+            title={t('members.modals.access_logs.title', { name: userName })}
             className="max-w-2xl"
         >
             <div className="space-y-4">
                 {loading ? (
                     <div className="py-12 text-center text-gray-500">
-                        Carregando histórico...
+                        {t('members.modals.access_logs.loading')}
                     </div>
                 ) : logs.length === 0 ? (
                     <div className="py-12 text-center text-gray-500 flex flex-col items-center gap-3">
                         <AlertCircle className="w-8 h-8 opacity-20" />
-                        <p>Nenhum log de acesso encontrado para este usuário.</p>
+                        <p>{t('members.modals.access_logs.empty')}</p>
                     </div>
                 ) : (
                     <div className="overflow-hidden border border-white/5 rounded-xl bg-black/20">
                         <table className="w-full text-left text-sm">
                             <thead className="bg-white/5 text-gray-400 text-xs uppercase font-medium">
                                 <tr>
-                                    <th className="px-4 py-3 font-semibold">Data / Hora</th>
-                                    <th className="px-4 py-3 font-semibold">Domínio</th>
-                                    <th className="px-4 py-3 font-semibold">Status</th>
-                                    <th className="px-4 py-3 font-semibold">IP</th>
+                                    <th className="px-4 py-3 font-semibold">{t('members.modals.access_logs.date_time')}</th>
+                                    <th className="px-4 py-3 font-semibold">{t('members.modals.access_logs.domain')}</th>
+                                    <th className="px-4 py-3 font-semibold">{t('members.modals.access_logs.status')}</th>
+                                    <th className="px-4 py-3 font-semibold">{t('members.modals.access_logs.ip')}</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-white/5">
@@ -95,8 +103,8 @@ export const AccessLogsModal: React.FC<AccessLogsModalProps> = ({ isOpen, onClos
                                     <tr key={log.id} className="hover:bg-white/[0.02] transition-colors">
                                         <td className="px-4 py-3 whitespace-nowrap text-gray-300">
                                             <div className="flex flex-col">
-                                                <span>{new Date(log.created_at).toLocaleDateString()}</span>
-                                                <span className="text-[10px] opacity-50">{new Date(log.created_at).toLocaleTimeString()}</span>
+                                                <span>{dateFormatter.format(new Date(log.created_at))}</span>
+                                                <span className="text-[10px] opacity-50">{timeFormatter.format(new Date(log.created_at))}</span>
                                             </div>
                                         </td>
                                         <td className="px-4 py-3">
@@ -108,7 +116,7 @@ export const AccessLogsModal: React.FC<AccessLogsModalProps> = ({ isOpen, onClos
                                         <td className="px-4 py-3">
                                             <div className={`flex items-center gap-1.5 font-medium ${log.granted ? 'text-green-400' : 'text-red-400'}`}>
                                                 {log.granted ? <Shield className="w-3.5 h-3.5" /> : <ShieldAlert className="w-3.5 h-3.5" />}
-                                                {log.granted ? 'Permitido' : 'Negado'}
+                                                {log.granted ? t('members.modals.access_logs.allowed') : t('members.modals.access_logs.denied')}
                                             </div>
                                             {log.message && (
                                                 <p className="text-[10px] opacity-60 mt-0.5 truncate max-w-[150px]" title={log.message}>
@@ -129,7 +137,7 @@ export const AccessLogsModal: React.FC<AccessLogsModalProps> = ({ isOpen, onClos
                 <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 flex gap-3">
                     <Clock className="w-5 h-5 text-blue-400 shrink-0" />
                     <p className="text-xs text-blue-200/80 leading-relaxed">
-                        Exibindo os últimos 50 registros de atividade. Os logs mostram tentativas de ativação e validação do Super Checkout nos domínios do cliente.
+                        {t('members.modals.access_logs.description')}
                     </p>
                 </div>
             </div>

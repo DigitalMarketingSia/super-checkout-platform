@@ -87,7 +87,7 @@ export const Webhooks = () => {
       setLogs(nextLogs);
     } catch (error) {
       console.error('Error fetching webhooks:', error);
-      toast.error('Falha ao carregar configuracoes de webhook.');
+      toast.error(t('webhooks.load_error', 'Falha ao carregar configuracoes de webhook.'));
     } finally {
       setLoading(false);
     }
@@ -139,12 +139,12 @@ export const Webhooks = () => {
     event.preventDefault();
 
     if (!formData.name.trim() || !formData.url.trim()) {
-      toast.error('Preencha o nome e a URL do endpoint.');
+      toast.error(t('webhooks.validation.name_url', 'Preencha o nome e a URL do endpoint.'));
       return;
     }
 
     if (formData.events.length === 0) {
-      toast.error('Selecione pelo menos um evento.');
+      toast.error(t('webhooks.validation.events_required', 'Selecione pelo menos um evento.'));
       return;
     }
 
@@ -167,28 +167,30 @@ export const Webhooks = () => {
     setSaving(true);
     try {
       await storage.saveWebhooks([payload]);
-      toast.success(existing ? 'Webhook atualizado com sucesso.' : 'Webhook criado com sucesso.');
+      toast.success(existing
+        ? t('webhooks.save_success_update', 'Webhook atualizado com sucesso.')
+        : t('webhooks.save_success_create', 'Webhook criado com sucesso.'));
       setIsModalOpen(false);
       resetForm();
       await fetchData();
     } catch (error) {
       console.error('Error saving webhook:', error);
-      toast.error('Erro ao salvar webhook.');
+      toast.error(t('webhooks.save_error', 'Erro ao salvar webhook.'));
     } finally {
       setSaving(false);
     }
   };
 
   const handleDeleteClick = async (id: string) => {
-    if (!confirm('Tem certeza que deseja excluir este webhook?')) return;
+    if (!confirm(t('webhooks.confirm_delete', 'Tem certeza que deseja excluir este webhook?'))) return;
 
     try {
       await storage.deleteWebhook(id);
-      toast.success('Webhook excluido.');
+      toast.success(t('webhooks.delete_success', 'Webhook excluido.'));
       await fetchData();
     } catch (error) {
       console.error('Error deleting webhook:', error);
-      toast.error('Erro ao excluir webhook.');
+      toast.error(t('webhooks.delete_error', 'Erro ao excluir webhook.'));
     }
   };
 
@@ -209,8 +211,8 @@ export const Webhooks = () => {
         }
 
         toast.success(result.delivered > 0
-          ? 'Webhook demo disparado com sucesso.'
-          : 'Webhook demo enviado, mas o endpoint nao confirmou sucesso.');
+          ? t('webhooks.demo_success', 'Webhook demo disparado com sucesso.')
+          : t('webhooks.demo_partial_success', 'Webhook demo enviado, mas o endpoint nao confirmou sucesso.'));
         await fetchData();
         return;
       }
@@ -234,10 +236,10 @@ export const Webhooks = () => {
         throw new Error(`HTTP ${response.status}`);
       }
 
-      toast.success('Webhook disparado com sucesso.');
+      toast.success(t('webhooks.test_success', 'Webhook disparado com sucesso.'));
     } catch (error) {
       console.error('Error testing webhook:', error);
-      toast.error('Erro ao conectar com o endpoint.');
+      toast.error(t('webhooks.test_error', 'Erro ao conectar com o endpoint.'));
     } finally {
       setTestingId(null);
     }
@@ -245,7 +247,7 @@ export const Webhooks = () => {
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
-    toast.success('Copiado para a area de transferencia.');
+    toast.success(t('webhooks.copied_clipboard', 'Copiado para a area de transferencia.'));
   };
 
   const exportCSV = () => {
@@ -308,7 +310,7 @@ export const Webhooks = () => {
 
         {demoWebhookMode && (
           <div className="rounded-[2rem] border border-primary/20 bg-primary/10 px-6 py-5 text-sm text-primary-light">
-            Os webhooks do demo disparam de verdade a partir desta sessao e deste navegador. Todos os payloads saem marcados com <code className="font-mono">demo: true</code>.
+            {t('webhooks.demo_banner', 'Os webhooks do demo disparam de verdade a partir desta sessao e deste navegador. Todos os payloads saem marcados com')} <code className="font-mono">demo: true</code>.
           </div>
         )}
       </div>
@@ -397,7 +399,7 @@ export const Webhooks = () => {
                               : 'bg-red-500/10 text-red-400 border-red-500/20'
                               }`}
                             >
-                              {webhook.last_status} {webhook.last_status === 200 ? 'OK' : 'ERR'}
+                              {webhook.last_status} {webhook.last_status === 200 ? t('webhooks.status.ok_short', 'OK') : t('webhooks.status.error_short', 'ERR')}
                             </div>
                           ) : (
                             <p className="text-gray-700 uppercase tracking-tighter text-xs">{t('webhooks.no_data', 'Sem dados')}</p>
@@ -413,7 +415,7 @@ export const Webhooks = () => {
                             disabled={testingId === webhook.id}
                           >
                             <Play className="w-4 h-4 text-primary mr-2" />
-                            {testingId === webhook.id ? 'Testando...' : t('common.test', 'Testar')}
+                            {testingId === webhook.id ? t('webhooks.testing', 'Testando...') : t('common.test', 'Testar')}
                           </Button>
                           <button onClick={() => openEdit(webhook)} className="w-12 h-12 flex items-center justify-center bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 border border-white/5 transition-all">
                             <Settings className="w-5 h-5" />
@@ -547,13 +549,13 @@ export const Webhooks = () => {
             </div>
 
             <div>
-              <label className="block text-[10px] font-black uppercase text-gray-500 mb-2">Descricao curta</label>
+              <label className="block text-[10px] font-black uppercase text-gray-500 mb-2">{t('webhooks.form.description', 'Descricao curta')}</label>
               <input
                 type="text"
                 value={formData.description}
                 onChange={(event) => setFormData({ ...formData, description: event.target.value })}
                 className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-primary outline-none transition-all"
-                placeholder="Ex: Envia vendas demo para o n8n"
+                placeholder={t('webhooks.form.description_placeholder', 'Ex: Envia vendas demo para o n8n')}
               />
             </div>
 
@@ -564,13 +566,13 @@ export const Webhooks = () => {
                 value={formData.url}
                 onChange={(event) => setFormData({ ...formData, url: event.target.value })}
                 className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-primary outline-none transition-all"
-                placeholder="https://api.empresa.com/webhook"
+                placeholder={t('webhooks.form.endpoint_placeholder', 'https://api.empresa.com/webhook')}
               />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-[10px] font-black uppercase text-gray-500 mb-2">Metodo</label>
+                <label className="block text-[10px] font-black uppercase text-gray-500 mb-2">{t('webhooks.form.method', 'Metodo')}</label>
                 <select
                   value={formData.method}
                   onChange={(event) => setFormData({ ...formData, method: event.target.value as WebhookConfig['method'] })}
@@ -584,26 +586,26 @@ export const Webhooks = () => {
               </div>
 
               <div>
-                <label className="block text-[10px] font-black uppercase text-gray-500 mb-2">Assinatura opcional</label>
+                <label className="block text-[10px] font-black uppercase text-gray-500 mb-2">{t('webhooks.form.secret_optional', 'Assinatura opcional')}</label>
                 <input
                   type="text"
                   value={formData.secret}
                   onChange={(event) => setFormData({ ...formData, secret: event.target.value })}
                   className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-primary outline-none transition-all"
-                  placeholder="whsec_demo"
+                  placeholder={t('webhooks.form.secret_placeholder', 'whsec_demo')}
                 />
               </div>
             </div>
 
             <div>
               <div className="flex items-center justify-between mb-3">
-                <label className="block text-[10px] font-black uppercase text-gray-500">Eventos</label>
+                <label className="block text-[10px] font-black uppercase text-gray-500">{t('webhooks.events', 'Eventos')}</label>
                 <button
                   type="button"
                   onClick={() => setFormData({ ...formData, active: !formData.active })}
                   className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] transition-colors ${formData.active ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20' : 'bg-white/5 text-gray-400 border border-white/10'}`}
                 >
-                  {formData.active ? 'Ativo' : 'Pausado'}
+                  {formData.active ? t('webhooks.form.active', 'Ativo') : t('webhooks.form.paused', 'Pausado')}
                 </button>
               </div>
               <div className="grid grid-cols-1 gap-3">
@@ -632,7 +634,7 @@ export const Webhooks = () => {
                 {t('common.cancel', 'Cancelar')}
               </Button>
               <Button type="submit" disabled={saving}>
-                {saving ? 'Salvando...' : t('webhooks.form.save', 'Salvar webhook')}
+                {saving ? t('webhooks.form.saving', 'Salvando...') : t('webhooks.form.save', 'Salvar webhook')}
               </Button>
             </div>
           </form>

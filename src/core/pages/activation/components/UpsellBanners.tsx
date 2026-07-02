@@ -9,7 +9,6 @@ import { matchesUpgradePlanSlug, normalizeUpgradePlanSlug } from '../../../servi
 interface UpsellBannersProps {
     license: License;
     products: Product[];
-    onNavigate: (tab: string) => void;
     showPartnerOpportunity: boolean;
 }
 
@@ -90,10 +89,10 @@ const DynamicBanner: React.FC<{
                             className={`w-full sm:w-auto px-10 py-5 ${btnClass} text-white font-black text-lg rounded-2xl border-none shadow-2xl flex items-center justify-center gap-4 transform transition-all active:scale-95 cursor-pointer no-underline italic tracking-tighter whitespace-nowrap`}
                         >
                              {isOpeningCheckout ? <Loader2 className="w-6 h-6 animate-spin" /> : isPrimary ? <Zap className="w-6 h-6 fill-current" /> : <Users className="w-6 h-6" />}
-                             {isOpeningCheckout ? 'Preparando...' : isPrimary ? t('common:release_now') : t('opportunity.activate_partner')}
+                             {isOpeningCheckout ? t('banners.preparing') : isPrimary ? t('common:release_now') : t('opportunity.activate_partner')}
                          </button>
                         <p className="text-[11px] font-black uppercase tracking-[0.28em] text-gray-500 text-center md:text-right max-w-[200px] leading-tight">
-                            upgrade aplicado automaticamente nesta conta
+                            {t('banners.auto_apply_note')}
                         </p>
                     </div>
                 </div>

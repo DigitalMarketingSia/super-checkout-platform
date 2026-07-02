@@ -1,5 +1,5 @@
-
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Loader2, AlertCircle, RefreshCw, Key } from 'lucide-react';
 import { getEnv } from '../utils/env';
 
@@ -8,16 +8,15 @@ interface ConfigLoaderProps {
 }
 
 export const ConfigLoader: React.FC<ConfigLoaderProps> = ({ onConfigLoaded }) => {
+    const { t } = useTranslation('common');
     const [status, setStatus] = useState<'checking' | 'found' | 'error'>('checking');
     const [errorMsg, setErrorMsg] = useState('');
-    // State for manual recovery
     const [manualLicense, setManualLicense] = useState('');
     const [showRecovery, setShowRecovery] = useState(false);
 
     useEffect(() => {
         const fetchConfig = async () => {
             try {
-                // Check for environment variables or localStorage via unified helper
                 const envUrl = getEnv('VITE_SUPABASE_URL');
                 const envAnon = getEnv('VITE_SUPABASE_ANON_KEY');
                 const envLicense = getEnv('VITE_LICENSE_KEY');
@@ -34,16 +33,13 @@ export const ConfigLoader: React.FC<ConfigLoaderProps> = ({ onConfigLoaded }) =>
                         }
                         setStatus('found');
                         return;
-                    } else {
-                        // Environment has Supabase config but NO LICENSE.
-                        // We must trigger Recovery Mode to ask for the license,
-                        // DO NOT attempt to fetch /api/config locally as it will crash.
-                        console.warn('[ConfigLoader] Missing License Key in Env. Enabling Manual Recovery.');
-                        setShowRecovery(true);
-                        setStatus('error');
-                        setErrorMsg('A licença não foi encontrada nas variáveis de ambiente.');
-                        return;
                     }
+
+                    console.warn('[ConfigLoader] Missing License Key in Env. Enabling Manual Recovery.');
+                    setShowRecovery(true);
+                    setStatus('error');
+                    setErrorMsg('');
+                    return;
                 }
 
                 if (shouldRefreshLegacyAnon) {
@@ -60,42 +56,38 @@ export const ConfigLoader: React.FC<ConfigLoaderProps> = ({ onConfigLoaded }) =>
 
                 const data = await res.json();
 
-                if (data.url && data.anon) {
-                    const serverReturnedLegacyAnon = typeof data.anon === 'string' && data.anon.startsWith('eyJ');
-                    // Save to localStorage so supabase.ts can pick it up on reload
-                    localStorage.setItem('installer_supabase_url', data.url);
-                    localStorage.setItem('installer_supabase_anon_key', data.anon);
-
-                    if (data.license) {
-                        localStorage.setItem('installer_license_key', data.license);
-                        if (serverReturnedLegacyAnon) {
-                            sessionStorage.setItem('config_legacy_anon_refresh_attempted', 'true');
-                        } else {
-                            sessionStorage.removeItem('config_legacy_anon_refresh_attempted');
-                        }
-                        console.log('[ConfigLoader] Config secured. Reloading...');
-                        window.location.reload();
-                    } else {
-                        // CRITICAL FIX: Server has config but NO LICENSE.
-                        // Do NOT reload, or we loop forever.
-                        // Enable Recovery Mode.
-                        console.warn('[ConfigLoader] Missing License Key from Server. Enabling Manual Recovery.');
-                        setShowRecovery(true);
-                        setStatus('error');
-                        setErrorMsg('A licença não foi encontrada nas variáveis de ambiente.');
-                    }
-                } else {
+                if (!data.url || !data.anon) {
                     throw new Error('Invalid config response');
                 }
 
+                const serverReturnedLegacyAnon = typeof data.anon === 'string' && data.anon.startsWith('eyJ');
+                localStorage.setItem('installer_supabase_url', data.url);
+                localStorage.setItem('installer_supabase_anon_key', data.anon);
+
+                if (data.license) {
+                    localStorage.setItem('installer_license_key', data.license);
+                    if (serverReturnedLegacyAnon) {
+                        sessionStorage.setItem('config_legacy_anon_refresh_attempted', 'true');
+                    } else {
+                        sessionStorage.removeItem('config_legacy_anon_refresh_attempted');
+                    }
+                    console.log('[ConfigLoader] Config secured. Reloading...');
+                    window.location.reload();
+                    return;
+                }
+
+                console.warn('[ConfigLoader] Missing License Key from Server. Enabling Manual Recovery.');
+                setShowRecovery(true);
+                setStatus('error');
+                setErrorMsg('');
             } catch (err: any) {
                 console.error('[ConfigLoader] Failed to fetch config:', err);
                 setStatus('error');
-                setErrorMsg(err.message || 'Unknown error');
+                setErrorMsg(err?.message || '');
             }
         };
 
-        fetchConfig();
+        void fetchConfig();
     }, [onConfigLoaded]);
 
     const handleManualRecovery = () => {
@@ -115,32 +107,32 @@ export const ConfigLoader: React.FC<ConfigLoaderProps> = ({ onConfigLoaded }) =>
                     </div>
 
                     <h1 className="text-2xl font-bold text-white mb-2">
-                        {isRecoveryMode ? 'Recuperação de Acesso' : 'Erro de Configuração'}
+                        {isRecoveryMode ? t('config_loader_recovery_title') : t('config_loader_error_title')}
                     </h1>
 
                     <p className="text-gray-400 mb-6">
                         {isRecoveryMode
-                            ? 'A chave da licença não foi encontrada. Insira sua chave para restaurar o acesso.'
-                            : 'Não foi possível carregar as configurações do sistema.'}
+                            ? t('config_loader_recovery_description')
+                            : t('config_loader_error_description')}
                     </p>
 
                     {isRecoveryMode ? (
                         <div className="mb-6 text-left">
-                            <label className="text-xs text-gray-500 uppercase font-bold mb-2 block">Chave da Licença</label>
+                            <label className="text-xs text-gray-500 uppercase font-bold mb-2 block">{t('config_loader_license_label')}</label>
                             <input
                                 type="text"
                                 value={manualLicense}
                                 onChange={(e) => setManualLicense(e.target.value)}
-                                placeholder="Insira sua License Key (UUID)"
+                                placeholder={t('config_loader_license_placeholder')}
                                 className="w-full bg-black/40 border border-gray-800 rounded-lg p-3 text-white focus:border-red-500 outline-none font-mono text-sm"
                             />
                             <p className="text-xs text-gray-600 mt-2">
-                                Você pode encontrar essa chave no seu painel de controle ou no email de confirmação.
+                                {t('config_loader_license_help')}
                             </p>
                         </div>
                     ) : (
                         <div className="bg-black/40 rounded-lg p-4 mb-6 font-mono text-xs text-red-400 text-left overflow-auto">
-                            {errorMsg}
+                            {errorMsg || t('config_loader_unknown_error')}
                         </div>
                     )}
 
@@ -150,20 +142,20 @@ export const ConfigLoader: React.FC<ConfigLoaderProps> = ({ onConfigLoaded }) =>
                             disabled={!manualLicense}
                             className="w-full bg-red-600 text-white font-bold py-3 rounded-xl hover:bg-red-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            <RefreshCw className="w-4 h-4" /> Salvar e Entrar
+                            <RefreshCw className="w-4 h-4" /> {t('config_loader_save_and_enter')}
                         </button>
                     ) : (
                         <button
                             onClick={() => window.location.reload()}
                             className="w-full bg-white text-black font-bold py-3 rounded-xl hover:bg-gray-200 transition-colors flex items-center justify-center gap-2"
                         >
-                            <RefreshCw className="w-4 h-4" /> Tentar Novamente
+                            <RefreshCw className="w-4 h-4" /> {t('config_loader_try_again')}
                         </button>
                     )}
 
                     <div className="mt-4">
                         <a href="/installer" className="text-xs text-gray-500 hover:text-white underline">
-                            Ir para o Instalador
+                            {t('config_loader_go_to_installer')}
                         </a>
                     </div>
                 </div>
@@ -179,8 +171,8 @@ export const ConfigLoader: React.FC<ConfigLoaderProps> = ({ onConfigLoaded }) =>
         <div className="fixed inset-0 bg-[#09090B] flex items-center justify-center z-50">
             <div className="text-center">
                 <Loader2 className="w-10 h-10 text-primary animate-spin mx-auto mb-4" />
-                <h2 className="text-xl font-bold text-white mb-2">Conectando ao Sistema...</h2>
-                <p className="text-gray-400 text-sm">Obtendo configurações do servidor</p>
+                <h2 className="text-xl font-bold text-white mb-2">{t('config_loader_connecting')}</h2>
+                <p className="text-gray-400 text-sm">{t('config_loader_fetching_server_config')}</p>
             </div>
         </div>
     );

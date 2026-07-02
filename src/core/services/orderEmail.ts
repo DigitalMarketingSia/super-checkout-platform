@@ -5,7 +5,9 @@ import {
 } from './orderDeliverables.js';
 import {
   getPostPurchaseEmailTemplate,
+  normalizePostPurchaseTemplateLanguage,
   type PostPurchaseTemplateEventType,
+  type PostPurchaseTemplateLanguage,
 } from './postPurchaseEmailTemplates.js';
 import {
   loadOrderMetadata,
@@ -23,6 +25,7 @@ interface DeliveryEmailMessage {
   subject: string;
   html: string;
   deliverables: OrderDeliverable[];
+  language: PostPurchaseTemplateLanguage;
 }
 
 export interface SendOrderAccessEmailInput {
@@ -67,6 +70,65 @@ function replaceTemplateVariables(value: string, variables: Record<string, strin
   );
 }
 
+function getDeliveryEmailCopy(language: PostPurchaseTemplateLanguage) {
+  if (language === 'en') {
+    return {
+      accessSectionTitle: 'Your access',
+      customerFallback: 'Customer',
+      deliverableInstructionFallback: 'Your access is available.',
+      materialLabel: 'Open material',
+      memberAreaLabel: 'Open member area',
+      productFallback: 'Products',
+    };
+  }
+
+  if (language === 'es') {
+    return {
+      accessSectionTitle: 'Tus accesos',
+      customerFallback: 'Cliente',
+      deliverableInstructionFallback: 'Tu acceso esta disponible.',
+      materialLabel: 'Abrir material',
+      memberAreaLabel: 'Abrir area de miembros',
+      productFallback: 'Productos',
+    };
+  }
+
+  return {
+    accessSectionTitle: 'Seus acessos',
+    customerFallback: 'Cliente',
+    deliverableInstructionFallback: 'Seu acesso esta disponivel.',
+    materialLabel: 'Acessar material',
+    memberAreaLabel: 'Acessar area de membros',
+    productFallback: 'Produtos',
+  };
+}
+
+function resolveLanguageFromCurrency(currency: unknown): PostPurchaseTemplateLanguage {
+  const normalizedCurrency = String(currency || '').trim().toUpperCase();
+  if (normalizedCurrency === 'USD') return 'en';
+  if (normalizedCurrency === 'EUR') return 'es';
+  return 'pt';
+}
+
+function resolveOrderLanguage(order: any): PostPurchaseTemplateLanguage {
+  const metadata = normalizeOrderMetadata(order?.metadata);
+  const paymentContext = metadata.payment_context && typeof metadata.payment_context === 'object'
+    ? metadata.payment_context
+    : {};
+  const explicitLanguage =
+    (typeof paymentContext.language === 'string' && paymentContext.language)
+    || (typeof paymentContext.locale === 'string' && paymentContext.locale)
+    || (typeof metadata.language === 'string' && metadata.language)
+    || (typeof metadata.locale === 'string' && metadata.locale)
+    || '';
+
+  if (explicitLanguage) {
+    return normalizePostPurchaseTemplateLanguage(explicitLanguage);
+  }
+
+  return resolveLanguageFromCurrency(paymentContext.currency);
+}
+
 function renderEmailShell(params: {
   title: string;
   greetingName: string;
@@ -91,11 +153,15 @@ function renderEmailShell(params: {
   `;
 }
 
-function renderDeliverableCards(deliverables: OrderDeliverable[], fallbackLabel: string) {
+function renderDeliverableCards(
+  deliverables: OrderDeliverable[],
+  fallbackLabel: string,
+  fallbackInstructions: string,
+) {
   return deliverables.map((deliverable) => {
     const url = escapeHtml(deliverable.url || '');
     const label = escapeHtml(normalizeText(deliverable.label, fallbackLabel));
-    const instructions = normalizeText(deliverable.instructions, 'Seu acesso esta disponivel.');
+    const instructions = normalizeText(deliverable.instructions, fallbackInstructions);
 
     return `
       <div style="border:1px solid #e5e7eb;border-radius:10px;padding:16px;margin:12px 0;background:#ffffff;">
@@ -107,23 +173,26 @@ function renderDeliverableCards(deliverables: OrderDeliverable[], fallbackLabel:
   }).join('');
 }
 
-function renderDeliverableText(deliverables: OrderDeliverable[]) {
+function renderDeliverableText(
+  deliverables: OrderDeliverable[],
+  fallbacks: { productTitle: string; ctaLabel: string },
+) {
   return deliverables
     .map((deliverable) => {
-      const title = normalizeText(deliverable.title, 'Produto');
-      const label = normalizeText(deliverable.label, 'Acessar');
+      const title = normalizeText(deliverable.title, fallbacks.productTitle);
+      const label = normalizeText(deliverable.label, fallbacks.ctaLabel);
       return `${title} - ${label}: ${deliverable.url || ''}`;
     })
     .join('\n');
 }
 
-function ensureDeliverableBlock(html: string, deliverablesHtml: string) {
+function ensureDeliverableBlock(html: string, deliverablesHtml: string, sectionTitle: string) {
   if (html.includes('{{deliverables_html}}') || html.includes('{{deliverables_text}}')) {
     return html;
   }
 
   return `${html}
-    <h2 style="font-size:18px;color:#111827;margin:24px 0 12px;">Seus acessos</h2>
+    <h2 style="font-size:18px;color:#111827;margin:24px 0 12px;">${sectionTitle}</h2>
     ${deliverablesHtml}`;
 }
 
@@ -131,8 +200,9 @@ function buildTemplateMessage(params: {
   kind: DeliveryEmailKind;
   eventType: PostPurchaseTemplateEventType;
   deliverables?: OrderDeliverable[];
+  language: PostPurchaseTemplateLanguage;
 }): DeliveryEmailMessage {
-  const template = getPostPurchaseEmailTemplate(params.eventType);
+  const template = getPostPurchaseEmailTemplate(params.eventType, params.language);
   if (!template) {
     throw new Error(`Missing fallback post-purchase email template for ${params.eventType}.`);
   }
@@ -143,6 +213,7 @@ function buildTemplateMessage(params: {
     subject: template.subject,
     html: template.htmlBody,
     deliverables: params.deliverables || [],
+    language: params.language,
   };
 }
 
@@ -150,6 +221,7 @@ function buildDeliveryMessages(params: {
   deliverables: OrderDeliverable[];
   customerName: string;
   businessName: string;
+  language: PostPurchaseTemplateLanguage;
 }): DeliveryEmailMessage[] {
   const actionable = params.deliverables.filter((deliverable) => deliverable.status === 'available' && deliverable.url);
   const directDeliverables = actionable.filter((deliverable) =>
@@ -164,6 +236,7 @@ function buildDeliveryMessages(params: {
       kind: 'member_access',
       eventType: 'ORDER_MEMBER_ACCESS',
       deliverables: memberDeliverables,
+      language: params.language,
     }));
   }
 
@@ -172,6 +245,7 @@ function buildDeliveryMessages(params: {
       kind: 'direct_delivery',
       eventType: 'ORDER_DIRECT_DELIVERY',
       deliverables: directDeliverables,
+      language: params.language,
     }));
   }
 
@@ -179,6 +253,7 @@ function buildDeliveryMessages(params: {
     messages.push(buildTemplateMessage({
       kind: 'purchase_confirmation',
       eventType: 'ORDER_COMPLETED',
+      language: params.language,
     }));
   }
 
@@ -188,6 +263,7 @@ function buildDeliveryMessages(params: {
 async function loadBusinessTemplate(
   supabaseAdmin: SupabaseAdmin,
   eventType?: PostPurchaseTemplateEventType,
+  preferredLanguage: PostPurchaseTemplateLanguage = 'pt',
 ) {
   if (!eventType) return null;
 
@@ -196,7 +272,7 @@ async function loadBusinessTemplate(
     .select('event_type,language,subject,html_body,active')
     .eq('event_type', eventType)
     .eq('active', true)
-    .limit(5);
+    .limit(10);
 
   if (error) {
     console.warn(`[OrderEmailService] Could not load ${eventType} template:`, error.message);
@@ -204,7 +280,14 @@ async function loadBusinessTemplate(
   }
 
   const templates = Array.isArray(data) ? data : [];
-  return templates.find((template) => template.language === 'pt') || templates[0] || null;
+  return templates
+    .sort((left, right) => {
+      const leftLanguage = normalizePostPurchaseTemplateLanguage(left.language);
+      const rightLanguage = normalizePostPurchaseTemplateLanguage(right.language);
+      const leftScore = leftLanguage === preferredLanguage ? 2 : leftLanguage === 'pt' ? 1 : 0;
+      const rightScore = rightLanguage === preferredLanguage ? 2 : rightLanguage === 'pt' ? 1 : 0;
+      return rightScore - leftScore;
+    })[0] || null;
 }
 
 async function renderMessageTemplate(params: {
@@ -214,25 +297,39 @@ async function renderMessageTemplate(params: {
   customerName: string;
   businessName: string;
 }) {
-  const customTemplate = await loadBusinessTemplate(params.supabaseAdmin, params.message.eventType);
+  const customTemplate = await loadBusinessTemplate(
+    params.supabaseAdmin,
+    params.message.eventType,
+    params.message.language,
+  );
   const subjectTemplate = normalizeText(customTemplate?.subject, params.message.subject);
   const fallbackHtml = params.message.html;
   let htmlTemplate = normalizeText(customTemplate?.html_body, fallbackHtml);
+  const copy = getDeliveryEmailCopy(params.message.language);
 
   const fallbackLabel = params.message.kind === 'member_access'
-    ? 'Acessar area de membros'
-    : 'Acessar material';
-  const deliverablesHtml = renderDeliverableCards(params.message.deliverables, fallbackLabel);
-  const deliverablesText = escapeHtml(renderDeliverableText(params.message.deliverables)).replace(/\n/g, '<br/>');
+    ? copy.memberAreaLabel
+    : copy.materialLabel;
+  const deliverablesHtml = renderDeliverableCards(
+    params.message.deliverables,
+    fallbackLabel,
+    copy.deliverableInstructionFallback,
+  );
+  const deliverablesText = escapeHtml(
+    renderDeliverableText(params.message.deliverables, {
+      productTitle: copy.productFallback,
+      ctaLabel: fallbackLabel,
+    }),
+  ).replace(/\n/g, '<br/>');
 
   if (params.message.deliverables.length > 0) {
-    htmlTemplate = ensureDeliverableBlock(htmlTemplate, deliverablesHtml);
+    htmlTemplate = ensureDeliverableBlock(htmlTemplate, deliverablesHtml, copy.accessSectionTitle);
   }
 
   const productNames = (Array.isArray(params.order?.items) ? params.order.items : [])
     .map((item: any) => String(item?.name || '').trim())
     .filter(Boolean)
-    .join(', ') || 'Produtos';
+    .join(', ') || copy.productFallback;
   const variables: Record<string, string> = {
     '{{customer_name}}': escapeHtml(params.customerName),
     '{{order_id}}': params.order?.id ? `#${escapeHtml(String(params.order.id).split('-')[0])}` : '',
@@ -349,9 +446,11 @@ export async function sendOrderAccessEmail(
 
   if (orderError || !order) throw new Error(`Order ${orderId} not found for access email.`);
 
+  const orderLanguage = resolveOrderLanguage(order);
+  const copy = getDeliveryEmailCopy(orderLanguage);
   let metadata = normalizeOrderMetadata(order.metadata);
   const to = input.email || order.customer_email;
-  const name = input.name || order.customer_name || 'Cliente';
+  const name = input.name || order.customer_name || copy.customerFallback;
   if (!to) throw new Error(`Order ${orderId} has no recipient email.`);
 
   const merchantUserId = order.checkouts?.user_id;
@@ -377,6 +476,7 @@ export async function sendOrderAccessEmail(
     deliverables,
     customerName: name,
     businessName,
+    language: orderLanguage,
   }).filter((message) => input.force || !metadata[SENT_AT_KEY_BY_KIND[message.kind]]);
 
   if (messages.length === 0 || (!input.force && metadata.order_completed_email_sent_at)) {

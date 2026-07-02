@@ -221,6 +221,177 @@
     "next": "Próxima",
     "error_saving": "Erro ao Salvar"
   },
+  "offers": {
+    "title": "Ofertas",
+    "subtitle": "Crie planos de preços para seus produtos.",
+    "badge": "Laboratório de estratégia",
+    "create_btn": "Nova oferta",
+    "no_offers": "Nenhuma oferta encontrada",
+    "unknown_product": "Produto desconhecido",
+    "create_success": "Oferta criada com sucesso.",
+    "create_error": "Erro ao criar oferta.",
+    "delete_success": "Oferta excluída com sucesso.",
+    "delete_error": "Erro ao excluir oferta.",
+    "labels": {
+      "offer_name": "Nome da oferta",
+      "linked_product": "Produto vinculado",
+      "plan_value": "Valor do plano"
+    },
+    "period": {
+      "month": "Mês",
+      "year": "Ano"
+    },
+    "type": {
+      "recurring": "Recorrência",
+      "one_time": "Compra única"
+    },
+    "form": {
+      "modal_title": "Nova configuração de preço",
+      "name_label": "Nome da oferta (interno)",
+      "name_placeholder": "Ex: Black Friday 2024",
+      "product_label": "Vincular ao produto",
+      "product_placeholder": "Selecione...",
+      "price_label": "Valor cobrado",
+      "cycle_type_label": "Tipo de ciclo",
+      "cycle_type_subscription": "Assinatura",
+      "billing_frequency_label": "Frequência da cobrança",
+      "billing_frequency_monthly": "Mensal",
+      "billing_frequency_yearly": "Anual",
+      "submit": "Criar estratégia"
+    },
+    "delete": {
+      "title": "Excluir plano",
+      "message": "Tem certeza que deseja remover esta estratégia de preço? Esta ação não pode ser desfeita.",
+      "confirm": "Confirmar exclusão",
+      "cancel": "Manter oferta"
+    }
+  },
+  "notifications": {
+    "hero": {
+      "badge": "Centro de inteligência",
+      "title_prefix": "Central de",
+      "title_highlight": "notificações",
+      "subtitle_owner": "Orquestre a comunicação do seu ecossistema. O fluxo de negócio agora destaca apenas os modelos realmente usados no pós-compra.",
+      "subtitle_user": "Personalize a experiência do seu cliente. Configure os modelos de compra aprovada, entrega direta, área de membros e acesso manual.",
+      "status_label": "Status da central",
+      "status_online": "Sistema online"
+    },
+    "tabs": {
+      "system": "SISTEMA (OWNER)",
+      "business": "NEGÓCIO (CLIENTES)"
+    },
+    "loading": "Carregando configurações...",
+    "status": {
+      "default": "Padrão",
+      "fallback": "Fallback"
+    },
+    "actions": {
+      "edit": "Editar",
+      "edit_content": "Editar conteúdo",
+      "use_system_fallback": "Usar fallback do sistema",
+      "activate_template": "Ativar template"
+    },
+    "system": {
+      "template_label": "Template de e-mail",
+      "empty": "Nenhum rastro de template encontrado.",
+      "flow_banner": "Fluxo de saída: e-mails transmitidos pela sua licença para seus contratantes."
+    },
+    "business": {
+      "default_purpose": "Template transacional do negócio.",
+      "fallback_notice": "Compra aprovada funciona como fallback quando não existe um e-mail específico de entrega. Entrega direta e área de membros substituem a confirmação genérica e enviam apenas os acessos reais gerados no servidor.",
+      "post_purchase_title": "Pós-compra",
+      "post_purchase_subtitle": "Estes são os 3 modelos únicos do fluxo de entrega após pagamento.",
+      "manual_access_notice": "Acesso manual de aluno é um fluxo separado do pós-compra. Ele só entra quando você reenvia manualmente o acesso de um membro.",
+      "flow_banner": "Fluxo de negócio: modelos realmente usados no pós-compra e no acesso manual de alunos."
+    },
+    "templates": {
+      "common": {
+        "greeting": "Olá, {{name}}.",
+        "signature": "Atenciosamente,<br/>Equipe {{businessName}}"
+      },
+      "order_completed": {
+        "name": "Compra aprovada",
+        "purpose": "Confirma o pagamento quando não houver um e-mail específico de entrega para enviar.",
+        "subject": "Seu pedido {{orderId}} foi aprovado",
+        "body": {
+          "title": "Compra aprovada",
+          "payment_confirmed": "Seu pagamento foi confirmado e o pedido {{orderId}} está aprovado.",
+          "items": "Itens da compra: {{productNames}}."
+        }
+      },
+      "order_direct_delivery": {
+        "name": "Entrega direta",
+        "purpose": "Entrega links e materiais liberados após a compra.",
+        "subject": "Seus materiais estão disponíveis",
+        "body": {
+          "title": "Seus materiais estão disponíveis",
+          "delivery_ready": "A compra do pedido {{orderId}} foi aprovada. Acesse seus materiais abaixo."
+        }
+      },
+      "order_member_access": {
+        "name": "Entrega por área de membros",
+        "purpose": "Entrega o acesso a áreas e conteúdos liberados pela compra.",
+        "subject": "Seu acesso foi liberado",
+        "body": {
+          "title": "Seu acesso foi liberado",
+          "access_ready": "A compra do pedido {{orderId}} foi aprovada. Entre na área liberada abaixo."
+        }
+      },
+      "access_granted": {
+        "name": "Acesso manual de aluno",
+        "purpose": "Usado apenas quando você reenvia manualmente o acesso para um aluno já liberado.",
+        "subject": "Seu acesso foi liberado",
+        "body": {
+          "title": "Seu acesso foi liberado",
+          "manual_release": "Seu acesso manual foi liberado. Entre usando o link abaixo.",
+          "cta": "Acessar área de membros"
+        }
+      }
+    }
+  },
+  "email_template_modal": {
+    "title": "Editar template",
+    "view_modes": {
+      "visual": "Visual",
+      "code": "Código",
+      "preview": "Prévia"
+    },
+    "variables": {
+      "title": "Injetor de variáveis",
+      "description": "Clique para inserir no editor:",
+      "insert_title": "Clique para inserir {{variable}}"
+    },
+    "notices": {
+      "purchase_confirmation": "Este modelo confirma a compra aprovada apenas quando o pedido não gerar um e-mail específico de entrega. Ele não envia links de acesso nem botões de entrega.",
+      "deliverables_prefix": "Os botões reais aparecem no envio através de",
+      "deliverables_suffix": "No envio ao cliente, o sistema injeta esse bloco no servidor com os links liberados para aquele pedido."
+    },
+    "fields": {
+      "subject_label": "Assunto do e-mail",
+      "subject_placeholder": "Ex: Seu pedido foi aprovado",
+      "visual_label": "Mensagem (visual)",
+      "html_label": "HTML do e-mail",
+      "html_placeholder": "<h1>Olá...</h1>",
+      "html_badge": "Editor HTML"
+    },
+    "preview": {
+      "title": "Visualização do e-mail",
+      "badge": "Modo prévia",
+      "note": "Esta é uma prévia visual. As variáveis foram substituídas por dados fictícios.",
+      "mock": {
+        "customer_name": "João Silva",
+        "product_names": "Curso Super Checkout",
+        "business_name": "Loja Exemplo",
+        "deliverable_hint": "Seu acesso está disponível.",
+        "deliverable_cta": "Acessar agora",
+        "plan_name": "Plano Pro"
+      }
+    },
+    "save": "Salvar alterações",
+    "errors": {
+      "save": "Erro ao salvar template"
+    }
+  },
   "orders": {
     "title": "Pedidos & CRM",
     "subtitle": "Visão geral de vendas e gerenciamento de clientes",
@@ -284,6 +455,47 @@
       "canceled": "Cancelado",
       "refunded": "Reembolsado"
     },
+    "modals": {
+      "alerts": {
+        "resend_success": "E-mail de acesso reenviado com sucesso!",
+        "resend_error": "Não foi possível reenviar o e-mail. Tente novamente mais tarde.",
+        "resend_missing_paid_order": "Nenhum pedido aprovado foi encontrado para este cliente."
+      },
+      "payment_methods": {
+        "boleto": "Boleto",
+        "apple_pay": "Apple Pay",
+        "google_pay": "Google Pay"
+      },
+      "order_details": {
+        "title": "Detalhes do Pedido",
+        "payment": "Pagamento",
+        "customer_info": "Dados do Cliente",
+        "full_name": "Nome completo",
+        "email": "E-mail",
+        "tax_id": "CPF",
+        "phone": "Telefone",
+        "items_title": "Itens do Pedido",
+        "quantity_short": "Qtd.",
+        "total": "Total",
+        "order_total": "Total do pedido",
+        "transaction_id": "ID da transação",
+        "resend_access_email": "Reenviar e-mail de acesso",
+        "product_fallback": "produto",
+        "whatsapp_message": "Olá {{name}}, vi que você comprou {{product}}. Posso ajudar em algo?",
+        "whatsapp_title": "Abrir conversa no WhatsApp",
+        "copy_email_title": "Copiar e-mail"
+      },
+      "customer_details": {
+        "title": "Detalhes do Cliente",
+        "customer_since": "Cliente desde {{date}} (baseado no último pedido)",
+        "contact_info": "Dados de Contato",
+        "registered_name_hint": "Nome registrado no checkout",
+        "not_informed": "Não informado",
+        "whatsapp_label": "WhatsApp",
+        "resend_access_email": "Reenviar e-mail de acesso",
+        "no_products": "Nenhum produto encontrado para este cliente."
+      }
+    },
     "pagination": {
       "info": "Página {{current}} de {{total}} • Mostrando {{shown}} de {{filtered}} registros",
       "previous": "Anterior",
@@ -336,9 +548,13 @@
   "domains": {
     "title": "Domínios",
     "subtitle": "Conecte seus domínios personalizados.",
+    "network_control": "Controle de rede",
     "limit": "Limite de Domínios",
     "domain_plural": "Domínios",
     "add_btn": "Adicionar Domínio",
+    "empty_subtitle": "Conecte um domínio para personalizar seu ecossistema",
+    "sync": "Sincronizar",
+    "remove": "Remover",
     "tabs": {
       "all": "Todos",
       "checkout": "Checkout",
@@ -370,6 +586,7 @@
       "usage_system_desc": "Ex: admin.meusite.com",
       "domain_label": "Domínio (sem http/https)",
       "placeholder": "pay.meusite.com",
+      "domain_hint": "O domínio deve estar apontado para nossos servidores para ativação automática.",
       "add_btn": "Adicionar"
     },
     "dns_modal": {
@@ -377,6 +594,15 @@
       "config_title": "Configuração DNS",
       "active_desc": "Seu domínio está ativo e funcionando.",
       "config_desc": "Configure seu provedor para conectar o domínio.",
+      "status_active": "Rede ativa e protegida",
+      "status_syncing": "Infraestrutura em sincronização",
+      "global_status": "Status global do nó",
+      "loading_scan": "Varrendo DNS global...",
+      "host_name": "Host / nome",
+      "value_destination": "Valor / destino",
+      "copy": "Copiar",
+      "propagation_title": "Protocolo de propagação",
+      "propagation_desc": "Após a configuração no seu provedor (Cloudflare, GoDaddy, etc), os nós globais podem levar até 24 horas para sincronizar totalmente a nova infraestrutura.",
       "needed_records": "Registros DNS necessários:",
       "fetch_error": "Não foi possível obter os registros.",
       "close": "Fechar",
@@ -407,6 +633,22 @@
     "vercel_error": "Falha ao adicionar domínio na Vercel",
     "verify_error": "Erro ao verificar uso do domínio",
     "remove_error": "Erro ao remover domínio"
+  },
+  "setup_wizard": {
+    "title": "Configuração obrigatória",
+    "subtitle": "Registre a identidade pública do seu negócio. Isso não gera validação jurídica automática nem muda o status LGPD para verificado.",
+    "business_name_label": "Nome do Negócio (Público)",
+    "business_name_placeholder": "Ex: Loja do João, Agência Tech",
+    "business_name_hint": "Este nome aparecerá no checkout e nos e-mails para seus clientes.",
+    "support_email_label": "E-mail de Suporte",
+    "support_email_placeholder": "suporte@suaempresa.com",
+    "terms_text": "Declaro que sou o responsável pelas vendas realizadas por esta conta e que a identidade publicada no checkout reflete a operação atual do negócio.",
+    "terms_notice": "O aceite acima registra uma autodeclaração. A conformidade permanece pendente até revisão própria da operação.",
+    "agree_terms_error": "Você precisa concordar com os termos de responsabilidade.",
+    "save_error": "Erro ao salvar configurações.",
+    "saving": "Salvando...",
+    "submit": "Registrar identidade",
+    "footer_note": "Seu nome e contato serão exibidos publicamente no rodapé do checkout para segurança do consumidor."
   },
   "active": "Ativo",
   "my_installations": "Minhas Instalações",
@@ -656,6 +898,146 @@
     "footer": {
       "database_stable": "Base sincronizada",
       "showing_entities": "Exibindo {{count}} alunos"
+    },
+    "modals": {
+      "add_member": {
+        "title": "Adicionar Novo Membro",
+        "success": "Membro adicionado com sucesso!",
+        "full_name": "Nome Completo",
+        "full_name_placeholder": "Ex: João Silva",
+        "email_label": "E-mail",
+        "email_placeholder": "Ex: joao@email.com",
+        "grant_products": "Liberar Acesso aos Produtos",
+        "no_products": "Nenhum produto cadastrado.",
+        "save": "Salvar Membro",
+        "welcome_notice": "Um e-mail de boas-vindas será enviado automaticamente.",
+        "create_error": "Erro ao criar membro."
+      },
+      "access_logs": {
+        "title": "Logs de Acesso: {{name}}",
+        "loading": "Carregando histórico...",
+        "empty": "Nenhum log de acesso encontrado para este usuário.",
+        "date_time": "Data / Hora",
+        "domain": "Domínio",
+        "status": "Status",
+        "ip": "IP",
+        "allowed": "Permitido",
+        "denied": "Negado",
+        "description": "Exibindo os últimos 50 registros de atividade. Os logs mostram tentativas de ativação e validação do Super Checkout nos domínios do cliente."
+      },
+      "send_email": {
+        "title": "Enviar E-mail ao Lead",
+        "presets_title": "Templates Rápidos",
+        "subject": "Assunto",
+        "message": "Mensagem",
+        "subject_placeholder": "Selecione um template",
+        "message_placeholder": "Selecione um template aprovado",
+        "select_template_error": "Selecione um template aprovado",
+        "send_success": "E-mail enviado com sucesso!",
+        "send_error": "Erro ao enviar e-mail",
+        "cancel": "Cancelar",
+        "send_now": "Enviar Agora",
+        "presets": {
+          "welcome_label": "Bem-vindo / Onboarding",
+          "welcome_subject": "Bem-vindo ao Super Checkout!",
+          "welcome_body": "Olá, {{name}}!\n\nSeja muito bem-vindo ao Super Checkout. Estamos felizes em ter você conosco!\n\nVimos que você acabou de criar sua conta gratuita. O próximo passo é configurar seu primeiro domínio e gateway de pagamento.\n\nPrecisa de ajuda para começar? Basta responder a este e-mail.\n\nAtenciosamente,\nEquipe Super Checkout",
+          "help_label": "Ajuda com Configuração",
+          "help_subject": "Precisa de uma ajudinha com a configuração?",
+          "help_body": "Olá, {{name}}!\n\nNotei que você ainda não finalizou a configuração do seu domínio ou gateway no Super Checkout.\n\nEssa etapa é fundamental para que você possa começar a vender. Caso esteja encontrando alguma dificuldade técnica, nossa equipe está à disposição para ajudar.\n\nPodemos marcar uma rápida conversa?\n\nAbs!"
+        }
+      },
+      "details": {
+        "close": "Fechar",
+        "member_since": "Desde {{date}}",
+        "load_error_title": "Erro ao carregar dados",
+        "quick_actions": "Ações Rápidas",
+        "recent_activity": "Atividade Recente",
+        "no_recent_activity": "Nenhuma atividade registrada.",
+        "granted_access": "Acessos Concedidos",
+        "grant_access": "+ Liberar Acesso...",
+        "tabs": {
+          "overview": "Visão Geral",
+          "products": "Produtos e Acesso",
+          "orders": "Histórico de Compras",
+          "history": "Log de Atividades"
+        },
+        "summary": {
+          "last_access": "Último Acesso",
+          "active_products": "Produtos Ativos",
+          "never": "Nunca"
+        },
+        "actions": {
+          "send_password_reset": "Enviar Redefinição de Senha",
+          "resend_welcome_email": "Reenviar E-mail de Boas-vindas",
+          "reactivate_access": "Reativar Acesso",
+          "suspend_access": "Suspender Acesso"
+        },
+        "table": {
+          "release_date": "Data Liberação",
+          "expires_at": "Expira em",
+          "id": "ID",
+          "date": "Data",
+          "gateway": "Gateway"
+        },
+        "statuses": {
+          "active": "Ativo",
+          "inactive": "Inativo",
+          "disabled": "Desativado"
+        },
+        "fallbacks": {
+          "unknown_product": "Produto Desconhecido",
+          "lifetime": "Vitalício",
+          "no_products": "Nenhum produto liberado para este usuário.",
+          "no_orders": "Nenhuma compra encontrada para este usuário.",
+          "no_history": "Sem histórico disponível."
+        },
+        "events": {
+          "login": "Acesso ao Sistema",
+          "member_area_access_changed_to_suspended": "Acesso da Área Suspenso",
+          "member_area_access_changed_to_active": "Acesso da Área Reativado",
+          "member_area_access_removed": "Removido da Área de Membros",
+          "status_changed_to_suspended": "Conta Suspensa",
+          "status_changed_to_active": "Conta Ativada",
+          "status_changed_to_disabled": "Conta Desativada",
+          "access_granted": "Acesso Concedido",
+          "access_revoked": "Acesso Revogado",
+          "create": "Membro Criado",
+          "update": "Dados Atualizados",
+          "delete": "Membro Excluído"
+        },
+        "metadata": {
+          "by_admin": "por Admin",
+          "via_method": "via {{method}}",
+          "method_password": "Senha",
+          "products_count": "Produtos: {{count}}",
+          "product_id": "Produto ID: {{id}}",
+          "action": "Ação: {{action}}",
+          "recovery_mode": "(Modo Recuperação)"
+        },
+        "alerts": {
+          "grant_success": "Acesso liberado com sucesso!",
+          "grant_error": "Erro ao liberar acesso: {{message}}",
+          "revoke_success": "Acesso revogado com sucesso!",
+          "revoke_error": "Erro ao revogar acesso: {{message}}",
+          "suspend_success": "Membro suspenso com sucesso.",
+          "activate_success": "Membro reativado com sucesso.",
+          "password_reset_success": "E-mail de redefinição de senha enviado.",
+          "welcome_email_success": "E-mail de acesso reenviado com sucesso!",
+          "action_error": "Erro ao executar ação: {{message}}",
+          "load_error": "Erro ao carregar dados: {{message}}",
+          "unknown_error": "Erro desconhecido"
+        },
+        "confirm": {
+          "suspend_title": "Suspender Membro",
+          "activate_title": "Reativar Membro",
+          "grant_title": "Liberar Acesso",
+          "revoke_title": "Revogar Acesso",
+          "suspend_message": "Tem certeza que deseja suspender este membro? Ele perderá acesso imediato.",
+          "activate_message": "Deseja reativar o acesso deste membro?",
+          "grant_message": "Deseja liberar o acesso a este produto para o usuário?",
+          "revoke_message": "Deseja revogar o acesso a este produto?"
+        }
+      }
     }
   },
   "security_events": {
@@ -689,6 +1071,7 @@
     "title": "Central de webhooks",
     "subtitle": "Orquestre o fluxo de dados em tempo real. Configure endpoints de saída ou utilize nossa API de borda para atualizações remotas.",
     "new_integration": "Nova integração",
+    "demo_banner": "Os webhooks do demo disparam de verdade a partir desta sessão e deste navegador. Todos os payloads saem marcados com",
     "tabs": {
       "outgoing": "Saída",
       "incoming": "Entrada",
@@ -699,7 +1082,9 @@
     "start_integration": "Iniciar integração",
     "status": {
       "active": "Ativo",
-      "paused": "Pausado"
+      "paused": "Pausado",
+      "ok_short": "OK",
+      "error_short": "ERR"
     },
     "no_data": "Sem dados",
     "recent_log": "Log recente",
@@ -712,13 +1097,114 @@
     "run_curl": "Executar CURL",
     "events": "Eventos",
     "configure_webhook": "Configurar webhook",
+    "load_error": "Falha ao carregar configurações de webhook.",
+    "save_success_create": "Webhook criado com sucesso.",
+    "save_success_update": "Webhook atualizado com sucesso.",
+    "save_error": "Erro ao salvar webhook.",
+    "confirm_delete": "Tem certeza que deseja excluir este webhook?",
+    "delete_success": "Webhook excluído.",
+    "delete_error": "Erro ao excluir webhook.",
+    "demo_success": "Webhook demo disparado com sucesso.",
+    "demo_partial_success": "Webhook demo enviado, mas o endpoint não confirmou sucesso.",
+    "test_success": "Webhook disparado com sucesso.",
+    "test_error": "Erro ao conectar com o endpoint.",
+    "testing": "Testando...",
+    "copied_clipboard": "Copiado para a área de transferência.",
+    "validation": {
+      "name_url": "Preencha o nome e a URL do endpoint.",
+      "events_required": "Selecione pelo menos um evento."
+    },
     "form": {
       "name": "Identificação",
       "name_placeholder": "Ex: Integração CRM Alpha",
+      "description": "Descrição curta",
+      "description_placeholder": "Ex: Envia vendas demo para o n8n",
       "endpoint_url": "URL do endpoint",
+      "endpoint_placeholder": "https://api.empresa.com/webhook",
+      "method": "Método",
+      "secret_optional": "Assinatura opcional",
+      "secret_placeholder": "whsec_demo",
+      "active": "Ativo",
+      "paused": "Pausado",
+      "saving": "Salvando...",
       "save": "Salvar webhook"
     },
     "inspect_trace": "Inspecionar rastro"
+  },
+  "upgrade_intents_page": {
+    "registry": "Registro de intents de upgrade",
+    "title": "Intents de upgrade",
+    "refresh": "Atualizar",
+    "load_error": "Falha ao carregar intents de upgrade.",
+    "search_placeholder": "Buscar por token, e-mail, pedido, licença ou plano",
+    "loading": "Carregando intents...",
+    "empty": "Nenhum intent encontrado.",
+    "filters": {
+      "all": "Todos"
+    },
+    "stats": {
+      "total": "Total",
+      "open": "Abertos",
+      "consumed": "Consumidos",
+      "attention": "Atenção",
+      "expired": "Expirados"
+    },
+    "status": {
+      "attention": "Atenção",
+      "created": "Criado",
+      "opened": "Aberto",
+      "paid": "Pago",
+      "consumed": "Consumido",
+      "expired": "Expirado",
+      "canceled": "Cancelado",
+      "failed": "Falhou"
+    },
+    "table": {
+      "status": "Status",
+      "token": "Token",
+      "plan": "Plano",
+      "payer": "Pagador",
+      "order": "Pedido",
+      "source": "Origem",
+      "created": "Criado",
+      "expires": "Expira",
+      "actions": "Ações"
+    },
+    "labels": {
+      "token": "Token",
+      "order": "Pedido",
+      "link": "Link",
+      "reconciliation_packet": "Pacote de conciliação"
+    },
+    "actions": {
+      "copy_checkout_link": "Copiar link do checkout",
+      "copy_packet": "Copiar pacote de conciliação",
+      "open_link": "Abrir link"
+    },
+    "toast": {
+      "copied": "{{label}} copiado."
+    }
+  },
+  "system_webhooks": {
+    "title": "Webhooks de sistema",
+    "subtitle": "Configuração global de eventos administrativos (Owner).",
+    "security_title": "Área de alta segurança",
+    "security_line_one": "O Webhook de Sistema recebe",
+    "security_emphasis": "TODOS",
+    "security_line_two": "os dados da plataforma, incluindo chaves de licença e tokens de instalação.",
+    "security_warning": "Nunca configure isso para uma URL pública ou de terceiros desconhecidos.",
+    "destination_label": "URL de destino (escopo do sistema)",
+    "edit": "Editar",
+    "view": "Visualizar",
+    "configured_server": "Configurado no servidor",
+    "save": "Salvar alterações",
+    "save_requires_confirmation": "(requer confirmação)",
+    "events_title": "Eventos disparados",
+    "alert_disabled": "Por segurança, a alteração de Webhooks de Sistema via painel está desabilitada temporariamente. Use o CLI ou contate o suporte para alterar a variável SYSTEM_WEBHOOK_URL.",
+    "events": {
+      "license_created": "Nova licença gerada (Admin ou Venda)",
+      "coming_soon": "Em breve"
+    }
   },
   "system_licenses": {
     "title_main": "Licenças",
@@ -1153,49 +1639,114 @@
       "products": "Produtos vinculados"
     },
     "custom_domain": "Domínio personalizado",
-    "domains_heading": {
-      "prefix": "Domínios",
-      "highlight": "personalizados",
-      "subtitle": "Configure o apontamento externo"
-    },
-    "appearance": "Aparência e configurações",
+      "domains_heading": {
+        "prefix": "Domínios",
+        "highlight": "personalizados",
+        "subtitle": "Configure o apontamento externo"
+      },
+      "domains_loading": "Resolvendo nós DNS...",
+      "domains_mapping_label": "Configuração do nó de mapeamento",
+      "domains_default_gateway": "Gateway padrão do sistema (super-checkout.net)",
+      "domains_save_hint": "Confirme as alterações pelo botão global SALVAR acima",
+      "domains_status_active": "Status: ativo",
+      "domains_status_verified": "Nó verificado",
+      "domains_status_passive": "Status: passivo",
+      "domains_status_core": "Usando domínio core",
+      "domains_no_nodes": "Nenhum nó encontrado",
+      "domains_configure_tab": "Configure na aba Domínios",
+      "domains_engine": "Motor de mapeamento de rede v4.0",
+      "appearance": "Aparência e configurações",
     "appearance_desc": "Personalize a identidade visual do seu portal.",
     "save_changes": "Salvar alterações",
+    "studio_title_prefix": "Aparência e",
+    "studio_title_highlight": "controle de UX",
+    "studio_subtitle": "Ajuste fino da identidade da sua academia",
     "visual_identity": "Identidade visual",
+    "visual_identity_subtitle": "Atributos centrais e ativos do portal",
+    "visual_identity_number": "01 // IDENTIDADE",
     "portal_name": "Nome do portal",
     "portal_name_placeholder": "Ex: Academia do Jean",
     "slug_url": "Slug (URL)",
     "slug_desc": "Endereço de acesso ao portal.",
+    "slug_placeholder": "academia-exemplo",
     "portal_logo": "Logo do portal",
     "choose_logo": "Escolher logo",
     "logo_desc": "Recomendado: 200x200px (PNG)",
     "favicon": "Favicon",
+    "favicon_asset": "Ativo de favicon",
     "choose_favicon": "Escolher favicon",
     "favicon_desc": "Recomendado: 32x32px (ICO/PNG)",
+    "no_asset": "Sem ativo",
+    "default_asset": "Padrão",
     "colors": "Cores",
+    "colors_number": "05 // COR",
     "primary_color": "Cor principal",
     "primary_color_desc": "Usada em botões, links e destaques.",
+    "chrome_palette_title": "Paleta visual",
+    "chrome_palette_subtitle": "Acento principal e branding do portal",
+    "hex_code": "Código hex",
     "upload_error": "Erro no upload",
     "upload_error_details": "Não foi possível enviar. Detalhes: ",
     "banner": "Banner superior (vitrine)",
+    "showcase_title": "Portal vitrine",
+    "showcase_subtitle": "Banner principal e chamada para ação",
+    "showcase_number": "02 // VITRINE",
     "banner_image": "Imagem do banner",
     "no_image": "Sem imagem",
     "change_image": "Alterar imagem",
+    "deploy_banner_asset": "Publicar ativo do banner",
+    "upload_new_banner": "Enviar novo banner de descoberta",
     "banner_desc": "Recomendado: 1920x600px (PNG/JPG). Esta imagem aparecerá no topo da área de membros.",
     "banner_title": "Título do banner",
     "banner_title_placeholder": "Ex: Bem-vindo à comunidade",
     "banner_description": "Descrição do banner",
     "banner_description_placeholder": "Ex: Aprenda tudo sobre marketing digital com nossos cursos exclusivos.",
-    "button_text": "Texto do botão",
-    "button_text_placeholder": "Ex: Começar agora",
-    "button_link": "Link do botão",
+    "cta_control": "Controle da chamada para ação",
+      "button_text": "Texto do botão",
+      "button_text_placeholder": "Ex: Começar agora",
+      "button_preview_fallback": "Ação",
+      "button_link": "Link do botão",
+    "button_link_deep": "URL de destino / deep link",
     "button_link_placeholder": "Ex: /curso/123 ou https://...",
     "menu_links": "Links do menu",
+    "menu_links_subtitle": "Referências externas e mapeamento do menu",
+    "menu_links_number": "03 // LINKS",
     "menu_links_desc": "Adicione links externos que aparecerão no menu suspenso de links.",
     "faq": "FAQ (perguntas frequentes)",
+    "faq_knowledge_title": "Base de conhecimento",
+    "faq_subtitle": "Perguntas frequentes",
+    "faq_number": "04 // FAQ",
     "faq_desc": "Gerencie as perguntas e respostas que aparecerão na página de FAQ.",
+    "links_manager": {
+      "add_title": "Adicionar Novo Link",
+      "title_placeholder": "Nome (ex: Instagram)",
+      "url_placeholder": "URL (https://...)",
+      "add_button": "Adicionar Link",
+      "active_label": "Ativo",
+      "empty": "Nenhum link cadastrado.",
+      "icon_labels": {
+        "instagram": "Instagram",
+        "facebook": "Facebook",
+        "youtube": "YouTube",
+        "tiktok": "TikTok",
+        "whatsapp": "WhatsApp",
+        "globe": "Site",
+        "link": "Link"
+      }
+    },
+    "faq_manager": {
+      "add_title": "Adicionar Nova Pergunta",
+      "question_placeholder": "Pergunta",
+      "answer_placeholder": "Resposta",
+      "add_button": "Adicionar FAQ",
+      "active_label": "Ativo",
+      "empty": "Nenhuma pergunta cadastrada."
+    },
     "preview": "Prévia",
     "preview_desc": "Visualização simplificada",
+    "portal_simulator": "Simulador do portal",
+    "reality_sync_active": "Sincronia visual ativa",
+    "assets_optimized": "Ativos otimizados",
     "course_example": "Curso de exemplo",
     "success_save": "Configurações salvas!",
     "error_save": "Erro ao salvar.",
@@ -1819,6 +2370,8 @@
   "system_updates": {
     "title": "Atualizações do Sistema",
     "subtitle": "Gerencie versões, atualizações e recursos profissionais.",
+    "header_description": "Versões instaladas, saúde do banco e sincronização de código via GitHub.",
+    "loading_syncing_core": "Sincronizando core...",
     "version": {
       "title": "Status da Versão"
     },
@@ -1829,7 +2382,63 @@
       "last_check": "Última verificação hoje"
     },
     "actions": {
-      "check_now": "Verificar agora"
+      "check_now": "Verificar agora",
+      "check_database": "Verificar banco",
+      "checking": "Verificando...",
+      "testing": "Testando..."
+    },
+    "version_card": {
+      "title": "Versões instaladas",
+      "system_code": "Código do sistema",
+      "database": "Banco de dados"
+    },
+    "audit_card": {
+      "title": "Auditoria do banco",
+      "run": "Auditar",
+      "run_title": "Executar auditoria do banco",
+      "description": "Valida tabelas e colunas essenciais da instalação, como licença, conta, gateways, templates e logs de atualização.",
+      "validated": "Estrutura validada",
+      "adjustment_needed": "Ajuste necessário",
+      "not_run": "Auditoria ainda não executada",
+      "not_run_desc": "Clique na lupa para conferir se o banco tem a estrutura mínima esperada.",
+      "compatible_schema": "Banco compatível com o schema v{{version}}. Nenhum desvio crítico encontrado."
+    },
+    "db_status_card": {
+      "title": "Status do banco",
+      "update_available": "Atualização disponível",
+      "synced": "Banco sincronizado",
+      "schema_ready": "Schema v{{version}} pronto",
+      "unverified_desc": "O sistema não conseguiu comprovar o estado real do schema. Revise a auditoria antes de aplicar qualquer migration.",
+      "pending_desc": "Código e banco são etapas separadas. Este botão aplica no Supabase as migrations aprovadas que faltam nesta instalação.",
+      "updating": "Atualizando...",
+      "update_database": "Atualizar banco",
+      "copying_sql": "Copiando SQL...",
+      "copy_manual_sql": "Copiar SQL manual",
+      "copy_manual_sql_desc": "Se o executor automático falhar, copie o SQL aprovado e rode manualmente no SQL Editor do Supabase."
+    },
+    "features_panel": {
+      "title": "Recursos licenciados",
+      "subtitle": "Recursos ativos nesta instalação",
+      "license_synced": "Licença sincronizada",
+      "loading": "Carregando recursos...",
+      "active": "Ativo",
+      "blocked": "Bloqueado"
+    },
+    "history": {
+      "title": "Histórico de atualizações",
+      "subtitle": "Sincronizações, commits e backups de código",
+      "empty": "Nenhuma sincronização registrada",
+      "empty_desc": "O histórico registra sincronizações feitas depois da correção v1.1.7. Execute Sincronizar Código novamente para criar o primeiro registro local.",
+      "status_success": "Sucesso",
+      "status_failure": "Falha",
+      "action_database": "Banco",
+      "action_rollback": "Rollback",
+      "action_code": "Código",
+      "code_backup": "Backup de código: {{branch}}",
+      "verification_logged": "Verificação registrada",
+      "commit": "Commit",
+      "files": "Arquivos",
+      "manual": "Manual"
     },
     "features": {
       "title": "Módulos e Recursos",
@@ -1857,6 +2466,17 @@
       "advanced": "Configurações Avançadas",
       "info_new": "Conecte seu GitHub para atualizações automáticas."
     },
+    "github_widget": {
+      "title": "Atualização via GitHub",
+      "connected": "GitHub conectado",
+      "not_connected": "GitHub não conectado",
+      "sync_code": "Sincronizar código",
+      "sync_code_desc": "Sincronizar código altera apenas os arquivos do repositório. O banco só muda quando você confirmar Atualizar Banco.",
+      "connect_desc": "Conecte o GitHub App ao repositório desta instalação para receber atualizações de código.",
+      "connect_cta": "Conectar GitHub App",
+      "technical_settings": "Configurações técnicas",
+      "repository_name": "Nome do repositório"
+    },
     "health": {
       "title": "Integridade do Schema",
       "subtitle": "Verifique a sincronia do banco de dados",
@@ -1865,7 +2485,12 @@
       "status_drift": "Drift Detectado ({{count}})",
       "drift_table_missing": "Tabela ausente: {{name}}",
       "drift_column_missing": "Coluna ausente: {{column}} na tabela {{table}}",
-      "last_check": "Última verificação"
+      "last_check": "Última verificação",
+      "server_configuration_error": "A auditoria server-side falhou por configuração.",
+      "migration_pending": "Migrations aprovadas pendentes.",
+      "migration_state_unverified": "Não foi possível comprovar o estado real do schema.",
+      "version_mismatch": "Versão registrada diverge do schema: {{current}} vs {{expected}}",
+      "verify_schema": "Verificar {{name}}"
     },
     "snapshots": {
       "title": "Histórico de Snapshots",
@@ -1885,6 +2510,48 @@
       "title": "Backup Automático",
       "description": "O sistema criará um snapshot do banco de dados e do código antes de aplicar qualquer atualização via GitHub.",
       "active_protection": "Proteção Ativa"
+    },
+    "backup_shield": {
+      "title": "Segurança operacional",
+      "description": "Antes de sincronizar arquivos alterados, o sistema cria uma branch de backup do código. Alterações de banco seguem por migrations e auditoria separadas."
+    },
+    "dialogs": {
+      "update_db_title": "Atualizar banco",
+      "update_db_message": "Isso aplica no Supabase apenas as migrations aprovadas que faltam para esta versão do sistema. Sincronizar Código e deploy da Vercel continuam sendo etapas separadas.",
+      "apply_schema": "Aplicar schema",
+      "sync_code_title": "Sincronizar código",
+      "sync_code_message": "Isso irá copiar os arquivos oficiais para o repositório desta instalação. Quando houver mudanças, uma branch de backup será criada antes do commit. Depois, aguarde o deploy da Vercel.",
+      "confirm_sync": "Confirmar sync",
+      "rollback_title": "Reverter código",
+      "rollback_message": "Tem certeza que deseja reverter o código para este backup? Esta ação cria um novo estado no repositório e deve ser seguida por deploy da Vercel.",
+      "rollback_warning_title": "Aviso de rollback",
+      "rollback_warning_message": "Apenas arquivos de código serão revertidos. Mudanças estruturais no banco de dados devem ser tratadas por migration ou SQL validado separadamente.",
+      "execute_rollback": "Executar rollback"
+    },
+    "toasts": {
+      "finishing_github_integration": "Finalizando integração com GitHub...",
+      "github_connected": "GitHub conectado com sucesso!",
+      "read_state_error": "Não foi possível ler o estado do sistema.",
+      "db_updates_available": "Atualizações de banco de dados (até v{{version}}) disponíveis.",
+      "schema_unverified_before_migration": "Não foi possível comprovar o estado real do schema. Rode a auditoria e revise a instalação antes de aplicar migrations.",
+      "db_synced": "Banco de dados sincronizado com o schema v{{version}}.",
+      "sync_code_no_db_change": "Sincronizar Código não altera o banco. Use Atualizar Banco separadamente.",
+      "files_synced": "{{count}} arquivos sincronizados. Aguarde o deploy da Vercel e recarregue a página.",
+      "no_new_files_found": "Nenhum arquivo novo encontrado no repositório oficial.",
+      "code_synced_use_update_db": "O código já está sincronizado. Use Atualizar Banco para aplicar o schema pendente.",
+      "history_not_recorded": "Sincronização concluída, mas o histórico local não pôde ser gravado.",
+      "sync_failed": "Falha na sincronização.",
+      "rollback_success": "Sistema revertido com sucesso!",
+      "rollback_failed": "Falha no rollback.",
+      "migration_failed_with_version": "Migration v{{version}}: {{message}}",
+      "apply_schema_failed": "Falha ao aplicar o schema.",
+      "db_updated_versions": "Banco atualizado: {{versions}}.",
+      "db_already_schema": "Banco já está no schema v{{version}}.",
+      "sql_copied": "SQL oficial copiado: {{versions}}.",
+      "copy_sql_failed": "Falha ao copiar SQL oficial.",
+      "audit_valid": "Estrutura principal do banco validada!",
+      "audit_inconsistencies": "Foram encontradas inconsistências no banco.",
+      "audit_failed": "Falha na auditoria."
     }
   },
   "licenses": {
@@ -1924,6 +2591,166 @@
       "title_highlight": "gerenciados",
       "active_sync_loop": "Loop de sincroniza??o ativo",
       "cluster_size": "Tamanho do cluster:"
+    }
+  },
+  "privacy_center": {
+    "title": "Privacidade",
+    "badge": "LGPD operacional",
+    "subtitle": "Registre direitos do titular, exporte dados consolidados e execute retenção com trilha auditável.",
+    "refresh_panel": "Atualizar painel",
+    "not_informed": "não informado",
+    "no_additional_context": "sem contexto adicional",
+    "yes": "Sim",
+    "no": "Não",
+    "summary": {
+      "open_requests": "Solicitações abertas",
+      "total_records": "Total registrado",
+      "active_policies": "Políticas ativas",
+      "last_cleanup": "Último cleanup"
+    },
+    "subject_rights": {
+      "title": "Direitos do titular",
+      "subtitle": "Registro interno, exportação e acompanhamento"
+    },
+    "form": {
+      "request_type": "Tipo",
+      "subject_email": "E-mail do titular",
+      "subject_name": "Nome",
+      "subject_phone": "Telefone",
+      "subject_document": "Documento",
+      "internal_notes": "Notas internas"
+    },
+    "placeholders": {
+      "subject_email": "cliente@exemplo.com",
+      "subject_name": "Nome do titular",
+      "optional": "Opcional",
+      "internal_notes": "Contexto, canal de contato e evidências recebidas.",
+      "resolution_notes": "Documente decisão, resposta enviada e evidências."
+    },
+    "actions": {
+      "register_request": "Registrar solicitação",
+      "export_subject": "Exportar titular",
+      "run_global_cleanup": "Executar cleanup geral",
+      "clean": "Limpar"
+    },
+    "scope_warning": "O painel não conseguiu resolver uma conta única para vincular novas solicitações. Revise a sessão ou a configuração da instalação.",
+    "queue": {
+      "title": "Fila de atendimento",
+      "subtitle": "Solicitações recentes do titular",
+      "created_at": "Criada em {{date}}{{name}}",
+      "phone_label": "Telefone:",
+      "document_label": "Documento:",
+      "notes_label": "Notas:",
+      "current_status": "Status atual: {{status}}",
+      "fulfilled_at": " • concluída em {{date}}",
+      "empty": "Nenhuma solicitação registrada nesta instalação."
+    },
+    "retention": {
+      "title": "Retenção e purge",
+      "subtitle": "Políticas operacionais com execução manual e registro server-side",
+      "default_policy_notes": "Sem observação operacional.",
+      "days_label": "Dias",
+      "active_label": "Ativa",
+      "notes_label": "Notas"
+    },
+    "history": {
+      "title": "Histórico recente",
+      "cutoff": " • cutoff {{date}}",
+      "rows_affected": "{{count}} linha(s)",
+      "empty": "Nenhum cleanup registrado ainda."
+    },
+    "request_types": {
+      "access": "Acesso",
+      "correction": "Correção",
+      "deletion": "Exclusão",
+      "anonymization": "Anonimização",
+      "objection": "Oposição",
+      "portability": "Portabilidade",
+      "revocation": "Revogação"
+    },
+    "statuses": {
+      "open": "Aberta",
+      "in_review": "Em análise",
+      "fulfilled": "Concluída",
+      "rejected": "Recusada"
+    },
+    "toasts": {
+      "load_error": "Falha ao carregar o centro de privacidade.",
+      "request_created": "Solicitação registrada.",
+      "request_create_error": "Não foi possível registrar a solicitação.",
+      "subject_email_required": "Informe o e-mail do titular para exportar.",
+      "export_success": "Exportação concluída.",
+      "export_error": "Não foi possível exportar os dados do titular.",
+      "request_updated": "Solicitação atualizada.",
+      "request_update_error": "Falha ao atualizar a solicitação.",
+      "policy_updated": "Política {{table}} atualizada.",
+      "policy_update_error": "Falha ao salvar política de retenção.",
+      "cleanup_success_table": "Cleanup executado em {{table}}. {{count}} linha(s) afetada(s).",
+      "cleanup_success_all": "Cleanup executado. {{count}} linha(s) afetada(s).",
+      "cleanup_error": "Falha ao executar cleanup."
+    }
+  },
+  "partner_dashboard": {
+    "title": "Hub do Parceiro",
+    "subtitle": "Gestão técnica de instalações e controle de licenças.",
+    "central_online": "Central online",
+    "billing_and_commissions": "Financeiro e comissões",
+    "total_referrals": "Total de indicações",
+    "active_leads": "Leads ativos",
+    "active_installations": "Instalações ativas",
+    "systems": "Sistemas",
+    "your_referral_link": "Seu link de indicação",
+    "copy_access": "Copiar acesso",
+    "my_leads": "Meus leads",
+    "referral_tracking": "Acompanhamento de indicações",
+    "leads_count": "{{count}} leads",
+    "person_contact": "Pessoa / contato",
+    "date": "Data",
+    "operational_action": "Ação operacional",
+    "empty_referrals": "Nenhuma indicação registrada. Compartilhe seu link!",
+    "no_name": "Sem nome",
+    "registered": "Registrado",
+    "install_now": "Instalar agora",
+    "completed": "Concluído",
+    "installed_systems": "Sistemas instalados",
+    "active_domains_and_licenses": "Domínios e licenças ativas",
+    "domain_client": "Domínio / cliente",
+    "expires_in": "Expira em",
+    "control": "Controle",
+    "no_system_installed": "Nenhum sistema instalado.",
+    "lifetime_batch": "Lote vitalício",
+    "activate_features": "Ativar recursos",
+    "brand_protection_title": "Proteção da marca e suporte",
+    "brand_protection_description": "Em caso de abandono de suporte ou má conduta técnica com clientes indicados, a licença de parceiro pode ser suspensa ou revogada pela plataforma após análise.",
+    "modules_management_title": "Gestão de módulos: {{name}}",
+    "modules_management_description": "Como parceiro mestre, você tem o poder de liberar módulos premium para este cliente instantaneamente.",
+    "syncing_central": "Sincronizando central...",
+    "finish_management": "Concluir gestão",
+    "installation_assistant": "Assistente de instalação",
+    "searching": "Buscando...",
+    "confirm": "Confirmar",
+    "unknown_user": "Usuário não identificado",
+    "default_client_name": "Cliente",
+    "features": {
+      "unlimited_domains": "Domínios ilimitados",
+      "partner_panel": "Painel de parceiros",
+      "crm_leads": "CRM de leads"
+    },
+    "install_modal": {
+      "description_before": "Ao confirmar, o sistema irá sincronizar com o banco central para localizar a",
+      "free_license": "licença gratuita",
+      "description_after": "deste cliente.",
+      "remote_installation_protocol_active": "Protocolo de instalação remota ativo"
+    },
+    "toasts": {
+      "load_error": "Erro ao carregar dados do parceiro.",
+      "link_copied": "Link copiado para a área de transferência!",
+      "features_load_error": "Erro ao carregar recursos: {{message}}",
+      "feature_updated": "Recurso atualizado no banco central!",
+      "feature_update_error": "Erro ao atualizar: {{message}}",
+      "existing_license_found": "Licença existente encontrada! Gerando acesso...",
+      "no_active_license_for_lead": "Nenhuma licença ativa encontrada para este lead. Peça para o cliente completar o cadastro no Portal primeiro.",
+      "generic_error": "Erro: {{message}}"
     }
   }
 }

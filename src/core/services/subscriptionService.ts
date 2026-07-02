@@ -1,4 +1,6 @@
 
+import { centralSupabase } from './centralClient';
+
 export class SubscriptionService {
     /**
      * Promotes a user to the Vitalícia (Unlimited) plan.
@@ -6,7 +8,6 @@ export class SubscriptionService {
      */
     async promoteToVitalicia(userId: string) {
         try {
-            const { centralSupabase } = await import('./centralClient');
             const { data: { session } } = await centralSupabase.auth.getSession();
 
             const response = await fetch('/api/central/manage-licenses', {

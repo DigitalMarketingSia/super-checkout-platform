@@ -1,7 +1,8 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Modal } from './Modal';
 import { Button } from './Button';
-import { ArrowRight, BadgePercent, CheckCircle, ShieldCheck, Zap } from 'lucide-react';
+import { ArrowRight, CheckCircle, ShieldCheck, Zap } from 'lucide-react';
 import { storage } from '../../services/storageService';
 import { licenseService } from '../../services/licenseService';
 import { openUpgradeCheckout, UpgradePlanSlug } from '../../services/upgradeCheckout';
@@ -50,16 +51,25 @@ interface OfferConfig {
     priceContext: string;
 }
 
-const formatPriceBRL = (value: number) => new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-}).format(value);
+const resolveCurrencyLocale = (language: string) => {
+    if (language.startsWith('es')) return 'es-ES';
+    if (language.startsWith('en')) return 'en-US';
+    return 'pt-BR';
+};
 
 export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) => {
+    const { t, i18n } = useTranslation('common');
     const [products, setProducts] = React.useState<any[]>([]);
     const [loading, setLoading] = React.useState(false);
     const [openingCheckout, setOpeningCheckout] = React.useState(false);
     const [checkoutError, setCheckoutError] = React.useState<string | null>(null);
+
+    const formatPrice = (value: number) => new Intl.NumberFormat(resolveCurrencyLocale(i18n.language), {
+        style: 'currency',
+        currency: 'BRL',
+    }).format(value);
+
+    const getOfferFeatures = (key: string) => t(key, { returnObjects: true }) as string[];
 
     React.useEffect(() => {
         if (!isOpen) return;
@@ -106,65 +116,50 @@ export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) =>
                 setProducts([...mergedPlans, ...localOnlyProducts]);
             } catch (error) {
                 console.error('Error fetching SaaS products for modal:', error);
-                setCheckoutError('Nao foi possivel carregar o checkout de upgrade agora.');
+                setCheckoutError(t('upsell_modal.load_error'));
             } finally {
                 setLoading(false);
             }
         };
 
-        fetchProducts();
-    }, [isOpen]);
+        void fetchProducts();
+    }, [isOpen, t]);
 
     if (!offerSlug) return null;
 
     const offers: Record<'unlimited_domains' | 'partner_rights' | 'whitelabel', OfferConfig> = {
         unlimited_domains: {
-            title: 'Licenca Vitalicia Elite',
-            description: 'Tudo ilimitado para você vender mais: domínios, subdomínios, produtos, checkouts e áreas de membros.',
+            title: t('upsell_modal.offers.unlimited_domains.title'),
+            description: t('upsell_modal.offers.unlimited_domains.description'),
             anchorPrice: 497,
             fallbackPrice: 197,
-            features: [
-                'Dominios ilimitados',
-                'Subdominios ilimitados',
-                'Produtos e checkouts ilimitados',
-                'Areas de membros ilimitadas',
-            ],
-            cta: 'Fazer Upgrade Vitalicio',
+            features: getOfferFeatures('upsell_modal.offers.unlimited_domains.features'),
+            cta: t('upsell_modal.offers.unlimited_domains.cta'),
             planSlug: 'upgrade_domains',
-            badge: 'Oferta Especial de Ativação',
-            priceContext: 'O valor final abaixo acompanha automaticamente o produto vinculado ao plano de upgrade.',
+            badge: t('upsell_modal.offers.unlimited_domains.badge'),
+            priceContext: t('upsell_modal.offers.unlimited_domains.price_context'),
         },
         partner_rights: {
-            title: 'Licenca Comercial / Parceiro',
-            description: 'Ideal para agencias e freelancers que querem vender implantacao e operar com uma condicao comercial mais agressiva.',
+            title: t('upsell_modal.offers.partner_rights.title'),
+            description: t('upsell_modal.offers.partner_rights.description'),
             anchorPrice: 997,
             fallbackPrice: 497,
-            features: [
-                'Direito de uso comercial',
-                'Instalacoes para clientes',
-                'Suporte prioritario',
-                'Painel de gestao multi-licencas',
-            ],
-            cta: 'Ser Parceiro Oficial',
+            features: getOfferFeatures('upsell_modal.offers.partner_rights.features'),
+            cta: t('upsell_modal.offers.partner_rights.cta'),
             planSlug: 'saas',
-            badge: 'Condicao Comercial',
-            priceContext: 'O valor final abaixo acompanha automaticamente o produto parceiro vinculado a este plano.',
+            badge: t('upsell_modal.offers.partner_rights.badge'),
+            priceContext: t('upsell_modal.offers.partner_rights.price_context'),
         },
         whitelabel: {
-            title: 'Upgrade White Label Elite',
-            description: 'Remova totalmente a nossa marca e apresente o sistema como seu para clientes com uma camada premium de posicionamento.',
+            title: t('upsell_modal.offers.whitelabel.title'),
+            description: t('upsell_modal.offers.whitelabel.description'),
             anchorPrice: null,
             fallbackPrice: 997,
-            features: [
-                'Tudo da licenca comercial',
-                'Remocao da marca Super Checkout',
-                'Personalizacao de logotipo',
-                'Dominio proprio de admin',
-            ],
-            cta: 'Ativar White Label',
+            features: getOfferFeatures('upsell_modal.offers.whitelabel.features'),
+            cta: t('upsell_modal.offers.whitelabel.cta'),
             planSlug: 'whitelabel',
-            badge: 'Camada Premium',
-            priceContext: 'O valor final abaixo acompanha o produto white label vinculado quando existir configuracao comercial publicada.',
+            badge: t('upsell_modal.offers.whitelabel.badge'),
+            priceContext: t('upsell_modal.offers.whitelabel.price_context'),
         },
     };
 
@@ -187,7 +182,7 @@ export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) =>
 
     const handleOpenCheckout = async () => {
         if (!checkoutUrl || !planSlug) {
-            setCheckoutError('Checkout oficial do plano ainda nao esta configurado. Tente novamente em instantes.');
+            setCheckoutError(t('upsell_modal.checkout_not_configured'));
             return;
         }
 
@@ -209,7 +204,7 @@ export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) =>
             });
             onClose();
         } catch (error) {
-            setCheckoutError(error instanceof Error ? error.message : 'Falha ao preparar checkout seguro.');
+            setCheckoutError(error instanceof Error ? error.message : t('upsell_modal.secure_checkout_error'));
         } finally {
             setOpeningCheckout(false);
         }
@@ -222,10 +217,10 @@ export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) =>
             title={
                 <div className="flex flex-col">
                     <span className="text-[9px] font-black uppercase tracking-[0.24em] text-emerald-400">
-                        Upgrade prioritário
+                        {t('upsell_modal.header_title')}
                     </span>
                     <span className="text-xs font-medium text-white/60 mt-0.5">
-                        Remova os limites da conta com essa condição Exclusiva
+                        {t('upsell_modal.header_subtitle')}
                     </span>
                 </div>
             }
@@ -275,9 +270,9 @@ export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) =>
                             <ShieldCheck className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
                             <div>
                                 <strong className="text-emerald-300 font-bold uppercase tracking-wider text-[9px] block mb-0.5">
-                                    Liberação imediata
+                                    {t('upsell_modal.immediate_release_title')}
                                 </strong>
-                                Ativação rápida e transparente. Sua estrutura atual é mantida enquanto os limites da plataforma são removidos automaticamente.
+                                {t('upsell_modal.immediate_release_description')}
                             </div>
                         </div>
                     </section>
@@ -287,56 +282,56 @@ export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) =>
                             <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/[0.02] rounded-full blur-2xl" />
 
                             <div className="relative w-fit mb-3">
-                                <div 
+                                <div
                                     className="absolute inset-0 bg-emerald-500/15 translate-x-[2px] translate-y-[2px]"
                                     style={{ clipPath: 'polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)' }}
                                 />
-                                <div 
+                                <div
                                     style={{ clipPath: 'polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)' }}
                                     className="relative bg-slate-900 px-3.5 py-1 text-emerald-400 font-mono text-[8px] sm:text-[9px] font-black uppercase tracking-[0.2em] flex items-center gap-2"
                                 >
                                     <span className="w-1.5 h-1.5 bg-emerald-400 rotate-45 shrink-0 block" />
-                                    Condição especial Aplicada!
+                                    {t('upsell_modal.special_condition_applied')}
                                 </div>
                             </div>
 
                             <div className="mt-3 flex flex-col gap-1">
                                 {hasDiscountAnchor && anchorPrice !== null && (
                                     <div className="flex items-center gap-2 text-slate-400 text-xs">
-                                        <span className="line-through font-medium">{formatPriceBRL(anchorPrice)}</span>
+                                        <span className="line-through font-medium">{formatPrice(anchorPrice)}</span>
                                         <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200/50 font-bold text-[8px] uppercase tracking-wider">
-                                            Economize {savingsPercent}%
+                                            {t('upsell_modal.save_percent', { percent: savingsPercent })}
                                         </span>
                                     </div>
                                 )}
 
                                 <div className="flex items-baseline gap-2">
                                     <span className="text-[2.25rem] sm:text-[3rem] font-black tracking-tight text-slate-900 leading-none">
-                                        {loading ? '...' : formatPriceBRL(effectivePrice)}
+                                        {loading ? '...' : formatPrice(effectivePrice)}
                                     </span>
-                                    <span className="text-xs text-slate-500 font-semibold">/ vitalício</span>
+                                    <span className="text-xs text-slate-500 font-semibold">{t('upsell_modal.lifetime_suffix')}</span>
                                 </div>
                             </div>
 
                             {hasDiscountAnchor && savingsValue > 0 && (
                                 <div className="mt-3 flex items-center gap-1.5 text-[11px] text-emerald-600 font-bold bg-emerald-50/50 border border-emerald-100/50 rounded-lg px-2 py-1 w-fit">
                                     <CheckCircle className="h-3.5 w-3.5 text-emerald-500" />
-                                    <span>Você economiza {formatPriceBRL(savingsValue)}</span>
+                                    <span>{t('upsell_modal.savings_amount', { value: formatPrice(savingsValue) })}</span>
                                 </div>
                             )}
 
                             <div className="mt-4 flex justify-between gap-1 border-t border-slate-100 pt-3">
                                 <div className="flex items-center gap-1.5">
                                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                    <span className="text-[10px] font-bold text-slate-700">Sem travas</span>
+                                    <span className="text-[10px] font-bold text-slate-700">{t('upsell_modal.benefits.no_locks')}</span>
                                 </div>
                                 <div className="flex items-center gap-1.5">
                                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                    <span className="text-[10px] font-bold text-slate-700">Pagamento Único</span>
+                                    <span className="text-[10px] font-bold text-slate-700">{t('upsell_modal.benefits.one_time_payment')}</span>
                                 </div>
                                 <div className="flex items-center gap-1.5">
                                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                    <span className="text-[10px] font-bold text-slate-700">Acesso Imediato</span>
+                                    <span className="text-[10px] font-bold text-slate-700">{t('upsell_modal.benefits.immediate_access')}</span>
                                 </div>
                             </div>
 
@@ -354,7 +349,7 @@ export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) =>
 
                             {checkoutUnavailable && !checkoutError && (
                                 <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700">
-                                    Checkout oficial do plano não encontrado. Tente novamente em instantes ou abra o upgrade pelo Portal do Cliente.
+                                    {t('upsell_modal.checkout_missing')}
                                 </p>
                             )}
 
@@ -363,20 +358,20 @@ export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) =>
                                 disabled={loading || openingCheckout || checkoutUnavailable}
                                 className="w-full rounded-xl border-none bg-gradient-to-r from-emerald-600 via-emerald-500 to-green-500 py-3.5 text-xs font-black uppercase tracking-[0.15em] text-white shadow-[0_10px_20px_rgba(16,185,129,0.2)] hover:shadow-[0_12px_24px_rgba(16,185,129,0.3)] hover:brightness-105 active:scale-[0.99] transition-all duration-200 flex items-center justify-center"
                             >
-                                {loading ? 'Carregando...' : openingCheckout ? 'Preparando Checkout...' : content.cta}
+                                {loading ? t('loading') : openingCheckout ? t('upsell_modal.preparing_checkout') : content.cta}
                                 <ArrowRight className="ml-2 h-4 w-4" />
                             </Button>
 
                             <div className="flex flex-col items-center gap-2 mt-1">
                                 <p className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-400 text-center">
-                                    Upgrade automático e 100% seguro
+                                    {t('upsell_modal.secure_badge')}
                                 </p>
 
                                 <button
                                     onClick={onClose}
                                     className="text-xs text-slate-400 hover:text-slate-700 transition-colors font-medium underline underline-offset-4"
                                 >
-                                    Não, obrigado. Quero continuar limitado.
+                                    {t('upsell_modal.decline')}
                                 </button>
                             </div>
                         </div>

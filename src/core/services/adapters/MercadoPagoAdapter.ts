@@ -364,21 +364,7 @@ export class MercadoPagoAdapter {
             const keyData = encoder.encode(secret);
             const msgData = encoder.encode(manifest);
 
-            const getCrypto = async () => {
-                if (typeof crypto !== 'undefined' && crypto.subtle) return crypto;
-                if (typeof globalThis !== 'undefined' && globalThis.crypto && globalThis.crypto.subtle) return globalThis.crypto;
-
-                // Fallback for Node.js using dynamic import (ESM safe)
-                try {
-                    const nodeCrypto = await import('node:crypto');
-                    return nodeCrypto.webcrypto as unknown as Crypto;
-                } catch (e) {
-                    console.error('Web Crypto API not available:', e);
-                    return undefined;
-                }
-            };
-
-            const webCrypto = await getCrypto();
+            const webCrypto = typeof globalThis !== 'undefined' ? globalThis.crypto : undefined;
             if (!webCrypto || !webCrypto.subtle) {
                 console.warn('[MercadoPagoAdapter] Crypto.subtle not available for signature validation');
                 // Return true to allow webhook processing even if validation fails (fail open for now)

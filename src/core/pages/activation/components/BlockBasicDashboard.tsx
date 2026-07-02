@@ -71,7 +71,7 @@ export const DemoExperienceCard: React.FC<DemoExperienceCardProps> = ({
                             {t('basic_dashboard.demo.bullets.members')}
                         </span>
                         <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-gray-200 shadow-[0_10px_25px_rgba(0,0,0,0.2)]">
-                            {t('basic_dashboard.demo.bullets.full_test', 'Teste completo')}
+                            {t('basic_dashboard.demo.bullets.full_test')}
                         </span>
                     </div>
                 </div>
@@ -81,10 +81,10 @@ export const DemoExperienceCard: React.FC<DemoExperienceCardProps> = ({
                     <div className="relative flex h-full flex-col justify-between rounded-[2rem] border border-white/10 bg-black/35 p-5 shadow-[0_25px_65px_rgba(0,0,0,0.35)] backdrop-blur-xl">
                         <div>
                             <p className="text-[10px] font-black uppercase tracking-[0.32em] text-primary">
-                                {t('basic_dashboard.demo.cta_title', 'Abrir sistema demo')}
+                                {t('basic_dashboard.demo.cta_title')}
                             </p>
                             <p className="mt-3 text-lg font-black uppercase tracking-tight text-white/95 leading-snug">
-                                {t('basic_dashboard.demo.cta_hint', 'Abre o ambiente guiado em uma nova aba sem sair do portal.')}
+                                {t('basic_dashboard.demo.cta_hint')}
                             </p>
                         </div>
 
@@ -110,7 +110,7 @@ export const DemoExperienceCard: React.FC<DemoExperienceCardProps> = ({
                                                 : t('basic_dashboard.demo.cta')}
                                         </span>
                                         <span className="mt-1 text-[10px] font-black uppercase tracking-[0.22em] text-black/50">
-                                            {t('basic_dashboard.demo.cta_support', 'Abrir em nova aba')}
+                                            {t('basic_dashboard.demo.cta_support')}
                                         </span>
                                     </span>
                                 </span>
@@ -244,8 +244,8 @@ export const BlockBasicDashboard: React.FC<BlockBasicDashboardProps> = ({
                             <div className="relative flex items-center gap-2">
                                 <span className="inline-flex items-center rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[9px] font-black uppercase tracking-[0.28em] text-white/80">
                                     {license
-                                        ? t('basic_dashboard.primary_cta.recommended', 'Comece aqui')
-                                        : t('basic_dashboard.primary_cta.unlock_label', 'Passo inicial')}
+                                        ? t('basic_dashboard.primary_cta.recommended')
+                                        : t('basic_dashboard.primary_cta.unlock_label')}
                                 </span>
                                 <span className="h-2.5 w-2.5 rounded-full bg-emerald-300 shadow-[0_0_14px_rgba(110,231,183,0.95)]" />
                             </div>
@@ -261,7 +261,7 @@ export const BlockBasicDashboard: React.FC<BlockBasicDashboardProps> = ({
                                     <span className="mt-1 block text-[10px] font-black uppercase tracking-[0.24em] text-white/55">
                                         {license
                                             ? t('basic_dashboard.primary_cta.install_subtext')
-                                            : t('basic_dashboard.primary_cta.unlock_subtext', 'Ative sua base gratuita para continuar')}
+                                            : t('basic_dashboard.primary_cta.unlock_subtext')}
                                     </span>
                                 </div>
                             </div>
@@ -269,8 +269,8 @@ export const BlockBasicDashboard: React.FC<BlockBasicDashboardProps> = ({
                             <div className="relative flex w-full items-center justify-between rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
                                 <span className="text-[10px] font-black uppercase tracking-[0.22em] text-white/80">
                                     {license
-                                        ? t('basic_dashboard.primary_cta.install_hint', 'Abrir instalacao guiada agora')
-                                        : t('basic_dashboard.primary_cta.license_hint', 'Liberar acesso e seguir para instalacao')}
+                                        ? t('basic_dashboard.primary_cta.install_hint')
+                                        : t('basic_dashboard.primary_cta.license_hint')}
                                 </span>
                                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-black transition-transform duration-500 group-hover:translate-x-1">
                                     <ExternalLink className="h-4.5 w-4.5" />
@@ -296,7 +296,7 @@ export const BlockBasicDashboard: React.FC<BlockBasicDashboardProps> = ({
                                             {t('basic_dashboard.cards.installation_status')}
                                         </p>
                                         <h3 className="mt-2 text-3xl font-black italic uppercase tracking-tighter text-white leading-none">
-                                            CENTRO DE OPERAÇÕES
+                                            {t('basic_dashboard.cards.operations_center')}
                                         </h3>
                                     </div>
                                 </div>
@@ -338,20 +338,20 @@ export const BlockBasicDashboard: React.FC<BlockBasicDashboardProps> = ({
                                         <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover/logs:opacity-100 transition-opacity duration-500" />
                                         <p className="text-[10px] font-black uppercase tracking-[0.25em] text-gray-500 mb-5 flex items-center gap-2">
                                             <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-                                            LOGS OPERACIONAIS
+                                            {t('basic_dashboard.cards.operational_logs')}
                                         </p>
                                         <div className="space-y-4 relative z-10">
                                             <div className="flex items-center gap-3 text-[11px] font-mono text-gray-400">
                                                 <span className="text-emerald-400 font-bold">[OK]</span> 
-                                                <span className="opacity-40">Core Engine: Sincronizado</span>
+                                                <span className="opacity-40">{t('basic_dashboard.logs.core_engine_synced')}</span>
                                             </div>
                                             <div className="flex items-center gap-3 text-[11px] font-mono text-gray-400">
                                                 <span className="text-primary font-bold">[OK]</span>
-                                                <span className="opacity-40">Licença: Validada em Cloud</span>
+                                                <span className="opacity-40">{t('basic_dashboard.logs.license_validated')}</span>
                                             </div>
                                             <div className="flex items-center gap-3 text-[11px] font-mono text-gray-400">
                                                 <span className="text-sky-400 font-bold">[OK]</span>
-                                                <span className="opacity-40">Domínios: Monitoramento Ativo</span>
+                                                <span className="opacity-40">{t('basic_dashboard.logs.domains_monitored')}</span>
                                             </div>
                                         </div>
                                     </div>
@@ -410,19 +410,19 @@ export const BlockBasicDashboard: React.FC<BlockBasicDashboardProps> = ({
                                     </p>
                                 </div>
                                 {!hasUnlimitedPlan && (
-                                    <button onClick={openUpgrade} className="text-[10px] font-black text-primary hover:underline uppercase tracking-tighter">Fazer Upgrade</button>
+                                    <button onClick={openUpgrade} className="text-[10px] font-black text-primary hover:underline uppercase tracking-tighter">{t('basic_dashboard.actions.upgrade_plan')}</button>
                                 )}
                             </div>
                             
                             <div className="relative z-10 mt-8 grid grid-cols-2 gap-6">
                                 <div className="space-y-1">
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-600">DOMÍNIOS</p>
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-600">{t('basic_dashboard.labels.domains')}</p>
                                     <p className="text-4xl font-black italic tracking-tighter text-white">
                                         {domainLimit}
                                     </p>
                                 </div>
                                 <div className="space-y-1">
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-600">PRODUTOS</p>
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-600">{t('basic_dashboard.labels.products')}</p>
                                     <p className="text-4xl font-black italic tracking-tighter text-white">
                                         {productLimit}
                                     </p>

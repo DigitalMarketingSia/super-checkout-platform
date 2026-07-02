@@ -175,11 +175,11 @@ export const MemberSettings: React.FC<MemberSettingsProps> = ({ area, onSave, is
                     <div className="w-1.5 h-6 rounded-full" style={{ backgroundColor: primaryColor }} />
                     <div>
                         <h2 className="text-xl font-black text-white italic uppercase tracking-tighter leading-none mb-1">
-                            Appearance & <span style={{ color: primaryColor }}>UX Control</span>
+                            {t('member_area_details.studio_title_prefix', 'Appearance &')} <span style={{ color: primaryColor }}>{t('member_area_details.studio_title_highlight', 'UX Control')}</span>
                         </h2>
                         <div className="flex items-center gap-2 text-white/40 text-[10px] font-bold uppercase tracking-[0.3em]">
                             <Activity className="w-3.5 h-3.5" />
-                            Fine-tune your academy identity
+                            {t('member_area_details.studio_subtitle', 'Fine-tune your academy identity')}
                         </div>
                     </div>
                 </div>
@@ -190,7 +190,7 @@ export const MemberSettings: React.FC<MemberSettingsProps> = ({ area, onSave, is
                     style={{ color: '#0A0A1F' }}
                 >
                     <Save className="w-4 h-4" /> 
-                    <span className="text-xs">Salvar</span>
+                    <span className="text-xs">{t('common.save', 'Salvar')}</span>
                 </Button>
             </div>
 
@@ -202,29 +202,29 @@ export const MemberSettings: React.FC<MemberSettingsProps> = ({ area, onSave, is
                     <div className="group bg-white/[0.02] border border-white/5 rounded-[2.5rem] p-8 lg:p-10 hover:border-white/10 transition-all relative overflow-hidden">
                         <SectionHeader 
                             icon={LayoutIcon} 
-                            title="Visual Identity" 
-                            subtitle="Core portal attributes and assets"
-                            number="01 // IDENTITY"
+                            title={t('member_area_details.visual_identity', 'Visual Identity')} 
+                            subtitle={t('member_area_details.visual_identity_subtitle', 'Core portal attributes and assets')}
+                            number={t('member_area_details.visual_identity_number', '01 // IDENTITY')}
                         />
 
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
                             <div className="space-y-8">
                                 <div>
                                     <label className="flex items-center gap-2 text-[10px] font-bold text-white/40 uppercase tracking-widest mb-3 ml-1">
-                                        <Type className="w-3 h-3" /> Academy Name
+                                        <Type className="w-3 h-3" /> {t('member_area_details.portal_name', 'Nome do portal')}
                                     </label>
                                     <input
                                         type="text"
                                         className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-4 text-white outline-none focus:border-purple-500/50 transition-all font-bold placeholder:text-white/10"
                                         value={settings.name}
                                         onChange={e => setSettings({ ...settings, name: e.target.value })}
-                                        placeholder="Ex: Academy Elite"
+                                        placeholder={t('member_area_details.portal_name_placeholder', 'Ex: Academia Elite')}
                                     />
                                 </div>
 
                                 <div>
                                     <label className="flex items-center gap-2 text-[10px] font-bold text-white/40 uppercase tracking-widest mb-3 ml-1">
-                                        <Zap className="w-3 h-3" /> Portal Slug URL
+                                        <Zap className="w-3 h-3" /> {t('member_area_details.slug_url', 'Slug (URL)')}
                                     </label>
                                     <div className="flex bg-black/40 border border-white/5 rounded-2xl overflow-hidden focus-within:border-purple-500/50 transition-all">
                                         <span className="flex items-center px-6 bg-white/5 font-mono text-[10px] text-white/20 border-r border-white/5">
@@ -235,7 +235,7 @@ export const MemberSettings: React.FC<MemberSettingsProps> = ({ area, onSave, is
                                             className="flex-1 bg-transparent px-6 py-4 text-white outline-none font-bold lowercase"
                                             value={settings.slug}
                                             onChange={e => setSettings({ ...settings, slug: e.target.value.toLowerCase().replace(/\s+/g, '-') })}
-                                            placeholder="academy-slug"
+                                            placeholder={t('member_area_details.slug_placeholder', 'academy-slug')}
                                         />
                                     </div>
                                 </div>
@@ -244,17 +244,17 @@ export const MemberSettings: React.FC<MemberSettingsProps> = ({ area, onSave, is
                             <div className="grid grid-cols-2 gap-6">
                                 {/* Logo Upload */}
                                 <div>
-                                    <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-3 block ml-1">Portal Logo</label>
+                                    <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-3 block ml-1">{t('member_area_details.portal_logo', 'Logo do portal')}</label>
                                     <div className="relative group/upload h-full">
                                         <div className="aspect-square rounded-3xl bg-black/40 border-2 border-dashed border-white/10 flex flex-col items-center justify-center overflow-hidden group-hover/upload:border-purple-500/30 transition-all">
                                             {settings.logo_url ? (
-                                                <img src={settings.logo_url} alt="Logo" className="w-full h-full object-contain p-4" />
+                                                <img src={settings.logo_url} alt={t('member_area_details.portal_logo', 'Logo do portal')} className="w-full h-full object-contain p-4" />
                                             ) : (
                                                 <>
                                                     <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center mb-2">
                                                         <ImageIcon className="w-6 h-6 text-white/20" />
                                                     </div>
-                                                    <span className="text-[10px] font-bold text-white/20 uppercase tracking-widest">No Asset</span>
+                                                    <span className="text-[10px] font-bold text-white/20 uppercase tracking-widest">{t('member_area_details.no_asset', 'Sem ativo')}</span>
                                                 </>
                                             )}
                                         </div>
@@ -269,17 +269,17 @@ export const MemberSettings: React.FC<MemberSettingsProps> = ({ area, onSave, is
 
                                 {/* Favicon Upload */}
                                 <div>
-                                    <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-3 block ml-1">Favicon Asset</label>
+                                    <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-3 block ml-1">{t('member_area_details.favicon_asset', 'Ativo de favicon')}</label>
                                     <div className="relative group/upload h-full">
                                         <div className="aspect-square rounded-3xl bg-black/40 border-2 border-dashed border-white/10 flex flex-col items-center justify-center overflow-hidden group-hover/upload:border-purple-500/30 transition-all">
                                             {settings.favicon_url ? (
-                                                <img src={settings.favicon_url} alt="Favicon" className="w-12 h-12 object-contain" />
+                                                <img src={settings.favicon_url} alt={t('member_area_details.favicon', 'Favicon')} className="w-12 h-12 object-contain" />
                                             ) : (
                                                 <>
                                                     <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center mb-2">
                                                         <Globe className="w-6 h-6 text-white/20" />
                                                     </div>
-                                                    <span className="text-[10px] font-bold text-white/20 uppercase tracking-widest">Default</span>
+                                                    <span className="text-[10px] font-bold text-white/20 uppercase tracking-widest">{t('member_area_details.default_asset', 'Padrão')}</span>
                                                 </>
                                             )}
                                         </div>
@@ -299,27 +299,27 @@ export const MemberSettings: React.FC<MemberSettingsProps> = ({ area, onSave, is
                     <div className="group bg-white/[0.02] border border-white/5 rounded-[2.5rem] p-8 lg:p-10 hover:border-white/10 transition-all relative overflow-hidden">
                         <SectionHeader 
                             icon={Zap} 
-                            title="Portal Vitrine" 
-                            subtitle="Main banner and call-to-action"
-                            number="02 // VITRINE"
+                            title={t('member_area_details.showcase_title', 'Portal vitrine')} 
+                            subtitle={t('member_area_details.showcase_subtitle', 'Main banner and call-to-action')}
+                            number={t('member_area_details.showcase_number', '02 // VITRINE')}
                         />
 
                         <div className="space-y-10">
                             {/* Banner Image Hero */}
                             <div className="relative group/banner rounded-[2rem] overflow-hidden border border-white/10 bg-black/60 aspect-[21/9] flex items-center justify-center">
                                 {settings.banner_url ? (
-                                    <img src={settings.banner_url} alt="Banner" className="w-full h-full object-cover" />
+                                    <img src={settings.banner_url} alt={t('member_area_details.banner_image', 'Imagem do banner')} className="w-full h-full object-cover" />
                                 ) : (
                                     <div className="flex flex-col items-center gap-4 text-white/20">
                                         <div className="w-20 h-20 rounded-3xl bg-white/5 flex items-center justify-center border border-white/10">
                                             <Upload className="w-10 h-10" />
                                         </div>
-                                        <p className="text-xs font-black uppercase italic tracking-widest">Deploy Banner Asset</p>
+                                        <p className="text-xs font-black uppercase italic tracking-widest">{t('member_area_details.deploy_banner_asset', 'Publicar ativo do banner')}</p>
                                     </div>
                                 )}
                                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/banner:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm">
                                     <div className="relative px-8 py-4 bg-white text-black font-black uppercase italic tracking-tighter rounded-2xl cursor-pointer">
-                                        Upload New Discovery Banner
+                                        {t('member_area_details.upload_new_banner', 'Enviar novo banner de descoberta')}
                                         <input
                                             type="file"
                                             accept="image/*"
@@ -333,22 +333,22 @@ export const MemberSettings: React.FC<MemberSettingsProps> = ({ area, onSave, is
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
                                 <div className="space-y-8">
                                     <div>
-                                        <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-3 block ml-1">Headline Text</label>
+                                        <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-3 block ml-1">{t('member_area_details.banner_title', 'Título do banner')}</label>
                                         <input
                                             type="text"
                                             className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-4 text-white outline-none focus:border-purple-500/50 transition-all font-bold"
                                             value={settings.banner_title || ''}
                                             onChange={e => setSettings({ ...settings, banner_title: e.target.value })}
-                                            placeholder="Ex: Start your journey here"
+                                            placeholder={t('member_area_details.banner_title_placeholder', 'Ex: Comece sua jornada aqui')}
                                         />
                                     </div>
                                     <div>
-                                        <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-3 block ml-1">Sub-headline Description</label>
+                                        <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-3 block ml-1">{t('member_area_details.banner_description', 'Descrição do banner')}</label>
                                         <textarea
                                             className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-4 text-white outline-none focus:border-purple-500/50 transition-all font-bold min-h-[120px] resize-none"
                                             value={settings.banner_description || ''}
                                             onChange={e => setSettings({ ...settings, banner_description: e.target.value })}
-                                            placeholder="Tell your students what this community is regarding..."
+                                            placeholder={t('member_area_details.banner_description_placeholder', 'Descreva sua comunidade e o que os alunos vão encontrar')}
                                         />
                                     </div>
                                 </div>
@@ -356,27 +356,27 @@ export const MemberSettings: React.FC<MemberSettingsProps> = ({ area, onSave, is
                                 <div className="space-y-8">
                                     <div className="p-6 bg-white/[0.02] border border-white/5 rounded-[2rem]">
                                         <h4 className="text-[10px] font-bold text-white/60 uppercase tracking-widest mb-6 flex items-center gap-2">
-                                            <MousePointer2 className="w-3 h-3" /> Call to Action Control
+                                            <MousePointer2 className="w-3 h-3" /> {t('member_area_details.cta_control', 'Controle da chamada para ação')}
                                         </h4>
                                         <div className="space-y-6">
                                             <div>
-                                                <label className="text-[10px] font-bold text-white/20 uppercase tracking-widest mb-2 block">Button Label</label>
+                                                <label className="text-[10px] font-bold text-white/20 uppercase tracking-widest mb-2 block">{t('member_area_details.button_text', 'Texto do botão')}</label>
                                                 <input
                                                     type="text"
                                                     className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-purple-500/50 transition-all text-sm font-bold"
                                                     value={settings.banner_button_text || ''}
                                                     onChange={e => setSettings({ ...settings, banner_button_text: e.target.value })}
-                                                    placeholder="EX: ACCESS NOW"
+                                                    placeholder={t('member_area_details.button_text_placeholder', 'Ex: Acessar agora')}
                                                 />
                                             </div>
                                             <div>
-                                                <label className="text-[10px] font-bold text-white/20 uppercase tracking-widest mb-2 block">Destination URL / Deep Link</label>
+                                                <label className="text-[10px] font-bold text-white/20 uppercase tracking-widest mb-2 block">{t('member_area_details.button_link_deep', 'URL de destino / deep link')}</label>
                                                 <input
                                                     type="text"
                                                     className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-purple-500/50 transition-all text-sm font-bold"
                                                     value={settings.banner_button_link || ''}
                                                     onChange={e => setSettings({ ...settings, banner_button_link: e.target.value })}
-                                                    placeholder="EX: /track/operational-strategy"
+                                                    placeholder={t('member_area_details.button_link_placeholder', 'Ex: /curso/123 ou https://...')}
                                                 />
                                             </div>
                                         </div>
@@ -391,9 +391,9 @@ export const MemberSettings: React.FC<MemberSettingsProps> = ({ area, onSave, is
                         <div className="group bg-white/[0.02] border border-white/5 rounded-[2.5rem] p-8 lg:p-10 hover:border-white/10 transition-all">
                             <SectionHeader 
                                 icon={LinkIcon} 
-                                title="Macro Links" 
-                                subtitle="External references & menu mapping"
-                                number="03 // LINKS"
+                                title={t('member_area_details.menu_links', 'Links do menu')} 
+                                subtitle={t('member_area_details.menu_links_subtitle', 'External references & menu mapping')}
+                                number={t('member_area_details.menu_links_number', '03 // LINKS')}
                             />
                             <div className="bg-black/20 rounded-3xl border border-white/5 p-1">
                                 <LinksManager
@@ -406,9 +406,9 @@ export const MemberSettings: React.FC<MemberSettingsProps> = ({ area, onSave, is
                         <div className="group bg-white/[0.02] border border-white/5 rounded-[2.5rem] p-8 lg:p-10 hover:border-white/10 transition-all">
                             <SectionHeader 
                                 icon={HelpCircle} 
-                                title="Intel Base" 
-                                subtitle="Frequently Asked Questions"
-                                number="04 // FAQ"
+                                title={t('member_area_details.faq_knowledge_title', 'Base de conhecimento')} 
+                                subtitle={t('member_area_details.faq_subtitle', 'Perguntas frequentes')}
+                                number={t('member_area_details.faq_number', '04 // FAQ')}
                             />
                             <div className="bg-black/20 rounded-3xl border border-white/5 p-1">
                                 <FAQManager
@@ -426,9 +426,9 @@ export const MemberSettings: React.FC<MemberSettingsProps> = ({ area, onSave, is
                     <div className="group bg-white/[0.02] border border-white/5 rounded-[2.5rem] p-8 lg:p-10 hover:border-white/10 transition-all relative overflow-hidden">
                         <SectionHeader 
                             icon={Palette} 
-                            title="Chrome Palette" 
-                            subtitle="Primary accent & portal branding"
-                            number="05 // COLOR"
+                            title={t('member_area_details.chrome_palette_title', 'Paleta visual')} 
+                            subtitle={t('member_area_details.chrome_palette_subtitle', 'Primary accent & portal branding')}
+                            number={t('member_area_details.colors_number', '05 // COLOR')}
                         />
 
                         <div className="space-y-6">
@@ -446,7 +446,7 @@ export const MemberSettings: React.FC<MemberSettingsProps> = ({ area, onSave, is
                                     />
                                 </div>
                                 <div className="flex-1">
-                                    <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1 block">Hex Code</label>
+                                    <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1 block">{t('member_area_details.hex_code', 'Código hex')}</label>
                                     <input
                                         type="text"
                                         className="w-full bg-transparent text-2xl font-black text-white outline-none uppercase italic tracking-tighter"
@@ -478,7 +478,7 @@ export const MemberSettings: React.FC<MemberSettingsProps> = ({ area, onSave, is
                                     <div className="w-8 h-8 rounded-xl bg-white/5 flex items-center justify-center">
                                         <Monitor className="w-4 h-4 text-white/40" />
                                     </div>
-                                    <h4 className="text-sm font-black text-white italic uppercase tracking-tighter pb-1 border-b-2" style={{ borderColor: primaryColor }}>Portal Simulator</h4>
+                                    <h4 className="text-sm font-black text-white italic uppercase tracking-tighter pb-1 border-b-2" style={{ borderColor: primaryColor }}>{t('member_area_details.portal_simulator', 'Simulador do portal')}</h4>
                                 </div>
                                 <div className="flex bg-white/5 rounded-xl p-1 border border-white/5">
                                     <button 
@@ -530,7 +530,7 @@ export const MemberSettings: React.FC<MemberSettingsProps> = ({ area, onSave, is
                                                 <div className="h-1 w-12 bg-white/20 rounded-full" />
                                                 <div className="mt-2 flex">
                                                     <div className="px-3 py-1 rounded-[4px] text-[6px] font-black italic uppercase tracking-tighter text-[#050510]" style={{ backgroundColor: primaryColor }}>
-                                                        {settings.banner_button_text || 'ACTION'}
+                                                        {settings.banner_button_text || t('member_area_details.button_preview_fallback', 'Action')}
                                                     </div>
                                                 </div>
                                             </div>
@@ -556,12 +556,12 @@ export const MemberSettings: React.FC<MemberSettingsProps> = ({ area, onSave, is
                             <div className="mt-8 flex items-center justify-center gap-4">
                                 <div className="flex items-center gap-2">
                                     <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: primaryColor }} />
-                                    <span className="text-[10px] font-mono text-white/30 uppercase tracking-widest">Reality Sync Active</span>
+                                    <span className="text-[10px] font-mono text-white/30 uppercase tracking-widest">{t('member_area_details.reality_sync_active', 'Sincronia visual ativa')}</span>
                                 </div>
                                 <div className="w-1 h-1 bg-white/10 rounded-full" />
                                 <div className="flex items-center gap-2 text-green-500/60">
                                     <CheckCircle2 className="w-3 h-3" />
-                                    <span className="text-[10px] font-mono uppercase tracking-widest">Assets Optimized</span>
+                                    <span className="text-[10px] font-mono uppercase tracking-widest">{t('member_area_details.assets_optimized', 'Ativos otimizados')}</span>
                                 </div>
                             </div>
                         </div>

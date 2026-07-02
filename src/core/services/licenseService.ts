@@ -1,6 +1,7 @@
 import { CENTRAL_CONFIG } from '../config/central';
 import { platformUrls } from '../config/platformUrls';
-import { CENTRAL_SUPABASE_ANON_KEY } from './centralClient';
+import { centralSupabase, CENTRAL_SUPABASE_ANON_KEY } from './centralClient';
+import { supabase as localSupabase } from './supabase';
 import { getEnv } from '../utils/env';
 
 export interface License {
@@ -113,9 +114,6 @@ export interface PassportTicketLinkResponse {
  * The x-admin-secret is now added server-side by /api/central-proxy.
  */
 const getHeaders = async () => {
-    const { centralSupabase } = await import('./centralClient');
-    const { supabase: localSupabase } = await import('./supabase');
-    
     // Check both central and local sessions
     const { data: centralSession } = await centralSupabase.auth.getSession();
     const { data: localSession } = await localSupabase.auth.getSession();
@@ -134,7 +132,6 @@ const getHeaders = async () => {
 };
 
 const getControlPlaneAdminHeaders = async () => {
-    const { supabase: localSupabase } = await import('./supabase');
     const { data: localSession } = await localSupabase.auth.getSession();
 
     const headers: Record<string, string> = {
@@ -376,10 +373,8 @@ export const licenseService = {
     },
 
     async getMyInstallations(): Promise<Installation[]> {
-        const { centralSupabase } = await import('../services/centralClient');
-        const { supabase } = await import('../services/supabase');
         const { data: centralUserData } = await centralSupabase.auth.getUser();
-        const { data: localUserData } = await supabase.auth.getUser();
+        const { data: localUserData } = await localSupabase.auth.getUser();
         const user = centralUserData.user || localUserData.user;
 
         if (!user?.email) return [];
@@ -396,10 +391,8 @@ export const licenseService = {
     },
 
     async revokeInstallation(installationId: string): Promise<void> {
-        const { centralSupabase } = await import('../services/centralClient');
-        const { supabase } = await import('../services/supabase');
         const { data: centralUserData } = await centralSupabase.auth.getUser();
-        const { data: localUserData } = await supabase.auth.getUser();
+        const { data: localUserData } = await localSupabase.auth.getUser();
         const user = centralUserData.user || localUserData.user;
 
         if (!user?.email) throw new Error('E-mail do usuário não encontrado');
@@ -450,8 +443,6 @@ export const licenseService = {
     },
 
     async getOfficialPlans(): Promise<any[]> {
-        const { centralSupabase } = await import('./centralClient');
-
         const { data, error } = await centralSupabase
             .from('plans')
             .select('*')
@@ -477,8 +468,6 @@ export const licenseService = {
     },
 
     async getAllPlans(): Promise<any[]> {
-        const { centralSupabase } = await import('./centralClient');
-
         const { data, error } = await centralSupabase
             .from('plans')
             .select('*')

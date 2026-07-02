@@ -4,71 +4,15 @@ import { useTranslation } from 'react-i18next';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { InstallationProvider } from './context/InstallationContext';
 
-import { Dashboard } from './pages/admin/Dashboard';
 import { AdminRoute } from './components/admin/AdminRoute';
-import { Products } from './pages/admin/Products';
-import { Offers } from './pages/admin/Offers';
-import { Checkouts } from './pages/admin/Checkouts';
-import { CheckoutEditor } from './pages/admin/CheckoutEditor';
-import { Gateways } from './pages/admin/Gateways';
-import { SystemUpdates } from './pages/admin/SystemUpdates';
-import { Domains } from './pages/admin/Domains';
-import { Settings } from './pages/admin/Settings';
-import { Orders } from './pages/admin/Orders';
-import { Webhooks } from './pages/admin/Webhooks';
-import { Licenses } from './pages/admin/Licenses';
-import { SystemLicenses } from './pages/admin/SystemLicenses';
-import { SecurityEvents } from './pages/admin/SecurityEvents';
-import { UpgradeIntents } from './pages/admin/UpgradeIntents';
-import { BusinessSettings } from './pages/admin/BusinessSettings';
-import { PrivacyCenter } from './pages/admin/PrivacyCenter';
-import { MyInstallations } from './pages/admin/Installations';
-import { LeadCRM } from './pages/admin/LeadCRM';
-import { FreeUserDetails } from './pages/admin/FreeUserDetails';
-import { PartnerDashboard } from './pages/admin/PartnerDashboard';
-import { Marketing } from './pages/Marketing';
-import { IntegrationsHub } from './pages/IntegrationsHub';
-import { Notifications } from './pages/admin/Notifications';
-import { MemberAreas } from './pages/admin/MemberAreas';
-import { MemberAreaDashboard } from './pages/admin/MemberAreaDashboard';
-import { ContentEditor } from './pages/admin/ContentEditor';
-import { MemberDashboard } from './pages/member/MemberDashboard';
-import { CoursePlayer } from './pages/member/CoursePlayer';
-import { ContentModules } from './pages/member/ContentModules';
-import { PublicCheckout } from './pages/public/PublicCheckout';
-import { PixPayment } from './pages/public/PixPayment';
-import { PreviewUpsell } from './pages/public/PreviewUpsell';
-import { UpsellPage } from './pages/public/UpsellPage';
-import { ThankYou } from './pages/public/ThankYou';
-import { Login } from './pages/Login';
-import { UpdatePassword } from './pages/UpdatePassword';
-import { MemberLogin } from './pages/member/MemberLogin';
-import { MemberSignup } from './pages/member/MemberSignup';
 import Setup from './pages/public/Setup';
-import { Register } from './pages/public/Register';
-import { PassportExchange } from './pages/PassportExchange';
-import { MemberAreaWrapper } from './pages/member/MemberAreaWrapper';
-import { MemberProducts } from './pages/member/MemberProducts';
-import { MyProducts } from './pages/member/MyProducts';
-import { MemberFAQ } from './pages/member/MemberFAQ';
-import { MemberProfile } from './pages/member/MemberProfile';
-import { ActivationLogin } from './pages/activation/ActivationLogin';
-import { ActivationPortal } from './pages/activation/ActivationPortal';
-import { ActivationContentEditor } from './pages/admin/ActivationContentEditor';
-import { PublicPrivacy } from './pages/public/PublicPrivacy';
-import { PublicTerms } from './pages/public/PublicTerms';
-import { PlatformPrivacy } from './pages/public/PlatformPrivacy';
-import { PlatformTerms } from './pages/public/PlatformTerms';
 import { LicenseGuard } from './components/LicenseGuard';
 import { Loading } from './components/ui/Loading';
-import InstallerWizard from './pages/installer/InstallerWizard';
-import { WebhookDocs } from './pages/docs/WebhookDocs';
 import { ThemeProvider } from './context/ThemeContext';
 import { ConfigLoader } from './components/ConfigLoader';
 import { Toaster } from 'sonner';
 import { getEnv } from './utils/env';
 import { GlobalErrorBoundary } from './components/GlobalErrorBoundary';
-import { DemoWorkspaceLauncher } from './pages/demo/DemoWorkspaceLauncher';
 import {
   getCurrentHostname,
   getHostnameFromUrl,
@@ -76,13 +20,73 @@ import {
   isLocalHostname,
 } from './config/runtimeMode';
 
-import { storage } from './services/storageService';
+import { domainLookupService } from './services/domainLookupService';
 import { DomainUsage } from './types';
 
+const Dashboard = React.lazy(() => import('./pages/admin/Dashboard').then((mod) => ({ default: mod.Dashboard })));
+const Products = React.lazy(() => import('./pages/admin/Products').then((mod) => ({ default: mod.Products })));
+const Offers = React.lazy(() => import('./pages/admin/Offers').then((mod) => ({ default: mod.Offers })));
+const Checkouts = React.lazy(() => import('./pages/admin/Checkouts').then((mod) => ({ default: mod.Checkouts })));
+const CheckoutEditor = React.lazy(() => import('./pages/admin/CheckoutEditor').then((mod) => ({ default: mod.CheckoutEditor })));
+const Gateways = React.lazy(() => import('./pages/admin/Gateways').then((mod) => ({ default: mod.Gateways })));
+const SystemUpdates = React.lazy(() => import('./pages/admin/SystemUpdates').then((mod) => ({ default: mod.SystemUpdates })));
+const Domains = React.lazy(() => import('./pages/admin/Domains').then((mod) => ({ default: mod.Domains })));
+const Settings = React.lazy(() => import('./pages/admin/Settings').then((mod) => ({ default: mod.Settings })));
+const Orders = React.lazy(() => import('./pages/admin/Orders').then((mod) => ({ default: mod.Orders })));
+const Webhooks = React.lazy(() => import('./pages/admin/Webhooks').then((mod) => ({ default: mod.Webhooks })));
+const Licenses = React.lazy(() => import('./pages/admin/Licenses').then((mod) => ({ default: mod.Licenses })));
+const SystemLicenses = React.lazy(() => import('./pages/admin/SystemLicenses').then((mod) => ({ default: mod.SystemLicenses })));
+const SecurityEvents = React.lazy(() => import('./pages/admin/SecurityEvents').then((mod) => ({ default: mod.SecurityEvents })));
+const UpgradeIntents = React.lazy(() => import('./pages/admin/UpgradeIntents').then((mod) => ({ default: mod.UpgradeIntents })));
+const BusinessSettings = React.lazy(() => import('./pages/admin/BusinessSettings').then((mod) => ({ default: mod.BusinessSettings })));
+const PrivacyCenter = React.lazy(() => import('./pages/admin/PrivacyCenter').then((mod) => ({ default: mod.PrivacyCenter })));
+const MyInstallations = React.lazy(() => import('./pages/admin/Installations').then((mod) => ({ default: mod.MyInstallations })));
+const LeadCRM = React.lazy(() => import('./pages/admin/LeadCRM').then((mod) => ({ default: mod.LeadCRM })));
+const FreeUserDetails = React.lazy(() => import('./pages/admin/FreeUserDetails').then((mod) => ({ default: mod.FreeUserDetails })));
+const PartnerDashboard = React.lazy(() => import('./pages/admin/PartnerDashboard').then((mod) => ({ default: mod.PartnerDashboard })));
+const Marketing = React.lazy(() => import('./pages/Marketing').then((mod) => ({ default: mod.Marketing })));
+const IntegrationsHub = React.lazy(() => import('./pages/IntegrationsHub').then((mod) => ({ default: mod.IntegrationsHub })));
+const Notifications = React.lazy(() => import('./pages/admin/Notifications').then((mod) => ({ default: mod.Notifications })));
+const MemberAreas = React.lazy(() => import('./pages/admin/MemberAreas').then((mod) => ({ default: mod.MemberAreas })));
+const MemberAreaDashboard = React.lazy(() => import('./pages/admin/MemberAreaDashboard').then((mod) => ({ default: mod.MemberAreaDashboard })));
+const ContentEditor = React.lazy(() => import('./pages/admin/ContentEditor').then((mod) => ({ default: mod.ContentEditor })));
+const MemberDashboard = React.lazy(() => import('./pages/member/MemberDashboard').then((mod) => ({ default: mod.MemberDashboard })));
+const CoursePlayer = React.lazy(() => import('./pages/member/CoursePlayer').then((mod) => ({ default: mod.CoursePlayer })));
+const ContentModules = React.lazy(() => import('./pages/member/ContentModules').then((mod) => ({ default: mod.ContentModules })));
+const PublicCheckout = React.lazy(() => import('./pages/public/PublicCheckout').then((mod) => ({ default: mod.PublicCheckout })));
+const PixPayment = React.lazy(() => import('./pages/public/PixPayment').then((mod) => ({ default: mod.PixPayment })));
+const PreviewUpsell = React.lazy(() => import('./pages/public/PreviewUpsell').then((mod) => ({ default: mod.PreviewUpsell })));
+const UpsellPage = React.lazy(() => import('./pages/public/UpsellPage').then((mod) => ({ default: mod.UpsellPage })));
+const ThankYou = React.lazy(() => import('./pages/public/ThankYou').then((mod) => ({ default: mod.ThankYou })));
+const Login = React.lazy(() => import('./pages/Login').then((mod) => ({ default: mod.Login })));
+const UpdatePassword = React.lazy(() => import('./pages/UpdatePassword').then((mod) => ({ default: mod.UpdatePassword })));
+const MemberLogin = React.lazy(() => import('./pages/member/MemberLogin').then((mod) => ({ default: mod.MemberLogin })));
+const MemberSignup = React.lazy(() => import('./pages/member/MemberSignup').then((mod) => ({ default: mod.MemberSignup })));
+const Register = React.lazy(() => import('./pages/public/Register').then((mod) => ({ default: mod.Register })));
+const PassportExchange = React.lazy(() => import('./pages/PassportExchange').then((mod) => ({ default: mod.PassportExchange })));
+const MemberAreaWrapper = React.lazy(() => import('./pages/member/MemberAreaWrapper').then((mod) => ({ default: mod.MemberAreaWrapper })));
+const MemberProducts = React.lazy(() => import('./pages/member/MemberProducts').then((mod) => ({ default: mod.MemberProducts })));
+const MyProducts = React.lazy(() => import('./pages/member/MyProducts').then((mod) => ({ default: mod.MyProducts })));
+const MemberFAQ = React.lazy(() => import('./pages/member/MemberFAQ').then((mod) => ({ default: mod.MemberFAQ })));
+const MemberProfile = React.lazy(() => import('./pages/member/MemberProfile').then((mod) => ({ default: mod.MemberProfile })));
+const ActivationLogin = React.lazy(() => import('./pages/activation/ActivationLogin').then((mod) => ({ default: mod.ActivationLogin })));
+const ActivationPortal = React.lazy(() => import('./pages/activation/ActivationPortal').then((mod) => ({ default: mod.ActivationPortal })));
+const ActivationContentEditor = React.lazy(() => import('./pages/admin/ActivationContentEditor').then((mod) => ({ default: mod.ActivationContentEditor })));
+const PublicPrivacy = React.lazy(() => import('./pages/public/PublicPrivacy').then((mod) => ({ default: mod.PublicPrivacy })));
+const PublicTerms = React.lazy(() => import('./pages/public/PublicTerms').then((mod) => ({ default: mod.PublicTerms })));
+const PlatformPrivacy = React.lazy(() => import('./pages/public/PlatformPrivacy').then((mod) => ({ default: mod.PlatformPrivacy })));
+const PlatformTerms = React.lazy(() => import('./pages/public/PlatformTerms').then((mod) => ({ default: mod.PlatformTerms })));
+const InstallerWizard = React.lazy(() => import('./pages/installer/InstallerWizard'));
+const WebhookDocs = React.lazy(() => import('./pages/docs/WebhookDocs').then((mod) => ({ default: mod.WebhookDocs })));
+const DemoWorkspaceLauncher = React.lazy(() => import('./pages/demo/DemoWorkspaceLauncher').then((mod) => ({ default: mod.DemoWorkspaceLauncher })));
 const FlowApp = React.lazy(() => import('./pages/admin/flow/App'));
 const AuthDebug = import.meta.env.DEV
   ? React.lazy(() => import('./pages/debug/AuthDebug').then((mod) => ({ default: mod.AuthDebug })))
   : null;
+
+const RouteBoundary: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <React.Suspense fallback={<Loading />}>{children}</React.Suspense>
+);
 
 const CONTROL_PLANE_HOSTNAMES = new Set(
   [
@@ -226,7 +230,7 @@ const DomainDispatcher = () => {
 
       try {
         console.log('Checking custom domain in DB...');
-        const domain = await storage.getDomainByHostname(hostname);
+        const domain = await domainLookupService.getDomainByHostname(hostname);
         console.log('Domain found:', domain);
 
         if (domain) {
@@ -260,7 +264,7 @@ const DomainDispatcher = () => {
             }
 
             const slug = pathname.substring(1);
-            const checkout = await storage.getCheckoutByDomainAndSlug(domain.id, slug);
+            const checkout = await domainLookupService.getCheckoutByDomainAndSlug(domain.id, slug);
 
             if (checkout) {
               setCustomCheckoutId(checkout.id);
@@ -272,7 +276,7 @@ const DomainDispatcher = () => {
           }
 
           if (domain.usage === DomainUsage.MEMBER_AREA) {
-            const memberArea = await storage.getMemberAreaByDomain(domain.id);
+            const memberArea = await domainLookupService.getMemberAreaByDomain(domain.id);
 
             if (memberArea) {
               setCustomMemberAreaSlug(memberArea.slug);
@@ -368,10 +372,10 @@ const DomainDispatcher = () => {
   }
 
   return (
-    <Routes>
-      <Route path="/setup" element={<Setup />} />
+      <Routes>
+        <Route path="/setup" element={<Setup />} />
       {AuthDebug && (
-        <Route path="/debug-auth" element={<React.Suspense fallback={<Loading />}><AuthDebug /></React.Suspense>} />
+        <Route path="/debug-auth" element={<AuthDebug />} />
       )}
       <Route path="/login" element={<HostAwareLoginRoute />} />
       <Route path="/passport" element={<PassportExchange />} />
@@ -406,7 +410,7 @@ const DomainDispatcher = () => {
       <Route path="/admin/upgrade-intents" element={<SystemOwnerRoute requireControlPlane><UpgradeIntents /></SystemOwnerRoute>} />
       <Route path="/admin/security-events" element={<SystemOwnerRoute><SecurityEvents /></SystemOwnerRoute>} />
       <Route path="/admin/updates" element={<AdminRoute><SystemUpdates /></AdminRoute>} />
-      <Route path="/admin/flow/*" element={<AdminRoute><React.Suspense fallback={<Loading />}><FlowApp /></React.Suspense></AdminRoute>} />
+      <Route path="/admin/flow/*" element={<AdminRoute><FlowApp /></AdminRoute>} />
 
       <Route path="/admin/free-users" element={<SystemOwnerRoute requireControlPlane><LeadCRM /></SystemOwnerRoute>} />
       <Route path="/admin/free-users/:id" element={<SystemOwnerRoute requireControlPlane><FreeUserDetails /></SystemOwnerRoute>} />
@@ -556,9 +560,11 @@ const App = () => {
         <AuthProvider>
           <ThemeProvider>
             <BrowserRouter>
-              <LicenseGuard>
-                <DomainDispatcher />
-              </LicenseGuard>
+              <RouteBoundary>
+                <LicenseGuard>
+                  <DomainDispatcher />
+                </LicenseGuard>
+              </RouteBoundary>
             </BrowserRouter>
           </ThemeProvider>
         </AuthProvider>

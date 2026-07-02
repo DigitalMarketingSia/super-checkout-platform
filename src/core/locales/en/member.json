@@ -139,7 +139,11 @@
     "created_by": "Created by",
     "member_area_fallback": "Members area",
     "powered_by": "Powered by",
-    "logo_alt": "Logo"
+    "logo_alt": "Logo",
+    "footer_copyright": "Copyright © {{year}} {{name}}",
+    "footer_terms_of_purchase": "Purchase Terms",
+    "footer_privacy_policy": "Privacy Policy",
+    "footer_legal_contact": "Legal contact: {{contact}}"
   },
   "profile": {
     "title": "My Profile",

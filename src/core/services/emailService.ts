@@ -58,9 +58,23 @@ class EmailService {
         }
     }
 
-    private getLang(): string {
-        const currentLang = localStorage.getItem('i18nextLng') || 'pt';
+    private getLang(preferredLang?: string | null): string {
+        const currentLang = preferredLang || localStorage.getItem('i18nextLng') || 'pt';
         return currentLang.split('-')[0];
+    }
+
+    private getOrderLang(order?: Partial<Order> | null): string {
+        const metadata = order?.metadata && typeof order.metadata === 'object' ? order.metadata : {};
+        const paymentContext = metadata.payment_context && typeof metadata.payment_context === 'object'
+            ? metadata.payment_context
+            : {};
+        const preferredLang = typeof paymentContext.language === 'string'
+            ? paymentContext.language
+            : typeof metadata.language === 'string'
+                ? metadata.language
+                : null;
+
+        return this.getLang(preferredLang);
     }
 
     private getAppOrigin(): string {
@@ -133,7 +147,7 @@ class EmailService {
     }
 
     async sendPaymentApproved(order: Order) {
-        const lang = this.getLang();
+        const lang = this.getOrderLang(order);
         
         const { data: template } = await supabase
             .from('email_templates')

@@ -20,7 +20,7 @@ import { translatePaymentError } from '../../utils/errorTranslator';
 import { useTranslation } from 'react-i18next';
 import type { UpsellGatewayCapability } from '../../config/upsellCapabilities';
 import { getApiUrl } from '../../utils/apiUtils';
-import type { ProcessPaymentRequest } from '../../services/paymentService';
+import { paymentService, type ProcessPaymentRequest } from '../../services/paymentService';
 import {
    buildDefaultPrivacyPolicy,
    buildDefaultTermsOfPurchase,
@@ -140,23 +140,6 @@ const isDemoScenarioCompatibleWithPaymentMethod = (scenario: string, paymentMeth
    if (!paymentMethod || !scenario) return false;
    if (paymentMethod === 'pix') return scenario === 'pix_pending' || scenario === 'pix_paid';
    return scenario === 'approved' || scenario === 'rejected';
-};
-
-const getPaymentMethodLabel = (paymentMethod: PaymentMethod | null) => {
-   switch (paymentMethod) {
-      case 'credit_card':
-         return 'Cartao de credito';
-      case 'pix':
-         return 'Pix';
-      case 'boleto':
-         return 'Boleto';
-      case 'apple_pay':
-         return 'Apple Pay';
-      case 'google_pay':
-         return 'Google Pay';
-      default:
-         return '';
-   }
 };
 
 const isMercadoPagoSandboxGateway = (gateway?: Gateway | null) =>
@@ -664,19 +647,9 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
          return t('checkout.upgrade_not_found', 'Este link de upgrade não foi encontrado ou não está mais disponível.');
       }
       if (normalized.includes('unauthorized') || normalized.includes('authorization')) {
-         return 'Nao foi possivel validar este link de upgrade agora. Tente novamente em alguns instantes.';
+         return t('checkout.upgrade_validation_retry', 'Nao foi possivel validar este link de upgrade agora. Tente novamente em alguns instantes.');
       }
-      return message || 'Nao foi possivel validar o upgrade desta conta.';
-   };
-
-   // Helper to get currency symbol
-   const getCurrencySymbol = () => {
-      const currency = data?.checkout?.currency || 'BRL';
-      switch (currency) {
-         case 'USD': return '$';
-         case 'EUR': return '€';
-         default: return 'R$';
-      }
+      return message || t('checkout.upgrade_validation_failed', 'Nao foi possivel validar o upgrade desta conta.');
    };
 
    const applyBusinessSettings = (settings?: {
@@ -808,13 +781,13 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
             const checkout = await storage.getPublicCheckout(id!);
 
             if (!checkout) {
-               setError("Checkout não encontrado.");
+               setError(t('checkout.not_found', 'Checkout nao encontrado.'));
                setLoading(false);
                return;
             }
 
             if (!checkout.active) {
-               setError("Este checkout está inativo no momento.");
+               setError(t('checkout.inactive', 'Este checkout esta inativo no momento.'));
                setLoading(false);
                return;
             }             // 1.5 Fetch Business Settings using Checkout's Account/User
@@ -889,7 +862,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
             const gateway = await storage.getPublicGateway(checkout.gateway_id);
 
             if (!mainProduct || !gateway) {
-               setError("Configuração inválida de produto ou gateway.");
+               setError(t('checkout.invalid_configuration', 'Configuracao invalida de produto ou gateway.'));
                setLoading(false);
                return;
             }
@@ -946,14 +919,14 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
              }
           } catch (err: any) {
              console.error('Error loading checkout:', err);
-             setError("Erro ao carregar checkout. Tente novamente.");
+             setError(t('checkout.load_failed', 'Erro ao carregar checkout. Tente novamente.'));
              setLoading(false);
           }
       };
       if (id) {
          load();
       } else {
-         setError("Checkout não especificado.");
+         setError(t('checkout.missing_id', 'Checkout nao especificado.'));
          setLoading(false);
       }
    }, [demoReloadKey, id, isDemoCheckout]);
@@ -1090,6 +1063,23 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
          style: 'currency',
          currency: currency,
       }).format(value);
+   };
+
+   const getPaymentMethodLabel = (method: PaymentMethod | null) => {
+      switch (method) {
+         case 'credit_card':
+            return t('checkout.payment_method_labels.credit_card', 'Cartao de credito');
+         case 'pix':
+            return t('checkout.payment_method_labels.pix', 'Pix');
+         case 'boleto':
+            return t('checkout.payment_method_labels.boleto', 'Boleto');
+         case 'apple_pay':
+            return t('checkout.payment_method_labels.apple_pay', 'Apple Pay');
+         case 'google_pay':
+            return t('checkout.payment_method_labels.google_pay', 'Google Pay');
+         default:
+            return '';
+      }
    };
 
    const calculateTotal = () => {
@@ -1294,14 +1284,13 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
          });
 
          // ✅ CALL PAYMENT SERVICE (TRANSPARENT CHECKOUT)
-         const { paymentService } = await import('../../services/paymentService');
          const effectiveTrackingAttribution = trackingAttribution || captureCheckoutTrackingAttribution();
 
          const result = await paymentService.processPayment({
             checkoutId: data.checkout.id,
             offerId: data.checkout.offer_id || 'direct',
             amount: totalAmount,
-            customerName: customer.name || 'Cliente',
+            customerName: customer.name || t('checkout.customer_fallback', 'Cliente'),
             customerEmail: customer.email || 'cliente@email.com',
             customerPhone: customer.phone,
             customerCpf: customer.cpf,
@@ -1357,7 +1346,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                id: result.orderId,
                checkout_id: data.checkout.id,
                amount: totalAmount,
-               customer_name: customer.name || 'Cliente',
+               customer_name: customer.name || t('checkout.customer_fallback', 'Cliente'),
                customer_email: customer.email || 'cliente@email.com',
                customer_phone: customer.phone,
                customer_cpf: customer.cpf,
@@ -1560,15 +1549,15 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                      <div className="flex gap-2 text-gray-900">
                         <div className="time-box flex flex-col items-center bg-white rounded px-2 py-0.5 min-w-[36px]">
                            <span className="time-number font-bold text-sm">00</span>
-                           <span className="time-label text-[8px] uppercase text-gray-500">Hrs</span>
+                           <span className="time-label text-[8px] uppercase text-gray-500">{t('checkout.time_hours_short', 'Hrs')}</span>
                         </div>
                         <div className="time-box flex flex-col items-center bg-white rounded px-2 py-0.5 min-w-[36px]">
                            <span className="time-number font-bold text-sm">{timeLeft.minutes.toString().padStart(2, '0')}</span>
-                           <span className="time-label text-[8px] uppercase text-gray-500">Min</span>
+                           <span className="time-label text-[8px] uppercase text-gray-500">{t('checkout.time_minutes_short', 'Min')}</span>
                         </div>
                         <div className="time-box flex flex-col items-center bg-white rounded px-2 py-0.5 min-w-[36px]">
                            <span className="time-number font-bold text-sm">{timeLeft.seconds.toString().padStart(2, '0')}</span>
-                           <span className="time-label text-[8px] uppercase text-gray-500">Seg</span>
+                           <span className="time-label text-[8px] uppercase text-gray-500">{t('checkout.time_seconds_short', 'Seg')}</span>
                         </div>
                      </div>
                   </div>
@@ -1611,19 +1600,19 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                         <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5" />
                         <div className="flex-1">
                            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-700">
-                              Modo demo
+                              {t('checkout.demo_mode', 'Modo demo')}
                            </p>
                            <p className="mt-1 text-sm text-amber-900">
-                              Escolha o comportamento da compra para testar o fluxo completo.
+                              {t('checkout.demo_behavior_desc', 'Escolha o comportamento da compra para testar o fluxo completo.')}
                            </p>
                            {!paymentMethod ? (
                               <div className="mt-3 rounded-lg border border-amber-200 bg-white/80 px-3 py-2.5 text-sm text-amber-800">
-                                 Escolha a forma de pagamento abaixo para liberar os cenarios de teste.
+                                 {t('checkout.select_payment_for_scenarios', 'Escolha a forma de pagamento abaixo para liberar os cenarios de teste.')}
                               </div>
                            ) : (
                               <>
                                  <div className="mt-3 inline-flex items-center rounded-full border border-amber-200 bg-white px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-amber-700">
-                                    Forma ativa: {getPaymentMethodLabel(paymentMethod)}
+                                    {t('checkout.active_method', 'Forma ativa: {{method}}', { method: getPaymentMethodLabel(paymentMethod) })}
                                  </div>
                                  <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
                                     {availableDemoScenarios.map((scenario) => {
@@ -1755,7 +1744,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                               </div>
                            )}
                            <PixIcon className="w-6 h-6" />
-                           <span className="text-sm font-bold">Pix</span>
+                           <span className="text-sm font-bold">{t('checkout.payment_method_labels.pix', 'Pix')}</span>
                         </button>
                      )}
 
@@ -1773,7 +1762,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                               </div>
                            )}
                            <Barcode className="w-5 h-5" />
-                           <span className="text-sm font-bold">Boleto</span>
+                           <span className="text-sm font-bold">{t('checkout.payment_method_labels.boleto', 'Boleto')}</span>
                         </button>
                      )}
 
@@ -1812,7 +1801,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                         )}
                         <h3 className="text-lg font-medium text-gray-900 mb-1">{t('checkout.express_payment', 'Pagamento expresso')}</h3>
                         <p className="text-sm text-gray-500">
-                           {t('checkout.wallet_hint', 'Verifique os itens extras abaixo se desejar e conclua sua compra tocando no botão do {{wallet}} ao final da página.', { wallet: paymentMethod === 'apple_pay' ? 'Apple Pay' : 'Google Pay' })}
+                           {t('checkout.wallet_hint', 'Verifique os itens extras abaixo se desejar e conclua sua compra tocando no botão do {{wallet}} ao final da página.', { wallet: paymentMethod === 'apple_pay' ? t('checkout.payment_method_labels.apple_pay', 'Apple Pay') : t('checkout.payment_method_labels.google_pay', 'Google Pay') })}
                         </p>
                      </div>
                   )}
@@ -1932,15 +1921,13 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                                              const totalAmount = calculateTotal();
                                              const currency = data.product.currency || 'BRL';
                                              setLoadingInstallments(true);
-                                             import('../../services/paymentService').then(({ paymentService }) => {
-                                                paymentService.getPaymentOptions(data.gateway.id, totalAmount, currency, bin)
-                                                   .then(options => {
-                                                      setInstallmentOptions(options);
-                                                      setCustomer(prev => ({ ...prev, installments: '1' }));
-                                                   })
-                                                   .catch(() => setInstallmentOptions([]))
-                                                   .finally(() => setLoadingInstallments(false));
-                                             });
+                                             paymentService.getPaymentOptions(data.gateway.id, totalAmount, currency, bin)
+                                                .then(options => {
+                                                   setInstallmentOptions(options);
+                                                   setCustomer(prev => ({ ...prev, installments: '1' }));
+                                                })
+                                                .catch(() => setInstallmentOptions([]))
+                                                .finally(() => setLoadingInstallments(false));
                                           } else if (cleanedBin.length < 6) {
                                              setInstallmentOptions([]);
                                           }
@@ -2084,10 +2071,10 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                            if (isCreditCard) {
                               const interest = installments > 1 ? 1.2 : 1;
                               const val = (price * interest) / installments;
-                              priceValue = val.toFixed(2);
+                              priceValue = formatCurrency(val);
                               suffix = t('checkout.bump_installment_suffix', ' na parcela');
                            } else {
-                              priceValue = price.toFixed(2);
+                              priceValue = formatCurrency(price);
                            }
 
                            return (
@@ -2121,7 +2108,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                                              {selectedBumps.includes(bump.id) && <Check className="w-3.5 h-3.5 text-white" />}
                                           </div>
                                           <p className="text-sm font-bold text-gray-900 leading-tight">
-                                             {t('checkout.bump_accept_prefix', 'Sim, quero aproveitar por apenas')} <span className="text-[#10B981]">{getCurrencySymbol()} {priceValue}</span>{suffix}
+                                             {t('checkout.bump_accept_prefix', 'Sim, quero aproveitar por apenas')} <span className="text-[#10B981]">{priceValue}</span>{suffix}
                                           </p>
                                        </div>
                                     </div>
@@ -2141,9 +2128,9 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                      <div className="flex justify-between gap-3 text-gray-600">
                         <span className="flex-1 break-words">{data.product.name}</span>
                         {data.product.price_fake ? (
-                           <span className="line-through text-gray-400 whitespace-nowrap">{getCurrencySymbol()} {data.product.price_fake.toFixed(2)}</span>
+                           <span className="line-through text-gray-400 whitespace-nowrap">{formatCurrency(data.product.price_fake)}</span>
                         ) : (
-                           <span className="text-[#10B981] whitespace-nowrap">{getCurrencySymbol()} {data.product.price_real?.toFixed(2)}</span>
+                           <span className="text-[#10B981] whitespace-nowrap">{formatCurrency(data.product.price_real)}</span>
                         )}
                      </div>
 
@@ -2152,7 +2139,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                         return bump ? (
                            <div key={bump.id} className="flex justify-between gap-3 text-[#10B981]">
                               <span className="flex items-center gap-1 flex-1 break-words"><Check className="w-3 h-3 flex-shrink-0" /> {bump.name}</span>
-                              <span className="whitespace-nowrap">+ R$ {bump.price_real?.toFixed(2)}</span>
+                              <span className="whitespace-nowrap">+ {formatCurrency(bump.price_real)}</span>
                            </div>
                         ) : null;
                      })}
@@ -2160,9 +2147,9 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                      <div className="border-t border-gray-100 pt-3 flex justify-between items-center">
                         <span className="font-bold text-gray-900">{t('checkout.total', 'Total')}</span>
                         <div className="text-right">
-                           <p className="text-2xl font-bold text-[#10B981]">{getCurrencySymbol()} {totalAmount.toFixed(2)}</p>
+                           <p className="text-2xl font-bold text-[#10B981]">{formatCurrency(totalAmount)}</p>
                            {paymentMethod === 'credit_card' && (
-                              <p className="text-xs text-gray-500">{t('checkout.installment_preview', 'ou 12x de {{amount}}', { amount: `${getCurrencySymbol()} ${(totalAmount / 12 * 1.2).toFixed(2)}` })}</p>
+                              <p className="text-xs text-gray-500">{t('checkout.installment_preview', 'ou 12x de {{amount}}', { amount: formatCurrency((totalAmount / 12) * 1.2) })}</p>
                            )}
                         </div>
                      </div>
@@ -2279,7 +2266,9 @@ const WalletTabButton = ({
 
    const isActive = paymentMethod === (type === 'apple' ? 'apple_pay' : 'google_pay');
    const methodValue = type === 'apple' ? 'apple_pay' : 'google_pay';
-   const label = type === 'apple' ? 'Apple Pay' : 'Google Pay';
+   const label = type === 'apple'
+      ? t('checkout.payment_method_labels.apple_pay', 'Apple Pay')
+      : t('checkout.payment_method_labels.google_pay', 'Google Pay');
 
    return (
       <button
@@ -2405,13 +2394,12 @@ const WalletExpressButton = ({
                if (bump) items.push({ name: bump.name, price: bump.price_real || 0, quantity: 1, type: 'bump', product_id: bump.id });
             });
 
-            const { paymentService } = await import('../../services/paymentService');
             const effectiveTrackingAttribution = trackingAttribution || captureCheckoutTrackingAttribution();
             const result = await paymentService.processPayment({
                checkoutId: data.checkout.id,
                offerId: data.checkout.offer_id || 'direct',
                amount: totalAmount,
-               customerName: ev.payerName || 'Cliente Wallet',
+               customerName: ev.payerName || t('checkout.wallet_customer_fallback', 'Cliente Wallet'),
                customerEmail: ev.payerEmail || 'cliente@wallet.com',
                customerPhone: ev.payerPhone || '',
                gatewayId: data.gateway.id,
@@ -2449,7 +2437,7 @@ const WalletExpressButton = ({
                   id: result.orderId,
                   checkout_id: data.checkout.id,
                   amount: totalAmount,
-                  customer_name: ev.payerName || 'Cliente Wallet',
+                  customer_name: ev.payerName || t('checkout.wallet_customer_fallback', 'Cliente Wallet'),
                   customer_email: ev.payerEmail || 'cliente@wallet.com',
                   customer_phone: ev.payerPhone || '',
                   payment_method: 'credit_card',

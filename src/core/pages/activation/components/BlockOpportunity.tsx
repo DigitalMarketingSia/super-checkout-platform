@@ -5,6 +5,7 @@ import { sanitizeTranslationHtml } from '../../../utils/sanitize';
 import Aurora from '../../../components/ui/Aurora';
 import { openUpgradeCheckout } from '../../../services/upgradeCheckout';
 import { matchesUpgradePlanSlug, normalizeUpgradePlanSlug } from '../../../services/upgradePlanSlug';
+import { storage } from '../../../services/storageService';
 
 interface BlockOpportunityProps {
     onNavigate: (tab: string) => void;
@@ -19,7 +20,6 @@ export const BlockOpportunity: React.FC<BlockOpportunityProps> = ({ onNavigate }
     React.useEffect(() => {
         const load = async () => {
             try {
-                const { storage } = await import('../../../services/storageService');
                 const products = await storage.getPublicSaaSProducts();
                 const found = products.find(p => matchesUpgradePlanSlug(p.saas_plan_slug, 'saas'));
                 setSaasProduct(found);
@@ -34,7 +34,7 @@ export const BlockOpportunity: React.FC<BlockOpportunityProps> = ({ onNavigate }
 
     const handleOpenPartnerCheckout = async () => {
         const planSlug = normalizeUpgradePlanSlug(saasProduct?.saas_plan_slug);
-        if (!saasProduct?.checkout_url || !planSlug) return;
+        if (!saasProduct?.checkout_url || planSlug !== 'saas') return;
 
         setIsOpeningCheckout(true);
         try {
@@ -90,14 +90,14 @@ export const BlockOpportunity: React.FC<BlockOpportunityProps> = ({ onNavigate }
                             disabled={!saasProduct?.checkout_url || isOpeningCheckout}
                             className="group relative px-12 py-6 bg-primary text-white font-black text-xl rounded-2xl hover:scale-105 transition-all shadow-2xl shadow-primary/20 flex items-center gap-4 uppercase tracking-tighter italic"
                         >
-                            <span>{loading || isOpeningCheckout ? 'Preparando...' : t('opportunity.activate_partner')}</span>
+                            <span>{loading || isOpeningCheckout ? t('banners.preparing') : t('opportunity.activate_partner')}</span>
                             {isOpeningCheckout ? <Loader2 className="w-6 h-6 animate-spin" /> : <ArrowRight className="w-6 h-6 group-hover:translate-x-2 transition-transform" />}
                         </button>
                         <p className="text-gray-500 text-[10px] font-black uppercase tracking-[0.3em]">
                             {t('opportunity.immediate_access')}
                         </p>
                         <p className="text-gray-600 text-[10px] font-black uppercase tracking-[0.22em]">
-                            upgrade aplicado automaticamente nesta conta
+                            {t('banners.auto_apply_note')}
                         </p>
                     </div>
                 </div>
@@ -179,9 +179,9 @@ export const BlockOpportunity: React.FC<BlockOpportunityProps> = ({ onNavigate }
                         {/* 3-SERVICE GRID */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                             {[
-                                { title: "Instalações", desc: "10 Clientes x R$ 97", total: "970" },
-                                { title: "Configurações", desc: "10 Serviços x R$ 47", total: "470" },
-                                { title: t('opportunity.upgrade_commission'), desc: t('opportunity.upgrade_calc'), total: "367", extra: "25% Fixo" }
+                                { title: t('opportunity.earnings_cards.installations_title'), desc: t('opportunity.earnings_cards.installations_desc'), total: '970' },
+                                { title: t('opportunity.earnings_cards.configurations_title'), desc: t('opportunity.earnings_cards.configurations_desc'), total: '470' },
+                                { title: t('opportunity.upgrade_commission'), desc: t('opportunity.upgrade_calc'), total: '367', extra: t('opportunity.earnings_cards.fixed_bonus') }
                             ].map((item, i) => (
                                 <div key={i} className={`p-6 bg-white/[0.02] rounded-[1.5rem] border ${item.extra ? 'border-primary/30 bg-primary/10' : 'border-white/5'} hover:bg-white/[0.05] transition-all flex flex-col justify-between h-full relative`}>
                                     {item.extra && (
@@ -205,13 +205,13 @@ export const BlockOpportunity: React.FC<BlockOpportunityProps> = ({ onNavigate }
                             <div className="relative h-full bg-[#05050A]/80 backdrop-blur-3xl border border-white/10 rounded-[2.5rem] p-8 md:p-10 flex flex-col items-start gap-8 shadow-xl">
                                 <div className="space-y-6">
                                     <div>
-                                        <p className="text-primary text-[10px] font-black uppercase tracking-[0.4em] mb-4">SEU LUCRO ESTIMADO</p>
+                                        <p className="text-primary text-[10px] font-black uppercase tracking-[0.4em] mb-4">{t('opportunity.estimated_profit_label')}</p>
                                         <div className="flex items-baseline gap-3">
                                             <span className="text-primary font-black text-3xl italic tracking-tighter">R$</span>
                                             <h4 className="text-7xl md:text-8xl font-display font-black text-white italic uppercase tracking-tighter leading-none">1.807</h4>
                                         </div>
                                     </div>
-                                    <p className="text-gray-400 text-xs font-black uppercase tracking-[0.1em] bg-white/5 py-2.5 px-5 rounded-xl border border-white/5 inline-block">Ganho potencial com apenas 20 atendimentos + Upgrades</p>
+                                    <p className="text-gray-400 text-xs font-black uppercase tracking-[0.1em] bg-white/5 py-2.5 px-5 rounded-xl border border-white/5 inline-block">{t('opportunity.estimated_profit_hint')}</p>
                                 </div>
                                 
                                 <style>
@@ -277,7 +277,7 @@ export const BlockOpportunity: React.FC<BlockOpportunityProps> = ({ onNavigate }
                                     <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
                                         <Check className="w-4 h-4 text-emerald-400" />
                                     </div>
-                                    <span className="text-emerald-50 font-black italic uppercase tracking-tighter text-sm">Gere lucros dormindo</span>
+                                    <span className="text-emerald-50 font-black italic uppercase tracking-tighter text-sm">{t('opportunity.passive_income_chip')}</span>
                                 </div>
                             </div>
                         </div>
@@ -371,7 +371,7 @@ export const BlockOpportunity: React.FC<BlockOpportunityProps> = ({ onNavigate }
                                     disabled={!saasProduct?.checkout_url || isOpeningCheckout}
                                     className="block w-full py-6 bg-primary text-white font-black text-xl rounded-2xl hover:scale-[1.03] active:scale-[0.98] transition-all shadow-xl shadow-primary/30 uppercase tracking-tighter italic mb-8"
                                 >
-                                    {isOpeningCheckout ? 'Preparando...' : t('opportunity.vip_plan.cta')}
+                                    {isOpeningCheckout ? t('banners.preparing') : t('opportunity.vip_plan.cta')}
                                 </button>
 
                                 <p className="text-[10px] text-gray-600 font-black uppercase tracking-[0.2em]">
@@ -400,7 +400,7 @@ export const BlockOpportunity: React.FC<BlockOpportunityProps> = ({ onNavigate }
                         disabled={!saasProduct?.checkout_url || isOpeningCheckout}
                         className="group relative inline-flex px-16 py-8 bg-white text-black font-black text-2xl rounded-[1.5rem] hover:scale-105 transition-all shadow-2xl shadow-white/10 items-center gap-4 uppercase tracking-tighter italic"
                     >
-                        <span>{loading || isOpeningCheckout ? 'Preparando...' : t('opportunity.activate_now')}</span>
+                        <span>{loading || isOpeningCheckout ? t('banners.preparing') : t('opportunity.activate_now')}</span>
                         {isOpeningCheckout ? <Loader2 className="w-7 h-7 animate-spin" /> : <ArrowRight className="w-7 h-7 group-hover:translate-x-2 transition-transform" />}
                     </button>
                 </div>

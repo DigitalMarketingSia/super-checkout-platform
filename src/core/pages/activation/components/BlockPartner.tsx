@@ -36,7 +36,12 @@ interface BlockPartnerProps {
 const LEADS_PER_PAGE = 10;
 
 export const BlockPartner: React.FC<BlockPartnerProps> = ({ userId }) => {
-    const { t } = useTranslation('portal');
+    const { t, i18n } = useTranslation('portal');
+    const partnerDateLocale = i18n.language.toLowerCase().startsWith('en')
+        ? 'en-US'
+        : i18n.language.toLowerCase().startsWith('es')
+            ? 'es-ES'
+            : 'pt-BR';
     // Stats State
     const [stats, setStats] = useState({ clients: 0, installations: 0, newToday: 0 });
 
@@ -328,7 +333,7 @@ export const BlockPartner: React.FC<BlockPartnerProps> = ({ userId }) => {
                                                 <td className="px-8 py-6">
                                                     <div className="text-xs text-gray-400 font-medium italic flex items-center gap-2">
                                                         <Calendar className="w-3.5 h-3.5 text-gray-600" />
-                                                        {new Date(lead.created_at).toLocaleDateString(navigator.language)}
+                                                        {new Date(lead.created_at).toLocaleDateString(partnerDateLocale)}
                                                     </div>
                                                 </td>
                                                 <td className="px-8 py-6">
@@ -405,7 +410,7 @@ export const BlockPartner: React.FC<BlockPartnerProps> = ({ userId }) => {
                         {t('partner.installations_ecosystem')}
                     </h3>
                     <div className="px-4 py-1.5 rounded-full bg-white/5 border border-white/5 text-[10px] font-black uppercase text-gray-500 tracking-widest italic">
-                        {t('partner.technical_view', 'Technical View')}
+                        {t('partner.technical_view')}
                     </div>
                 </div>
 
@@ -414,8 +419,8 @@ export const BlockPartner: React.FC<BlockPartnerProps> = ({ userId }) => {
                         <thead>
                             <tr className="bg-white/5">
                                 <th className="px-8 py-5 text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] italic">{t('partner.owner')}</th>
-                                <th className="px-8 py-5 text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] italic">Hostname</th>
-                                <th className="px-8 py-5 text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] italic">Status</th>
+                                <th className="px-8 py-5 text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] italic">{t('partner.hostname')}</th>
+                                <th className="px-8 py-5 text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] italic">{t('common:status')}</th>
                                 <th className="px-8 py-5 text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] italic text-right">{t('common:actions')}</th>
                             </tr>
                         </thead>

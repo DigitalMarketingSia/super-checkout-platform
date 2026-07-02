@@ -1,17 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { 
-    Users, 
-    Target, 
-    ShoppingCart, 
-    Zap, 
-    TrendingUp, 
-    DollarSign, 
-    Calendar, 
-    Clock, 
-    Info, 
+import {
+    Target,
+    Zap,
+    DollarSign,
+    Calendar,
+    Clock,
+    Info,
     MousePointer2,
-    ShieldAlert,
     ShieldCheck,
     ArrowRight
 } from 'lucide-react';
@@ -110,13 +106,13 @@ export const BlockEarningsSimulator: React.FC<BlockEarningsSimulatorProps> = ({ 
                 <div className="max-w-2xl">
                     <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 mb-6">
                         <Zap className="w-3.5 h-3.5 text-primary" />
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-primary">Simulador Partner</span>
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-primary">{t('simulator.badge')}</span>
                     </div>
                     <h1 className="text-4xl md:text-6xl font-black italic text-white uppercase tracking-tighter leading-[0.9] mb-6">
-                        {t('simulator.title', 'Simulador de Ganhos')}
+                        {t('simulator.title')}
                     </h1>
                     <p className="text-gray-500 font-medium max-w-lg mx-auto">
-                        Configure seu cenário de atuação em um único lugar e veja seu potencial de lucro.
+                        {t('simulator.description')}
                     </p>
                 </div>
 
@@ -131,7 +127,7 @@ export const BlockEarningsSimulator: React.FC<BlockEarningsSimulatorProps> = ({ 
                                 : 'text-gray-500 hover:text-gray-300'
                             }`}
                         >
-                            {t(`simulator.presets.${preset}`, preset)}
+                            {t(`simulator.presets.${preset}`)}
                         </button>
                     ))}
                 </div>
@@ -150,12 +146,12 @@ export const BlockEarningsSimulator: React.FC<BlockEarningsSimulatorProps> = ({ 
                             <div className="flex flex-col items-center justify-center gap-4 mb-12 text-center">
                                 <div className="w-12 h-1.5 bg-blue-500 rounded-full mb-2" />
                                 <h3 className="text-2xl font-black text-white uppercase tracking-tight italic">
-                                    {t('simulator.blocks.audience.title', 'Atração & Leads')}
+                                    {t('simulator.blocks.audience.title')}
                                 </h3>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                                 <InputRange
-                                    label={t('simulator.blocks.audience.impacted', 'Alcance Semanal')}
+                                    label={t('simulator.blocks.audience.impacted')}
                                     value={values.impactedPerWeek}
                                     min={100}
                                     max={50000}
@@ -164,7 +160,7 @@ export const BlockEarningsSimulator: React.FC<BlockEarningsSimulatorProps> = ({ 
                                     icon={<MousePointer2 className="w-3 h-3" />}
                                 />
                                 <InputRange
-                                    label={t('simulator.blocks.audience.conversion', 'Taxa de Conversão')}
+                                    label={t('simulator.blocks.audience.conversion')}
                                     value={values.leadConversionRate}
                                     absoluteValue={leadsPerWeek}
                                     mode={leadMode}
@@ -183,8 +179,8 @@ export const BlockEarningsSimulator: React.FC<BlockEarningsSimulatorProps> = ({ 
                             </div>
                             <div className="mt-10 flex justify-center">
                                 <div className="bg-blue-500/10 border border-blue-500/20 px-8 py-4 rounded-3xl flex items-center gap-4 hover:scale-105 transition-transform duration-500 shadow-xl shadow-blue-500/5">
-                                    <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest leading-none">Total:</span>
-                                    <span className="text-3xl font-black text-white italic tracking-tighter leading-none">{leadsPerWeek.toLocaleString()} LEADS</span>
+                                    <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest leading-none">{t('simulator.total_label')}</span>
+                                    <span className="text-3xl font-black text-white italic tracking-tighter leading-none">{t('simulator.total_leads_value', { value: leadsPerWeek.toLocaleString() })}</span>
                                 </div>
                             </div>
                         </div>
@@ -194,12 +190,12 @@ export const BlockEarningsSimulator: React.FC<BlockEarningsSimulatorProps> = ({ 
                             <div className="flex flex-col items-center justify-center gap-4 mb-12 text-center">
                                 <div className="w-12 h-1.5 bg-emerald-500 rounded-full mb-2" />
                                 <h3 className="text-2xl font-black text-white uppercase tracking-tight italic">
-                                    {t('simulator.blocks.conversion.title', 'Vendas e Serviços')}
+                                    {t('simulator.blocks.conversion.title')}
                                 </h3>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                                 <InputRange
-                                    label={t('simulator.blocks.conversion.rate', 'Taxa de Fechamento')}
+                                    label={t('simulator.blocks.conversion.rate')}
                                     value={values.installConversionRate}
                                     absoluteValue={clientsPerWeek}
                                     mode={installMode}
@@ -218,11 +214,11 @@ export const BlockEarningsSimulator: React.FC<BlockEarningsSimulatorProps> = ({ 
                                 <div className="space-y-4">
                                     <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2">
                                         <DollarSign className="w-3 h-3" />
-                                        {t('simulator.blocks.conversion.pricing', 'Quanto você vai cobrar? (R$)')}
+                                        {t('simulator.blocks.conversion.pricing')}
                                     </label>
                                     <div className="grid grid-cols-2 gap-3">
                                         <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-4 transition-all focus-within:border-emerald-500/50 hover:bg-emerald-500/[0.15]">
-                                            <span className="text-[9px] text-gray-500 uppercase font-black block mb-1">{t('simulator.blocks.conversion.install_val', 'Instalação')}</span>
+                                            <span className="text-[9px] text-gray-500 uppercase font-black block mb-1">{t('simulator.blocks.conversion.install_val')}</span>
                                             <div className="flex items-center gap-1">
                                                 <span className="text-emerald-500 font-black text-xs">R$</span>
                                                 <input 
@@ -234,7 +230,7 @@ export const BlockEarningsSimulator: React.FC<BlockEarningsSimulatorProps> = ({ 
                                             </div>
                                         </div>
                                         <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-4 transition-all focus-within:border-emerald-500/50 hover:bg-emerald-500/[0.15]">
-                                            <span className="text-[9px] text-gray-500 uppercase font-black block mb-1">{t('simulator.blocks.conversion.config_val', 'Config.')}</span>
+                                            <span className="text-[9px] text-gray-500 uppercase font-black block mb-1">{t('simulator.blocks.conversion.config_val')}</span>
                                             <div className="flex items-center gap-1">
                                                 <span className="text-emerald-500 font-black text-xs">R$</span>
                                                 <input 
@@ -250,8 +246,8 @@ export const BlockEarningsSimulator: React.FC<BlockEarningsSimulatorProps> = ({ 
                             </div>
                             <div className="mt-10 flex justify-center">
                                 <div className="bg-emerald-500/10 border border-emerald-500/20 px-8 py-4 rounded-3xl flex items-center gap-4 hover:scale-105 transition-transform duration-500 shadow-xl shadow-emerald-500/5">
-                                    <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest leading-none">Total:</span>
-                                    <span className="text-3xl font-black text-white italic tracking-tighter leading-none">{clientsPerWeek.toLocaleString()} INSTALARAM</span>
+                                    <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest leading-none">{t('simulator.total_label')}</span>
+                                    <span className="text-3xl font-black text-white italic tracking-tighter leading-none">{t('simulator.total_clients_value', { value: clientsPerWeek.toLocaleString() })}</span>
                                 </div>
                             </div>
                         </div>
@@ -261,16 +257,16 @@ export const BlockEarningsSimulator: React.FC<BlockEarningsSimulatorProps> = ({ 
                             <div className="flex flex-col items-center justify-center gap-4 mb-12 text-center">
                                 <div className="w-12 h-1.5 bg-amber-500 rounded-full mb-2" />
                                 <h3 className="text-2xl font-black text-white uppercase tracking-tight italic">
-                                    {t('simulator.blocks.upgrade.title', 'Conversão para Recorrente')}
+                                    {t('simulator.blocks.upgrade.title')}
                                 </h3>
                                 <div className="bg-amber-500/10 border border-amber-500/20 px-4 py-2 rounded-2xl flex items-center gap-2 mt-2">
                                     <ShieldCheck className="w-4 h-4 text-amber-500" />
-                                    <span className="text-[10px] font-black text-white uppercase tracking-widest">Comissão Fixa: 25%</span>
+                                    <span className="text-[10px] font-black text-white uppercase tracking-widest">{t('simulator.fixed_commission_label')}</span>
                                 </div>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                                 <InputRange
-                                    label={t('simulator.blocks.upgrade.rate', 'Cliente fez upgrade')}
+                                    label={t('simulator.blocks.upgrade.rate')}
                                     value={values.upgradeConversionRate}
                                     absoluteValue={clientsUpgrade}
                                     mode={upgradeMode}
@@ -289,14 +285,14 @@ export const BlockEarningsSimulator: React.FC<BlockEarningsSimulatorProps> = ({ 
                                 <div className="bg-white/[0.03] border border-white/5 rounded-3xl p-6 flex items-center gap-4">
                                     <Info className="w-6 h-6 text-gray-600 shrink-0" />
                                     <p className="text-[10px] text-gray-500 font-medium uppercase tracking-tight leading-normal">
-                                        A taxa de comissão sobre upgrades para o plano Ilimitado (R$ 147) é fixada em 25% para todos os parceiros credenciados.
+                                        {t('simulator.commission_info')}
                                     </p>
                                 </div>
                             </div>
                             <div className="mt-10 flex justify-center">
                                 <div className="bg-amber-500/10 border border-amber-500/20 px-8 py-4 rounded-3xl flex items-center gap-4 hover:scale-105 transition-transform duration-500 shadow-xl shadow-amber-500/5">
-                                    <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest leading-none">Total:</span>
-                                    <span className="text-3xl font-black text-white italic tracking-tighter leading-none">{clientsUpgrade.toLocaleString()} UPGRADES</span>
+                                    <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest leading-none">{t('simulator.total_label')}</span>
+                                    <span className="text-3xl font-black text-white italic tracking-tighter leading-none">{t('simulator.total_upgrades_value', { value: clientsUpgrade.toLocaleString() })}</span>
                                 </div>
                             </div>
                         </div>
@@ -314,19 +310,19 @@ export const BlockEarningsSimulator: React.FC<BlockEarningsSimulatorProps> = ({ 
                             
                             <div className="relative z-10">
                                 <div className="text-center mb-10">
-                                    <span className="text-[10px] font-black uppercase tracking-[0.4em] text-primary mb-2 block">{t('simulator.result.total_potential', 'Projeção Estendida')}</span>
+                                    <span className="text-[10px] font-black uppercase tracking-[0.4em] text-primary mb-2 block">{t('simulator.result.total_potential')}</span>
                                     <div className="h-px w-12 bg-primary/30 mx-auto" />
                                 </div>
 
                                 <div className="space-y-10">
                                     <ResultItem 
-                                        label={t('simulator.result.weekly', 'Ganho Semanal')}
+                                        label={t('simulator.result.weekly')}
                                         value={weeklyGain}
                                         icon={<Calendar className="w-4 h-4" />}
                                         size="md"
                                     />
                                     <ResultItem 
-                                        label={t('simulator.result.monthly', 'Ganho Mensal')}
+                                        label={t('simulator.result.monthly')}
                                         value={monthlyGain}
                                         icon={<Clock className="w-4 h-4" />}
                                         size="lg"
@@ -335,7 +331,7 @@ export const BlockEarningsSimulator: React.FC<BlockEarningsSimulatorProps> = ({ 
                                     <div className="pt-10 border-t border-white/5 relative">
                                         <div className="flex items-center justify-center gap-2 mb-4">
                                             <div className="w-1.5 h-1.5 rounded-full bg-primary animate-ping" />
-                                            <span className="text-xs font-black uppercase tracking-widest text-gray-500">{t('simulator.result.yearly', 'Ganho Anual Total')}</span>
+                                            <span className="text-xs font-black uppercase tracking-widest text-gray-500">{t('simulator.result.yearly')}</span>
                                         </div>
                                         <div className="text-center">
                                             <div className="text-primary font-black text-xs uppercase tracking-widest mb-1">R$</div>
@@ -350,14 +346,14 @@ export const BlockEarningsSimulator: React.FC<BlockEarningsSimulatorProps> = ({ 
                                     onClick={() => onNavigate?.('opportunity')}
                                     className="w-full mt-12 py-6 bg-primary text-white rounded-3xl font-black uppercase tracking-tighter italic text-xl shadow-xl shadow-primary/20 hover:scale-[1.03] active:scale-[0.98] transition-all duration-500 flex items-center justify-center gap-3 group/btn"
                                 >
-                                    <span>{t('simulator.result.cta', 'Ativar Agora')}</span>
+                                    <span>{t('simulator.result.cta')}</span>
                                     <ArrowRight className="w-6 h-6 group-hover/btn:translate-x-2 transition-transform" />
                                 </button>
 
                                 <div className="mt-10 pt-8 border-t border-white/5 opacity-50 flex gap-4">
                                     <Info className="w-5 h-5 shrink-0 text-amber-500" />
                                     <p className="text-[10px] font-medium leading-relaxed text-gray-400">
-                                        {t('simulator.legal_disclaimer', 'Esta é uma simulação baseada em projeções. Os resultados dependem do esforço e estratégia do parceiro.')}
+                                        {t('simulator.legal_disclaimer')}
                                     </p>
                                 </div>
                             </div>
@@ -400,6 +396,7 @@ const InputRange: React.FC<InputRangeProps> = ({
     label, value, absoluteValue, mode = 'percent', toggleMode, 
     min, max, step, suffix = '', onChange, onAbsoluteChange, icon 
 }) => {
+    const { t } = useTranslation('portal');
     const isAbsolute = mode === 'absolute' && absoluteValue !== undefined;
     const displayValue = isAbsolute ? absoluteValue : value;
 
@@ -416,7 +413,7 @@ const InputRange: React.FC<InputRangeProps> = ({
                             onClick={toggleMode}
                             className="bg-primary/10 hover:bg-primary/20 border border-primary/20 px-3 py-1 rounded-full text-[9px] font-black text-primary uppercase tracking-tighter flex items-center gap-1 transition-all duration-300"
                         >
-                            {isAbsolute ? '👉 Alternar para %' : '👉 Alternar p/ Número'}
+                            {isAbsolute ? t('simulator.toggle_to_percent') : t('simulator.toggle_to_absolute')}
                         </button>
                     )}
                 </div>

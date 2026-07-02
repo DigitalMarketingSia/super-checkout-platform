@@ -99,6 +99,11 @@
     "processing_payment": "Estamos procesando tu pago.",
     "payment_process_error": "No pudimos procesar tu pago.",
     "unknown_error": "Error desconocido.",
+    "not_found": "Checkout no encontrado.",
+    "inactive": "Este checkout está inactivo en este momento.",
+    "invalid_configuration": "Configuración inválida de producto o gateway.",
+    "load_failed": "Error al cargar el checkout. Inténtalo de nuevo.",
+    "missing_id": "Checkout no especificado.",
     "pix_generated": "¡Pix generado!",
     "boleto_generated": "¡Boleto generado!",
     "payment_approved": "¡Pago aprobado!",
@@ -110,6 +115,8 @@
     "upgrade_expired": "Este enlace de upgrade expiró. Genera un nuevo upgrade desde el portal o la instalación.",
     "upgrade_consumed": "Este enlace de upgrade ya fue usado. Abre un nuevo upgrade para continuar.",
     "upgrade_not_found": "Este enlace de upgrade no fue encontrado o ya no está disponible.",
+    "upgrade_validation_retry": "No fue posible validar este enlace de upgrade ahora. Inténtalo de nuevo en unos instantes.",
+    "upgrade_validation_failed": "No fue posible validar el upgrade de esta cuenta.",
     "upgrade_invalid_context": "El contexto de este upgrade no es válido para continuar.",
     "upgrade_link": "Vínculo de upgrade",
     "validating_upgrade_account": "Validando qué cuenta debe recibir este upgrade...",
@@ -130,6 +137,10 @@
     "credit_card": "Tarjeta de crédito",
     "simulated_mode": "Modo simulado",
     "simulated": "Simulado",
+    "demo_mode": "Modo demo",
+    "demo_behavior_desc": "Elige el comportamiento de la compra para probar el flujo completo.",
+    "select_payment_for_scenarios": "Elige una forma de pago abajo para habilitar los escenarios de prueba.",
+    "active_method": "Método activo: {{method}}",
     "express_payment": "Pago express",
     "wallet_hint": "Revisa los artículos extra abajo si quieres y completa tu compra tocando el botón de {{wallet}} al final de la página.",
     "loading_installments": "Cargando cuotas...",
@@ -162,6 +173,18 @@
     "all_rights_reserved": "Todos los derechos reservados",
     "wallet_payment_failed": "Falló el pago con billetera.",
     "wallets_localhost_only": "Billeteras mostradas solo para validación visual en localhost.",
+    "customer_fallback": "Cliente",
+    "wallet_customer_fallback": "Cliente Wallet",
+    "time_hours_short": "Hrs",
+    "time_minutes_short": "Min",
+    "time_seconds_short": "Seg",
+    "payment_method_labels": {
+      "credit_card": "Tarjeta de crédito",
+      "pix": "Pix",
+      "boleto": "Boleto",
+      "apple_pay": "Apple Pay",
+      "google_pay": "Google Pay"
+    },
     "one_click": "1-Clic",
     "cardholder_short": "Titular",
     "cardholder_placeholder": "NOMBRE DEL TITULAR",
@@ -178,6 +201,102 @@
       "email": "Ingresa un correo válido",
       "phone": "Número de WhatsApp inválido",
       "cpf": "CPF inválido"
+    }
+  },
+  "legal_pages": {
+    "close": "Cerrar",
+    "not_informed": "no informado",
+    "document_source_label": "Origen del documento:",
+    "version_label": "Versión vigente:",
+    "published_at_label": "Publicado en:",
+    "back": "Volver",
+    "last_updated_label": "Última actualización registrada:",
+    "source_default": "Modelo predeterminado del checkout ({{version}}).",
+    "source_custom": "Documento personalizado por el vendedor.",
+    "platform_privacy": {
+      "title": "Política de Privacidad",
+      "controller_label": "Controlador de esta superficie:",
+      "official_channel_label": "Canal oficial de privacidad:"
+    },
+    "platform_terms": {
+      "title": "Términos de Uso",
+      "operator_label": "Operador de esta superficie:",
+      "official_channel_label": "Canal oficial:"
+    },
+    "privacy": {
+      "title": "Política de Privacidad",
+      "controller_label": "Controlador declarado:",
+      "contact_label": "Canal de contacto:",
+      "hosted_checkout_label": "Checkout alojado:",
+      "hosted_checkout_value": "cuando el vendedor habilita la medición comercial, esta superficie puede registrar parámetros de campaña y eventos de inicio o finalización de la compra para analítica, atribución y deduplicación.",
+      "operational_minimization_label": "Minimización operativa:",
+      "operational_minimization_value": "el teléfono y el documento solo deben solicitarse cuando sean necesarios para el método de pago, antifraude, conciliación o soporte de la compra."
+    },
+    "terms": {
+      "title": "Términos de Compra",
+      "seller_label": "Vendedor responsable:",
+      "commercial_channel_label": "Canal comercial:",
+      "hosted_checkout_label": "Checkout alojado:",
+      "hosted_checkout_value": "cuando el vendedor habilita la medición comercial, esta superficie puede registrar eventos de inicio y finalización de la compra para analítica, atribución de campañas y deduplicación de conversiones.",
+      "conditional_fields_label": "Campos condicionales:",
+      "conditional_fields_value": "el teléfono y el documento solo pueden solicitarse cuando el método de pago o los controles antifraude exijan esta información."
+    }
+  },
+  "consent": {
+    "banner_title": "Preferencias de privacidad",
+    "banner_description": "Usamos cookies y tecnologías similares para mantener el checkout funcionando y, cuando tú lo permites, medir navegación y campañas. Los elementos estrictamente necesarios permanecen activos.",
+    "reject_optional": "Rechazar opcionales",
+    "customize": "Personalizar",
+    "accept_all": "Aceptar todo",
+    "preferences_description": "Elige qué categorías opcionales pueden usarse en este checkout. Los elementos estrictamente necesarios permanecen activos para mantener el pago, la seguridad y la entrega funcionando.",
+    "cancel": "Cancelar",
+    "save_preferences": "Guardar preferencias",
+    "categories": {
+      "necessary": {
+        "title": "Estrictamente necesarios",
+        "description": "Mantienen el checkout, la seguridad, la sesión técnica y la finalización del pedido funcionando.",
+        "always_active": "Siempre activo"
+      },
+      "analytics": {
+        "title": "Analytics",
+        "description": "Mide navegación y eventos de uso, como vistas de página e inicio del checkout."
+      },
+      "marketing": {
+        "title": "Marketing",
+        "description": "Permite píxeles y eventos de campañas, como Meta, TikTok, Google Ads y GTM."
+      }
+    }
+  },
+  "preview_upsell": {
+    "badge": "Preview público",
+    "title": "Laboratorio del modal de upgrade",
+    "description": "Esta página replica el diseño actual del modal para que puedas validar cambios sin depender de sincronizar la cuenta del cliente.",
+    "how_to_use_title": "Cómo usar",
+    "how_to_use_body": {
+      "before": "Abre esta ruta localmente en",
+      "after": "y, si quieres, publica el mismo camino en el deploy para revisar el layout en producción."
+    },
+    "active_badge": "Activo",
+    "preview_badge": "Visualizar",
+    "open_modal": "Abrir modal",
+    "close_modal": "Cerrar modal",
+    "validation_link": "Link de validación",
+    "canvas_badge": "Canvas de contexto",
+    "canvas_title": "El modal se abre sobre este fondo",
+    "canvas_description": "Mantuve esta área intencionalmente limpia para facilitar tu lectura de espaciado, contraste, corte lateral y jerarquía visual.",
+    "offers": {
+      "unlimited_domains": {
+        "label": "Licencia vitalicia elite",
+        "note": "Ancla comercial de upgrade_domains."
+      },
+      "partner_rights": {
+        "label": "Licencia comercial / partner",
+        "note": "Versión enfocada en operación comercial."
+      },
+      "whitelabel": {
+        "label": "Upgrade white label elite",
+        "note": "Capa premium para validar copy y CTA."
+      }
     }
   }
 }

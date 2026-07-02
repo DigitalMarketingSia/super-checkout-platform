@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Mail, ArrowRight, ShieldCheck, Loader2, Lock } from 'lucide-react';
-import { centralSupabase } from '../../services/centralClient';
+import { centralSupabase, CENTRAL_SUPABASE_ANON_KEY } from '../../services/centralClient';
 import { CENTRAL_CONFIG } from '../../config/central';
 import { getApiUrl } from '../../utils/apiUtils';
 import { platformUrls } from '../../config/platformUrls';
@@ -35,7 +35,6 @@ export const ActivationLogin = () => {
 
     useEffect(() => {
         const checkKey = async () => {
-            const { CENTRAL_SUPABASE_ANON_KEY } = await import('../../services/centralClient');
             if (!CENTRAL_SUPABASE_ANON_KEY || CENTRAL_SUPABASE_ANON_KEY.includes('MISSING')) {
                 setError(`${t('common.error').toUpperCase()}: ${t('activation.errors.missing_config')}`);
             }
@@ -50,8 +49,6 @@ export const ActivationLogin = () => {
     const handleTokenLogin = async (token: string) => {
         setVerifyingToken(true);
         try {
-            const { CENTRAL_SUPABASE_ANON_KEY } = await import('../../services/centralClient');
-
             if (!CENTRAL_SUPABASE_ANON_KEY || CENTRAL_SUPABASE_ANON_KEY.includes('MISSING')) {
                 throw new Error(t('activation.errors.missing_config'));
             }
@@ -128,15 +125,15 @@ export const ActivationLogin = () => {
                 const rawBody = await loginResponse.text().catch(() => '');
                 throw new Error(
                     rawBody.trim()
-                        ? `Backend de login respondeu algo inesperado: ${rawBody.slice(0, 160)}`
-                        : 'Backend de login indisponivel no momento.'
+                        ? t('activation.errors.backend_unexpected', { message: rawBody.slice(0, 160) })
+                        : t('activation.errors.backend_unavailable')
                 );
             }
 
             if (!loginResponse.ok) {
                 if (loginResponse.status === 429) {
                     const mins = Math.ceil((loginData.retryAfterSec || 900) / 60);
-                    throw new Error(`Muitas tentativas. Tente em ${mins} minutos.`);
+                    throw new Error(t('activation.errors.too_many_attempts_retry', { minutes: mins }));
                 }
                 throw new Error(loginData.error || t('activation.errors.login_failed'));
             }
@@ -153,7 +150,7 @@ export const ActivationLogin = () => {
 
                 const { data: { user }, error: userError } = await centralSupabase.auth.getUser();
                 if (userError || !user) {
-                    throw new Error(userError?.message || 'Sessao central nao foi salva no navegador.');
+                    throw new Error(userError?.message || t('activation.errors.session_not_saved'));
                 }
             }
 
@@ -191,7 +188,7 @@ export const ActivationLogin = () => {
         setSuccess('');
 
         if (!email.trim()) {
-            setError('Informe seu e-mail para receber o link de acesso.');
+            setError(t('activation.request_access_email_required'));
             return;
         }
 
@@ -199,10 +196,10 @@ export const ActivationLogin = () => {
 
         try {
             await licenseService.requestActivationLink(email);
-            setSuccess('Se houver uma licenca ativa para este e-mail, enviaremos um link de acesso em instantes.');
+            setSuccess(t('activation.request_access_success'));
         } catch (err: any) {
             console.error('Activation link request failed:', err);
-            setSuccess('Se houver uma licenca ativa para este e-mail, enviaremos um link de acesso em instantes.');
+            setSuccess(t('activation.request_access_success'));
         } finally {
             setLinkLoading(false);
         }
@@ -213,7 +210,7 @@ export const ActivationLogin = () => {
         setSuccess('');
 
         if (!email.trim()) {
-            setError('Informe seu e-mail para receber o link de recuperacao.');
+            setError(t('activation.request_recovery_email_required'));
             return;
         }
 
@@ -221,10 +218,10 @@ export const ActivationLogin = () => {
 
         try {
             await licenseService.requestRecoveryLink(email);
-            setSuccess('Se este e-mail existir, enviaremos um link de recuperacao em instantes.');
+            setSuccess(t('activation.request_recovery_success'));
         } catch (err: any) {
             console.error('Recovery link request failed:', err);
-            setSuccess('Se este e-mail existir, enviaremos um link de recuperacao em instantes.');
+            setSuccess(t('activation.request_recovery_success'));
         } finally {
             setRecoveryLoading(false);
         }
@@ -279,7 +276,7 @@ export const ActivationLogin = () => {
                                     value={email}
                                     onChange={e => setEmail(e.target.value)}
                                     className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl py-3 pl-12 pr-4 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
-                                    placeholder="seu@email.com"
+                                    placeholder={t('activation.email_placeholder')}
                                 />
                             </div>
                         </div>
@@ -324,7 +321,7 @@ export const ActivationLogin = () => {
                                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                             ) : (
                                 <>
-                                    Receber link por e-mail
+                                    {t('activation.request_access_button')}
                                     <Mail className="w-4 h-4" />
                                 </>
                             )}
@@ -336,7 +333,7 @@ export const ActivationLogin = () => {
                             disabled={recoveryLoading || loading || linkLoading}
                             className="mx-auto flex items-center justify-center text-sm font-medium text-gray-400 hover:text-white transition-colors disabled:opacity-60"
                         >
-                            {recoveryLoading ? 'Enviando...' : 'Esqueci minha senha'}
+                            {recoveryLoading ? t('activation.processing') : t('activation.request_recovery_button')}
                         </button>
                     </form>
                 </div>

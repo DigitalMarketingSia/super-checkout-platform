@@ -36,5 +36,93 @@
   "card_data_required": "Dados do cartão são obrigatórios para crédito",
   "invalid_amount": "Valor de pagamento inválido",
   "payment_rejected": "Pagamento rejeitado",
-  "payment_failed": "Falha ao processar pagamento"
+  "payment_failed": "Falha ao processar pagamento",
+  "app_name": "Super Checkout",
+  "loading_system": "Carregando sistema",
+  "config_loader_recovery_title": "Recuperação de acesso",
+  "config_loader_error_title": "Erro de configuração",
+  "config_loader_recovery_description": "A chave da licença não foi encontrada. Insira sua chave para restaurar o acesso.",
+  "config_loader_error_description": "Não foi possível carregar as configurações do sistema.",
+  "config_loader_license_label": "Chave da licença",
+  "config_loader_license_placeholder": "Insira sua license key (UUID)",
+  "config_loader_license_help": "Você pode encontrar essa chave no seu painel de controle ou no email de confirmação.",
+  "config_loader_save_and_enter": "Salvar e entrar",
+  "config_loader_try_again": "Tentar novamente",
+  "config_loader_go_to_installer": "Ir para o instalador",
+  "config_loader_connecting": "Conectando ao sistema...",
+  "config_loader_fetching_server_config": "Obtendo configurações do servidor",
+  "config_loader_unknown_error": "Erro desconhecido",
+  "license_guard_validating": "Validando licença",
+  "license_guard_access_blocked": "Acesso bloqueado",
+  "license_guard_missing_license": "Esta instalação não possui uma licença configurada.",
+  "license_guard_invalid_license": "Licença inválida.",
+  "license_guard_validation_error": "Erro de validação: {{message}}",
+  "license_guard_dev_unknown_error": "Modo dev (erro desconhecido)",
+  "license_guard_reason": "Motivo:",
+  "license_guard_try_again": "Tentar novamente",
+  "license_guard_reset_installation": "Resetar instalação (limpar dados)",
+  "license_guard_reset_confirm": "Isso irá limpar as configurações locais. Deseja continuar?",
+  "upsell_modal": {
+    "load_error": "Não foi possível carregar o checkout de upgrade agora.",
+    "checkout_not_configured": "Checkout oficial do plano ainda não está configurado. Tente novamente em instantes.",
+    "secure_checkout_error": "Falha ao preparar checkout seguro.",
+    "header_title": "Upgrade prioritário",
+    "header_subtitle": "Remova os limites da conta com essa condição exclusiva",
+    "immediate_release_title": "Liberação imediata",
+    "immediate_release_description": "Ativação rápida e transparente. Sua estrutura atual é mantida enquanto os limites da plataforma são removidos automaticamente.",
+    "special_condition_applied": "Condição especial aplicada!",
+    "save_percent": "Economize {{percent}}%",
+    "lifetime_suffix": "/ vitalício",
+    "savings_amount": "Você economiza {{value}}",
+    "preparing_checkout": "Preparando checkout...",
+    "secure_badge": "Upgrade automático e 100% seguro",
+    "decline": "Não, obrigado. Quero continuar limitado.",
+    "checkout_missing": "Checkout oficial do plano não encontrado. Tente novamente em instantes ou abra o upgrade pelo Portal do Cliente.",
+    "benefits": {
+      "no_locks": "Sem travas",
+      "one_time_payment": "Pagamento único",
+      "immediate_access": "Acesso imediato"
+    },
+    "offers": {
+      "unlimited_domains": {
+        "title": "Licença Vitalícia Elite",
+        "description": "Tudo ilimitado para você vender mais: domínios, subdomínios, produtos, checkouts e áreas de membros.",
+        "features": [
+          "Domínios ilimitados",
+          "Subdomínios ilimitados",
+          "Produtos e checkouts ilimitados",
+          "Áreas de membros ilimitadas"
+        ],
+        "cta": "Fazer upgrade vitalício",
+        "badge": "Oferta especial de ativação",
+        "price_context": "O valor final abaixo acompanha automaticamente o produto vinculado ao plano de upgrade."
+      },
+      "partner_rights": {
+        "title": "Licença Comercial / Parceiro",
+        "description": "Ideal para agências e freelancers que querem vender implantação e operar com uma condição comercial mais agressiva.",
+        "features": [
+          "Direito de uso comercial",
+          "Instalações para clientes",
+          "Suporte prioritário",
+          "Painel de gestão multi-licenças"
+        ],
+        "cta": "Ser parceiro oficial",
+        "badge": "Condição comercial",
+        "price_context": "O valor final abaixo acompanha automaticamente o produto parceiro vinculado a este plano."
+      },
+      "whitelabel": {
+        "title": "Upgrade White Label Elite",
+        "description": "Remova totalmente a nossa marca e apresente o sistema como seu para clientes com uma camada premium de posicionamento.",
+        "features": [
+          "Tudo da licença comercial",
+          "Remoção da marca Super Checkout",
+          "Personalização de logotipo",
+          "Domínio próprio de admin"
+        ],
+        "cta": "Ativar white label",
+        "badge": "Camada premium",
+        "price_context": "O valor final abaixo acompanha o produto white label vinculado quando existir configuração comercial publicada."
+      }
+    }
+  }
 }

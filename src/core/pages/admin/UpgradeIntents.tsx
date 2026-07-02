@@ -13,27 +13,17 @@ import {
   TimerOff,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 import { Layout } from '../../components/Layout';
 import { Button } from '../../components/ui/Button';
 import { buildPlatformUrl, platformUrls } from '../../config/platformUrls';
 import { licenseService, UpgradeIntentRow } from '../../services/licenseService';
 
-const statusMeta: Record<string, { label: string; className: string; icon: React.ElementType }> = {
-  attention: { label: 'Atencao', className: 'text-red-300 bg-red-500/10 border-red-500/20', icon: AlertCircle },
-  created: { label: 'Criado', className: 'text-sky-300 bg-sky-500/10 border-sky-500/20', icon: Clock },
-  opened: { label: 'Aberto', className: 'text-blue-300 bg-blue-500/10 border-blue-500/20', icon: Link2 },
-  paid: { label: 'Pago', className: 'text-emerald-300 bg-emerald-500/10 border-emerald-500/20', icon: CheckCircle },
-  consumed: { label: 'Consumido', className: 'text-green-300 bg-green-500/10 border-green-500/20', icon: ShieldCheck },
-  expired: { label: 'Expirado', className: 'text-amber-300 bg-amber-500/10 border-amber-500/20', icon: TimerOff },
-  canceled: { label: 'Cancelado', className: 'text-zinc-300 bg-zinc-500/10 border-zinc-500/20', icon: AlertCircle },
-  failed: { label: 'Falhou', className: 'text-red-300 bg-red-500/10 border-red-500/20', icon: AlertCircle },
-};
-
 const statusOptions = ['all', 'attention', 'created', 'opened', 'paid', 'consumed', 'expired', 'failed'];
 
-function formatDate(value?: string | null) {
+function formatDate(value?: string | null, locale = 'pt-BR') {
   if (!value) return '-';
-  return new Intl.DateTimeFormat('pt-BR', {
+  return new Intl.DateTimeFormat(locale, {
     dateStyle: 'short',
     timeStyle: 'short',
   }).format(new Date(value));
@@ -69,11 +59,29 @@ function buildCheckoutLink(intent: UpgradeIntentRow) {
 }
 
 export const UpgradeIntents = () => {
+  const { t, i18n } = useTranslation('admin');
   const [intents, setIntents] = useState<UpgradeIntentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('all');
+
+  const locale = i18n.language?.startsWith('es')
+    ? 'es-ES'
+    : i18n.language?.startsWith('en')
+      ? 'en-US'
+      : 'pt-BR';
+
+  const statusMeta = useMemo<Record<string, { label: string; className: string; icon: React.ElementType }>>(() => ({
+    attention: { label: t('upgrade_intents_page.status.attention', 'Attention'), className: 'text-red-300 bg-red-500/10 border-red-500/20', icon: AlertCircle },
+    created: { label: t('upgrade_intents_page.status.created', 'Created'), className: 'text-sky-300 bg-sky-500/10 border-sky-500/20', icon: Clock },
+    opened: { label: t('upgrade_intents_page.status.opened', 'Opened'), className: 'text-blue-300 bg-blue-500/10 border-blue-500/20', icon: Link2 },
+    paid: { label: t('upgrade_intents_page.status.paid', 'Paid'), className: 'text-emerald-300 bg-emerald-500/10 border-emerald-500/20', icon: CheckCircle },
+    consumed: { label: t('upgrade_intents_page.status.consumed', 'Consumed'), className: 'text-green-300 bg-green-500/10 border-green-500/20', icon: ShieldCheck },
+    expired: { label: t('upgrade_intents_page.status.expired', 'Expired'), className: 'text-amber-300 bg-amber-500/10 border-amber-500/20', icon: TimerOff },
+    canceled: { label: t('upgrade_intents_page.status.canceled', 'Canceled'), className: 'text-zinc-300 bg-zinc-500/10 border-zinc-500/20', icon: AlertCircle },
+    failed: { label: t('upgrade_intents_page.status.failed', 'Failed'), className: 'text-red-300 bg-red-500/10 border-red-500/20', icon: AlertCircle },
+  }), [t]);
 
   const loadIntents = async () => {
     setLoading(true);
@@ -87,7 +95,7 @@ export const UpgradeIntents = () => {
       });
       setIntents(data);
     } catch (err: any) {
-      setError(err?.message || 'Falha ao carregar upgrade intents.');
+      setError(err?.message || t('upgrade_intents_page.load_error', 'Failed to load upgrade intents.'));
       setIntents([]);
     } finally {
       setLoading(false);
@@ -122,7 +130,7 @@ export const UpgradeIntents = () => {
   const copyText = async (value: string, label: string) => {
     if (!value) return;
     await navigator.clipboard.writeText(value);
-    toast.success(`${label} copiado.`);
+    toast.success(t('upgrade_intents_page.toast.copied', '{{label}} copied.', { label }));
   };
 
   const copyReconciliationPacket = async (intent: UpgradeIntentRow) => {
@@ -142,7 +150,7 @@ export const UpgradeIntents = () => {
       source_context: intent.source_context,
     };
 
-    await copyText(JSON.stringify(packet, null, 2), 'Pacote de conciliacao');
+    await copyText(JSON.stringify(packet, null, 2), t('upgrade_intents_page.labels.reconciliation_packet', 'Reconciliation packet'));
   };
 
   return (
@@ -152,26 +160,26 @@ export const UpgradeIntents = () => {
           <div>
             <div className="flex items-center gap-3 text-primary text-[10px] font-black uppercase tracking-[0.28em] mb-3">
               <ShieldCheck className="w-4 h-4" />
-              Upgrade Intent Registry
+              {t('upgrade_intents_page.registry', 'Upgrade intent registry')}
             </div>
             <h1 className="text-3xl xl:text-5xl font-portal-display text-white italic tracking-tighter uppercase">
-              Intents de Upgrade
+              {t('upgrade_intents_page.title', 'Upgrade intents')}
             </h1>
           </div>
 
           <Button onClick={loadIntents} isLoading={loading} className="h-11 px-5">
             <RefreshCw className="w-4 h-4" />
-            Atualizar
+            {t('upgrade_intents_page.refresh', 'Refresh')}
           </Button>
         </div>
 
         <div className="grid grid-cols-2 xl:grid-cols-5 gap-3">
           {[
-            ['Total', stats.total],
-            ['Abertos', stats.open],
-            ['Consumidos', stats.consumed],
-            ['Atencao', stats.attention],
-            ['Expirados', stats.expired],
+            [t('upgrade_intents_page.stats.total', 'Total'), stats.total],
+            [t('upgrade_intents_page.stats.open', 'Open'), stats.open],
+            [t('upgrade_intents_page.stats.consumed', 'Consumed'), stats.consumed],
+            [t('upgrade_intents_page.stats.attention', 'Attention'), stats.attention],
+            [t('upgrade_intents_page.stats.expired', 'Expired'), stats.expired],
           ].map(([label, value]) => (
             <div key={label} className="border border-white/10 bg-white/[0.03] rounded-lg p-4">
               <p className="text-[10px] text-gray-500 font-black uppercase tracking-[0.22em]">{label}</p>
@@ -186,7 +194,7 @@ export const UpgradeIntents = () => {
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Buscar por token, e-mail, pedido, licenca ou plano"
+              placeholder={t('upgrade_intents_page.search_placeholder', 'Search by token, email, order, license, or plan')}
               className="w-full h-12 bg-black/40 border border-white/10 rounded-lg pl-11 pr-4 text-sm text-white placeholder:text-gray-600 outline-none focus:border-primary/50"
             />
           </div>
@@ -203,7 +211,7 @@ export const UpgradeIntents = () => {
                     : 'bg-white/[0.03] text-gray-500 border-white/10 hover:text-white'
                 }`}
               >
-                {option === 'all' ? 'Todos' : statusMeta[option]?.label || option}
+                {option === 'all' ? t('upgrade_intents_page.filters.all', 'All') : statusMeta[option]?.label || option}
               </button>
             ))}
           </div>
@@ -220,7 +228,17 @@ export const UpgradeIntents = () => {
             <table className="w-full min-w-[1100px] text-left">
               <thead className="bg-white/[0.03] border-b border-white/10">
                 <tr>
-                  {['Status', 'Token', 'Plano', 'Pagador', 'Pedido', 'Origem', 'Criado', 'Expira', 'Acoes'].map((head) => (
+                  {[
+                    t('upgrade_intents_page.table.status', 'Status'),
+                    t('upgrade_intents_page.table.token', 'Token'),
+                    t('upgrade_intents_page.table.plan', 'Plan'),
+                    t('upgrade_intents_page.table.payer', 'Payer'),
+                    t('upgrade_intents_page.table.order', 'Order'),
+                    t('upgrade_intents_page.table.source', 'Source'),
+                    t('upgrade_intents_page.table.created', 'Created'),
+                    t('upgrade_intents_page.table.expires', 'Expires'),
+                    t('upgrade_intents_page.table.actions', 'Actions'),
+                  ].map((head) => (
                     <th key={head} className="px-4 py-3 text-[10px] font-black uppercase tracking-[0.22em] text-gray-500">
                       {head}
                     </th>
@@ -231,13 +249,13 @@ export const UpgradeIntents = () => {
                 {loading ? (
                   <tr>
                     <td colSpan={9} className="px-4 py-12 text-center text-gray-500 text-sm">
-                      Carregando intents...
+                      {t('upgrade_intents_page.loading', 'Loading intents...')}
                     </td>
                   </tr>
                 ) : visibleIntents.length === 0 ? (
                   <tr>
                     <td colSpan={9} className="px-4 py-12 text-center text-gray-500 text-sm">
-                      Nenhum intent encontrado.
+                      {t('upgrade_intents_page.empty', 'No intent found.')}
                     </td>
                   </tr>
                 ) : (
@@ -258,7 +276,7 @@ export const UpgradeIntents = () => {
                         </td>
                         <td className="px-4 py-4">
                           <button
-                            onClick={() => copyText(intent.token, 'Token')}
+                            onClick={() => copyText(intent.token, t('upgrade_intents_page.labels.token', 'Token'))}
                             className="font-mono text-xs text-white hover:text-primary flex items-center gap-2"
                           >
                             {shortToken(intent.token)}
@@ -270,7 +288,7 @@ export const UpgradeIntents = () => {
                         <td className="px-4 py-4">
                           {intent.paid_order_id ? (
                             <button
-                              onClick={() => copyText(intent.paid_order_id || '', 'Pedido')}
+                              onClick={() => copyText(intent.paid_order_id || '', t('upgrade_intents_page.labels.order', 'Order'))}
                               className="font-mono text-xs text-emerald-300 hover:text-emerald-200 flex items-center gap-2"
                             >
                               {intent.paid_order_id.slice(0, 8)}
@@ -281,15 +299,15 @@ export const UpgradeIntents = () => {
                           )}
                         </td>
                         <td className="px-4 py-4 text-sm text-gray-300">{intent.source_surface || '-'}</td>
-                        <td className="px-4 py-4 text-xs text-gray-400">{formatDate(intent.created_at)}</td>
-                        <td className="px-4 py-4 text-xs text-gray-400">{formatDate(intent.expires_at)}</td>
+                        <td className="px-4 py-4 text-xs text-gray-400">{formatDate(intent.created_at, locale)}</td>
+                        <td className="px-4 py-4 text-xs text-gray-400">{formatDate(intent.expires_at, locale)}</td>
                         <td className="px-4 py-4">
                           <div className="flex items-center gap-2">
                             {checkoutLink && (
                               <button
-                                onClick={() => copyText(checkoutLink, 'Link')}
+                                onClick={() => copyText(checkoutLink, t('upgrade_intents_page.labels.link', 'Link'))}
                                 className="w-9 h-9 rounded-lg border border-white/10 text-gray-400 hover:text-white hover:bg-white/5 flex items-center justify-center"
-                                title="Copiar link do checkout"
+                                title={t('upgrade_intents_page.actions.copy_checkout_link', 'Copy checkout link')}
                               >
                                 <Link2 className="w-4 h-4" />
                               </button>
@@ -298,7 +316,7 @@ export const UpgradeIntents = () => {
                               <button
                                 onClick={() => copyReconciliationPacket(intent)}
                                 className="w-9 h-9 rounded-lg border border-red-500/20 text-red-300 hover:text-white hover:bg-red-500/10 flex items-center justify-center"
-                                title="Copiar pacote de conciliacao"
+                                title={t('upgrade_intents_page.actions.copy_packet', 'Copy reconciliation packet')}
                               >
                                 <AlertCircle className="w-4 h-4" />
                               </button>
@@ -309,7 +327,7 @@ export const UpgradeIntents = () => {
                                 target="_blank"
                                 rel="noreferrer"
                                 className="w-9 h-9 rounded-lg border border-white/10 text-gray-400 hover:text-white hover:bg-white/5 flex items-center justify-center"
-                                title="Abrir link"
+                                title={t('upgrade_intents_page.actions.open_link', 'Open link')}
                               >
                                 <ExternalLink className="w-4 h-4" />
                               </a>

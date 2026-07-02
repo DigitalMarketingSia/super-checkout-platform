@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { FAQ } from '../../types';
 import { Plus, Trash2, HelpCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '../ui/Button';
@@ -9,55 +10,56 @@ interface FAQManagerProps {
 }
 
 export const FAQManager: React.FC<FAQManagerProps> = ({ faqs, onChange }) => {
+    const { t } = useTranslation('admin');
     const [newFAQ, setNewFAQ] = useState<Partial<FAQ>>({ question: '', answer: '', active: true });
     const [expandedId, setExpandedId] = useState<string | null>(null);
 
     const handleAdd = () => {
         if (!newFAQ.question || !newFAQ.answer) return;
+
         const faq: FAQ = {
             id: crypto.randomUUID(),
             question: newFAQ.question,
             answer: newFAQ.answer,
             active: true
         };
+
         onChange([...faqs, faq]);
         setNewFAQ({ question: '', answer: '', active: true });
     };
 
     const handleUpdate = (id: string, updates: Partial<FAQ>) => {
-        onChange(faqs.map(f => f.id === id ? { ...f, ...updates } : f));
+        onChange(faqs.map(faq => faq.id === id ? { ...faq, ...updates } : faq));
     };
 
     const handleDelete = (id: string) => {
-        onChange(faqs.filter(f => f.id !== id));
+        onChange(faqs.filter(faq => faq.id !== id));
     };
 
     return (
         <div className="space-y-6">
-            {/* Add New FAQ */}
             <div className="bg-gray-50 dark:bg-white/5 p-5 rounded-2xl border border-gray-200 dark:border-white/10 space-y-4">
-                <h4 className="text-sm font-bold text-gray-900 dark:text-white">Adicionar Nova Pergunta</h4>
+                <h4 className="text-sm font-bold text-gray-900 dark:text-white">{t('member_area_details.faq_manager.add_title')}</h4>
                 <input
                     type="text"
-                    placeholder="Pergunta"
+                    placeholder={t('member_area_details.faq_manager.question_placeholder')}
                     className="w-full bg-white dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-purple-500/30 text-white font-bold placeholder:text-white/10"
                     value={newFAQ.question}
                     onChange={e => setNewFAQ({ ...newFAQ, question: e.target.value })}
                 />
                 <textarea
-                    placeholder="Resposta"
+                    placeholder={t('member_area_details.faq_manager.answer_placeholder')}
                     className="w-full bg-white dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-purple-500/30 text-white font-bold placeholder:text-white/10 h-24 resize-none"
                     value={newFAQ.answer}
                     onChange={e => setNewFAQ({ ...newFAQ, answer: e.target.value })}
                 />
                 <div className="flex justify-end">
                     <Button onClick={handleAdd} disabled={!newFAQ.question || !newFAQ.answer} className="font-black uppercase italic tracking-tighter h-10 px-5">
-                        <Plus className="w-4 h-4 mr-2" /> Adicionar FAQ
+                        <Plus className="w-4 h-4 mr-2" /> {t('member_area_details.faq_manager.add_button')}
                     </Button>
                 </div>
             </div>
 
-            {/* List FAQs */}
             <div className="space-y-2">
                 {faqs.map(faq => (
                     <div key={faq.id} className="bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-2xl overflow-hidden transition-all hover:border-purple-500/20">
@@ -78,10 +80,11 @@ export const FAQManager: React.FC<FAQManagerProps> = ({ faqs, onChange }) => {
                                             onChange={e => handleUpdate(faq.id, { active: e.target.checked })}
                                             className="rounded border-white/10 bg-black/20 text-purple-600 focus:ring-purple-500"
                                         />
-                                        Ativo
+                                        {t('member_area_details.faq_manager.active_label')}
                                     </label>
                                 </div>
                                 <button
+                                    type="button"
                                     onClick={(e) => { e.stopPropagation(); handleDelete(faq.id); }}
                                     className="p-2 hover:bg-red-500/10 text-red-500 rounded-xl transition-colors"
                                 >
@@ -99,7 +102,7 @@ export const FAQManager: React.FC<FAQManagerProps> = ({ faqs, onChange }) => {
                     </div>
                 ))}
                 {faqs.length === 0 && (
-                    <p className="text-center text-gray-500 text-sm py-4">Nenhuma pergunta cadastrada.</p>
+                    <p className="text-center text-gray-500 text-sm py-4">{t('member_area_details.faq_manager.empty')}</p>
                 )}
             </div>
         </div>

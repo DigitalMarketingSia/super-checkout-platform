@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { centralSupabase } from '../../services/centralClient';
 import { useAuth } from '../../context/AuthContext';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
@@ -34,6 +35,7 @@ import { getInstallerUrl, getRegisterUrl } from '../../config/platformUrls';
 
 export const PartnerDashboard = () => {
     const { profile, user } = useAuth();
+    const { t, i18n } = useTranslation('admin');
     const [stats, setStats] = useState({ clients: 0, installations: 0 });
     const [clients, setClients] = useState<any[]>([]); // Installations
     const [leads, setLeads] = useState<any[]>([]); // Referred Profiles
@@ -52,6 +54,11 @@ export const PartnerDashboard = () => {
     const [creatingLicense, setCreatingLicense] = useState(false);
 
     const referralLink = getRegisterUrl({ partner: user?.id });
+    const partnerDateLocale = i18n.language.startsWith('es')
+        ? 'es-ES'
+        : i18n.language.startsWith('en')
+            ? 'en-US'
+            : 'pt-BR';
 
     // Extracting fetch logic to a reusable function
     const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -99,7 +106,7 @@ export const PartnerDashboard = () => {
                         ...inst,
                         profiles: leadData?.find(l => l.id === inst.account_id) || {
                             id: inst.account_id,
-                            full_name: 'Usuário não identificado',
+                            full_name: t('partner_dashboard.unknown_user'),
                             email: 'N/A'
                         }
                     }));
@@ -112,18 +119,18 @@ export const PartnerDashboard = () => {
 
             } catch (error) {
                 console.error('Error fetching partner data:', error);
-                toast.error('Erro ao carregar dados do parceiro');
+                toast.error(t('partner_dashboard.toasts.load_error'));
             } finally {
                 setLoading(false);
             }
         };
 
         fetchPartnerData();
-    }, [user?.id, refreshTrigger]);
+    }, [refreshTrigger, t, user?.email, user?.id]);
 
     const copyToClipboard = (text: string) => {
         navigator.clipboard.writeText(text);
-        toast.success('Link copiado para a área de transferência!');
+        toast.success(t('partner_dashboard.toasts.link_copied'));
     };
 
     const handleViewFeatures = async (licenseKey: string, clientName: string) => {
@@ -135,9 +142,9 @@ export const PartnerDashboard = () => {
             const data = await licenseService.getLicenseFeatures(licenseKey);
             
             const defaultPatterns = [
-                { key: 'UNLIMITED_DOMAINS', label: 'Domínios Ilimitados' },
-                { key: 'FEATURE_PARTNER_PANEL', label: 'Painel de Parceiros' },
-                { key: 'FEATURE_CRM_LEADS', label: 'CRM de Leads' }
+                { key: 'UNLIMITED_DOMAINS', label: t('partner_dashboard.features.unlimited_domains') },
+                { key: 'FEATURE_PARTNER_PANEL', label: t('partner_dashboard.features.partner_panel') },
+                { key: 'FEATURE_CRM_LEADS', label: t('partner_dashboard.features.crm_leads') }
             ];
 
             const mergedFeatures = defaultPatterns.map(p => {
@@ -154,7 +161,7 @@ export const PartnerDashboard = () => {
 
             setFeatures(mergedFeatures);
         } catch (error: any) {
-            toast.error(`Erro ao carregar recursos: ${error.message}`);
+            toast.error(t('partner_dashboard.toasts.features_load_error', { message: error.message }));
         } finally {
             setLoadingFeatures(false);
         }
@@ -165,9 +172,9 @@ export const PartnerDashboard = () => {
         try {
             await licenseService.toggleLicenseFeature(selectedLicenseKey, featureKey, isEnabled);
             setFeatures(prev => prev.map(f => f.feature_key === featureKey ? { ...f, is_enabled: isEnabled } : f));
-            toast.success('Recurso atualizado no banco central!');
+            toast.success(t('partner_dashboard.toasts.feature_updated'));
         } catch (error: any) {
-            toast.error(`Erro ao atualizar: ${error.message}`);
+            toast.error(t('partner_dashboard.toasts.feature_update_error', { message: error.message }));
         }
     };
 
@@ -184,7 +191,7 @@ export const PartnerDashboard = () => {
             const existingLicense = await licenseService.getLicenseByUserId('', selectedLead.email);
 
             if (existingLicense) {
-                toast.success('Licença existente encontrada! Gerando acesso...');
+                toast.success(t('partner_dashboard.toasts.existing_license_found'));
                 const data = await licenseService.generateInstallToken(existingLicense.key);
                 if (data.token) {
                     const url = getInstallerUrl(data.token);
@@ -195,7 +202,7 @@ export const PartnerDashboard = () => {
             }
 
             // 2. If no license found, inform the partner
-            toast.error('Nenhuma licença ativa encontrada para este lead. Peça para o cliente completar o cadastro no Portal primeiro.');
+            toast.error(t('partner_dashboard.toasts.no_active_license_for_lead'));
             
             /* 
             // Fallback commented out as per user request (don't create new keys blindly)
@@ -208,7 +215,7 @@ export const PartnerDashboard = () => {
             */
             
         } catch (error: any) {
-            toast.error(`Erro: ${error.message}`);
+            toast.error(t('partner_dashboard.toasts.generic_error', { message: error.message }));
         } finally {
             setCreatingLicense(false);
         }
@@ -225,12 +232,12 @@ export const PartnerDashboard = () => {
                                 <Crown className="w-8 h-8 text-orange-400" />
                             </div>
                             <h1 className="text-4xl font-black text-white tracking-tighter italic uppercase">
-                                Hub do Parceiro
+                                {t('partner_dashboard.title')}
                             </h1>
                         </div>
                         <p className="text-gray-400 font-medium flex items-center gap-2">
                             <span className="w-1.5 h-1.5 rounded-full bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.6)]"></span>
-                            Gestão técnica de instalações e controle de licenças.
+                            {t('partner_dashboard.subtitle')}
                         </p>
                     </div>
 
@@ -241,7 +248,7 @@ export const PartnerDashboard = () => {
                                 <div className="w-2 h-2 bg-green-500 rounded-full" />
                                 <div className="absolute inset-0 w-2 h-2 bg-green-500 rounded-full animate-ping opacity-75" />
                             </div>
-                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Central Online</span>
+                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('partner_dashboard.central_online')}</span>
                         </div>
 
                         {/* Portal Financeiro Bridge */}
@@ -251,7 +258,7 @@ export const PartnerDashboard = () => {
                             className="bg-white/5 border-white/10 hover:bg-white/10 text-white rounded-2xl font-black text-xs uppercase tracking-wider group"
                         >
                             <Wallet className="w-4 h-4 mr-2 text-primary group-hover:scale-110 transition-transform" />
-                            Financeiro & Comissões
+                            {t('partner_dashboard.billing_and_commissions')}
                         </Button>
 
                         <div className="h-8 w-[1px] bg-white/10 hidden md:block" />
@@ -276,10 +283,10 @@ export const PartnerDashboard = () => {
                                 <Users className="w-7 h-7" />
                             </div>
                             <div>
-                                <p className="text-gray-400 text-xs font-black uppercase tracking-[0.2em] mb-1">Total de Indicações</p>
+                                <p className="text-gray-400 text-xs font-black uppercase tracking-[0.2em] mb-1">{t('partner_dashboard.total_referrals')}</p>
                                 <div className="flex items-baseline gap-2">
                                     <h2 className="text-5xl font-black text-white font-display italic tracking-tighter">{stats.clients}</h2>
-                                    <span className="text-blue-500 font-bold text-xs uppercase">Leads Ativos</span>
+                                    <span className="text-blue-500 font-bold text-xs uppercase">{t('partner_dashboard.active_leads')}</span>
                                 </div>
                             </div>
                         </div>
@@ -292,10 +299,10 @@ export const PartnerDashboard = () => {
                                 <Globe className="w-7 h-7" />
                             </div>
                             <div>
-                                <p className="text-gray-400 text-xs font-black uppercase tracking-[0.2em] mb-1">Instalações Ativas</p>
+                                <p className="text-gray-400 text-xs font-black uppercase tracking-[0.2em] mb-1">{t('partner_dashboard.active_installations')}</p>
                                 <div className="flex items-baseline gap-2">
                                     <h2 className="text-5xl font-black text-white font-display italic tracking-tighter">{stats.installations}</h2>
-                                    <span className="text-purple-500 font-bold text-xs uppercase tracking-widest">Sistemas</span>
+                                    <span className="text-purple-500 font-bold text-xs uppercase tracking-widest">{t('partner_dashboard.systems')}</span>
                                 </div>
                             </div>
                         </div>
@@ -304,7 +311,7 @@ export const PartnerDashboard = () => {
                     {/* Quick Link Card */}
                     <div className="bg-[#0A0A12]/40 border border-white/5 rounded-[2.5rem] p-8 backdrop-blur-md flex flex-col justify-between group hover:border-white/10 transition-all">
                         <div>
-                            <p className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-4">Seu Link de Indicação</p>
+                            <p className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-4">{t('partner_dashboard.your_referral_link')}</p>
                             <div className="bg-black/40 border border-white/10 rounded-2xl p-4 font-mono text-xs text-primary truncate mb-4 select-all">
                                 {referralLink}
                             </div>
@@ -314,7 +321,7 @@ export const PartnerDashboard = () => {
                             className="bg-primary hover:bg-primary-hover text-white font-black py-4 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-primary/20 transition-all active:scale-95 group-hover:translate-y-[-2px]"
                         >
                             <Copy className="w-4 h-4" />
-                            Copiar Acesso
+                            {t('partner_dashboard.copy_access')}
                         </Button>
                     </div>
                 </div>
@@ -327,12 +334,12 @@ export const PartnerDashboard = () => {
                                 <Users className="w-5 h-5" />
                             </div>
                             <div>
-                                <h3 className="font-black text-white uppercase italic tracking-tighter">Meus Leads</h3>
-                                <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Acompanhamento de Indicações</p>
+                                <h3 className="font-black text-white uppercase italic tracking-tighter">{t('partner_dashboard.my_leads')}</h3>
+                                <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">{t('partner_dashboard.referral_tracking')}</p>
                             </div>
                         </div>
                         <span className="px-3 py-1 bg-white/5 border border-white/5 rounded-full text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                            {leads.length} leads
+                            {t('partner_dashboard.leads_count', { count: leads.length })}
                         </span>
                     </div>
 
@@ -340,16 +347,16 @@ export const PartnerDashboard = () => {
                         <table className="w-full text-left border-collapse">
                             <thead>
                                 <tr className="bg-black/20 border-b border-white/5">
-                                    <th className="px-8 py-5 text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Pessoa / Contato</th>
-                                    <th className="px-8 py-5 text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Data</th>
-                                    <th className="px-8 py-5 text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] text-right">Ação Operacional</th>
+                                    <th className="px-8 py-5 text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">{t('partner_dashboard.person_contact')}</th>
+                                    <th className="px-8 py-5 text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">{t('partner_dashboard.date')}</th>
+                                    <th className="px-8 py-5 text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] text-right">{t('partner_dashboard.operational_action')}</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-white/5">
                                 {leads.length === 0 ? (
                                     <tr>
                                         <td colSpan={3} className="px-8 py-16 text-center text-gray-600 italic text-sm">
-                                            Nenhuma indicação registrada. Compartilhe seu link!
+                                            {t('partner_dashboard.empty_referrals')}
                                         </td>
                                     </tr>
                                 ) : (
@@ -359,7 +366,7 @@ export const PartnerDashboard = () => {
                                             <tr key={lead.id} className="hover:bg-white/[0.02] transition-colors group">
                                                 <td className="px-8 py-6">
                                                     <div className="flex flex-col">
-                                                        <span className="font-bold text-gray-200 group-hover:text-white transition-colors">{lead.full_name || 'Sem nome'}</span>
+                                                        <span className="font-bold text-gray-200 group-hover:text-white transition-colors">{lead.full_name || t('partner_dashboard.no_name')}</span>
                                                         <span className="text-[11px] text-gray-500 flex items-center gap-2 mt-1">
                                                             {lead.email}
                                                             {lead.whatsapp && (
@@ -379,8 +386,8 @@ export const PartnerDashboard = () => {
                                                 </td>
                                                 <td className="px-8 py-6">
                                                     <div className="flex flex-col">
-                                                        <span className="text-xs text-gray-400 font-medium">{new Date(lead.created_at).toLocaleDateString()}</span>
-                                                        <span className="text-[9px] text-gray-600 font-black uppercase tracking-widest">Registrado</span>
+                                                        <span className="text-xs text-gray-400 font-medium">{new Date(lead.created_at).toLocaleDateString(partnerDateLocale)}</span>
+                                                        <span className="text-[9px] text-gray-600 font-black uppercase tracking-widest">{t('partner_dashboard.registered')}</span>
                                                     </div>
                                                 </td>
                                                 <td className="px-8 py-6 text-right">
@@ -391,12 +398,12 @@ export const PartnerDashboard = () => {
                                                             className="bg-blue-600/10 hover:bg-blue-600 text-blue-400 hover:text-white border border-blue-600/20 rounded-xl font-black text-[10px] uppercase tracking-wider transition-all"
                                                         >
                                                             <Rocket className="w-3 h-3 mr-2" />
-                                                            Instalar Agora
+                                                            {t('partner_dashboard.install_now')}
                                                         </Button>
                                                     ) : (
                                                         <div className="flex items-center justify-end gap-2 text-green-500/60 font-black text-[10px] uppercase tracking-widest italic">
                                                             <CheckCircle2 className="w-3 h-3" />
-                                                            Concluído
+                                                            {t('partner_dashboard.completed')}
                                                         </div>
                                                     )}
                                                 </td>
@@ -417,8 +424,8 @@ export const PartnerDashboard = () => {
                                 <Globe className="w-5 h-5" />
                             </div>
                             <div>
-                                <h3 className="font-black text-white uppercase italic tracking-tighter">Sistemas Instalados</h3>
-                                <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Domínios e Licenças Ativas</p>
+                                <h3 className="font-black text-white uppercase italic tracking-tighter">{t('partner_dashboard.installed_systems')}</h3>
+                                <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">{t('partner_dashboard.active_domains_and_licenses')}</p>
                             </div>
                         </div>
                     </div>
@@ -427,16 +434,16 @@ export const PartnerDashboard = () => {
                         <table className="w-full text-left border-collapse">
                             <thead>
                                 <tr className="bg-black/20 border-b border-white/5">
-                                    <th className="px-8 py-5 text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Domínio / Cliente</th>
-                                    <th className="px-8 py-5 text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Expira em</th>
-                                    <th className="px-8 py-5 text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] text-right">Controle</th>
+                                    <th className="px-8 py-5 text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">{t('partner_dashboard.domain_client')}</th>
+                                    <th className="px-8 py-5 text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">{t('partner_dashboard.expires_in')}</th>
+                                    <th className="px-8 py-5 text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] text-right">{t('partner_dashboard.control')}</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-white/5">
                                 {clients.length === 0 ? (
                                     <tr>
                                         <td colSpan={3} className="px-8 py-16 text-center text-gray-600 italic text-sm">
-                                            Nenhum sistema instalado.
+                                            {t('partner_dashboard.no_system_installed')}
                                         </td>
                                     </tr>
                                 ) : (
@@ -456,7 +463,7 @@ export const PartnerDashboard = () => {
                                             <td className="px-8 py-6 text-xs text-gray-400">
                                                 <div className="flex items-center gap-2">
                                                     <span className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]"></span>
-                                                    Lote Vitalício
+                                                    {t('partner_dashboard.lifetime_batch')}
                                                 </div>
                                             </td>
                                             <td className="px-8 py-6 text-right">
@@ -465,7 +472,7 @@ export const PartnerDashboard = () => {
                                                     className="inline-flex items-center gap-2 px-4 py-2 bg-orange-500/5 hover:bg-orange-500 text-orange-400 hover:text-white border border-orange-500/20 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest group/btn active:scale-95"
                                                 >
                                                     <Zap className="w-3 h-3 group-hover/btn:animate-pulse" />
-                                                    Ativar Recursos
+                                                    {t('partner_dashboard.activate_features')}
                                                 </button>
                                             </td>
                                         </tr>
@@ -483,9 +490,9 @@ export const PartnerDashboard = () => {
                             <ShieldCheck className="w-5 h-5" />
                         </div>
                         <div>
-                            <h4 className="font-bold text-white text-sm">Proteção da Marca e Suporte</h4>
+                            <h4 className="font-bold text-white text-sm">{t('partner_dashboard.brand_protection_title')}</h4>
                             <p className="text-xs text-gray-400 mt-1 max-w-xl">
-                                Em caso de abandono de suporte ou má conduta técnica com clientes indicados, a licença de parceiro pode ser suspensa ou revogada pela plataforma após análise.
+                                {t('partner_dashboard.brand_protection_description')}
                             </p>
                         </div>
                     </div>
@@ -495,20 +502,22 @@ export const PartnerDashboard = () => {
                 <Modal
                     isOpen={isFeaturesModalOpen}
                     onClose={() => setIsFeaturesModalOpen(false)}
-                    title={`Gestão de Módulos: ${selectedClientName}`}
+                    title={t('partner_dashboard.modules_management_title', {
+                        name: selectedClientName || t('partner_dashboard.default_client_name'),
+                    })}
                 >
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                         <div className="bg-gradient-to-r from-orange-500/10 to-transparent border border-orange-500/20 p-5 rounded-[1.5rem] flex items-start gap-4 backdrop-blur-sm">
                             <Zap className="w-6 h-6 text-orange-400 shrink-0" />
                             <p className="text-orange-200/70 text-sm leading-relaxed font-medium">
-                                Como parceiro mestre, você tem o poder de liberar módulos premium para este cliente instantaneamente.
+                                {t('partner_dashboard.modules_management_description')}
                             </p>
                         </div>
 
                         {loadingFeatures ? (
                             <div className="flex flex-col items-center justify-center p-12 gap-4">
                                 <RefreshCw className="w-8 h-8 animate-spin text-orange-500/40" />
-                                <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Sincronizando Central...</span>
+                                <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{t('partner_dashboard.syncing_central')}</span>
                             </div>
                         ) : (
                             <div className="space-y-3">
@@ -542,7 +551,7 @@ export const PartnerDashboard = () => {
                             onClick={() => setIsFeaturesModalOpen(false)} 
                             className="w-full bg-white/5 border-white/10 hover:bg-white/10 text-white font-black py-4 rounded-xl uppercase text-xs tracking-widest transition-all"
                         >
-                            Concluir Gestão
+                            {t('partner_dashboard.finish_management')}
                         </Button>
                     </div>
                 </Modal>
@@ -551,7 +560,7 @@ export const PartnerDashboard = () => {
                 <Modal
                     isOpen={isInstallModalOpen}
                     onClose={() => setIsInstallModalOpen(false)}
-                    title="Assistente de Instalação"
+                    title={t('partner_dashboard.installation_assistant')}
                 >
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                         <div className="flex items-center gap-5 p-6 bg-blue-500/5 border border-blue-500/10 rounded-[1.5rem] backdrop-blur-sm relative overflow-hidden group">
@@ -567,11 +576,11 @@ export const PartnerDashboard = () => {
 
                         <div className="space-y-4">
                             <p className="text-sm text-gray-400 leading-relaxed font-medium">
-                                Ao confirmar, o sistema irá sincronizar com o banco central para localizar a <strong className="text-white">licença gratuita</strong> deste cliente.
+                                {t('partner_dashboard.install_modal.description_before')} <strong className="text-white">{t('partner_dashboard.install_modal.free_license')}</strong> {t('partner_dashboard.install_modal.description_after')}
                             </p>
                             <div className="flex items-center gap-2 p-3 bg-white/5 border border-white/5 rounded-xl text-[10px] font-black text-gray-500 uppercase tracking-widest">
                                 <Activity className="w-3 h-3 text-blue-500" />
-                                Protocolo de Instalação Remota Ativo
+                                {t('partner_dashboard.install_modal.remote_installation_protocol_active')}
                             </div>
                         </div>
 
@@ -581,7 +590,7 @@ export const PartnerDashboard = () => {
                                 onClick={() => setIsInstallModalOpen(false)} 
                                 className="bg-white/5 border-white/10 hover:bg-white/10 text-white font-black py-4 rounded-xl uppercase text-[10px] tracking-widest transition-all"
                             >
-                                Cancelar
+                                {t('common.cancel')}
                             </Button>
                             <Button 
                                 onClick={confirmInstallation} 
@@ -591,12 +600,12 @@ export const PartnerDashboard = () => {
                                 {creatingLicense ? (
                                     <>
                                         <RefreshCw className="w-3 h-3 animate-spin" />
-                                        Buscando...
+                                        {t('partner_dashboard.searching')}
                                     </>
                                 ) : (
                                     <>
                                         <CheckCircle2 className="w-3 h-3" />
-                                        Confirmar
+                                        {t('partner_dashboard.confirm')}
                                     </>
                                 )}
                             </Button>

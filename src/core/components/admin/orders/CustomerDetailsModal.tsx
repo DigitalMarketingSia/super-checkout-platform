@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { X, User, ShoppingBag, MessageCircle, FileText, Mail, Phone, RefreshCw } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '../../ui/Button';
 import { AlertModal } from '../../ui/Modal';
 import { resendOrderAccessEmail } from '../../../services/orderAccessEmailService';
@@ -22,7 +23,16 @@ interface CustomerDetailsModalProps {
     onClose: () => void;
 }
 
+const resolveNumberLocale = (language: string) => (
+    language.startsWith('es') ? 'es-ES' : language.startsWith('en') ? 'en-US' : 'pt-BR'
+);
+
+const resolveDefaultCurrency = (language: string) => (
+    language.startsWith('es') ? 'EUR' : language.startsWith('en') ? 'USD' : 'BRL'
+);
+
 export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({ customer, isOpen, onClose }) => {
+    const { t, i18n } = useTranslation(['admin', 'common']);
     const [isResending, setIsResending] = useState(false);
     const [alertModal, setAlertModal] = useState<{ isOpen: boolean; title: string; message: string; variant: 'success' | 'error' | 'info' }>({
         isOpen: false,
@@ -33,10 +43,22 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({ cust
 
     if (!customer) return null;
 
-    const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
-    const formatDate = (dateStr: string) => new Date(dateStr).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
+    const numberLocale = resolveNumberLocale(i18n.language);
+    const defaultCurrency = resolveDefaultCurrency(i18n.language);
+    const customerProducts = customer.products ?? [];
+    const customerInitial = customer.name?.trim().charAt(0).toUpperCase() || '?';
+
+    const formatCurrency = (val: number) => new Intl.NumberFormat(numberLocale, {
+        style: 'currency',
+        currency: defaultCurrency,
+    }).format(val);
+    const formatDate = (dateStr: string) => new Intl.DateTimeFormat(numberLocale, {
+        day: '2-digit',
+        month: '2-digit',
+        year: '2-digit',
+    }).format(new Date(dateStr));
     const emailService = {
-        sendPaymentApproved: async (order: any) => {
+        sendPaymentApproved: async (order: { id: string }) => {
             await resendOrderAccessEmail(order.id);
             return true;
         }
@@ -51,17 +73,16 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({ cust
     const handleResendEmail = async () => {
         setIsResending(true);
         try {
-            // Fetch orders to find the latest paid one for this customer email
             const orders = await storage.getOrders();
             const lastPaidOrder = orders
-                .filter(o => o.customer_email === customer.email && o.status === 'paid')
+                .filter(order => order.customer_email === customer.email && order.status === 'paid')
                 .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
 
             if (!lastPaidOrder) {
                 setAlertModal({
                     isOpen: true,
-                    title: 'Aviso',
-                    message: 'Nenhum pedido aprovado encontrado para este cliente.',
+                    title: t('info_title', { ns: 'common' }),
+                    message: t('orders.modals.alerts.resend_missing_paid_order'),
                     variant: 'info'
                 });
                 return;
@@ -71,18 +92,18 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({ cust
             if (success) {
                 setAlertModal({
                     isOpen: true,
-                    title: 'Sucesso',
-                    message: 'E-mail de confirmação de acesso reenviado com sucesso!',
+                    title: t('success_title', { ns: 'common' }),
+                    message: t('orders.modals.alerts.resend_success'),
                     variant: 'success'
                 });
             } else {
-                throw new Error('Falha ao enviar e-mail');
+                throw new Error(t('orders.modals.alerts.resend_error'));
             }
         } catch (error) {
             setAlertModal({
                 isOpen: true,
-                title: 'Erro',
-                message: 'Não foi possível reenviar o e-mail. Tente novamente mais tarde.',
+                title: t('error_title', { ns: 'common' }),
+                message: t('orders.modals.alerts.resend_error'),
                 variant: 'error'
             });
         } finally {
@@ -95,61 +116,62 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({ cust
             <Dialog.Portal>
                 <Dialog.Overlay className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 animate-in fade-in duration-200" />
                 <Dialog.Content className="fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] w-full max-w-2xl bg-[#12121A]/80 backdrop-blur-xl rounded-2xl shadow-2xl z-50 flex flex-col overflow-hidden outline-none animate-in zoom-in-95 duration-200 border border-purple-500/20 max-h-[90vh]">
-
-                    {/* Purple glow effects */}
                     <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/20 rounded-full blur-3xl -mr-16 -mt-16" />
                     <div className="absolute bottom-0 left-0 w-32 h-32 bg-purple-500/10 rounded-full blur-3xl -ml-16 -mb-16" />
 
-                    {/* Header */}
                     <div className="relative flex-none p-6 border-b border-white/10 bg-white/[0.02] flex justify-between items-start">
                         <div>
                             <div className="flex items-center gap-3 mb-1">
                                 <Dialog.Title asChild>
-                                    <h2 className="text-xl font-bold text-white">Detalhes do Cliente</h2>
+                                    <h2 className="text-xl font-bold text-white">{t('orders.modals.customer_details.title')}</h2>
                                 </Dialog.Title>
                             </div>
                             <p className="text-sm text-gray-500">
-                                Cliente desde {formatDate(customer.lastOrderDate)} (Baseado no último pedido)
+                                {t('orders.modals.customer_details.customer_since', {
+                                    date: formatDate(customer.lastOrderDate),
+                                })}
                             </p>
                         </div>
-                        <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="p-2 hover:bg-white/10 rounded-full transition-colors"
+                            aria-label={t('close')}
+                        >
                             <X className="w-5 h-5 text-gray-500" />
                         </button>
                     </div>
 
                     <div className="relative flex-1 overflow-y-auto p-6 space-y-6">
-
-                        {/* Summary Grid */}
                         <div className="grid grid-cols-2 gap-4">
                             <div className="p-4 rounded-xl bg-black/30 border border-purple-500/20 flex flex-col items-center text-center">
                                 <div className="p-2 bg-green-500/10 rounded-full text-green-500 mb-2">
                                     <ShoppingBag className="w-5 h-5" />
                                 </div>
-                                <div className="text-xs text-gray-500 uppercase font-bold mb-1">Total Gasto</div>
+                                <div className="text-xs text-gray-500 uppercase font-bold mb-1">{t('orders.table.total_spent')}</div>
                                 <div className="text-xl font-bold text-white">{formatCurrency(customer.totalSpent)}</div>
                             </div>
                             <div className="p-4 rounded-xl bg-black/30 border border-purple-500/20 flex flex-col items-center text-center">
                                 <div className="p-2 bg-blue-500/10 rounded-full text-blue-500 mb-2">
                                     <FileText className="w-5 h-5" />
                                 </div>
-                                <div className="text-xs text-gray-500 uppercase font-bold mb-1">Total Pedidos</div>
+                                <div className="text-xs text-gray-500 uppercase font-bold mb-1">{t('orders.table.orders_count')}</div>
                                 <div className="text-xl font-bold text-white">{customer.orderCount}</div>
                             </div>
                         </div>
 
-                        {/* Contact Info */}
                         <div className="space-y-3">
                             <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                                <User className="w-4 h-4 text-purple-400" /> Dados de Contato
+                                <User className="w-4 h-4 text-purple-400" /> {t('orders.modals.customer_details.contact_info')}
                             </h3>
                             <div className="bg-black/20 rounded-xl border border-purple-500/20 overflow-hidden p-4 space-y-4">
                                 <div className="flex items-center gap-3">
                                     <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-white/10 flex items-center justify-center text-gray-500 font-bold">
-                                        {customer.name.charAt(0).toUpperCase()}
+                                        {customerInitial}
                                     </div>
                                     <div>
                                         <div className="font-bold text-white">{customer.name}</div>
-                                        <div className="text-xs text-gray-500">Nome registrado no checkout</div>
+                                        <div className="text-xs text-gray-500">{t('orders.modals.customer_details.registered_name_hint')}</div>
                                     </div>
                                 </div>
 
@@ -160,10 +182,15 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({ cust
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <Phone className="w-4 h-4 text-gray-400" />
-                                        <span className="text-sm text-gray-300">{customer.phone || 'Não informado'}</span>
+                                        <span className="text-sm text-gray-300">{customer.phone || t('orders.modals.customer_details.not_informed')}</span>
                                         {customer.phone && (
-                                            <button onClick={openWhatsApp} className="ml-auto text-green-500 text-xs font-bold hover:underline flex items-center gap-1">
-                                                <MessageCircle className="w-3 h-3" /> WhatsApp
+                                            <button
+                                                type="button"
+                                                onClick={openWhatsApp}
+                                                className="ml-auto text-green-500 text-xs font-bold hover:underline flex items-center gap-1"
+                                                aria-label={t('orders.modals.customer_details.whatsapp_label')}
+                                            >
+                                                <MessageCircle className="w-3 h-3" /> {t('orders.modals.customer_details.whatsapp_label')}
                                             </button>
                                         )}
                                     </div>
@@ -171,25 +198,26 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({ cust
                             </div>
                         </div>
 
-                        {/* Products */}
                         <div className="space-y-3">
                             <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                                <ShoppingBag className="w-4 h-4 text-purple-400" /> Produtos Adquiridos
+                                <ShoppingBag className="w-4 h-4 text-purple-400" /> {t('orders.table.acquired_products')}
                             </h3>
                             <div className="bg-black/20 rounded-xl border border-purple-500/20 overflow-hidden p-4">
-                                <div className="flex flex-wrap gap-2">
-                                    {customer.products.map((prod, idx) => (
-                                        <span key={idx} className="px-3 py-1.5 rounded-lg bg-purple-500/10 text-purple-400 text-sm border border-purple-500/20">
-                                            {prod}
-                                        </span>
-                                    ))}
-                                </div>
+                                {customerProducts.length > 0 ? (
+                                    <div className="flex flex-wrap gap-2">
+                                        {customerProducts.map((product, idx) => (
+                                            <span key={idx} className="px-3 py-1.5 rounded-lg bg-purple-500/10 text-purple-400 text-sm border border-purple-500/20">
+                                                {product}
+                                            </span>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-sm text-gray-400">{t('orders.modals.customer_details.no_products')}</div>
+                                )}
                             </div>
                         </div>
-
                     </div>
 
-                    {/* Actions Footer */}
                     <div className="relative p-6 border-t border-white/10 bg-white/[0.02] flex flex-col md:flex-row justify-end items-center gap-4">
                         <Button
                             variant="secondary"
@@ -202,13 +230,12 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({ cust
                             ) : (
                                 <Mail className="w-4 h-4 mr-2" />
                             )}
-                            Reenviar E-mail de Acesso
+                            {t('orders.modals.customer_details.resend_access_email')}
                         </Button>
                         <Button variant="secondary" onClick={onClose} className="w-full md:w-auto bg-purple-600 hover:bg-purple-700 text-white border-none">
-                            Fechar
+                            {t('close')}
                         </Button>
                     </div>
-
                 </Dialog.Content>
             </Dialog.Portal>
 

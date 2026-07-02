@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { storage } from '../../services/storageService';
 import { Loading } from '../../components/ui/Loading';
 import { ShieldCheck, ArrowLeft } from 'lucide-react';
@@ -9,16 +10,23 @@ import {
     type BusinessLegalSettingsLike,
 } from '../../utils/legalDocuments';
 
-const formatUpdatedAt = (value?: string | null) => {
-    if (!value) return 'nao informado';
+const resolveDateLocale = (language: string) => {
+    if (language.startsWith('pt')) return 'pt-BR';
+    if (language.startsWith('es')) return 'es-ES';
+    return 'en-US';
+};
+
+const formatUpdatedAt = (value: string | null | undefined, fallback: string, locale: string) => {
+    if (!value) return fallback;
 
     const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return 'nao informado';
+    if (Number.isNaN(date.getTime())) return fallback;
 
-    return date.toLocaleDateString('pt-BR');
+    return date.toLocaleDateString(locale);
 };
 
 export const PublicPrivacy = () => {
+    const { t, i18n } = useTranslation('public');
     const [settings, setSettings] = useState<BusinessLegalSettingsLike | null>(null);
     const [loading, setLoading] = useState(true);
 
@@ -48,7 +56,7 @@ export const PublicPrivacy = () => {
             setLoading(false);
         };
 
-        load();
+        void load();
     }, []);
 
     if (loading) return <Loading />;
@@ -67,7 +75,11 @@ export const PublicPrivacy = () => {
     const controllerName = businessIdentity.legalName;
     const privacyDocument = getEffectiveLegalDocumentInfo('privacy_policy', settings, buildDefaultPrivacyPolicy);
     const finalContent = privacyDocument.content;
-    const sourceLabel = privacyDocument.sourceLabel;
+    const sourceLabel = privacyDocument.source === 'custom'
+        ? t('legal_pages.source_custom')
+        : t('legal_pages.source_default', { version: privacyDocument.version });
+    const dateLocale = resolveDateLocale(i18n.language);
+    const notInformed = t('legal_pages.not_informed');
 
     return (
         <div className="min-h-screen bg-[#05050A] text-white selection:bg-primary/30">
@@ -78,7 +90,7 @@ export const PublicPrivacy = () => {
                             <ShieldCheck className="w-6 h-6 text-primary" />
                         </div>
                         <div>
-                            <h1 className="text-lg font-bold tracking-tight">Politica de Privacidade</h1>
+                            <h1 className="text-lg font-bold tracking-tight">{t('legal_pages.privacy.title')}</h1>
                             <p className="text-xs text-gray-500 uppercase tracking-widest font-medium">{businessName}</p>
                         </div>
                     </div>
@@ -86,7 +98,7 @@ export const PublicPrivacy = () => {
                         onClick={handleClose}
                         className="text-gray-400 hover:text-white transition-colors flex items-center gap-2 text-sm font-medium"
                     >
-                        <ArrowLeft className="w-4 h-4" /> Fechar
+                        <ArrowLeft className="w-4 h-4" /> {t('legal_pages.close')}
                     </button>
                 </div>
             </header>
@@ -96,14 +108,14 @@ export const PublicPrivacy = () => {
                     <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -mr-32 -mt-32" />
 
                     <div className="relative z-10 mb-8 rounded-2xl border border-white/5 bg-white/[0.02] p-6 text-sm text-gray-300">
-                        <p><span className="font-semibold text-white">Controlador informado:</span> {controllerName}</p>
-                        <p><span className="font-semibold text-white">Canal de contato:</span> {businessIdentity.legalContact}</p>
-                        <p><span className="font-semibold text-white">Origem do documento:</span> {sourceLabel}</p>
-                        <p><span className="font-semibold text-white">Versao vigente:</span> {privacyDocument.version}</p>
-                        <p><span className="font-semibold text-white">Publicado em:</span> {formatUpdatedAt(privacyDocument.publishedAt)}</p>
-                        <p><span className="font-semibold text-white">Ultima atualizacao cadastrada:</span> {formatUpdatedAt(settings?.updated_at)}</p>
-                        <p><span className="font-semibold text-white">Checkout hospedado:</span> quando o vendedor habilita mensuracao comercial, esta superficie pode registrar parametros de campanha e eventos de inicio ou conclusao da compra para analytics, atribuicao e deduplicacao.</p>
-                        <p><span className="font-semibold text-white">Minimizacao operacional:</span> telefone e documento so devem ser exigidos quando necessarios para o metodo de pagamento, antifraude, conciliacao ou suporte da compra.</p>
+                        <p><span className="font-semibold text-white">{t('legal_pages.privacy.controller_label')}</span> {controllerName}</p>
+                        <p><span className="font-semibold text-white">{t('legal_pages.privacy.contact_label')}</span> {businessIdentity.legalContact}</p>
+                        <p><span className="font-semibold text-white">{t('legal_pages.document_source_label')}</span> {sourceLabel}</p>
+                        <p><span className="font-semibold text-white">{t('legal_pages.version_label')}</span> {privacyDocument.version}</p>
+                        <p><span className="font-semibold text-white">{t('legal_pages.published_at_label')}</span> {formatUpdatedAt(privacyDocument.publishedAt, notInformed, dateLocale)}</p>
+                        <p><span className="font-semibold text-white">{t('legal_pages.last_updated_label')}</span> {formatUpdatedAt(settings?.updated_at, notInformed, dateLocale)}</p>
+                        <p><span className="font-semibold text-white">{t('legal_pages.privacy.hosted_checkout_label')}</span> {t('legal_pages.privacy.hosted_checkout_value')}</p>
+                        <p><span className="font-semibold text-white">{t('legal_pages.privacy.operational_minimization_label')}</span> {t('legal_pages.privacy.operational_minimization_value')}</p>
                     </div>
 
                     <div className="relative z-10 prose prose-invert prose-purple max-w-none">
@@ -114,7 +126,7 @@ export const PublicPrivacy = () => {
                 </div>
 
                 <footer className="mt-12 text-center text-gray-600 text-sm pb-12">
-                    <p>(c) 2026 {businessName}. Todos os direitos reservados.</p>
+                    <p>(c) 2026 {businessName}. {t('all_rights_reserved')}</p>
                 </footer>
             </main>
         </div>

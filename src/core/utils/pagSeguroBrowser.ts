@@ -31,7 +31,7 @@ export async function loadPagSeguroSdk(): Promise<NonNullable<Window['PagSeguro'
   }
 
   if (!pagSeguroSdkPromise) {
-    pagSeguroSdkPromise = new Promise((resolve, reject) => {
+    pagSeguroSdkPromise = new Promise<NonNullable<Window['PagSeguro']>>((resolve, reject) => {
       const existingScript = document.querySelector<HTMLScriptElement>(`script[src="${PAGSEGURO_SDK_URL}"]`);
       if (existingScript) {
         existingScript.addEventListener('load', () => {

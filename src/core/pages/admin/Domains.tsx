@@ -289,14 +289,14 @@ export const Domains = () => {
           <div className="flex items-center gap-3">
              <p className="text-gray-600 font-medium uppercase tracking-[0.1em] text-[10px]">{t('domains.subtitle')}</p>
              <div className="h-1 w-1 rounded-full bg-gray-800"></div>
-             <span className="text-[10px] text-primary font-black uppercase tracking-[0.2em]">Network Control</span>
+             <span className="text-[10px] text-primary font-black uppercase tracking-[0.2em]">{t('domains.network_control', 'Network Control')}</span>
           </div>
         </div>
         <div className="flex items-center gap-4">
            {getLimit('domains') && !isWhiteLabel && (
               <div className="hidden md:flex items-center gap-2 px-4 py-2 rounded-2xl bg-black/40 border border-white/5">
-                 <span className="text-[10px] font-black text-gray-700 uppercase tracking-widest leading-none">Status da Cota</span>
-                 <span className="text-xs font-portal-display text-primary">{customDomainsCount} / {getLimit('domains') === 'unlimited' ? '∞' : getLimit('domains')}</span>
+                 <span className="text-[10px] font-black text-gray-700 uppercase tracking-widest leading-none">{t('domains.limit', 'Limite')}</span>
+                 <span className="text-xs font-portal-display text-primary">{customDomainsCount} / {getLimit('domains') === 'unlimited' ? t('unlimited', 'Ilimitado') : getLimit('domains')}</span>
               </div>
            )}
            <Button 
@@ -337,8 +337,8 @@ export const Domains = () => {
            <div className="w-24 h-24 bg-white/5 rounded-[2rem] flex items-center justify-center mb-6 border border-white/5">
               <Globe className="w-10 h-10 text-gray-700" />
            </div>
-           <h3 className="text-2xl font-portal-display text-white uppercase tracking-tight opacity-40">Tabela de Roteamento Vazia</h3>
-           <p className="text-gray-600 font-medium uppercase tracking-widest text-[10px] mt-2">Conecte um domínio para personalizar seu ecossistema</p>
+           <h3 className="text-2xl font-portal-display text-white uppercase tracking-tight opacity-40">{t('domains.no_domains', 'Nenhum domínio conectado')}</h3>
+           <p className="text-gray-600 font-medium uppercase tracking-widest text-[10px] mt-2">{t('domains.empty_subtitle', 'Conecte um domínio para personalizar seu ecossistema')}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4">
@@ -356,7 +356,11 @@ export const Domains = () => {
                         <div className="flex items-center gap-2">
                            <div className={`w-1.5 h-1.5 rounded-full ${domain.status === DomainStatus.ACTIVE ? 'bg-emerald-500 animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-gray-800'}`}></div>
                            <span className="text-[9px] font-black uppercase tracking-widest text-gray-700">
-                              {domain.status === DomainStatus.ACTIVE ? 'Conectado' : (domain.status === DomainStatus.PENDING ? 'Aguardando DNS' : 'Erro na Rede')}
+                              {domain.status === DomainStatus.ACTIVE
+                                ? t('domains.status.connected', 'Conectado')
+                                : domain.status === DomainStatus.PENDING
+                                  ? t('domains.status.waiting_dns', 'Aguardando DNS')
+                                  : t('domains.status.error', 'Erro')}
                            </span>
                         </div>
                      </div>
@@ -365,17 +369,20 @@ export const Domains = () => {
                   {/* usage & created */}
                   <div className="flex-1 flex items-center gap-8 min-w-0">
                      <div>
-                        <p className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-700 mb-0.5">Destinação</p>
+                        <p className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-700 mb-0.5">{t('domains.add_modal.usage_label', 'Finalidade do domínio')}</p>
                         <div className="flex items-center gap-2 px-3 py-1 bg-white/5 border border-white/5 rounded-xl">
                            <div className="w-1.5 h-1.5 rounded-full bg-primary/40"></div>
                            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest leading-relaxed">
-                              {domain.usage === DomainUsage.CHECKOUT ? 'E-Commerce' : (domain.usage === DomainUsage.MEMBER_AREA ? 'Membros' : 'Sistema Core')}
+                              {domain.usage === DomainUsage.CHECKOUT
+                                ? t('domains.usage.checkout', 'Checkout')
+                                : domain.usage === DomainUsage.MEMBER_AREA
+                                  ? t('domains.usage.member_area', 'Área de Membros')
+                                  : t('domains.usage.system', 'Sistema')}
                            </span>
                         </div>
                      </div>
                      <div className="hidden sm:block">
-                        <p className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-700 mb-0.5">Registro</p>
-                        <p className="text-[11px] font-bold text-gray-500">{new Date(domain.created_at).toLocaleDateString()}</p>
+                        <p className="text-[11px] font-bold text-gray-500">{t('domains.added_at', { date: new Date(domain.created_at).toLocaleDateString() })}</p>
                      </div>
                   </div>
 
@@ -385,14 +392,14 @@ export const Domains = () => {
                       onClick={() => openDnsModal(domain)}
                       className="flex items-center gap-2 px-5 py-2.5 bg-white/5 hover:bg-white/10 text-white rounded-xl text-[9px] font-black uppercase tracking-widest border border-white/5 transition-all"
                      >
-                        <Server className="w-4 h-4 text-primary" /> {t('common.setup') || 'Configurar'}
+                        <Server className="w-4 h-4 text-primary" /> {t('setup', 'Configurar DNS')}
                      </button>
                      <div className="flex items-center gap-2">
                         <button 
                           onClick={() => verifyDomain(domain.id, domain.domain)}
                           disabled={verifyingId === domain.id}
                           className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-500 hover:text-white border border-white/5 transition-all"
-                          title="Sincronizar"
+                          title={t('domains.sync', 'Sincronizar')}
                         >
                            {verifyingId === domain.id ? <Loader2 className="w-4.5 h-4.5 animate-spin" /> : <RotateCw className="w-4.5 h-4.5" />}
                         </button>
@@ -400,7 +407,7 @@ export const Domains = () => {
                           onClick={() => handleDeleteClick(domain.id, domain.domain)}
                           disabled={removingId === domain.id || checkingUsageId === domain.id}
                           className="p-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/10 transition-all opacity-40 hover:opacity-100 disabled:opacity-20"
-                          title="Remover"
+                          title={t('domains.remove', 'Remover')}
                         >
                            <Trash2 className="w-4.5 h-4.5" />
                         </button>
@@ -414,7 +421,7 @@ export const Domains = () => {
       )}
 
       {/* Add Domain Modal */}
-      <Modal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} title="Novo Nó de Rede">
+      <Modal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} title={t('domains.add_modal.title', 'Adicionar Domínio')}>
         <div className="absolute inset-0 opacity-10 pointer-events-none">
            <Aurora colorStops={['#8A2BE2', '#4B0082', '#0000FF']} amplitude={0.5} speed={0.2} />
         </div>
@@ -422,12 +429,12 @@ export const Domains = () => {
           {error && <div className="bg-red-500/10 border border-red-500/20 text-red-500 p-4 rounded-2xl text-xs font-bold uppercase tracking-widest">{error}</div>}
 
           <div>
-             <label className="text-[10px] font-black text-gray-600 uppercase tracking-widest mb-4 block">Finalidade do Domínio</label>
+             <label className="text-[10px] font-black text-gray-600 uppercase tracking-widest mb-4 block">{t('domains.add_modal.usage_label', 'Finalidade do Domínio')}</label>
              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {[
-                   { id: DomainUsage.CHECKOUT, label: 'Vendas', icon: ShoppingCart, color: 'text-blue-400' },
-                   { id: DomainUsage.MEMBER_AREA, label: 'Membros', icon: Users, color: 'text-purple-400' },
-                   { id: DomainUsage.SYSTEM, label: 'Sistema', icon: LayoutIcon, color: 'text-emerald-400' }
+                   { id: DomainUsage.CHECKOUT, label: t('domains.add_modal.usage_checkout_title', 'Para Checkout'), icon: ShoppingCart, color: 'text-blue-400' },
+                   { id: DomainUsage.MEMBER_AREA, label: t('domains.add_modal.usage_member_title', 'Para Área de Membros'), icon: Users, color: 'text-purple-400' },
+                   { id: DomainUsage.SYSTEM, label: t('domains.add_modal.usage_system_title', 'Para Sistema'), icon: LayoutIcon, color: 'text-emerald-400' }
                 ].map(u => (
                   <label key={u.id} className={`flex flex-col items-center justify-center p-6 rounded-[2rem] border transition-all cursor-pointer ${formData.usage === u.id ? 'bg-white/5 border-white/20' : 'bg-black/20 border-white/5 opacity-50 hover:opacity-100'}`}>
                      <input type="radio" className="hidden" checked={formData.usage === u.id} onChange={() => setFormData({ ...formData, usage: u.id as any })} />
@@ -439,24 +446,24 @@ export const Domains = () => {
           </div>
 
           <div>
-            <label className="block text-[10px] font-black text-gray-600 uppercase tracking-widest mb-3">Nome do Domínio ou Subdomínio</label>
+            <label className="block text-[10px] font-black text-gray-600 uppercase tracking-widest mb-3">{t('domains.add_modal.domain_label', 'Domínio (sem http/https)')}</label>
             <div className="relative">
                <Globe className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-700" />
                <input
                  required type="text"
                  className="w-full bg-black/40 border border-white/5 rounded-2xl pl-14 pr-6 py-5 focus:border-primary/50 outline-none text-white text-lg font-portal-display transition-all"
-                 placeholder="pay.meusite.com"
+                 placeholder={t('domains.add_modal.placeholder', 'pay.meusite.com')}
                  value={formData.domain}
                  onChange={e => setFormData({ ...formData, domain: e.target.value })}
                />
             </div>
-            <p className="text-[10px] text-gray-700 mt-4 leading-relaxed font-medium uppercase tracking-widest italic">O domínio deve estar apontado para nossos servidores para ativação automática.</p>
+            <p className="text-[10px] text-gray-700 mt-4 leading-relaxed font-medium uppercase tracking-widest italic">{t('domains.add_modal.domain_hint', 'O domínio deve estar apontado para nossos servidores para ativação automática.')}</p>
           </div>
 
           <div className="pt-4 flex justify-end gap-4">
-             <button type="button" onClick={() => setIsAddModalOpen(false)} className="px-6 py-3 text-[10px] font-black text-gray-600 uppercase tracking-widest">Abortar</button>
+             <button type="button" onClick={() => setIsAddModalOpen(false)} className="px-6 py-3 text-[10px] font-black text-gray-600 uppercase tracking-widest">{t('common.cancel', 'Cancelar')}</button>
              <Button onClick={handleSave} disabled={isLoading} variant="primary" className="px-10 py-5 font-black uppercase text-xs tracking-widest rounded-3xl border-none shadow-2xl transition-all">
-               {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Registrar Domínio'}
+               {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : t('domains.add_modal.add_btn', 'Adicionar')}
              </Button>
           </div>
         </form>
@@ -464,7 +471,7 @@ export const Domains = () => {
 
       {/* DNS Config Modal */}
       {selectedDomain && (
-        <Modal isOpen={isDnsModalOpen} onClose={() => setIsDnsModalOpen(false)} title="Infraestrutura DNS" className="max-w-5xl">
+        <Modal isOpen={isDnsModalOpen} onClose={() => setIsDnsModalOpen(false)} title={t('domains.dns_modal.config_title', 'Configuração DNS')} className="max-w-5xl">
           <div className="space-y-8">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 px-2">
                <div className="flex items-center gap-4 group">
@@ -474,14 +481,16 @@ export const Domains = () => {
                   <div>
                      <h3 className="text-xl font-portal-display text-white uppercase tracking-tight">{selectedDomain.domain}</h3>
                      <p className="text-[10px] font-black text-gray-700 uppercase tracking-widest">
-                        {selectedDomain.status === DomainStatus.ACTIVE ? 'Rede Ativa e Protegida' : 'Infraestrutura em Sincronização'}
+                        {selectedDomain.status === DomainStatus.ACTIVE
+                          ? t('domains.dns_modal.status_active', 'Rede ativa e protegida')
+                          : t('domains.dns_modal.status_syncing', 'Infraestrutura em sincronização')}
                      </p>
                   </div>
                </div>
                
                <div className="flex items-center gap-3 px-4 py-2 rounded-xl bg-black/40 border border-white/5">
                   <div className={`w-2 h-2 rounded-full ${selectedDomain.status === DomainStatus.ACTIVE ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-yellow-500 animate-pulse'}`}></div>
-                  <span className="text-[10px] font-black uppercase text-gray-500 tracking-widest">Global Node Status</span>
+                  <span className="text-[10px] font-black uppercase text-gray-500 tracking-widest">{t('domains.dns_modal.global_status', 'Status global do nó')}</span>
                </div>
             </div>
 
@@ -492,7 +501,7 @@ export const Domains = () => {
                        <Loader2 className="w-12 h-12 animate-spin text-primary opacity-40" />
                        <Globe className="absolute inset-0 m-auto w-5 h-5 text-primary animate-pulse" />
                     </div>
-                    <p className="text-[10px] font-black text-gray-700 uppercase tracking-[0.3em]">Varrendo DNS Global...</p>
+                    <p className="text-[10px] font-black text-gray-700 uppercase tracking-[0.3em]">{t('domains.dns_modal.loading_scan', 'Varrendo DNS global...')}</p>
                  </div>
                ) : (
                   <>
@@ -512,7 +521,7 @@ export const Domains = () => {
                               <div className="flex-1 min-w-0">
                                  <div className="flex items-center gap-2 mb-1">
                                     <ArrowRight className="w-2.5 h-2.5 text-gray-700" />
-                                    <span className="text-[8px] font-black text-gray-700 uppercase tracking-widest">Host / Nome</span>
+                                    <span className="text-[8px] font-black text-gray-700 uppercase tracking-widest">{t('domains.dns_modal.host_name', 'Host / nome')}</span>
                                  </div>
                                  <p className="text-[11px] font-mono text-white/90 truncate bg-black/40 px-3 py-1.5 rounded-lg border border-white/5">
                                     {getDnsHostLabel(record.domain, selectedDomain.domain)}
@@ -528,7 +537,7 @@ export const Domains = () => {
                               <div className="flex-[1.5] min-w-0">
                                  <div className="flex items-center gap-2 mb-1">
                                     <Server className="w-2.5 h-2.5 text-gray-700" />
-                                    <span className="text-[8px] font-black text-gray-700 uppercase tracking-widest">Valor / Destino</span>
+                                    <span className="text-[8px] font-black text-gray-700 uppercase tracking-widest">{t('domains.dns_modal.value_destination', 'Valor / destino')}</span>
                                  </div>
                                  <div className="relative group/val">
                                     <p className="text-[11px] font-mono text-white/90 break-all bg-black/40 px-3 py-1.5 rounded-lg border border-white/5 min-h-[30px] flex items-center">
@@ -543,7 +552,7 @@ export const Domains = () => {
                                    onClick={() => handleCopy(record.value, `rec-${idx}`)} 
                                    className="p-2 gap-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-500 hover:text-white border border-white/5 transition-all flex items-center"
                                  >
-                                    <span className="text-[7px] font-black uppercase tracking-widest ml-1 hidden sm:inline">Copiar</span>
+                                     <span className="text-[7px] font-black uppercase tracking-widest ml-1 hidden sm:inline">{t('domains.dns_modal.copy', 'Copiar')}</span>
                                     {copiedField === `rec-${idx}` ? <CheckCircle className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
                                  </button>
                               </div>
@@ -559,10 +568,8 @@ export const Domains = () => {
                              <RotateCw className="w-6 h-6 text-blue-400/60" />
                           </div>
                           <div>
-                             <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1 leading-none">Protocolo de Propagação</p>
-                             <p className="text-[11px] font-medium text-gray-600 leading-relaxed">
-                                Após a configuração no seu provedor (Cloudflare, GoDaddy, etc), os nós globais podem levar até <strong>24 horas</strong> para sincronizar totalmente a nova infraestrutura.
-                             </p>
+                             <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1 leading-none">{t('domains.dns_modal.propagation_title', 'Protocolo de propagação')}</p>
+                             <p className="text-[11px] font-medium text-gray-600 leading-relaxed">{t('domains.dns_modal.propagation_desc', 'Após a configuração no seu provedor (Cloudflare, GoDaddy, etc), os nós globais podem levar até 24 horas para sincronizar totalmente a nova infraestrutura.')}</p>
                           </div>
                        </div>
                        <Button 
@@ -570,7 +577,7 @@ export const Domains = () => {
                          variant="primary"
                          className="w-full lg:w-auto px-12 py-5 font-black uppercase text-xs tracking-widest rounded-3xl border-none shadow-2xl hover:scale-105 active:scale-95 transition-all"
                        >
-                          Painel Admin
+                           {t('domains.dns_modal.close', 'Fechar')}
                        </Button>
                     </div>
                   </>
@@ -585,33 +592,39 @@ export const Domains = () => {
         isOpen={!!deleteId}
         onClose={() => setDeleteId(null)}
         onConfirm={handleConfirmDelete}
-        title="Desconectar Domínio"
-        message="Esta operação irá remover o domínio da nossa rede global. Todos os checkouts vinculados a este domínio voltarão a usar o endereço padrão."
-        confirmText="Confirmar Desconexão"
-        cancelText="Manter na Rede"
+        title={t('domains.delete_modal.title', 'Excluir Domínio')}
+        message={t('domains.delete_modal.confirm', 'Tem certeza que deseja excluir este domínio? Esta ação não pode ser desfeita.')}
+        confirmText={t('domains.delete_modal.confirm_btn', 'Sim, excluir')}
+        cancelText={t('common.cancel', 'Cancelar')}
         variant="danger"
         loading={removingId === deleteId}
       />
 
       {/* Usage Warning */}
-      <Modal isOpen={!!usageWarning} onClose={() => setUsageWarning(null)} title="Domínio em Operação" className="max-w-md">
+      <Modal isOpen={!!usageWarning} onClose={() => setUsageWarning(null)} title={t('domains.usage_warning.title', 'Domínio em Uso')} className="max-w-md">
         <div className="space-y-6">
           <div className="bg-orange-500/10 border border-orange-500/20 p-5 rounded-3xl flex items-start gap-4">
             <AlertTriangle className="w-6 h-6 text-orange-500 shrink-0 mt-0.5" />
             <div className="min-w-0">
-              <h3 className="text-orange-500 font-bold text-sm mb-1 uppercase tracking-tight">Vínculos Ativos</h3>
-              <p className="text-orange-200/40 text-[10px] leading-relaxed">Não é possível remover um domínio que ainda possui serviços roteados para ele.</p>
+              <h3 className="text-orange-500 font-bold text-sm mb-1 uppercase tracking-tight">{t('domains.usage_warning.cannot_delete', 'Não é possível excluir')}</h3>
+              <p className="text-orange-200/40 text-[10px] leading-relaxed">{t('domains.usage_warning.desc', 'Este domínio está vinculado aos seguintes itens. Remova os vínculos antes de excluir.')}</p>
             </div>
           </div>
           <div className="space-y-2">
              {usageWarning?.checkouts.map((chk: any) => (
                <div key={chk.id} className="p-4 rounded-xl bg-white/5 border border-white/5 flex items-center justify-between">
                   <span className="text-xs font-bold text-gray-400">{chk.name}</span>
-                  <span className="text-[8px] font-black text-gray-700 uppercase tracking-widest">Checkout</span>
+                  <span className="text-[8px] font-black text-gray-700 uppercase tracking-widest">{t('domains.usage.checkout', 'Checkout')}</span>
+               </div>
+             ))}
+             {usageWarning?.memberAreas.map((area: any) => (
+               <div key={area.id} className="p-4 rounded-xl bg-white/5 border border-white/5 flex items-center justify-between">
+                  <span className="text-xs font-bold text-gray-400">{area.name}</span>
+                  <span className="text-[8px] font-black text-gray-700 uppercase tracking-widest">{t('domains.usage.member_area', 'Área de Membros')}</span>
                </div>
              ))}
           </div>
-          <Button onClick={() => setUsageWarning(null)} className="w-full py-4 bg-white/5 hover:bg-white/10 text-white rounded-2xl font-black uppercase text-[10px]">Entendido</Button>
+          <Button onClick={() => setUsageWarning(null)} className="w-full py-4 bg-white/5 hover:bg-white/10 text-white rounded-2xl font-black uppercase text-[10px]">{t('domains.usage_warning.understand', 'Entendi')}</Button>
         </div>
       </Modal>
 

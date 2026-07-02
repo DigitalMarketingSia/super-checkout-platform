@@ -18,14 +18,16 @@
     "identity_confirmed": "Identity Confirmed"
   },
   "banners": {
-    "highlights": "unlimited partner",
+    "highlights": "unlimited partner lifetime unlock",
+    "preparing": "Preparing...",
+    "auto_apply_note": "upgrade is applied automatically to this account",
     "upgrade_domains": {
-      "name": "Unlimited Domains Plan",
-      "description": "Remove all domain limits and get lifetime access to the Super Checkout ecosystem."
+      "name": "Lifetime Unlock",
+      "description": "Unlimited products. Unlimited checkouts. Unlimited domains. Unlimited member areas."
     },
     "whitelabel": {
-      "name": "Unlimited Domains Plan",
-      "description": "Remove all domain limits and get lifetime access to the Super Checkout ecosystem."
+      "name": "Lifetime Unlock",
+      "description": "Unlimited products. Unlimited checkouts. Unlimited domains. Unlimited member areas."
     },
     "saas": {
       "name": "Partner Plan",
@@ -51,6 +53,18 @@
     "span": "PORTAL",
     "desc": "Configure your license, manage installations and access the Super Checkout ecosystem in a high-performance premium environment."
   },
+  "portal_shell": {
+    "loading": "Loading portal",
+    "access_blocked_title": "Access blocked",
+    "access_blocked_description": "Your portal access was blocked by the internal team. While the block is active, this session cannot use the portal.",
+    "rejected_title": "Registration not approved",
+    "rejected_description": "Your account was reviewed, but it was not released in this cycle. If needed, contact the team for a new evaluation.",
+    "pending_approval_title": "Registration under review",
+    "pending_approval_description": "Your email has already been confirmed. Now the internal team still needs to approve your account to unlock the portal.",
+    "blocked_at": "Blocked at",
+    "internal_note": "Internal note",
+    "refresh_status": "Refresh status"
+  },
   "basic_dashboard": {
     "eyebrow": "basic mode",
     "title": "Essential operations panel",
@@ -58,13 +72,20 @@
     "primary_cta": {
       "license": "unlock my license",
       "install": "generate install",
-      "install_subtext": "Install Subtext"
+      "install_subtext": "Generate your free installation",
+      "recommended": "Start here",
+      "unlock_label": "First step",
+      "unlock_subtext": "Activate your free base to continue",
+      "install_hint": "Open the guided installation now",
+      "license_hint": "Unlock access and continue to installation"
     },
     "cards": {
       "installation_key": "installation key",
       "installation_link": "installation link",
       "installation_status": "installation status",
-      "current_limits": "current plan limits"
+      "current_limits": "current plan limits",
+      "operations_center": "operations center",
+      "operational_logs": "operational logs"
     },
     "actions": {
       "copy_key": "copy key",
@@ -75,7 +96,8 @@
       "renew_link": "renew link",
       "generate_link": "generate link",
       "view_installation": "view installation",
-      "unlock_unlimited": "unlock unlimited"
+      "unlock_unlimited": "unlock unlimited",
+      "upgrade_plan": "Upgrade now"
     },
     "empty_key": "Your free license has not been generated yet. Use the access data tab to unlock your key now.",
     "empty_link": "No secure link has been generated in this session yet. Generate a temporary link whenever you want to install or reinstall.",
@@ -91,6 +113,11 @@
       "domains": "domains",
       "products": "products"
     },
+    "logs": {
+      "core_engine_synced": "Core Engine: Synced",
+      "license_validated": "License: Validated in Cloud",
+      "domains_monitored": "Domains: Active Monitoring"
+    },
     "limited_desc": "Your current plan runs with 1 domain and 3 products. When you are ready to scale without limits, upgrade to the unlimited plan.",
     "unlimited_desc": "Your current plan already runs with unlocked limits for growth and new installations.",
     "demo": {
@@ -98,6 +125,9 @@
       "title": "Official demo system",
       "description": "Open a guided demo environment with the same product screens to simulate business setup, products, checkout, purchases and member area before the final installation.",
       "cta": "open demo system",
+      "cta_title": "Open demo system",
+      "cta_hint": "Open the guided environment in a new tab without leaving the portal.",
+      "cta_support": "Open in a new tab",
       "opening": "opening demo...",
       "popup_blocked": "Allow pop-ups to open the demo system in a new tab.",
       "retention": "Each demo workspace expires and is purged automatically after 24 hours.",
@@ -105,7 +135,8 @@
       "bullets": {
         "ui": "same product screens",
         "checkout": "simulated checkout and purchases",
-        "members": "demo member area"
+        "members": "demo member area",
+        "full_test": "full guided test"
       },
       "launchpad": {
         "eyebrow": "demo mode",
@@ -171,12 +202,19 @@
   "plan_info": {
     "title": "Ecosystem Status",
     "profile": "Account Profile",
+    "free_account": "Free Account",
+    "whitelabel": "WHITELABEL",
     "unlimited": "Unlimited Domains",
     "partner": "Partner",
     "current_status": "Current Status",
     "active": "Active",
     "inactive": "Inactive",
-    "member_since": "Member Since"
+    "member_since": "Member Since",
+    "date_unavailable": "Date unavailable",
+    "no_license": "No license",
+    "pending": "Pending",
+    "action_required": "Action Required",
+    "generate_license_prompt": "Open the Access Data tab to generate your free license."
   },
   "license": {
     "title": "Access Credentials",
@@ -205,9 +243,9 @@
     "copy_link": "Copy Link",
     "link_copied": "Link copied!",
     "reset_emergency": "Reset Settings (Emergency)",
-    "scaling_title": "Scaling Business?",
-    "limit_nudge": "You have reached the limit of 1 domain. Unlock unlimited domains now.",
-    "upgrade_button": "Upgrade Now ⚡",
+    "scaling_title": "Lifetime Unlock",
+    "limit_nudge": "Unlimited products. Unlimited checkouts. Unlimited domains. Unlimited member areas.",
+    "upgrade_button": "Unlock Now ⚡",
     "token_error": "Token not returned by function.",
     "generic_error": "Error generating installation link.",
     "revoke_error": "Error revoking installation."
@@ -216,6 +254,13 @@
     "title": "Tutorials",
     "no_tutorials": "No tutorials found for your plan.",
     "streaming": "Streaming",
+    "types": {
+      "video": "Video",
+      "text": "Text",
+      "link": "Link",
+      "file": "File",
+      "image": "Image"
+    },
     "master_feature": "Master this feature with our detailed guide.",
     "start_now": "Start Now",
     "back_to_tutorials": "Back to tutorials",
@@ -296,9 +341,19 @@
     "config_desc": "Config Desc",
     "upgrade_commission": "Upgrade Commission",
     "upgrade_calc": "Upgrade Calc",
+    "earnings_cards": {
+      "installations_title": "Installations",
+      "installations_desc": "10 Clients x $97",
+      "configurations_title": "Configurations",
+      "configurations_desc": "10 Services x $47",
+      "fixed_bonus": "Fixed 25%"
+    },
+    "estimated_profit_label": "YOUR ESTIMATED PROFIT",
+    "estimated_profit_hint": "Potential gain with only 20 service calls + upgrades",
     "passive_income_title": "Passive Income Title",
     "passive_income_highlight": "Passive Income Highlight",
     "passive_income_desc": "Ganhe 25% de cada upgrade que seus leads fizerem. Mesmo que eles contratem sozinhos depois da sua indicação. Plan: R$ 147,00 / Lucro: R$ 36,75",
+    "passive_income_chip": "Generate profit while you sleep",
     "vip_plan": {
       "title": "Title",
       "price": "Price",
@@ -344,6 +399,7 @@
     "showing_leads": "Showing {{count}} of {{total}} leads",
     "installations_ecosystem": "Installations Ecosystem",
     "owner": "Owner",
+    "hostname": "Hostname",
     "no_installations": "No technical installations linked.",
     "technical_view": "Technical View",
     "online": "Online",
@@ -353,9 +409,18 @@
     "loading": "LOADING..."
   },
   "simulator": {
+    "badge": "Partner Simulator",
     "title": "Earnings Simulator",
     "partner": "Partner",
     "description": "Simulate your potential profits by promoting the ecosystem and performing installation and configuration services.",
+    "total_label": "Total:",
+    "total_leads_value": "{{value}} LEADS",
+    "total_clients_value": "{{value}} INSTALLED",
+    "total_upgrades_value": "{{value}} UPGRADES",
+    "fixed_commission_label": "Fixed Commission: 25%",
+    "commission_info": "The commission rate for upgrades to the Unlimited plan ($147) is fixed at 25% for every accredited partner.",
+    "toggle_to_percent": "👉 Switch to %",
+    "toggle_to_absolute": "👉 Switch to number",
     "presets": {
       "conservador": "Conservative",
       "moderado": "Moderate",
@@ -392,5 +457,20 @@
       "cta": "Start Now"
     },
     "legal_disclaimer": "This is a simulation based on projections. Actual results depend exclusively on your effort, traffic strategy and market of operation. We do not guarantee fixed financial gains."
+  },
+  "generate_license_gate": {
+    "title_prefix": "License",
+    "title_highlight": "Pending",
+    "description": "{{name}}, you need to generate a free license to continue with installation and data access.",
+    "fallback_name": "Champion",
+    "accept_terms_required": "You need to accept the terms of use.",
+    "accept_prefix": "I accept the",
+    "terms_link": "terms of use",
+    "and_privacy": "and the",
+    "privacy_link": "privacy policy",
+    "platform_suffix": "of the platform, version {{version}}. Official channel: {{channel}}",
+    "button": "Generate Free License",
+    "activate_error": "Error activating license",
+    "connection_error": "Connection error"
   }
 }

@@ -3,8 +3,10 @@ import { Layout } from '../../../components/Layout';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { ShieldAlert, Webhook, Eye, EyeOff, Save, Lock } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 export const SystemWebhooks = () => {
+    const { t } = useTranslation('admin');
     // SECURITY: This page should ONLY be accessible by the Owner
     // We mask the URL by default.
 
@@ -28,7 +30,7 @@ export const SystemWebhooks = () => {
         // For phase 1, we might just instruct the user or save to a DB table 'system_settings' 
         // that the dispatch-webhook function prefers over the Env Var.
 
-        alert('Por segurança, a alteração de Webhooks de Sistema via Painel está desabilitada temporariamente. Use o CLI ou contate o suporte para alterar a variável SYSTEM_WEBHOOK_URL.');
+        alert(t('system_webhooks.alert_disabled', 'For security reasons, changing System Webhooks via the panel is temporarily disabled. Use the CLI or contact support to change the SYSTEM_WEBHOOK_URL variable.'));
     };
 
     return (
@@ -36,9 +38,9 @@ export const SystemWebhooks = () => {
             <div className="max-w-4xl mx-auto">
                 <div className="mb-8">
                     <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-                        <Webhook className="w-6 h-6 text-primary" /> Webhooks de Sistema
+                        <Webhook className="w-6 h-6 text-primary" /> {t('system_webhooks.title', 'System webhooks')}
                     </h1>
-                    <p className="text-gray-400 text-sm mt-1">Configuração global de eventos administrativos (Owner).</p>
+                    <p className="text-gray-400 text-sm mt-1">{t('system_webhooks.subtitle', 'Global configuration for administrative events (Owner).')}</p>
                 </div>
 
                 <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4 mb-6 flex items-start gap-4">
@@ -46,30 +48,30 @@ export const SystemWebhooks = () => {
                         <ShieldAlert className="w-6 h-6 text-yellow-500" />
                     </div>
                     <div>
-                        <h3 className="text-yellow-500 font-bold text-sm mb-1">Área de Alta Segurança</h3>
+                        <h3 className="text-yellow-500 font-bold text-sm mb-1">{t('system_webhooks.security_title', 'High-security area')}</h3>
                         <p className="text-gray-300 text-sm leading-relaxed">
-                            O Webhook de Sistema recebe <strong>TODOS</strong> os dados da plataforma, incluindo chaves de licença e tokens de instalação.
+                            {t('system_webhooks.security_line_one', 'The System Webhook receives')} <strong>{t('system_webhooks.security_emphasis', 'ALL')}</strong> {t('system_webhooks.security_line_two', 'platform data, including license keys and installation tokens.')}
                             <br />
-                            Nunca configure isso para uma URL pública ou de terceiros desconhecidos.
+                            {t('system_webhooks.security_warning', 'Never configure this to a public URL or to unknown third parties.')}
                         </p>
                     </div>
                 </div>
 
                 <Card className="p-6">
                     <div className="flex items-center justify-between mb-4">
-                        <label className="text-sm font-medium text-gray-300">URL de Destino (System Scope)</label>
+                        <label className="text-sm font-medium text-gray-300">{t('system_webhooks.destination_label', 'Destination URL (system scope)')}</label>
                         <div className="flex bg-black/30 rounded-lg p-1">
                             <button
                                 onClick={() => setIsEditing(!isEditing)}
                                 className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${isEditing ? 'bg-primary text-white' : 'text-gray-500 hover:text-white'}`}
                             >
-                                Editar
+                                {t('system_webhooks.edit', 'Edit')}
                             </button>
                             <button
                                 onClick={() => setIsEditing(false)} // View mode effectively
                                 className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${!isEditing ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-white'}`}
                             >
-                                Visualizar
+                                {t('system_webhooks.view', 'View')}
                             </button>
                         </div>
                     </div>
@@ -80,7 +82,7 @@ export const SystemWebhooks = () => {
                         </div>
                         <input
                             type={showUrl ? "text" : "password"}
-                            value={webhookUrl || 'https://n8n-gzz2.onrender.com/webhook/super-checkout-venda (Configurado no Servidor)'}
+                            value={webhookUrl || `https://n8n-gzz2.onrender.com/webhook/super-checkout-venda (${t('system_webhooks.configured_server', 'Configured on server')})`}
                             readOnly={!isEditing}
                             onChange={(e) => setWebhookUrl(e.target.value)}
                             className={`w-full bg-black/20 border rounded-lg pl-10 pr-12 py-3 text-sm focus:outline-none transition-all font-mono ${isEditing
@@ -100,22 +102,22 @@ export const SystemWebhooks = () => {
                     {isEditing && (
                         <div className="mt-4 flex justify-end animate-in fade-in slide-in-from-top-2">
                             <Button onClick={handleSave} className="bg-red-600 hover:bg-red-700">
-                                <Save className="w-4 h-4 mr-2" /> Salvar Alterações (Requer Confirmação)
+                                <Save className="w-4 h-4 mr-2" /> {t('system_webhooks.save', 'Save changes')} {t('system_webhooks.save_requires_confirmation', '(requires confirmation)')}
                             </Button>
                         </div>
                     )}
                 </Card>
 
                 <div className="mt-8">
-                    <h4 className="text-sm font-bold text-gray-400 mb-3 uppercase tracking-wider">Eventos Disparados</h4>
+                    <h4 className="text-sm font-bold text-gray-400 mb-3 uppercase tracking-wider">{t('system_webhooks.events_title', 'Dispatched events')}</h4>
                     <div className="grid gap-3">
                         <div className="bg-white/5 border border-white/5 rounded-lg p-3 flex justify-between items-center">
                             <code className="text-primary text-xs font-mono">license.created</code>
-                            <span className="text-xs text-gray-500">Nova licença gerada (Admin ou Venda)</span>
+                            <span className="text-xs text-gray-500">{t('system_webhooks.events.license_created', 'New license generated (Admin or Sale)')}</span>
                         </div>
                         <div className="bg-white/5 border border-white/5 rounded-lg p-3 flex justify-between items-center opacity-50">
                             <code className="text-gray-400 text-xs font-mono">installation.revoked</code>
-                            <span className="text-xs text-gray-600">Em breve</span>
+                            <span className="text-xs text-gray-600">{t('system_webhooks.events.coming_soon', 'Coming soon')}</span>
                         </div>
                     </div>
                 </div>

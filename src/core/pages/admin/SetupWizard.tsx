@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../services/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { Building2, Mail, ArrowRight, ShieldCheck, AlertCircle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 export const SetupWizard = () => {
+    const { t } = useTranslation('admin');
     const { user } = useAuth();
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
@@ -58,7 +60,7 @@ export const SetupWizard = () => {
             }
 
             if (!formData.agree_terms) {
-                throw new Error('Voce precisa concordar com os termos de responsabilidade.');
+                throw new Error(t('setup_wizard.agree_terms_error', 'Você precisa concordar com os termos de responsabilidade.'));
             }
 
             const { error: settingsError } = await supabase
@@ -89,7 +91,7 @@ export const SetupWizard = () => {
             window.location.href = '/admin';
         } catch (err: any) {
             console.error(err);
-            setError(err.message || 'Erro ao salvar configuracoes.');
+            setError(err.message || t('setup_wizard.save_error', 'Erro ao salvar configurações.'));
         } finally {
             setLoading(false);
         }
@@ -102,8 +104,8 @@ export const SetupWizard = () => {
                     <div className="w-16 h-16 bg-amber-500/10 rounded-full flex items-center justify-center mx-auto mb-4 text-amber-400">
                         <ShieldCheck size={32} />
                     </div>
-                    <h1 className="text-2xl font-bold text-white mb-2">Configuracao obrigatoria</h1>
-                    <p className="text-gray-400">Registre a identidade publica do seu negocio. Isso nao gera validacao juridica automatica nem muda o status LGPD para verificado.</p>
+                    <h1 className="text-2xl font-bold text-white mb-2">{t('setup_wizard.title', 'Configuração obrigatória')}</h1>
+                    <p className="text-gray-400">{t('setup_wizard.subtitle', 'Registre a identidade pública do seu negócio. Isso não gera validação jurídica automática nem muda o status LGPD para verificado.')}</p>
                 </div>
 
                 {error && (
@@ -115,7 +117,7 @@ export const SetupWizard = () => {
 
                 <form onSubmit={handleSubmit} className="space-y-5">
                     <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-1.5">Nome do Negocio (Publico)</label>
+                        <label className="block text-sm font-medium text-gray-300 mb-1.5">{t('setup_wizard.business_name_label', 'Nome do Negócio (Público)')}</label>
                         <div className="relative">
                             <Building2 className="absolute left-3 top-3 text-gray-500" size={18} />
                             <input
@@ -124,14 +126,14 @@ export const SetupWizard = () => {
                                 value={formData.business_name}
                                 onChange={e => setFormData({ ...formData, business_name: e.target.value })}
                                 className="w-full bg-[#05050A] border border-[#1F1F23] rounded-lg pl-10 pr-4 py-2.5 text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all outline-none"
-                                placeholder="Ex: Loja do Joao, Agencia Tech"
+                                placeholder={t('setup_wizard.business_name_placeholder', 'Ex: Loja do João, Agência Tech')}
                             />
                         </div>
-                        <p className="text-xs text-gray-500 mt-1">Este nome aparecera no checkout e nos e-mails para seus clientes.</p>
+                        <p className="text-xs text-gray-500 mt-1">{t('setup_wizard.business_name_hint', 'Este nome aparecerá no checkout e nos e-mails para seus clientes.')}</p>
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-1.5">E-mail de Suporte</label>
+                        <label className="block text-sm font-medium text-gray-300 mb-1.5">{t('setup_wizard.support_email_label', 'E-mail de Suporte')}</label>
                         <div className="relative">
                             <Mail className="absolute left-3 top-3 text-gray-500" size={18} />
                             <input
@@ -140,7 +142,7 @@ export const SetupWizard = () => {
                                 value={formData.support_email}
                                 onChange={e => setFormData({ ...formData, support_email: e.target.value })}
                                 className="w-full bg-[#05050A] border border-[#1F1F23] rounded-lg pl-10 pr-4 py-2.5 text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all outline-none"
-                                placeholder="suporte@suaempresa.com"
+                                placeholder={t('setup_wizard.support_email_placeholder', 'suporte@suaempresa.com')}
                             />
                         </div>
                     </div>
@@ -155,13 +157,13 @@ export const SetupWizard = () => {
                                 className="mt-1 w-4 h-4 rounded bg-[#05050A] border-gray-600 text-emerald-500 focus:ring-emerald-500"
                             />
                             <span className="text-sm text-gray-400">
-                                Declaro que sou o responsavel pelas vendas realizadas por esta conta e que a identidade publicada no checkout reflete a operacao atual do negocio.
+                                {t('setup_wizard.terms_text', 'Declaro que sou o responsável pelas vendas realizadas por esta conta e que a identidade publicada no checkout reflete a operação atual do negócio.')}
                             </span>
                         </label>
                     </div>
 
                     <p className="text-xs text-amber-300/80">
-                        O aceite acima registra uma autodeclaracao. A conformidade permanece pendente ate revisao propria da operacao.
+                        {t('setup_wizard.terms_notice', 'O aceite acima registra uma autodeclaração. A conformidade permanece pendente até revisão própria da operação.')}
                     </p>
 
                     <button
@@ -169,12 +171,12 @@ export const SetupWizard = () => {
                         disabled={loading}
                         className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3 rounded-lg transition-all flex items-center justify-center gap-2"
                     >
-                        {loading ? 'Salvando...' : 'Registrar identidade'}
+                        {loading ? t('setup_wizard.saving', 'Salvando...') : t('setup_wizard.submit', 'Registrar identidade')}
                         {!loading && <ArrowRight size={18} />}
                     </button>
 
                     <p className="text-xs text-gray-500 text-center px-4">
-                        Seu nome e contato serao exibidos publicamente no rodape do checkout para seguranca do consumidor.
+                        {t('setup_wizard.footer_note', 'Seu nome e contato serão exibidos publicamente no rodapé do checkout para segurança do consumidor.')}
                     </p>
                 </form>
             </div>

@@ -883,7 +883,7 @@ const buildDemoTrackBlueprints = (workspace: DemoWorkspace): DemoTrackBlueprint[
     getDemoFreeProductId(workspace),
   ].filter(Boolean) as string[];
 
-  return [
+  const tracks: DemoTrackBlueprint[] = [
     {
       id: memberAreaId + '-track-lessons',
       title: 'Aulas em destaque',
@@ -924,7 +924,9 @@ const buildDemoTrackBlueprints = (workspace: DemoWorkspace): DemoTrackBlueprint[
       card_style: 'horizontal',
       item_ids: productIds,
     },
-  ].filter((track) => track.item_ids.length > 0);
+  ];
+
+  return tracks.filter((track) => track.item_ids.length > 0);
 };
 
 const normalizeMembers = (workspace: DemoWorkspace, members: unknown): DemoRuntimeMember[] => {

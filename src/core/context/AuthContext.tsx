@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase, CLIENT_INSTANCE_ID } from '../services/supabase';
 import { memberService } from '../services/memberService';
-import { storage } from '../services/storageService';
+import { setCachedAuthUser } from '../services/authUserCache';
 import { centralSupabase } from '../services/centralClient';
 import { getRuntimeMode } from '../config/runtimeMode';
 import { platformUrls } from '../config/platformUrls';
@@ -201,7 +201,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const clearAuthState = () => {
       setSession(null);
       setUser(null);
-      storage.setUser(null);
+      setCachedAuthUser(null);
       setProfile(null);
       setAccount(null);
       setCompliance(null);
@@ -219,7 +219,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       setSession(null);
       setUser(authUser);
-      storage.setUser(authUser);
+      setCachedAuthUser(authUser);
       setProfile(demoProfile);
       setAccount({
         id: `demo-${authUser.id}`,
@@ -295,7 +295,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(session?.user ?? null);
 
       if (session?.user) {
-        storage.setUser(session.user);
+        setCachedAuthUser(session.user);
         console.log('[AuthProvider] Fetching initial profile...');
         fetchProfile(session.user.id)
           .then(() => console.log('[AuthProvider] Initial profile fetch success'))
@@ -325,7 +325,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       setSession(session);
       setUser(session?.user ?? null);
-      storage.setUser(session?.user ?? null);
+      setCachedAuthUser(session?.user ?? null);
 
       if (session?.user) {
         fetchProfile(session.user.id);

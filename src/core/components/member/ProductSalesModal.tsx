@@ -2,6 +2,7 @@ import React from 'react';
 import { Product } from '../../types';
 import { X, ShoppingBag, Check } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { storage } from '../../services/storageService';
 
 interface ProductSalesModalProps {
     isOpen: boolean;
@@ -16,8 +17,6 @@ export const ProductSalesModal: React.FC<ProductSalesModalProps> = ({ isOpen, on
 
     const handleBuy = async () => {
         // Get current user to pass to checkout (cross-domain support)
-        const { paymentService } = await import('../../services/paymentService'); // Just to ensure services are loaded if needed, but we use storage
-        const { storage } = await import('../../services/storageService');
         const user = await storage.getUser();
 
         const appendUserParam = (url: string) => {

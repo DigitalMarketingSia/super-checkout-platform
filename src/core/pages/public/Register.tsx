@@ -13,13 +13,31 @@ import {
     formatPlatformLegalPublishedAt,
     PLATFORM_LEGAL_CONTACT_EMAIL,
     PLATFORM_LEGAL_VERSION,
+    resolvePlatformLegalDateLocale,
 } from '../../config/platformLegal';
 
+const registerLanguages = ['pt', 'en', 'es'] as const;
+type RegisterLanguage = (typeof registerLanguages)[number];
+
+const normalizeRegisterLanguage = (value: string | null | undefined): RegisterLanguage | null => {
+    const normalized = String(value || '')
+        .trim()
+        .toLowerCase()
+        .split(/[-_]/)[0];
+
+    return registerLanguages.includes(normalized as RegisterLanguage)
+        ? normalized as RegisterLanguage
+        : null;
+};
+
 export const Register = () => {
-    const { t } = useTranslation('auth');
-    const [searchParams] = useSearchParams();
+    const { t, i18n } = useTranslation('auth');
+    const registerDateLocale = resolvePlatformLegalDateLocale(i18n.language);
+    const platformLegalPublishedAt = formatPlatformLegalPublishedAt(registerDateLocale);
+    const [searchParams, setSearchParams] = useSearchParams();
     const partnerParam = searchParams.get('partner');
     const inviteToken = searchParams.get('invite')?.trim() || '';
+    const requestedLanguage = normalizeRegisterLanguage(searchParams.get('lang') || searchParams.get('lng'));
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
@@ -30,7 +48,6 @@ export const Register = () => {
     const [captchaToken, setCaptchaToken] = useState<string | null>(null);
     const [hasStartedForm, setHasStartedForm] = useState(false);
     const [registrationOpen, setRegistrationOpen] = useState(true);
-    const [manualApprovalEnabled, setManualApprovalEnabled] = useState(false);
     const [waitlistWhatsappGroupUrl, setWaitlistWhatsappGroupUrl] = useState<string | null>(null);
     const [waitlistCount, setWaitlistCount] = useState<number | null>(null);
     const [statusLoading, setStatusLoading] = useState(true);
@@ -54,6 +71,27 @@ export const Register = () => {
 
     // Referral Tracking
     const [partnerId, setPartnerId] = useState<string | null>(null);
+    const currentRegisterLanguage = normalizeRegisterLanguage(i18n.language) || 'en';
+    const languageOptions: Array<{ code: RegisterLanguage; label: string }> = [
+        { code: 'pt', label: t('register.language_names.pt') },
+        { code: 'en', label: t('register.language_names.en') },
+        { code: 'es', label: t('register.language_names.es') }
+    ];
+
+    const handleLanguageSelect = (language: RegisterLanguage) => {
+        if (language === currentRegisterLanguage) return;
+
+        void i18n.changeLanguage(language);
+
+        if (typeof window !== 'undefined') {
+            window.localStorage.setItem('i18nextLng', language);
+        }
+
+        const nextParams = new URLSearchParams(searchParams);
+        nextParams.set('lang', language);
+        nextParams.delete('lng');
+        setSearchParams(nextParams, { replace: true });
+    };
 
     useEffect(() => {
         if (partnerParam) {
@@ -67,6 +105,16 @@ export const Register = () => {
             partnerId: partnerParam
         });
     }, [partnerParam]);
+
+    useEffect(() => {
+        if (!requestedLanguage || requestedLanguage === currentRegisterLanguage) return;
+
+        void i18n.changeLanguage(requestedLanguage);
+
+        if (typeof window !== 'undefined') {
+            window.localStorage.setItem('i18nextLng', requestedLanguage);
+        }
+    }, [currentRegisterLanguage, i18n, requestedLanguage]);
 
     useEffect(() => {
         let active = true;
@@ -126,7 +174,6 @@ export const Register = () => {
             .then((response) => {
                 if (!active) return;
                 setRegistrationOpen(response.registrationOpen !== false);
-                setManualApprovalEnabled(Boolean(response.manualApprovalEnabled));
                 setWaitlistWhatsappGroupUrl(response.waitlistWhatsappGroupUrl || null);
                 setWaitlistCount(typeof response.waitlistCount === 'number' ? response.waitlistCount : null);
             })
@@ -180,66 +227,52 @@ export const Register = () => {
         }
 
         if (err?.error_code === 'disposable_email_blocked') {
-            return t('register.disposable_email_error', {
-                defaultValue: 'Use um e-mail real e permanente para criar sua conta.'
-            });
+            return t('register.disposable_email_error');
         }
 
         if (err?.error_code === 'rate_limited') {
-            return t('register.rate_limit_error', {
-                defaultValue: 'Muitas tentativas agora. Aguarde alguns minutos e tente novamente.'
-            });
+            return t('register.rate_limit_error');
         }
 
         if (err?.error_code === 'captcha_required') {
-            return t('register.captcha_error', {
-                defaultValue: 'Confirme que voce e humano para continuar.'
-            });
+            return t('register.captcha_error');
         }
 
         if (err?.error_code === 'suspicious_activity') {
-            return t('register.suspicious_error', {
-                defaultValue: 'Detectamos atividade suspeita. Aguarde alguns minutos e tente novamente.'
-            });
+            return t('register.suspicious_error');
         }
 
         if (err?.error_code === 'registration_closed') {
-            return 'Os novos cadastros estao temporariamente fechados. Entre na lista de espera.';
+            return t('register.registration_closed');
         }
 
         if (err?.error_code === 'invalid_invite') {
-            return 'Este convite nao e mais valido. Solicite um novo link ao time responsavel.';
+            return t('register.invalid_invite_error');
         }
 
         if (err?.error_code === 'auth_email_rate_limited') {
-            return t('register.confirmation_email_rate_limited', {
-                defaultValue: 'O servico de e-mail do cadastro atingiu o limite temporario de envio. Aguarde alguns minutos e tente novamente.'
-            });
+            return t('register.confirmation_email_rate_limited');
         }
 
         if (err?.error_code === 'confirmation_email_failed') {
-            return t('register.confirmation_email_failed', {
-                defaultValue: 'Nao foi possivel enviar o e-mail de confirmacao agora. Tente novamente em alguns minutos.'
-            });
+            return t('register.confirmation_email_failed');
         }
 
         if (err?.error_code === 'waitlist_failed') {
-            return 'Nao foi possivel entrar na lista de espera agora.';
+            return t('register.waitlist_failed');
         }
 
-        const message = err?.error || t('register.resend_error', {
-            defaultValue: 'Nao foi possivel concluir esta etapa agora.'
-        });
+        const message = err?.error || t('register.resend_error');
 
         return message;
     };
 
     const getInviteReasonLabel = (reason?: string | null) => {
-        if (reason === 'used') return 'Este convite ja foi utilizado.';
-        if (reason === 'expired') return 'Este convite expirou.';
-        if (reason === 'not_found') return 'Nao encontramos este convite.';
-        if (reason === 'missing') return 'Link de convite ausente.';
-        return 'Nao foi possivel validar este convite.';
+        if (reason === 'used') return t('register.invite_reason_used');
+        if (reason === 'expired') return t('register.invite_reason_expired');
+        if (reason === 'not_found') return t('register.invite_reason_not_found');
+        if (reason === 'missing') return t('register.invite_reason_missing');
+        return t('register.invite_reason_unknown');
     };
 
     const handleRegister = async (e: React.FormEvent) => {
@@ -252,9 +285,7 @@ export const Register = () => {
 
         try {
             if (!platformLegalAccepted) {
-                throw new Error(t('register.platform_legal_required', {
-                    defaultValue: 'Voce precisa aceitar os Termos de Uso e a Politica de Privacidade da plataforma para criar sua conta.'
-                }));
+                throw new Error(t('register.platform_legal_required'));
             }
 
             const response = await registerAccount({
@@ -304,12 +335,7 @@ export const Register = () => {
                 setRequiresCaptcha(false);
                 setCaptchaSiteKey(null);
                 setCaptchaToken(null);
-                setResendMessage(
-                    t('register.resend_success', {
-                        defaultValue: 'Enviamos um novo link de confirmacao para {{email}}.',
-                        email
-                    })
-                );
+                setResendMessage(t('register.resend_success', { email }));
             }
         } catch (err: any) {
             setResendMessage(applyApiErrorState(err));
@@ -326,9 +352,7 @@ export const Register = () => {
 
         try {
             if (!platformLegalAccepted) {
-                throw new Error(t('register.platform_legal_required', {
-                    defaultValue: 'Voce precisa aceitar os Termos de Uso e a Politica de Privacidade da plataforma para continuar.'
-                }));
+                throw new Error(t('register.platform_legal_required'));
             }
 
             const response = await joinRegistrationWaitlist({
@@ -342,8 +366,8 @@ export const Register = () => {
             }
             setWaitlistSuccess(
                 response.alreadyJoined
-                    ? 'Seu e-mail ja estava na lista. Vamos avisar quando abrirmos.'
-                    : 'Voce entrou na lista de espera. Vamos avisar assim que abrirmos.'
+                    ? t('register.waitlist_already_joined')
+                    : t('register.waitlist_joined')
             );
         } catch (err: any) {
             console.error('Waitlist error:', err);
@@ -355,7 +379,7 @@ export const Register = () => {
 
     const handleOpenWaitlistGroup = async () => {
         if (!email) {
-            setError('Informe seu e-mail para abrir o grupo.');
+            setError(t('register.waitlist_group_email_required'));
             return;
         }
 
@@ -367,7 +391,7 @@ export const Register = () => {
             const groupUrl = response.waitlistGroupUrl || waitlistWhatsappGroupUrl;
 
             if (!groupUrl) {
-                setError('Nenhum grupo VIP ativo foi configurado ainda. Fique de olho no seu e-mail.');
+                setError(t('register.waitlist_group_missing'));
                 return;
             }
 
@@ -432,9 +456,9 @@ export const Register = () => {
                 }`}
             >
                 <span className={`block mb-2 italic transition-colors ${platformLegalAccepted ? 'text-emerald-50' : 'text-white'}`}>
-                    {t('register.platform_legal_label', { defaultValue: 'Aceite institucional da plataforma' })}
+                    {t('register.platform_legal_label')}
                 </span>
-                {t('register.platform_legal_desc_prefix', { defaultValue: 'Li e aceito os' })}
+                {t('register.platform_legal_desc_prefix')}
                 {' '}
                 <a
                     href={getPlatformTermsUrl()}
@@ -444,10 +468,10 @@ export const Register = () => {
                         platformLegalAccepted ? 'text-emerald-50 hover:text-white' : 'text-white hover:text-emerald-300'
                     }`}
                 >
-                    {t('register.platform_terms_link', { defaultValue: 'Termos de Uso' })}
+                    {t('register.platform_terms_link')}
                 </a>
                 {' '}
-                {t('register.platform_legal_desc_middle', { defaultValue: 'e a' })}
+                {t('register.platform_legal_desc_middle')}
                 {' '}
                 <a
                     href={getPlatformPrivacyUrl()}
@@ -457,14 +481,42 @@ export const Register = () => {
                         platformLegalAccepted ? 'text-emerald-50 hover:text-white' : 'text-white hover:text-emerald-300'
                     }`}
                 >
-                    {t('register.platform_privacy_link', { defaultValue: 'Politica de Privacidade' })}
+                    {t('register.platform_privacy_link')}
                 </a>
                 {' '}
-                {t('register.platform_legal_desc_suffix', {
-                    defaultValue: 'da plataforma, na versao {{version}}.',
-                    version: PLATFORM_LEGAL_VERSION
-                })}
+                {t('register.platform_legal_desc_suffix', { version: PLATFORM_LEGAL_VERSION })}
             </label>
+        </div>
+    );
+
+    const renderLanguageSwitcher = () => (
+        <div className="absolute top-4 right-4 z-30 flex items-center gap-2 rounded-full border border-white/10 bg-black/35 px-2 py-2 backdrop-blur-xl shadow-[0_10px_40px_rgba(0,0,0,0.25)]">
+            <div className="hidden sm:flex items-center gap-2 pl-2 pr-1">
+                <Globe className="w-4 h-4 text-emerald-300" />
+                <span className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400">
+                    {t('register.language_label')}
+                </span>
+            </div>
+
+            <div className="flex items-center gap-1">
+                {languageOptions.map((language) => (
+                    <button
+                        key={language.code}
+                        type="button"
+                        onClick={() => handleLanguageSelect(language.code)}
+                        title={language.label}
+                        aria-label={t('register.change_language_to', { language: language.label })}
+                        aria-pressed={currentRegisterLanguage === language.code}
+                        className={`min-w-[42px] rounded-full px-3 py-2 text-[10px] font-black uppercase tracking-[0.22em] transition-all ${
+                            currentRegisterLanguage === language.code
+                                ? 'bg-emerald-400 text-[#020205] shadow-[0_0_20px_rgba(16,185,129,0.25)]'
+                                : 'text-gray-300 hover:bg-white/10 hover:text-white'
+                        }`}
+                    >
+                        {language.code}
+                    </button>
+                ))}
+            </div>
         </div>
     );
 
@@ -475,6 +527,7 @@ export const Register = () => {
                 <div className="absolute bottom-[-10%] right-[-10%] w-[30%] h-[30%] bg-emerald-500/10 rounded-full blur-[100px] pointer-events-none" />
                 <div className="absolute top-[12%] left-[6%] w-[460px] h-[460px] bg-emerald-500/10 rounded-full blur-[120px] pointer-events-none animate-pulse" />
                 <div className="absolute bottom-[12%] right-[6%] w-[360px] h-[360px] bg-emerald-400/5 rounded-full blur-[100px] pointer-events-none animate-pulse duration-[5000ms]" />
+                {renderLanguageSwitcher()}
 
                 <div className="relative z-10 w-full max-w-md bg-black/50 border border-white/5 rounded-[3.5rem] p-8 md:p-12 shadow-2xl backdrop-blur-3xl overflow-hidden animate-in fade-in zoom-in duration-700 text-center group/card">
                     <div
@@ -484,9 +537,9 @@ export const Register = () => {
 
                     <div className="relative z-20">
                         <div className="inline-flex items-center gap-3 bg-white/5 border border-white/10 px-3 py-1.5 rounded-full mb-8">
-                            <img src="/logo.png" alt="Logo" className="w-3.5 h-3.5 object-contain grayscale brightness-200" />
+                            <img src="/logo.png" alt={t('register.logo_alt')} className="w-3.5 h-3.5 object-contain grayscale brightness-200" />
                             <span className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] italic">
-                                Cadastro confirmado
+                                {t('register.success_badge')}
                             </span>
                         </div>
 
@@ -499,14 +552,14 @@ export const Register = () => {
                             dangerouslySetInnerHTML={{
                                 __html: sanitizeTranslationHtml(
                                     approvalPending
-                                        ? 'Cadastro recebido'
+                                        ? t('register.pending_success_title')
                                         : t('register.success_title')
                                 )
                             }}
                         />
                         <p className="text-gray-400 mb-10 text-base font-medium leading-relaxed">
                             {approvalPending
-                                ? `Seu e-mail ${email} ja foi recebido. Assim que sua conta for aprovada, liberaremos o acesso no portal.`
+                                ? t('register.pending_success_desc', { email })
                                 : t('register.success_desc', { email })}
                         </p>
                         <div className="space-y-4">
@@ -516,7 +569,7 @@ export const Register = () => {
                                 className="relative flex items-center justify-center gap-3 w-full bg-gradient-to-r from-emerald-400 to-emerald-600 text-[#020205] font-black uppercase text-sm py-5 rounded-2xl transition-all hover:scale-[1.02] active:scale-95 shadow-[0_0_30px_rgba(16,185,129,0.24)] tracking-widest italic overflow-hidden group/btn"
                             >
                                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full group-hover/btn:animate-[shimmer_1.5s_infinite] pointer-events-none" />
-                                <span>{approvalPending ? 'Abrir meu e-mail' : t('register.open_email_button', { defaultValue: 'Abrir meu e-mail' })}</span>
+                                <span>{t('register.open_email_button')}</span>
                                 <ArrowRight className="w-4 h-4" />
                             </button>
 
@@ -531,7 +584,7 @@ export const Register = () => {
                                 ) : (
                                     <RefreshCw className="w-4 h-4" />
                                 )}
-                                <span>{t('register.resend_email_button', { defaultValue: 'Reenviar e-mail' })}</span>
+                                <span>{t('register.resend_email_button')}</span>
                             </button>
 
                             <button
@@ -540,19 +593,17 @@ export const Register = () => {
                                 className="flex items-center justify-center gap-3 w-full bg-transparent text-gray-500 font-black uppercase text-sm py-4 rounded-2xl transition-all hover:text-white tracking-widest italic"
                             >
                                 <PencilLine className="w-4 h-4" />
-                                <span>{t('register.change_email_button', { defaultValue: 'Trocar e-mail' })}</span>
+                                <span>{t('register.change_email_button')}</span>
                             </button>
                         </div>
 
                         {requiresCaptcha && captchaSiteKey && (
                             <div className="mt-6 bg-white/5 border border-white/10 rounded-3xl p-5 space-y-3 text-left">
                                 <p className="text-xs text-gray-300 font-bold uppercase tracking-[0.18em]">
-                                    {t('register.captcha_title', { defaultValue: 'Confirme que voce e humano' })}
+                                    {t('register.captcha_title')}
                                 </p>
                                 <p className="text-sm text-gray-400 leading-relaxed">
-                                    {t('register.captcha_desc', {
-                                        defaultValue: 'Detectamos um volume acima do normal neste fluxo. Confirme o desafio para continuar.'
-                                    })}
+                                    {t('register.captcha_desc')}
                                 </p>
                                 <RiskCaptcha siteKey={captchaSiteKey} onTokenChange={setCaptchaToken} />
                             </div>
@@ -567,10 +618,10 @@ export const Register = () => {
                         {approvalPending && (
                             <div className="mt-6 bg-amber-500/10 border border-amber-500/20 rounded-3xl p-5 text-left">
                                 <p className="text-xs text-amber-300 font-bold uppercase tracking-[0.18em]">
-                                    Aprovacao manual ativa
+                                    {t('register.manual_approval_title')}
                                 </p>
                                 <p className="mt-2 text-sm text-gray-300 leading-relaxed">
-                                    Depois da confirmacao de e-mail, sua conta fica em analise ate liberacao do time interno.
+                                    {t('register.manual_approval_desc')}
                                 </p>
                             </div>
                         )}
@@ -590,7 +641,8 @@ export const Register = () => {
 
     if (statusLoading || inviteState.loading) {
         return (
-            <div className="min-h-screen bg-[#05050A] flex items-center justify-center text-white">
+            <div className="min-h-screen bg-[#05050A] flex items-center justify-center text-white p-6 relative overflow-hidden">
+                {renderLanguageSwitcher()}
                 <Loader2 className="w-8 h-8 animate-spin text-primary" />
             </div>
         );
@@ -602,6 +654,7 @@ export const Register = () => {
                 <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-600/10 rounded-full blur-[120px] pointer-events-none" />
                 <div className="absolute bottom-[-10%] right-[-10%] w-[30%] h-[30%] bg-emerald-500/10 rounded-full blur-[100px] pointer-events-none" />
                 <div className="absolute top-[15%] right-[8%] w-[360px] h-[360px] bg-rose-500/10 rounded-full blur-[110px] pointer-events-none" />
+                {renderLanguageSwitcher()}
 
                 <div className="relative z-10 w-full max-w-2xl bg-black/50 border border-white/5 rounded-[3.5rem] p-8 md:p-14 shadow-2xl backdrop-blur-3xl overflow-hidden animate-in fade-in slide-in-from-bottom-8 duration-700 group/card">
                     <div
@@ -613,13 +666,13 @@ export const Register = () => {
                         <div className="inline-flex items-center gap-3 bg-white/5 border border-white/10 px-3 py-1.5 rounded-full mb-8">
                             <AlertCircle className="w-4 h-4 text-rose-300" />
                             <span className="text-[9px] font-black text-rose-200 uppercase tracking-[0.2em] italic">
-                                Convite invalido
+                                {t('register.invite_invalid_badge')}
                             </span>
                         </div>
 
                         <h1 className="text-4xl md:text-6xl font-display font-black text-white italic uppercase tracking-tighter leading-[0.9] mb-6">
-                            Este link <br />
-                            <span className="bg-gradient-to-r from-rose-300 to-rose-500 bg-clip-text text-transparent">nao pode mais ser usado</span>
+                            {t('register.invite_invalid_title_prefix')} <br />
+                            <span className="bg-gradient-to-r from-rose-300 to-rose-500 bg-clip-text text-transparent">{t('register.invite_invalid_title_highlight')}</span>
                         </h1>
 
                         <p className="text-gray-400 text-lg font-medium leading-relaxed max-w-xl mb-8">
@@ -629,10 +682,10 @@ export const Register = () => {
                         {inviteState.expiresAt && (
                             <div className="bg-white/5 border border-white/10 rounded-3xl p-5 mb-8">
                                 <p className="text-xs text-gray-300 font-bold uppercase tracking-[0.18em]">
-                                    Expiracao registrada
+                                    {t('register.invite_invalid_expiration_label')}
                                 </p>
                                 <p className="mt-2 text-sm text-gray-400 leading-relaxed">
-                                    {new Date(inviteState.expiresAt).toLocaleString()}
+                                    {new Date(inviteState.expiresAt).toLocaleString(registerDateLocale)}
                                 </p>
                             </div>
                         )}
@@ -643,14 +696,14 @@ export const Register = () => {
                                 className="relative flex-1 bg-gradient-to-r from-emerald-400 to-emerald-600 text-[#020205] font-black uppercase text-sm py-5 rounded-2xl text-center transition-all hover:scale-[1.02] active:scale-95 tracking-widest italic overflow-hidden group/btn"
                             >
                                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full group-hover/btn:animate-[shimmer_1.5s_infinite] pointer-events-none" />
-                                Voltar ao portal
+                                {t('register.invite_invalid_back_portal')}
                             </a>
                             <button
                                 type="button"
                                 onClick={() => window.location.href = '/register'}
                                 className="flex-1 bg-white/5 border border-white/10 text-white font-black uppercase text-sm py-5 rounded-2xl transition-all hover:bg-white/10 active:scale-95 tracking-widest italic"
                             >
-                                Abrir cadastro publico
+                                {t('register.invite_invalid_open_public')}
                             </button>
                         </div>
                     </div>
@@ -668,7 +721,7 @@ export const Register = () => {
     }
     const benefitsArr = [
         { icon: Zap, text: t('register.benefits.checkout') },
-        { icon: Globe, text: 'Domínio Personalizado' },
+        { icon: Globe, text: t('register.benefits.domain_custom') },
         { icon: Fingerprint, text: t('register.benefits.members') },
         { icon: Shield, text: t('register.benefits.admin') }
     ];
@@ -679,6 +732,7 @@ export const Register = () => {
                 <div className="min-h-screen bg-[#020205] flex items-center justify-center p-6 relative overflow-hidden font-sans">
                     {/* Background Green Glows */}
                     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-emerald-500/10 rounded-full blur-[120px] pointer-events-none" />
+                    {renderLanguageSwitcher()}
 
                     <div className="relative z-10 w-full max-w-md bg-black/60 border border-white/10 rounded-[2.5rem] p-10 md:p-12 shadow-2xl backdrop-blur-2xl animate-in fade-in zoom-in duration-700 text-center overflow-hidden">
                         {/* Green Edge Light */}
@@ -689,10 +743,10 @@ export const Register = () => {
                         </div>
 
                         <h1 className="text-3xl font-display font-black text-white italic uppercase tracking-tighter leading-tight mb-4">
-                            Pronto, <span className="text-emerald-400">{name.split(' ')[0] || 'você'}</span>!
+                            {t('register.waitlist_ready_prefix')} <span className="text-emerald-400">{name.split(' ')[0] || t('register.waitlist_ready_fallback_name')}</span>!
                         </h1>
                         <p className="text-gray-400 font-medium mb-10 leading-relaxed">
-                            Você está na lista. Enquanto isso, entre no grupo VIP para receber o convite antes de todo mundo.
+                            {t('register.waitlist_vip_intro')}
                         </p>
 
                         <div className="space-y-6">
@@ -703,7 +757,7 @@ export const Register = () => {
                                 className="flex items-center justify-center gap-3 w-full bg-gradient-to-r from-[#25D366] to-[#128C7E] text-white font-black uppercase text-sm py-5 rounded-2xl transition-all hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(37,211,102,0.2)] active:scale-95 italic tracking-widest"
                             >
                                 {waitlistGroupOpening ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4 fill-current" />}
-                                <span>Entrar no Grupo VIP</span>
+                                <span>{t('register.waitlist_join_vip_button')}</span>
                             </button>
 
                             <div className="pt-4">
@@ -711,7 +765,7 @@ export const Register = () => {
                                     href="/activate"
                                     className="text-gray-600 hover:text-white font-black uppercase tracking-widest text-[10px] transition-all italic border-b border-white/5 hover:border-white pb-1"
                                 >
-                                    Fazer Login na Central
+                                    {t('register.login_link')}
                                 </a>
                             </div>
                         </div>
@@ -725,6 +779,7 @@ export const Register = () => {
                 {/* Background Ambient Green Light */}
                 <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-600/10 rounded-full blur-[120px] pointer-events-none" />
                 <div className="absolute bottom-[-10%] right-[-10%] w-[30%] h-[30%] bg-emerald-500/10 rounded-full blur-[100px] pointer-events-none" />
+                {renderLanguageSwitcher()}
 
                 <div className="relative z-10 w-full max-w-md bg-black/50 rounded-[3rem] p-8 md:p-12 shadow-2xl backdrop-blur-3xl animate-in fade-in slide-in-from-bottom-8 duration-1000 overflow-hidden group/card border border-white/5">
                     {/* Glowing Rim Light Effect (Corner Contour) */}
@@ -734,26 +789,26 @@ export const Register = () => {
                     <div className="relative z-20">
                         <div className="text-center mb-10">
                             <div className="inline-flex items-center gap-3 bg-white/5 border border-white/10 px-3 py-1.5 rounded-full mb-6">
-                                <img src="/logo.png" alt="Logo" className="w-3.5 h-3.5 object-contain grayscale brightness-200" />
+                                <img src="/logo.png" alt={t('register.logo_alt')} className="w-3.5 h-3.5 object-contain grayscale brightness-200" />
                                 <span className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] italic">
-                                    Convite Exclusivo
+                                    {t('register.waitlist_badge')}
                                 </span>
                             </div>
                             <h1 className="text-4xl md:text-5xl font-display font-black text-white italic uppercase tracking-tighter leading-[0.85] mb-3">
-                                Acesso <br />
-                                <span className="bg-gradient-to-r from-emerald-400 to-emerald-600 bg-clip-text text-transparent">Antecipado</span>
+                                {t('register.waitlist_title_prefix')} <br />
+                                <span className="bg-gradient-to-r from-emerald-400 to-emerald-600 bg-clip-text text-transparent">{t('register.waitlist_title_highlight')}</span>
                             </h1>
                         </div>
 
                         <form onSubmit={handleJoinWaitlist} className="space-y-6">
                             <div className="space-y-4">
                                 <div className="space-y-1.5">
-                                    <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">Nome</label>
+                                    <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">{t('register.waitlist_name_label')}</label>
                                     <input
                                         type="text"
                                         required
                                         className="w-full bg-white/[0.04] border border-white/10 rounded-2xl px-6 py-4 text-white font-bold outline-none transition-all placeholder:text-gray-700 focus:bg-white focus:text-[#020205] focus:border-white shadow-inner"
-                                        placeholder="Seu nome"
+                                        placeholder={t('register.waitlist_name_placeholder')}
                                         value={name}
                                         onChange={e => {
                                             setName(e.target.value);
@@ -763,12 +818,12 @@ export const Register = () => {
                                 </div>
 
                                 <div className="space-y-1.5">
-                                    <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">E-mail</label>
+                                    <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">{t('register.waitlist_email_label')}</label>
                                     <input
                                         type="email"
                                         required
                                         className="w-full bg-white/[0.04] border border-white/10 rounded-2xl px-6 py-4 text-white font-bold outline-none transition-all placeholder:text-gray-700 focus:bg-white focus:text-[#020205] focus:border-white shadow-inner"
-                                        placeholder="seu@email.com"
+                                        placeholder={t('register.waitlist_email_placeholder')}
                                         value={email}
                                         onChange={e => {
                                             setEmail(e.target.value);
@@ -813,7 +868,7 @@ export const Register = () => {
                                     <Loader2 className="w-5 h-5 animate-spin" />
                                 ) : (
                                     <>
-                                        <span>Quero meu acesso antecipado</span>
+                                        <span>{t('register.waitlist_submit')}</span>
                                         <ArrowRight className="w-4 h-4" />
                                     </>
                                 )}
@@ -824,10 +879,10 @@ export const Register = () => {
                             <p className="text-gray-600 text-[10px] font-bold italic">
                                 {typeof waitlistCount === 'number' ? (
                                     <>
-                                        <span className="text-emerald-500/50">{waitlistCount} pessoas</span> já estão na lista
+                                        <span className="text-emerald-500/50">{waitlistCount} {t('register.waitlist_count_people')}</span> {t('register.waitlist_count_suffix')}
                                     </>
                                 ) : (
-                                    'Entre para receber o próximo convite exclusivo.'
+                                    t('register.waitlist_next_invite')
                                 )}
                             </p>
                             
@@ -835,7 +890,7 @@ export const Register = () => {
                                 href="/activate"
                                 className="text-gray-700 hover:text-white font-black uppercase tracking-widest text-[9px] transition-all italic"
                             >
-                                Já possui conta? Fazer Login
+                                {t('register.waitlist_login_short')}
                             </a>
                         </div>
                     </div>
@@ -860,11 +915,12 @@ export const Register = () => {
 
             <div className="absolute top-[10%] left-[5%] w-[500px] h-[500px] bg-emerald-500/10 rounded-full blur-[120px] pointer-events-none animate-pulse" />
             <div className="absolute bottom-[10%] right-[5%] w-[400px] h-[400px] bg-emerald-400/5 rounded-full blur-[100px] pointer-events-none animate-pulse duration-[5000ms]" />
+            {renderLanguageSwitcher()}
 
             <div className="relative z-10 w-full max-w-6xl grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
                 <div className="hidden lg:block animate-in fade-in slide-in-from-left-8 duration-1000">
                     <div className="inline-flex items-center gap-3 bg-white/5 border border-white/10 px-4 py-2 rounded-full mb-8 backdrop-blur-xl">
-                        <img src="/logo.png" alt="Logo" className="w-4 h-4 object-contain grayscale brightness-200" />
+                        <img src="/logo.png" alt={t('register.logo_alt')} className="w-4 h-4 object-contain grayscale brightness-200" />
                         <span className="text-[10px] font-black text-gray-300 uppercase tracking-[0.2em] italic">
                             {t('register.hero_subtitle')}
                         </span>
@@ -888,12 +944,12 @@ export const Register = () => {
                         <div className="flex -space-x-4">
                             {[1, 2, 3, 4].map(n => (
                                 <div key={n} className="w-10 h-10 rounded-full border-2 border-[#020205] bg-gray-800 overflow-hidden">
-                                    <img src={`https://i.pravatar.cc/100?img=${n + 20}`} alt="User" />
+                                    <img src={`https://i.pravatar.cc/100?img=${n + 20}`} alt={t('register.avatar_alt')} />
                                 </div>
                             ))}
                         </div>
                         <p className="text-gray-400 font-medium italic">
-                            <span className="text-white font-bold">+1.240</span> {t('register.entrepreneurs_count').replace('{{count}}', '')}
+                            {t('register.entrepreneurs_count', { value: '+1.240' })}
                         </p>
                     </div>
                 </div>
@@ -906,8 +962,8 @@ export const Register = () => {
                     <div className="relative z-20">
                         <div className="lg:hidden text-center mb-10">
                             <h1 className="text-4xl font-display font-black text-white italic uppercase tracking-tighter leading-none mb-2">
-                                Sua jornada <br />
-                                <span className="bg-gradient-to-r from-emerald-400 to-emerald-600 bg-clip-text text-transparent">está começando!</span>
+                                {t('register.mobile_hero_title_prefix')} <br />
+                                <span className="bg-gradient-to-r from-emerald-400 to-emerald-600 bg-clip-text text-transparent">{t('register.mobile_hero_title_highlight')}</span>
                             </h1>
                             <p className="text-gray-400 font-medium italic text-sm">{t('register.form_subtitle')}</p>
                         </div>
@@ -916,7 +972,7 @@ export const Register = () => {
                             <div className="mb-8 inline-flex items-center gap-3 bg-emerald-500/10 border border-emerald-500/20 px-4 py-2 rounded-full">
                                 <CheckCircle className="w-4 h-4 text-emerald-300" />
                                 <span className="text-[10px] font-black text-emerald-200 uppercase tracking-[0.2em] italic">
-                                    Convite validado
+                                    {t('register.invite_validated')}
                                 </span>
                             </div>
                         )}
@@ -956,7 +1012,7 @@ export const Register = () => {
                                             type="email"
                                             required
                                             className="w-full bg-white/[0.04] border border-white/10 rounded-2xl pl-16 pr-6 py-5 text-white font-bold outline-none transition-all placeholder:text-gray-700 focus:bg-white focus:text-[#020205] focus:border-white shadow-inner"
-                                            placeholder="ex: seu@email.com"
+                                            placeholder={t('register.email_placeholder')}
                                             value={email}
                                             onChange={e => {
                                                 setEmail(e.target.value);
@@ -967,7 +1023,7 @@ export const Register = () => {
                                 </div>
 
                                 <div className="space-y-1.5">
-                                    <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">WhatsApp</label>
+                                    <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">{t('register.whatsapp_label')}</label>
                                     <div className="relative group">
                                         <PhoneInput
                                             required
@@ -991,7 +1047,7 @@ export const Register = () => {
                                             required
                                             minLength={6}
                                             className="w-full bg-white/[0.04] border border-white/10 rounded-2xl pl-16 pr-6 py-5 text-white font-bold outline-none transition-all placeholder:text-gray-700 focus:bg-white focus:text-[#020205] focus:border-white shadow-inner"
-                                            placeholder="••••••••"
+                                            placeholder={t('register.password_placeholder')}
                                             value={password}
                                             onChange={e => {
                                                 setPassword(e.target.value);
@@ -1003,7 +1059,7 @@ export const Register = () => {
                             </div>
 
                             <div className="absolute left-[-10000px] top-auto w-px h-px overflow-hidden" aria-hidden="true">
-                                <label htmlFor="website">Website</label>
+                                <label htmlFor="website">{t('register.honeypot_label')}</label>
                                 <input
                                     id="website"
                                     name="website"
@@ -1039,12 +1095,10 @@ export const Register = () => {
                             {requiresCaptcha && captchaSiteKey && (
                                 <div className="bg-white/5 border border-white/10 rounded-3xl p-5 space-y-3">
                                     <p className="text-xs text-gray-300 font-bold uppercase tracking-[0.18em]">
-                                        {t('register.captcha_title', { defaultValue: 'Confirme que voce e humano' })}
+                                        {t('register.captcha_title')}
                                     </p>
                                     <p className="text-sm text-gray-400 leading-relaxed">
-                                        {t('register.captcha_desc', {
-                                            defaultValue: 'Detectamos um volume acima do normal neste fluxo. Confirme o desafio para continuar.'
-                                        })}
+                                        {t('register.captcha_desc')}
                                     </p>
                                     <RiskCaptcha siteKey={captchaSiteKey} onTokenChange={setCaptchaToken} />
                                 </div>
@@ -1081,21 +1135,31 @@ export const Register = () => {
 
                         <div className="mt-8 rounded-2xl border border-white/5 bg-white/[0.03] p-5 text-left">
                             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 mb-2">
-                                Base legal da plataforma
+                                {t('register.platform_legal_notice_title')}
                             </p>
-                            <p className="text-xs text-gray-400 leading-relaxed">
-                                Ao criar sua conta, voce aceita os documentos oficiais da plataforma e registra a evidência desse aceite no fluxo de cadastro.
-                                {' '}
-                                <a href={getPlatformTermsUrl()} target="_blank" rel="noreferrer" className="text-white hover:text-emerald-300 underline underline-offset-4">
-                                    Termos de Uso
-                                </a>
-                                {' '}e{' '}
-                                <a href={getPlatformPrivacyUrl()} target="_blank" rel="noreferrer" className="text-white hover:text-emerald-300 underline underline-offset-4">
-                                    Politica de Privacidade
-                                </a>
-                                {' '}vigentes em {PLATFORM_LEGAL_VERSION}, publicados em {formatPlatformLegalPublishedAt()}.
-                                {' '}Canal oficial: <a href={`mailto:${PLATFORM_LEGAL_CONTACT_EMAIL}`} className="text-white hover:text-emerald-300 underline underline-offset-4">{PLATFORM_LEGAL_CONTACT_EMAIL}</a>.
-                            </p>
+                            <div className="space-y-3 text-xs text-gray-400 leading-relaxed">
+                                <p>{t('register.platform_legal_notice_intro')}</p>
+                                <p>
+                                    <a href={getPlatformTermsUrl()} target="_blank" rel="noreferrer" className="text-white hover:text-emerald-300 underline underline-offset-4">
+                                        {t('register.platform_terms_link')}
+                                    </a>
+                                    {' '}
+                                    {t('register.platform_legal_desc_middle')}
+                                    {' '}
+                                    <a href={getPlatformPrivacyUrl()} target="_blank" rel="noreferrer" className="text-white hover:text-emerald-300 underline underline-offset-4">
+                                        {t('register.platform_privacy_link')}
+                                    </a>
+                                    {' '}
+                                    {t('register.platform_legal_notice_version', {
+                                        version: PLATFORM_LEGAL_VERSION,
+                                        publishedAt: platformLegalPublishedAt
+                                    })}
+                                    {' '}
+                                    {t('register.platform_legal_notice_official_channel')}
+                                    {' '}
+                                    <a href={`mailto:${PLATFORM_LEGAL_CONTACT_EMAIL}`} className="text-white hover:text-emerald-300 underline underline-offset-4">{PLATFORM_LEGAL_CONTACT_EMAIL}</a>.
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </div>

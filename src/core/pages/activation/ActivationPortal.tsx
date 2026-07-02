@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { centralSupabase } from '../../services/centralClient';
 import { licenseService, License } from '../../services/licenseService';
 import { storage } from '../../services/storageService';
 import { matchesUpgradePlanSlug, normalizeUpgradePlanSlug } from '../../services/upgradePlanSlug';
@@ -58,32 +59,32 @@ const SidebarItem = ({ icon: Icon, label, active, onClick, collapsed, highlighte
     </button>
 );
 
-const getPortalDisplayName = (user: any, license: License | null): string => {
+const getPortalDisplayName = (user: any, license: License | null, fallbackName: string): string => {
     const fullName =
         user?.user_metadata?.full_name
         || user?.user_metadata?.name
         || license?.client_name
         || user?.email?.split('@')[0]
-        || 'Cliente';
+        || fallbackName;
 
-    return String(fullName).trim() || 'Cliente';
+    return String(fullName).trim() || fallbackName;
 };
 
 const getPortalPlanLabel = (license: License | null, t: any): string => {
-    if (!license) return 'Conta gratuita';
-    if (license.plan === 'whitelabel') return 'WHITELABEL';
+    if (!license) return t('plan_info.free_account');
+    if (license.plan === 'whitelabel') return t('plan_info.whitelabel');
     if (license.has_partner_panel && license.has_unlimited_domains) {
         return `${t('profile.partner')} + ${t('profile.unlimited_domains')}`;
     }
     if (license.has_partner_panel || license.plan === 'saas') return t('profile.partner');
     if (license.has_unlimited_domains || license.plan === 'upgrade_domains') return t('profile.unlimited_domains');
-    if (!license.plan) return 'Conta gratuita';
+    if (!license.plan) return t('plan_info.free_account');
 
     return String(license.plan).replace(/_/g, ' ').toUpperCase();
 };
 
 export const ActivationPortal: React.FC = () => {
-    const [t] = useTranslation(['portal', 'common']);
+    const { t, i18n } = useTranslation(['portal', 'common']);
     const navigate = useNavigate();
     const [centralUser, setCentralUser] = useState<any | null>(null);
     const [license, setLicense] = useState<License | null>(null);
@@ -99,6 +100,8 @@ export const ActivationPortal: React.FC = () => {
     const [partnerOpportunityEnabled, setPartnerOpportunityEnabled] = useState(false);
     const [demoLoading, setDemoLoading] = useState(false);
     const [demoError, setDemoError] = useState<string | null>(null);
+    const resolvedLanguage = i18n.language.toLowerCase();
+    const htmlLanguage = resolvedLanguage.startsWith('en') ? 'en-US' : resolvedLanguage.startsWith('es') ? 'es-ES' : 'pt-BR';
 
     const handleOpenDemo = async () => {
         setDemoLoading(true);
@@ -110,7 +113,7 @@ export const ActivationPortal: React.FC = () => {
                 popup.opener = null;
                 popup.document.write(`
                     <!doctype html>
-                    <html lang="pt-BR">
+                    <html lang="${htmlLanguage}">
                       <head>
                         <meta charset="utf-8" />
                         <title>${t('basic_dashboard.demo.opening')}</title>
@@ -174,7 +177,7 @@ export const ActivationPortal: React.FC = () => {
 
     const handleActivate = async () => {
         if (!termsAccepted) {
-            alert('Voce precisa aceitar os termos de uso.');
+            alert(t('generate_license_gate.accept_terms_required'));
             return;
         }
 
@@ -184,11 +187,11 @@ export const ActivationPortal: React.FC = () => {
             if (result.success) {
                 await loadData();
             } else {
-                alert(result.message || 'Erro ao ativar licenca');
+                alert(result.message || t('generate_license_gate.activate_error'));
             }
         } catch (error: any) {
             console.error('Activation error:', error);
-            alert(error.message || 'Erro de conexao');
+            alert(error.message || t('generate_license_gate.connection_error'));
         } finally {
             setLoading(false);
         }
@@ -197,7 +200,6 @@ export const ActivationPortal: React.FC = () => {
     const loadData = async () => {
         setLoading(true);
         try {
-            const { centralSupabase } = await import('../../services/centralClient');
             const { data: { user } } = await centralSupabase.auth.getUser();
 
             if (!user) {
@@ -317,9 +319,10 @@ export const ActivationPortal: React.FC = () => {
     const showPartnerPanelTab = hasPartnerAccess;
     const showEarningsSimulatorTab = isPartnerExperienceVisible;
     const upgradeProduct = saasProducts.find((product) => matchesUpgradePlanSlug(product.saas_plan_slug, 'upgrade_domains')) || null;
-    const portalDisplayName = getPortalDisplayName(centralUser, license);
+    const portalDisplayName = getPortalDisplayName(centralUser, license, t('profile.client'));
     const portalFirstName = portalDisplayName.split(/\s+/)[0] || portalDisplayName;
     const portalPlanLabel = getPortalPlanLabel(license, t);
+    const blockedAtLocale = resolvedLanguage.startsWith('en') ? 'en-US' : resolvedLanguage.startsWith('es') ? 'es-ES' : 'pt-BR';
 
     useEffect(() => {
         if (activeTab === 'opportunity' && !showPartnerOpportunityTab) {
@@ -344,7 +347,6 @@ export const ActivationPortal: React.FC = () => {
         let channel: any;
         const setupRealtime = async () => {
             try {
-                const { centralSupabase } = await import('../../services/centralClient');
                 channel = centralSupabase
                     .channel(`public:profiles:block-check:${centralUser.id}`)
                     .on(
@@ -378,13 +380,12 @@ export const ActivationPortal: React.FC = () => {
     }, [centralUser]);
 
     const handleLogout = async () => {
-        const { centralSupabase } = await import('../../services/centralClient');
         await centralSupabase.auth.signOut();
         navigate('/activate');
     };
 
     if (loading) {
-        return <Loading label="Carregando portal" />;
+        return <Loading label={t('portal_shell.loading')} />;
     }
 
     if (isEmailUnconfirmed && centralUser) {
@@ -415,29 +416,33 @@ export const ActivationPortal: React.FC = () => {
                     </div>
 
                     <h1 className="text-4xl font-black tracking-tighter uppercase italic mb-4">
-                        {isBlocked ? 'Acesso bloqueado' : isRejected ? 'Cadastro nao aprovado' : 'Cadastro em analise'}
+                        {isBlocked
+                            ? t('portal_shell.access_blocked_title')
+                            : isRejected
+                                ? t('portal_shell.rejected_title')
+                                : t('portal_shell.pending_approval_title')}
                     </h1>
 
                     <p className="text-lg text-gray-300 leading-relaxed mb-6">
                         {isBlocked
-                            ? 'Seu acesso ao portal foi bloqueado pelo time interno. Enquanto o bloqueio estiver ativo, esta sessao nao pode usar o portal.'
+                            ? t('portal_shell.access_blocked_description')
                             : isRejected
-                            ? 'Sua conta foi revisada, mas nao foi liberada neste ciclo. Se precisar, fale com o time para uma nova avaliacao.'
-                            : 'Seu e-mail ja foi confirmado. Agora falta a aprovacao manual do time interno para liberar o portal.'}
+                            ? t('portal_shell.rejected_description')
+                            : t('portal_shell.pending_approval_description')}
                     </p>
 
                     {isBlocked && approvalState.blockedAt && (
                         <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-5 mb-6">
-                            <p className="text-xs font-black uppercase tracking-[0.18em] text-red-300">Bloqueado em</p>
+                            <p className="text-xs font-black uppercase tracking-[0.18em] text-red-300">{t('portal_shell.blocked_at')}</p>
                             <p className="mt-2 text-sm text-red-100 leading-relaxed">
-                                {new Date(approvalState.blockedAt).toLocaleString('pt-BR')}
+                                {new Date(approvalState.blockedAt).toLocaleString(blockedAtLocale)}
                             </p>
                         </div>
                     )}
 
                     {approvalState.notes && (
                         <div className="bg-white/5 border border-white/10 rounded-2xl p-5 mb-6">
-                            <p className="text-xs font-black uppercase tracking-[0.18em] text-gray-400">Observacao interna</p>
+                            <p className="text-xs font-black uppercase tracking-[0.18em] text-gray-400">{t('portal_shell.internal_note')}</p>
                             <p className="mt-2 text-sm text-gray-300 leading-relaxed">{approvalState.notes}</p>
                         </div>
                     )}
@@ -447,13 +452,13 @@ export const ActivationPortal: React.FC = () => {
                             onClick={() => window.location.reload()}
                             className="flex-1 bg-white text-black py-4 rounded-xl font-bold hover:bg-gray-200 transition-all"
                         >
-                            Atualizar status
+                            {t('portal_shell.refresh_status')}
                         </button>
                         <button
                             onClick={handleLogout}
                             className="flex-1 bg-white/5 border border-white/10 text-white py-4 rounded-xl font-bold hover:bg-white/10 transition-all"
                         >
-                            Sair
+                            {t('common:logout')}
                         </button>
                     </div>
                 </div>
@@ -495,7 +500,6 @@ export const ActivationPortal: React.FC = () => {
                         <UpsellBanners
                             license={license}
                             products={saasProducts}
-                            onNavigate={(tab) => setActiveTab(tab)}
                             showPartnerOpportunity={isPartnerExperienceVisible}
                         />
                     </div>
@@ -601,7 +605,7 @@ export const ActivationPortal: React.FC = () => {
                         {!isCollapsed && (
                             <div className="animate-in fade-in slide-in-from-left-4 duration-500">
                                 <h1 className="font-display font-black text-lg leading-tight uppercase tracking-tighter italic">Super <span className="text-primary">Checkout</span></h1>
-                                <p className="text-[10px] text-gray-400 font-black uppercase tracking-[0.2em]">Customer Portal</p>
+                                <p className="text-[10px] text-gray-400 font-black uppercase tracking-[0.2em]">{t('sidebar.customer_portal')}</p>
                             </div>
                         )}
                     </div>
@@ -684,7 +688,7 @@ export const ActivationPortal: React.FC = () => {
                 <div className="sticky top-0 z-30 w-full h-20 bg-[#05050A]/60 backdrop-blur-2xl border-b border-white/5 px-6 lg:px-12 flex items-center justify-between">
                     <div className="flex items-center gap-4">
                         <div className="hidden lg:flex flex-col">
-                            <span className="text-[10px] font-black uppercase tracking-[0.4em] text-primary leading-none mb-1 italic">Customer Portal</span>
+                            <span className="text-[10px] font-black uppercase tracking-[0.4em] text-primary leading-none mb-1 italic">{t('sidebar.customer_portal')}</span>
                             <h2 className="text-sm font-black text-white/40 uppercase tracking-widest italic leading-none">
                                 {t(`sidebar.${({
                                     home: 'dashboard',

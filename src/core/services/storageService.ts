@@ -13,6 +13,7 @@ import {
   createPlanLimitError,
   resolveFeatureAccess,
 } from './featureAccess';
+import { getCachedAuthUser, setCachedAuthUser } from './authUserCache';
 import { demoDataService, isDemoDataRuntime } from './demoDataService';
 import { publicSupabase, supabase } from './supabase';
 export { supabase };
@@ -79,11 +80,9 @@ function mapMemberAreaProductRecord(record: any): Product {
  * SERVICE LAYER - SUPABASE IMPLEMENTATION
  */
 class StorageService {
-  private _cachedUser: User | null = null;
-
   setUser(user: User | null) {
     // console.log('StorageService: setUser called', user?.id);
-    this._cachedUser = user;
+    setCachedAuthUser(user);
   }
 
   async getUser() {
@@ -101,9 +100,10 @@ class StorageService {
 
     // CRITICAL FIX: Robust session retrieval.
     // 1. Priority: Check cached user from AuthContext (Source of Truth)
-    if (this._cachedUser) {
-      console.log('[StorageService] getUser: Returning cached user', this._cachedUser.id);
-      return this._cachedUser;
+    const cachedUser = getCachedAuthUser();
+    if (cachedUser) {
+      console.log('[StorageService] getUser: Returning cached user', cachedUser.id);
+      return cachedUser;
     }
 
     try {
@@ -118,7 +118,7 @@ class StorageService {
 
       if (session?.user) {
         console.log('[StorageService] getUser: Session found', session.user.id);
-        this._cachedUser = session.user;
+        setCachedAuthUser(session.user);
         return session.user;
       }
 
@@ -129,7 +129,7 @@ class StorageService {
 
       if (user) {
         console.log('[StorageService] getUser: Server user found', user.id);
-        this._cachedUser = user;
+        setCachedAuthUser(user);
         return user;
       }
 
@@ -139,7 +139,7 @@ class StorageService {
     } catch (e) {
       console.error('storageService: getUser exception', e);
       // Fallback on exception too
-      return this._cachedUser || null;
+      return getCachedAuthUser() || null;
     }
   }
 

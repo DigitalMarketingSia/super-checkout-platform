@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, useParams, useNavigate } from 'react-router-dom';
 import { MemberAreaLayout } from './MemberAreaLayout';
+import { supabase } from '../../services/supabase';
 import { storage } from '../../services/storageService';
 import { MemberArea } from '../../types';
 import { Loader2 } from 'lucide-react';
@@ -55,7 +56,6 @@ export const MemberAreaWrapper = ({ forcedSlug }: { forcedSlug?: string }) => {
                     if (res.ok) {
                         const { access_token, refresh_token } = await res.json();
                         if (access_token && refresh_token) {
-                            const { supabase } = await import('../../services/supabase');
                             const { error: sessionError } = await supabase.auth.setSession({ access_token, refresh_token });
                             if (sessionError) {
                                 throw sessionError;
@@ -87,7 +87,6 @@ export const MemberAreaWrapper = ({ forcedSlug }: { forcedSlug?: string }) => {
             else if (authToken && authEmail) {
                 console.log('[Wrapper] Found legacy auth_token, verifying...');
                 try {
-                    const { supabase } = await import('../../services/supabase');
                     const { data, error } = await supabase.auth.verifyOtp({
                         token_hash: authToken,
                         type: 'email' as any,

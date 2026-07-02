@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { useConsent } from '../../context/ConsentContext';
 
 export const ConsentPreferencesModal: React.FC = () => {
+  const { t } = useTranslation('public');
   const {
     isPreferencesOpen,
     closePreferences,
@@ -25,35 +27,34 @@ export const ConsentPreferencesModal: React.FC = () => {
     <Modal
       isOpen={isPreferencesOpen}
       onClose={closePreferences}
-      title="Preferencias de privacidade"
+      title={t('consent.banner_title')}
       className="max-w-2xl"
     >
       <div className="space-y-6 text-sm text-gray-300">
         <p className="leading-relaxed">
-          Escolha quais categorias opcionais podem ser usadas neste checkout. Os itens estritamente necessarios permanecem
-          ativos para manter pagamento, seguranca e entrega funcionando.
+          {t('consent.preferences_description')}
         </p>
 
         <div className="space-y-4">
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="font-semibold text-white">Estritamente necessarios</p>
+                <p className="font-semibold text-white">{t('consent.categories.necessary.title')}</p>
                 <p className="mt-1 text-xs leading-relaxed text-gray-400">
-                  Mantem o checkout, seguranca, sessao tecnica e finalizacao do pedido.
+                  {t('consent.categories.necessary.description')}
                 </p>
               </div>
               <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-300">
-                Sempre ativo
+                {t('consent.categories.necessary.always_active')}
               </span>
             </div>
           </div>
 
           <label className="flex items-start justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
             <div>
-              <p className="font-semibold text-white">Analytics</p>
+              <p className="font-semibold text-white">{t('consent.categories.analytics.title')}</p>
               <p className="mt-1 text-xs leading-relaxed text-gray-400">
-                Mede navegacao e eventos de uso, como page view e inicio de checkout.
+                {t('consent.categories.analytics.description')}
               </p>
             </div>
             <input
@@ -66,9 +67,9 @@ export const ConsentPreferencesModal: React.FC = () => {
 
           <label className="flex items-start justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
             <div>
-              <p className="font-semibold text-white">Marketing</p>
+              <p className="font-semibold text-white">{t('consent.categories.marketing.title')}</p>
               <p className="mt-1 text-xs leading-relaxed text-gray-400">
-                Permite pixels e eventos de campanhas, como Meta, TikTok, Google Ads e GTM.
+                {t('consent.categories.marketing.description')}
               </p>
             </div>
             <input
@@ -86,7 +87,7 @@ export const ConsentPreferencesModal: React.FC = () => {
             onClick={closePreferences}
             className="h-11 rounded-2xl border border-white/10 bg-white/5 px-5 text-sm font-semibold text-white hover:bg-white/10"
           >
-            Cancelar
+            {t('consent.cancel')}
           </Button>
           <Button
             type="button"
@@ -99,7 +100,7 @@ export const ConsentPreferencesModal: React.FC = () => {
             })}
             className="h-11 rounded-2xl bg-primary px-5 text-sm font-semibold text-white hover:bg-rose-600"
           >
-            Salvar preferencias
+            {t('consent.save_preferences')}
           </Button>
         </div>
       </div>

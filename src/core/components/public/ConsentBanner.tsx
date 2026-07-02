@@ -1,9 +1,11 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { ShieldCheck, SlidersHorizontal } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { useConsent } from '../../context/ConsentContext';
 
 export const ConsentBanner: React.FC = () => {
+  const { t } = useTranslation('public');
   const { isLoaded, hasPreference, acceptAll, rejectOptional, openPreferences } = useConsent();
 
   if (!isLoaded || hasPreference) return null;
@@ -15,11 +17,10 @@ export const ConsentBanner: React.FC = () => {
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-sm font-semibold text-white">
               <ShieldCheck className="h-4 w-4 text-primary" />
-              Preferencias de privacidade
+              {t('consent.banner_title')}
             </div>
             <p className="max-w-2xl text-sm leading-relaxed text-gray-300">
-              Usamos cookies e tecnologias semelhantes para manter o checkout funcionando e, quando permitido por voce,
-              medir navegacao e campanhas. Itens estritamente necessarios permanecem ativos.
+              {t('consent.banner_description')}
             </p>
           </div>
 
@@ -29,7 +30,7 @@ export const ConsentBanner: React.FC = () => {
               onClick={rejectOptional}
               className="h-11 rounded-2xl border border-white/10 bg-white/5 px-5 text-sm font-semibold text-white hover:bg-white/10"
             >
-              Recusar opcionais
+              {t('consent.reject_optional')}
             </Button>
             <Button
               type="button"
@@ -37,14 +38,14 @@ export const ConsentBanner: React.FC = () => {
               className="h-11 rounded-2xl border border-white/10 bg-white/5 px-5 text-sm font-semibold text-white hover:bg-white/10"
             >
               <SlidersHorizontal className="mr-2 h-4 w-4" />
-              Personalizar
+              {t('consent.customize')}
             </Button>
             <Button
               type="button"
               onClick={acceptAll}
               className="h-11 rounded-2xl bg-primary px-5 text-sm font-semibold text-white hover:bg-rose-600"
             >
-              Aceitar tudo
+              {t('consent.accept_all')}
             </Button>
           </div>
         </div>

@@ -34,6 +34,23 @@ interface SignedOrderSnapshot {
   deliverables: OrderDeliverable[];
 }
 
+function resolveDisplayLocale(language: string, currency: string) {
+  const normalizedLanguage = String(language || '').toLowerCase();
+  if (normalizedLanguage.startsWith('en')) return 'en-US';
+  if (normalizedLanguage.startsWith('es')) return 'es-ES';
+  if (normalizedLanguage.startsWith('pt')) return 'pt-BR';
+  if (currency === 'USD') return 'en-US';
+  if (currency === 'EUR') return 'es-ES';
+  return 'pt-BR';
+}
+
+function formatCurrencyValue(value: number, locale: string, currency: string) {
+  return new Intl.NumberFormat(locale, {
+    style: 'currency',
+    currency,
+  }).format(value || 0);
+}
+
 function mergeDeliverables(...groups: Array<OrderDeliverable[] | null | undefined>) {
   const deduped = new Map<string, OrderDeliverable>();
 
@@ -65,12 +82,12 @@ function normalizeStoredDeliverables(value: unknown): OrderDeliverable[] {
 
       return {
         id: String(item.id || ''),
-        title: String(item.title || 'Produto'),
+        title: String(item.title || item.name || 'Produto'),
         delivery_type: deliveryType,
         status,
         url: item.url || item.visual_url || null,
         visual_url: item.visual_url || null,
-        label: String(item.label || 'Acessar'),
+        label: String(item.label || ''),
         instructions: item.instructions || null,
       };
     })
@@ -139,7 +156,7 @@ export const ThankYou = () => {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { t } = useTranslation('public');
+  const { t, i18n } = useTranslation('public');
   const runtimeMode = getRuntimeMode();
   const isDemoRuntime = runtimeMode === 'demo';
   const [order, setOrder] = useState<Order | null>(null);
@@ -303,6 +320,8 @@ export const ThankYou = () => {
   const combinedItems = effectiveOrders.flatMap((entry) => Array.isArray(entry.items) ? entry.items : []);
   const paidTotal = effectiveOrders.reduce((sum, entry) => sum + Number(entry.total || entry.amount || 0), 0);
   const orderTimestamp = originalOrder?.created_at || order?.created_at || null;
+  const displayCurrency = String(effectiveOrders[0]?.metadata?.payment_context?.currency || 'BRL').toUpperCase();
+  const displayLocale = resolveDisplayLocale(i18n.language, displayCurrency);
   const actionableDeliverables = deliverables.filter((deliverable) => deliverable.status === 'available' && deliverable.url);
   const missingDeliverables = deliverables.filter((deliverable) => deliverable.status !== 'available' || !deliverable.url);
   const primaryMemberDeliverable = actionableDeliverables.find((deliverable) => deliverable.delivery_type === 'member_area');
@@ -340,7 +359,7 @@ export const ThankYou = () => {
                 <div>
                   <p className="text-xs text-gray-500 uppercase font-bold tracking-wider">{t('thank_you.order', 'Pedido #{{id}}', { id: orderId?.slice(0, 8) })}</p>
                   <p className="text-sm font-medium text-gray-900">
-                    {new Date(orderTimestamp || Date.now()).toLocaleDateString('pt-BR', {
+                    {new Date(orderTimestamp || Date.now()).toLocaleDateString(displayLocale, {
                       day: '2-digit', month: 'long', year: 'numeric',
                       hour: '2-digit', minute: '2-digit'
                     })}
@@ -352,14 +371,16 @@ export const ThankYou = () => {
                 {combinedItems.map((item: any, idx: number) => (
                   <div key={idx} className="flex justify-between text-sm">
                     <span className="text-gray-600">{item.name}</span>
-                    <span className="font-medium">R$ {item.price?.toFixed(2)}</span>
+                    <span className="font-medium">
+                      {formatCurrencyValue(Number(item.price || 0), displayLocale, displayCurrency)}
+                    </span>
                   </div>
                 ))}
 
                 <div className="pt-3 mt-3 border-t border-gray-200 flex justify-between items-center">
                   <span className="font-bold text-gray-900">{t('thank_you.total_paid', 'Total pago')}</span>
                   <span className="font-bold text-green-600 text-lg">
-                    R$ {paidTotal.toFixed(2)}
+                    {formatCurrencyValue(paidTotal, displayLocale, displayCurrency)}
                   </span>
                 </div>
               </div>

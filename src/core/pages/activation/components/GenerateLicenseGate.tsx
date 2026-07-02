@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ShieldCheck, Check, ArrowRight, Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { getPlatformPrivacyUrl, getPlatformTermsUrl } from '../../../config/platformUrls';
 import { licenseService } from '../../../services/licenseService';
 import { PLATFORM_LEGAL_CONTACT_EMAIL, PLATFORM_LEGAL_VERSION } from '../../../config/platformLegal';
@@ -10,13 +11,14 @@ interface GenerateLicenseGateProps {
 }
 
 export const GenerateLicenseGate: React.FC<GenerateLicenseGateProps> = ({ userName, onActivated }) => {
+    const { t } = useTranslation('portal');
     const [termsAccepted, setTermsAccepted] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const handleActivate = async () => {
         if (!termsAccepted) {
-            alert('Voce precisa aceitar os termos de uso.');
+            alert(t('generate_license_gate.accept_terms_required'));
             return;
         }
 
@@ -27,11 +29,11 @@ export const GenerateLicenseGate: React.FC<GenerateLicenseGateProps> = ({ userNa
             if (result.success) {
                 onActivated();
             } else {
-                setError(result.message || 'Erro ao ativar licenca');
+                setError(result.message || t('generate_license_gate.activate_error'));
             }
         } catch (err: any) {
             console.error('Activation error:', err);
-            setError(err.message || 'Erro de conexao');
+            setError(err.message || t('generate_license_gate.connection_error'));
         } finally {
             setLoading(false);
         }
@@ -47,11 +49,13 @@ export const GenerateLicenseGate: React.FC<GenerateLicenseGateProps> = ({ userNa
             </div>
 
             <h2 className="text-3xl md:text-5xl font-black text-white mb-6 leading-none tracking-tighter uppercase italic text-center">
-                Licença <span className="bg-gradient-to-r from-orange-500 to-amber-400 bg-clip-text text-transparent">Pendente</span>
+                {t('generate_license_gate.title_prefix')} <span className="bg-gradient-to-r from-orange-500 to-amber-400 bg-clip-text text-transparent">{t('generate_license_gate.title_highlight')}</span>
             </h2>
 
             <p className="text-gray-400 mb-10 text-lg font-medium leading-relaxed max-w-md mx-auto">
-                {userName.split(' ')[0] || 'Champion'}, você precisa gerar uma licença gratuita para prosseguir com a instalação e acesso aos dados.
+                {t('generate_license_gate.description', {
+                    name: userName.split(' ')[0] || t('generate_license_gate.fallback_name')
+                })}
             </p>
 
             {error && (
@@ -73,15 +77,22 @@ export const GenerateLicenseGate: React.FC<GenerateLicenseGateProps> = ({ userNa
                         <Check className="w-4 h-4 text-white absolute top-1/2 left-1/2 -translate-y-1/2 -translate-x-1/2 opacity-0 peer-checked:opacity-100 transition-opacity" />
                     </div>
                     <span className="text-xs text-gray-400 font-bold uppercase tracking-wider leading-relaxed">
-                        Aceito os{' '}
+                        {t('generate_license_gate.accept_prefix')}
+                        {' '}
                         <a href={getPlatformTermsUrl()} target="_blank" rel="noreferrer" className="text-white hover:text-orange-300 underline underline-offset-4">
-                            termos de uso
+                            {t('generate_license_gate.terms_link')}
                         </a>
-                        {' '}e a{' '}
+                        {' '}
+                        {t('generate_license_gate.and_privacy')}
+                        {' '}
                         <a href={getPlatformPrivacyUrl()} target="_blank" rel="noreferrer" className="text-white hover:text-orange-300 underline underline-offset-4">
-                            politica de privacidade
+                            {t('generate_license_gate.privacy_link')}
                         </a>
-                        {' '}da plataforma na versao {PLATFORM_LEGAL_VERSION}. Canal oficial: {PLATFORM_LEGAL_CONTACT_EMAIL}
+                        {' '}
+                        {t('generate_license_gate.platform_suffix', {
+                            version: PLATFORM_LEGAL_VERSION,
+                            channel: PLATFORM_LEGAL_CONTACT_EMAIL
+                        })}
                     </span>
                 </label>
             </div>
@@ -91,7 +102,7 @@ export const GenerateLicenseGate: React.FC<GenerateLicenseGateProps> = ({ userNa
                 disabled={loading || !termsAccepted}
                 className="w-full max-w-sm mx-auto py-5 bg-white text-black hover:bg-orange-500 hover:text-white rounded-[2rem] transition-all duration-500 font-black uppercase italic tracking-tighter text-lg shadow-2xl disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-black flex items-center justify-center gap-3 relative group overflow-hidden"
             >
-                {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <> <span className="relative z-10 transition-transform group-hover:-translate-x-1">Gerar Licença Grátis</span> <ArrowRight className="w-5 h-5 relative z-10 group-hover:translate-x-2 transition-transform" /> <div className="absolute inset-0 bg-orange-500 translate-y-full group-hover:translate-y-0 transition-transform duration-500" /> </>}
+                {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <> <span className="relative z-10 transition-transform group-hover:-translate-x-1">{t('generate_license_gate.button')}</span> <ArrowRight className="w-5 h-5 relative z-10 group-hover:translate-x-2 transition-transform" /> <div className="absolute inset-0 bg-orange-500 translate-y-full group-hover:translate-y-0 transition-transform duration-500" /> </>}
             </button>
         </div>
     );

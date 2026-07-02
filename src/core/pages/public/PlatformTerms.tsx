@@ -1,15 +1,21 @@
 import React from 'react';
 import { FileText, ArrowLeft } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import {
     formatPlatformLegalPublishedAt,
+    getPlatformTermsSections,
     PLATFORM_LEGAL_CONTACT_EMAIL,
     PLATFORM_LEGAL_ENTITY,
     PLATFORM_LEGAL_NAME,
     PLATFORM_LEGAL_VERSION,
-    PLATFORM_TERMS_SECTIONS,
+    resolvePlatformLegalDateLocale,
 } from '../../config/platformLegal';
 
 export const PlatformTerms = () => {
+    const { t, i18n } = useTranslation('public');
+    const sections = getPlatformTermsSections(i18n.language);
+    const dateLocale = resolvePlatformLegalDateLocale(i18n.language);
+
     return (
         <div className="min-h-screen bg-[#05050A] text-white selection:bg-primary/30">
             <header className="border-b border-white/5 bg-white/[0.02] backdrop-blur-xl sticky top-0 z-10">
@@ -19,7 +25,7 @@ export const PlatformTerms = () => {
                             <FileText className="w-6 h-6 text-primary" />
                         </div>
                         <div>
-                            <h1 className="text-lg font-bold tracking-tight">Termos de Uso</h1>
+                            <h1 className="text-lg font-bold tracking-tight">{t('legal_pages.platform_terms.title')}</h1>
                             <p className="text-xs text-gray-500 uppercase tracking-widest font-medium">{PLATFORM_LEGAL_NAME}</p>
                         </div>
                     </div>
@@ -27,7 +33,7 @@ export const PlatformTerms = () => {
                         onClick={() => window.history.back()}
                         className="text-gray-400 hover:text-white transition-colors flex items-center gap-2 text-sm font-medium"
                     >
-                        <ArrowLeft className="w-4 h-4" /> Voltar
+                        <ArrowLeft className="w-4 h-4" /> {t('legal_pages.back')}
                     </button>
                 </div>
             </header>
@@ -37,14 +43,14 @@ export const PlatformTerms = () => {
                     <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -mr-32 -mt-32" />
 
                     <div className="relative z-10 mb-8 rounded-2xl border border-white/5 bg-white/[0.02] p-6 text-sm text-gray-300">
-                        <p><span className="font-semibold text-white">Operador desta superficie:</span> {PLATFORM_LEGAL_ENTITY}</p>
-                        <p><span className="font-semibold text-white">Versao vigente:</span> {PLATFORM_LEGAL_VERSION}</p>
-                        <p><span className="font-semibold text-white">Publicado em:</span> {formatPlatformLegalPublishedAt()}</p>
-                        <p><span className="font-semibold text-white">Canal oficial:</span> <a href={`mailto:${PLATFORM_LEGAL_CONTACT_EMAIL}`} className="underline underline-offset-4 hover:text-white transition-colors">{PLATFORM_LEGAL_CONTACT_EMAIL}</a></p>
+                        <p><span className="font-semibold text-white">{t('legal_pages.platform_terms.operator_label')}</span> {PLATFORM_LEGAL_ENTITY}</p>
+                        <p><span className="font-semibold text-white">{t('legal_pages.version_label')}</span> {PLATFORM_LEGAL_VERSION}</p>
+                        <p><span className="font-semibold text-white">{t('legal_pages.published_at_label')}</span> {formatPlatformLegalPublishedAt(dateLocale)}</p>
+                        <p><span className="font-semibold text-white">{t('legal_pages.platform_terms.official_channel_label')}</span> <a href={`mailto:${PLATFORM_LEGAL_CONTACT_EMAIL}`} className="underline underline-offset-4 hover:text-white transition-colors">{PLATFORM_LEGAL_CONTACT_EMAIL}</a></p>
                     </div>
 
                     <div className="relative z-10 space-y-8 text-gray-300 leading-relaxed">
-                        {PLATFORM_TERMS_SECTIONS.map((section) => (
+                        {sections.map((section) => (
                             <section key={section.title} className="space-y-3">
                                 <h2 className="text-xl font-bold text-white">{section.title}</h2>
                                 {section.paragraphs.map((paragraph) => (

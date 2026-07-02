@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { CustomLink } from '../../types';
 import { Plus, Trash2, Link as LinkIcon, ExternalLink } from 'lucide-react';
 import { Button } from '../ui/Button';
@@ -11,10 +12,12 @@ interface LinksManagerProps {
 const ICONS = ['instagram', 'facebook', 'youtube', 'tiktok', 'whatsapp', 'globe', 'link'];
 
 export const LinksManager: React.FC<LinksManagerProps> = ({ links, onChange }) => {
+    const { t } = useTranslation('admin');
     const [newLink, setNewLink] = useState<Partial<CustomLink>>({ title: '', url: '', icon: 'link', active: true });
 
     const handleAdd = () => {
         if (!newLink.title || !newLink.url) return;
+
         const link: CustomLink = {
             id: crypto.randomUUID(),
             title: newLink.title,
@@ -22,28 +25,28 @@ export const LinksManager: React.FC<LinksManagerProps> = ({ links, onChange }) =
             icon: newLink.icon || 'link',
             active: true
         };
+
         onChange([...links, link]);
         setNewLink({ title: '', url: '', icon: 'link', active: true });
     };
 
     const handleUpdate = (id: string, updates: Partial<CustomLink>) => {
-        onChange(links.map(l => l.id === id ? { ...l, ...updates } : l));
+        onChange(links.map(link => link.id === id ? { ...link, ...updates } : link));
     };
 
     const handleDelete = (id: string) => {
-        onChange(links.filter(l => l.id !== id));
+        onChange(links.filter(link => link.id !== id));
     };
 
     return (
         <div className="space-y-4">
-            {/* Add New Link */}
             <div className="bg-gray-50 dark:bg-white/5 p-5 rounded-2xl border border-gray-200 dark:border-white/10">
-                <h4 className="text-sm font-bold mb-4 text-gray-900 dark:text-white">Adicionar Novo Link</h4>
+                <h4 className="text-sm font-bold mb-4 text-gray-900 dark:text-white">{t('member_area_details.links_manager.add_title')}</h4>
                 <div className="grid grid-cols-1 gap-4">
                     <div className="grid grid-cols-2 gap-3">
                         <input
                             type="text"
-                            placeholder="Nome (ex: Instagram)"
+                            placeholder={t('member_area_details.links_manager.title_placeholder')}
                             className="bg-white dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-purple-500/30 text-white font-bold placeholder:text-white/10"
                             value={newLink.title}
                             onChange={e => setNewLink({ ...newLink, title: e.target.value })}
@@ -53,25 +56,28 @@ export const LinksManager: React.FC<LinksManagerProps> = ({ links, onChange }) =
                             value={newLink.icon}
                             onChange={e => setNewLink({ ...newLink, icon: e.target.value })}
                         >
-                            {ICONS.map(icon => <option key={icon} value={icon}>{icon}</option>)}
+                            {ICONS.map(icon => (
+                                <option key={icon} value={icon}>
+                                    {t(`member_area_details.links_manager.icon_labels.${icon}`)}
+                                </option>
+                            ))}
                         </select>
                     </div>
                     <input
                         type="text"
-                        placeholder="URL (https://...)"
+                        placeholder={t('member_area_details.links_manager.url_placeholder')}
                         className="w-full bg-white dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-purple-500/30 text-white font-bold placeholder:text-white/10"
                         value={newLink.url}
                         onChange={e => setNewLink({ ...newLink, url: e.target.value })}
                     />
                     <div className="flex justify-center">
                         <Button onClick={handleAdd} disabled={!newLink.title || !newLink.url} className="h-10 px-8 font-black uppercase italic tracking-tighter">
-                            <Plus className="w-4 h-4 mr-2" /> Adicionar Link
+                            <Plus className="w-4 h-4 mr-2" /> {t('member_area_details.links_manager.add_button')}
                         </Button>
                     </div>
                 </div>
             </div>
 
-            {/* List Links */}
             <div className="space-y-2">
                 {links.map(link => (
                     <div key={link.id} className="w-full flex items-center justify-between gap-4 p-4 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-2xl transition-all hover:border-purple-500/20">
@@ -94,16 +100,20 @@ export const LinksManager: React.FC<LinksManagerProps> = ({ links, onChange }) =
                                     onChange={e => handleUpdate(link.id, { active: e.target.checked })}
                                     className="rounded border-white/10 bg-black/20 text-purple-600 focus:ring-purple-500"
                                 />
-                                Ativo
+                                {t('member_area_details.links_manager.active_label')}
                             </label>
-                            <button onClick={() => handleDelete(link.id)} className="p-2 hover:bg-red-500/10 text-red-500 rounded-xl transition-colors">
+                            <button
+                                type="button"
+                                onClick={() => handleDelete(link.id)}
+                                className="p-2 hover:bg-red-500/10 text-red-500 rounded-xl transition-colors"
+                            >
                                 <Trash2 className="w-4 h-4" />
                             </button>
                         </div>
                     </div>
                 ))}
                 {links.length === 0 && (
-                    <p className="text-center text-gray-500 text-sm py-4">Nenhum link cadastrado.</p>
+                    <p className="text-center text-gray-500 text-sm py-4">{t('member_area_details.links_manager.empty')}</p>
                 )}
             </div>
         </div>

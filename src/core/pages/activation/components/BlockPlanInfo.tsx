@@ -9,14 +9,15 @@ interface BlockPlanInfoProps {
     userCreatedAt?: string | null;
 }
 
-const formatMemberSince = (value: string | null | undefined, language: string) => {
-    if (!value) return 'Data indisponivel';
+const formatMemberSince = (value: string | null | undefined, language: string, fallback: string) => {
+    if (!value) return fallback;
 
     const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return 'Data indisponivel';
+    if (Number.isNaN(date.getTime())) return fallback;
+    const normalizedLanguage = language.toLowerCase();
 
     return date.toLocaleDateString(
-        language === 'en' ? 'en-US' : language === 'es' ? 'es-ES' : 'pt-BR',
+        normalizedLanguage.startsWith('en') ? 'en-US' : normalizedLanguage.startsWith('es') ? 'es-ES' : 'pt-BR',
         { month: 'long', year: 'numeric' }
     );
 };
@@ -25,7 +26,7 @@ export const BlockPlanInfo: React.FC<BlockPlanInfoProps> = ({ license, userName,
     const { t, i18n } = useTranslation('portal');
     const planLabel =
         license?.plan === 'whitelabel'
-            ? 'whitelabel'
+            ? t('plan_info.whitelabel')
             : license?.has_partner_panel && license?.has_unlimited_domains
                 ? `${t('plan_info.partner')} + ${t('plan_info.unlimited')}`
                 : license?.has_partner_panel || license?.plan === 'saas'
@@ -33,7 +34,11 @@ export const BlockPlanInfo: React.FC<BlockPlanInfoProps> = ({ license, userName,
                     : license?.has_unlimited_domains || license?.plan === 'upgrade_domains'
                         ? t('plan_info.unlimited')
                         : license?.plan;
-    const memberSince = formatMemberSince(license?.created_at || userCreatedAt, i18n.language);
+    const memberSince = formatMemberSince(
+        license?.created_at || userCreatedAt,
+        i18n.language,
+        t('plan_info.date_unavailable')
+    );
     
     if (!license) {
         return (
@@ -46,7 +51,7 @@ export const BlockPlanInfo: React.FC<BlockPlanInfoProps> = ({ license, userName,
                         </div>
                         <div>
                             <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">{t('plan_info.profile')}</p>
-                            <p className="text-lg font-black text-white font-display italic tracking-tighter">Conta Gratuita</p>
+                            <p className="text-lg font-black text-white font-display italic tracking-tighter">{t('plan_info.free_account')}</p>
                         </div>
                     </div>
                     <div className="flex items-center gap-5 p-4 rounded-2xl bg-white/5 border border-white/5">
@@ -58,10 +63,10 @@ export const BlockPlanInfo: React.FC<BlockPlanInfoProps> = ({ license, userName,
                             <div className="flex items-center gap-3">
                                 <div className="flex items-center gap-2">
                                     <span className="w-2 h-2 rounded-full animate-pulse bg-orange-500" />
-                                    <p className="text-lg font-black text-white font-display italic tracking-tighter">S/ Licença</p>
+                                    <p className="text-lg font-black text-white font-display italic tracking-tighter">{t('plan_info.no_license')}</p>
                                 </div>
                                 <span className="px-2 py-1 bg-orange-500/10 text-orange-400 text-[9px] font-black uppercase tracking-widest rounded-md border border-orange-500/20">
-                                    Pendente
+                                    {t('plan_info.pending')}
                                 </span>
                             </div>
                         </div>
@@ -72,8 +77,8 @@ export const BlockPlanInfo: React.FC<BlockPlanInfoProps> = ({ license, userName,
                     const event = new CustomEvent('nav-to-tab', { detail: 'license' });
                     window.dispatchEvent(event);
                 }}>
-                    <p className="text-xs font-bold text-orange-400 uppercase tracking-widest">Ação Necessária</p>
-                    <p className="text-sm text-gray-400 mt-1">Acesse a aba <strong>Dados de Acesso</strong> para gerar sua licença gratuita.</p>
+                    <p className="text-xs font-bold text-orange-400 uppercase tracking-widest">{t('plan_info.action_required')}</p>
+                    <p className="text-sm text-gray-400 mt-1">{t('plan_info.generate_license_prompt')}</p>
                 </div>
             </div>
         );

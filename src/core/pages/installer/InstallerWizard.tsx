@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { createClient } from '@supabase/supabase-js';
 import { useTranslation } from 'react-i18next';
 // Checked validation logic
 import { Check, ChevronRight, Database, Key, Server, AlertCircle, ExternalLink, Github, Globe, Copy, Info, X, ShieldCheck, ShieldAlert, Mail, Settings, Loader2, Sparkles, ArrowRight } from 'lucide-react';
@@ -836,8 +837,6 @@ export default function InstallerWizard() {
                                     localStorage.setItem('installer_supabase_anon_key', anonKey);
                                     localStorage.setItem('installer_supabase_service_key', serviceKey);
                                     localStorage.setItem('installer_supabase_url', supabaseUrl); // Ensure URL is also saved
-
-                                    const { createClient } = await import('@supabase/supabase-js');
 
                                     // 1. Probe the new schema. The canonical SQL already runs NOTIFY pgrst.
                                     const tempClient = createClient(supabaseUrl, anonKey);

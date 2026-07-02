@@ -23,6 +23,55 @@ export default defineConfig(({ mode }) => {
       }
     },
     plugins: [react()],
+    build: {
+      rolldownOptions: {
+        output: {
+          manualChunks(id) {
+            const normalizedId = id.replace(/\\/g, '/');
+
+            if (normalizedId.includes('/src/core/locales/')) {
+              return 'i18n-resources';
+            }
+
+            if (normalizedId.includes('/src/core/services/demoDataService.ts')) {
+              return 'demo-data';
+            }
+
+            if (normalizedId.includes('/src/core/services/storageService.ts')) {
+              return 'storage-service';
+            }
+
+            if (normalizedId.includes('/node_modules/@supabase/')) {
+              return 'supabase';
+            }
+
+            if (
+              normalizedId.includes('/node_modules/i18next/') ||
+              normalizedId.includes('/node_modules/react-i18next/') ||
+              normalizedId.includes('/node_modules/i18next-browser-languagedetector/')
+            ) {
+              return 'i18n';
+            }
+
+            if (
+              normalizedId.includes('/node_modules/recharts/') ||
+              normalizedId.includes('/node_modules/victory-vendor/') ||
+              normalizedId.includes('/node_modules/d3-')
+            ) {
+              return 'charts';
+            }
+
+            if (normalizedId.includes('/node_modules/@stripe/')) {
+              return 'stripe';
+            }
+
+            if (normalizedId.includes('/node_modules/@xyflow/')) {
+              return 'flow-vendor';
+            }
+          },
+        },
+      },
+    },
     define: {
       'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),

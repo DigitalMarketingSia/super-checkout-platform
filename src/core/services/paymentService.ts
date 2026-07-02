@@ -107,6 +107,13 @@ export interface ProcessPaymentResult {
 class PaymentService {
   // Adapter is now instantiated per request to support multiple accounts/dynamic keys
 
+  private resolveOrderLanguage() {
+    const rawLanguage = String(i18n.resolvedLanguage || i18n.language || 'pt').trim().toLowerCase();
+    if (rawLanguage.startsWith('en')) return 'en';
+    if (rawLanguage.startsWith('es')) return 'es';
+    return 'pt';
+  }
+
   private buildOrderMetadata(request: ProcessPaymentRequest) {
     const token = request.upgradeIntentToken?.trim();
     const context = request.upgradeIntentContext;
@@ -151,6 +158,7 @@ class PaymentService {
           currency: request.currency || 'BRL',
           gateway_id: request.gatewayId || null,
           payment_method: request.paymentMethod || null,
+          language: this.resolveOrderLanguage(),
         },
         ...(legalAcceptance ? { legal_acceptance: legalAcceptance } : {}),
         reconciliation: {
@@ -188,6 +196,7 @@ class PaymentService {
         currency: request.currency || 'BRL',
         gateway_id: request.gatewayId || null,
         payment_method: request.paymentMethod || null,
+        language: this.resolveOrderLanguage(),
       },
       ...(legalAcceptance ? { legal_acceptance: legalAcceptance } : {}),
       reconciliation: {

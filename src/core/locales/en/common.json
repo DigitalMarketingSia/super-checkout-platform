@@ -36,5 +36,93 @@
   "card_data_required": "Card data is required for credit payment",
   "invalid_amount": "Invalid payment amount",
   "payment_rejected": "Payment rejected",
-  "payment_failed": "Payment processing failed"
+  "payment_failed": "Payment processing failed",
+  "app_name": "Super Checkout",
+  "loading_system": "Loading system",
+  "config_loader_recovery_title": "Access recovery",
+  "config_loader_error_title": "Configuration error",
+  "config_loader_recovery_description": "The license key was not found. Enter your key to restore access.",
+  "config_loader_error_description": "We could not load the system configuration.",
+  "config_loader_license_label": "License key",
+  "config_loader_license_placeholder": "Enter your license key (UUID)",
+  "config_loader_license_help": "You can find this key in your control panel or confirmation email.",
+  "config_loader_save_and_enter": "Save and enter",
+  "config_loader_try_again": "Try again",
+  "config_loader_go_to_installer": "Go to installer",
+  "config_loader_connecting": "Connecting to the system...",
+  "config_loader_fetching_server_config": "Fetching server configuration",
+  "config_loader_unknown_error": "Unknown error",
+  "license_guard_validating": "Validating license",
+  "license_guard_access_blocked": "Access blocked",
+  "license_guard_missing_license": "This installation does not have a configured license.",
+  "license_guard_invalid_license": "Invalid license.",
+  "license_guard_validation_error": "Validation error: {{message}}",
+  "license_guard_dev_unknown_error": "Dev mode (unknown error)",
+  "license_guard_reason": "Reason:",
+  "license_guard_try_again": "Try again",
+  "license_guard_reset_installation": "Reset installation (clear data)",
+  "license_guard_reset_confirm": "This will clear the local configuration. Do you want to continue?",
+  "upsell_modal": {
+    "load_error": "We could not load the upgrade checkout right now.",
+    "checkout_not_configured": "The official plan checkout is not configured yet. Please try again in a moment.",
+    "secure_checkout_error": "Failed to prepare the secure checkout.",
+    "header_title": "Priority upgrade",
+    "header_subtitle": "Remove your account limits with this exclusive offer",
+    "immediate_release_title": "Immediate release",
+    "immediate_release_description": "Fast and transparent activation. Your current setup is preserved while the platform limits are removed automatically.",
+    "special_condition_applied": "Special condition applied!",
+    "save_percent": "Save {{percent}}%",
+    "lifetime_suffix": "/ lifetime",
+    "savings_amount": "You save {{value}}",
+    "preparing_checkout": "Preparing checkout...",
+    "secure_badge": "Automatic upgrade and 100% secure",
+    "decline": "No, thanks. I want to stay limited.",
+    "checkout_missing": "Official plan checkout not found. Try again in a moment or open the upgrade through the Customer Portal.",
+    "benefits": {
+      "no_locks": "No limits",
+      "one_time_payment": "One-time payment",
+      "immediate_access": "Immediate access"
+    },
+    "offers": {
+      "unlimited_domains": {
+        "title": "Elite Lifetime License",
+        "description": "Everything unlimited so you can sell more: domains, subdomains, products, checkouts, and member areas.",
+        "features": [
+          "Unlimited domains",
+          "Unlimited subdomains",
+          "Unlimited products and checkouts",
+          "Unlimited member areas"
+        ],
+        "cta": "Get lifetime upgrade",
+        "badge": "Special activation offer",
+        "price_context": "The final price below automatically follows the product linked to this upgrade plan."
+      },
+      "partner_rights": {
+        "title": "Commercial / Partner License",
+        "description": "Ideal for agencies and freelancers who want to sell implementation services and operate with a more aggressive commercial setup.",
+        "features": [
+          "Commercial usage rights",
+          "Installations for clients",
+          "Priority support",
+          "Multi-license management panel"
+        ],
+        "cta": "Become an official partner",
+        "badge": "Commercial condition",
+        "price_context": "The final price below automatically follows the partner product linked to this plan."
+      },
+      "whitelabel": {
+        "title": "Elite White Label Upgrade",
+        "description": "Completely remove our branding and present the system as your own to clients with a premium positioning layer.",
+        "features": [
+          "Everything in the commercial license",
+          "Remove Super Checkout branding",
+          "Custom logo personalization",
+          "Custom admin domain"
+        ],
+        "cta": "Activate white label",
+        "badge": "Premium layer",
+        "price_context": "The final price below follows the linked white label product whenever a published commercial setup exists."
+      }
+    }
+  }
 }

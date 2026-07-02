@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Lock, AlertTriangle } from 'lucide-react';
 import { publicSupabase, supabase } from '../services/supabase';
-import { getEnv } from '../utils/env';
 import { Loading } from './ui/Loading';
 import { isDemoHostname } from '../config/runtimeMode';
 
@@ -12,21 +12,37 @@ interface LicenseGuardProps {
 import { useInstallation } from '../context/InstallationContext';
 
 export const LicenseGuard: React.FC<LicenseGuardProps> = ({ children }) => {
+    const { t } = useTranslation('common');
     const { setInstallationId } = useInstallation();
     const [isValid, setIsValid] = useState<boolean | null>(null);
-    const [message, setMessage] = useState<string>('');
+    const [messageKey, setMessageKey] = useState<string | null>(null);
+    const [messageText, setMessageText] = useState('');
     const [loading, setLoading] = useState(true);
 
-    // Configuration
-    // CRITICAL FIX: Prioritize localStorage key saved by Installer, fallback to Env Var
     const LOCAL_KEY = typeof window !== 'undefined' ? localStorage.getItem('installer_license_key') : null;
     const LICENSE_KEY = LOCAL_KEY || import.meta.env.VITE_LICENSE_KEY;
+
+    const setTranslatedMessage = (key: string | null, text = '') => {
+        setMessageKey(key);
+        setMessageText(text);
+    };
+
+    const resolvedMessage = (() => {
+        if (messageKey === 'license_guard_validation_error') {
+            return t('license_guard_validation_error', { message: messageText || t('config_loader_unknown_error') });
+        }
+
+        if (messageKey) {
+            return t(messageKey);
+        }
+
+        return messageText;
+    })();
 
     useEffect(() => {
         const validateLicense = async () => {
             const pathname = window.location.pathname;
 
-            // Public routes must stay accessible even when the runtime is not configured yet.
             const publicBypassRoutes = [
                 '/installer',
                 '/activate',
@@ -50,27 +66,16 @@ export const LicenseGuard: React.FC<LicenseGuardProps> = ({ children }) => {
                 || pathname.startsWith('/upsell/')
                 || pathname.startsWith('/thank-you/');
 
-            // BYPASS FOR PUBLIC/INSTALLER ROUTES: never lock auth, installer, or checkout entry points
-            if (shouldBypassRoute) {
+            if (shouldBypassRoute || isDemoHostname(window.location.hostname)) {
                 setIsValid(true);
                 setLoading(false);
                 return;
             }
 
-            if (isDemoHostname(window.location.hostname)) {
-                setIsValid(true);
-                setLoading(false);
-                return;
-            }
-
-
-            const CURRENT_DOMAIN = window.location.hostname;
-            console.log(`[LicenseGuard] Verifying access for: ${CURRENT_DOMAIN}`);
+            const currentDomain = window.location.hostname;
+            console.log(`[LicenseGuard] Verifying access for: ${currentDomain}`);
 
             try {
-                // 0. CHECK CONFIGURATION: If using placeholders or missing key, we are not installed yet.
-                // We should redirect to installer instead of trying to fetch and failing.
-                // NOTE: 'placeholder.supabase.co' is defined in services/supabase.ts as fallback.
                 const supabaseUrl = (supabase as any).supabaseUrl || '';
                 if (supabaseUrl.includes('placeholder') || !LICENSE_KEY) {
                     console.warn('[LicenseGuard] App not configured (Placeholder URL or Missing Key). Redirecting to installer...');
@@ -87,13 +92,12 @@ export const LicenseGuard: React.FC<LicenseGuardProps> = ({ children }) => {
                     });
                 }
 
-                // 1. SECURITY: Query domains table (Source of Truth)
                 const variations = [
-                    CURRENT_DOMAIN,
-                    `https://${CURRENT_DOMAIN}`,
-                    `http://${CURRENT_DOMAIN}`,
-                    CURRENT_DOMAIN.replace('www.', ''),
-                    `www.${CURRENT_DOMAIN}`
+                    currentDomain,
+                    `https://${currentDomain}`,
+                    `http://${currentDomain}`,
+                    currentDomain.replace('www.', ''),
+                    `www.${currentDomain}`
                 ];
 
                 const { data: domainData, error: domainError } = await publicSupabase
@@ -101,11 +105,10 @@ export const LicenseGuard: React.FC<LicenseGuardProps> = ({ children }) => {
                     .select('type, status, usage')
                     .in('domain', variations)
                     .maybeSingle();
+
                 if (domainError) {
                     console.error('[LicenseGuard] DB verification failed:', domainError);
 
-                    // Force redirect if connection failed completely (likely invalid URL/Key)
-                    // and we are clearly in a fresh state (no localStorage cache)
                     if (domainError.message.includes('Failed to fetch') || domainError.message.includes('Mismatched')) {
                         const localKey = localStorage.getItem('installer_supabase_url');
                         if (!localKey) {
@@ -115,39 +118,24 @@ export const LicenseGuard: React.FC<LicenseGuardProps> = ({ children }) => {
                         }
                     }
 
-                    // Detailed Error for Debugging
                     const debugInfo = JSON.stringify(domainError, null, 2);
                     const errMsg = domainError?.message || domainError?.code || 'Unknown Error';
-                    throw new Error(`Erro ao verificar domÃ­nio (DB): ${errMsg} - ${debugInfo}`);
+                    throw new Error(`Domain verification error (DB): ${errMsg} - ${debugInfo}`);
                 }
 
-                // 2. DECISION LOGIC
-                if (domainData) {
-                    console.log(`[LicenseGuard] ðŸ” Domain Found: Type=${domainData.type}, Status=${domainData.status}`);
-
-                    // 3. ALLOW CUSTOM DOMAINS (Registered & Active)
-                    if (domainData.type !== 'installation') {
-                        if (domainData.status === 'active' || domainData.status === 'verified') {
-                            console.log('[LicenseGuard] âœ… ALLOW: Custom domain is active.');
-                            setIsValid(true);
-                            setLoading(false);
-                            return;
-                        } else {
-                            console.warn('[LicenseGuard] âš ï¸ BLOCK: Custom domain found but not active.');
-                            setIsValid(false);
-                            setMessage('DomÃ­nio pendente de verificaÃ§Ã£o.');
-                            setLoading(false);
-                            return;
-                        }
+                if (domainData && domainData.type !== 'installation') {
+                    if (domainData.status === 'active' || domainData.status === 'verified') {
+                        setIsValid(true);
+                        setLoading(false);
+                        return;
                     }
-                } else {
-                    console.warn(`[LicenseGuard] âš ï¸ Domain '${CURRENT_DOMAIN}' not found in DB. Attempting remote validation as fallback...`);
+
+                    setIsValid(false);
+                    setTranslatedMessage('dns_propagation_warn');
+                    setLoading(false);
+                    return;
                 }
 
-                // 4. VALIDATE LICENSE FOR INSTALLATION DOMAIN
-                console.log('[LicenseGuard] ðŸ”’ Installation Domain detected. Proceeding to license validation...');
-
-                // Get Installation ID from DB (The Anchor)
                 let installationId = localStorage.getItem('installation_id');
                 if (!installationId) {
                     const { data: configData } = await publicSupabase
@@ -158,101 +146,88 @@ export const LicenseGuard: React.FC<LicenseGuardProps> = ({ children }) => {
 
                     if (configData && configData.value) {
                         installationId = typeof configData.value === 'string'
-                            ? configData.value.replace(/"/g, '') // Remove extra quotes if JSON stringified
+                            ? configData.value.replace(/"/g, '')
                             : JSON.stringify(configData.value).replace(/"/g, '');
 
-                        localStorage.setItem('installation_id', installationId); // Cache it
+                        localStorage.setItem('installation_id', installationId);
                     } else {
-                        // FALLBACK: If DB is empty (rare), generate one locally to allow binding
-                        console.warn('[LicenseGuard] âš ï¸ No installation_id in DB. Generating fallback...');
                         installationId = crypto.randomUUID();
                         localStorage.setItem('installation_id', installationId);
                     }
                 }
 
-                const AUTH_SERVER_URL = '/api/licenses/validate';
-
-                const requestBody = {
-                    key: LICENSE_KEY,
-                    installation_id: installationId,
-                    domain: CURRENT_DOMAIN,
-                    skip_lock: true // Let the API handle locking if needed, but LicenseGuard is primarily for access check
-                };
-                console.log('[LicenseGuard] Validation Request:', requestBody);
-
-                const response = await fetch(AUTH_SERVER_URL, {
+                const response = await fetch('/api/licenses/validate', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(requestBody),
+                    body: JSON.stringify({
+                        key: LICENSE_KEY,
+                        installation_id: installationId,
+                        domain: currentDomain,
+                        skip_lock: true
+                    }),
                 });
 
                 if (!response.ok) {
                     const text = await response.text();
                     console.error('License server error:', response.status, text);
-                    if (CURRENT_DOMAIN === 'localhost') {
-                        setIsValid(true); // Dev fallback
+                    if (currentDomain === 'localhost') {
+                        setIsValid(true);
                         return;
                     }
                     throw new Error(`Server error: ${response.status} - ${text}`);
                 }
 
                 const data = await response.json();
-                console.log('[LicenseGuard] Server Response:', data);
 
                 if (data?.valid) {
-                    console.log('[LicenseGuard] âœ… License VALID');
                     setIsValid(true);
                     if (data?.usage_type) localStorage.setItem('license_usage_type', data.usage_type);
                     if (data?.role) localStorage.setItem('license_role', data.role);
-                    // SYNC: Ensure local storage matches the server's truth (app_config)
                     if (data?.installation_id) {
                         localStorage.setItem('installation_id', data.installation_id);
-                        setInstallationId(data.installation_id); // Update Authority
+                        setInstallationId(data.installation_id);
                     }
                 } else {
-                    console.log('[LicenseGuard] âŒ License INVALID');
-                    
-                    // DEV BYPASS: If on localhost, we allow access even if center says invalid
-                    // (prevents lockouts during dev when center is strict about domain binding)
                     if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-                        console.warn('[LicenseGuard] ðŸ”“ LOCALHOST DETECTED: Bypassing invalid license check for development.');
+                        console.warn('[LicenseGuard] LOCALHOST DETECTED: Bypassing invalid license check for development.');
                         setIsValid(true);
                         setLoading(false);
                         return;
                     }
 
                     setIsValid(false);
-                    setMessage(data?.message || 'LicenÃ§a invÃ¡lida.');
+                    if (data?.message === 'Missing key or domain') {
+                        setTranslatedMessage('license_guard_missing_license');
+                    } else if (data?.message) {
+                        setTranslatedMessage(null, String(data.message));
+                    } else {
+                        setTranslatedMessage('license_guard_invalid_license');
+                    }
 
-                    // If revoked, clear critical data to prevent loop but allowing installer to run if needed
                     if (data?.message?.includes('revoked')) {
                         localStorage.removeItem('license_role');
-                        // Optional: Clear tokens if we want to force re-login/re-install? 
-                        // For now, blocking access is enough.
                     }
                 }
-
             } catch (error: any) {
                 console.error('License validation exception:', error);
 
-                // Dev fallback
                 if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
                     setIsValid(true);
-                    setMessage('Modo Dev (Erro desconhecido)');
+                    setTranslatedMessage('license_guard_dev_unknown_error');
                 } else {
                     setIsValid(false);
-                    setMessage(`Erro de validaÃ§Ã£o: ${error.message}`);
+                    setTranslatedMessage('license_guard_validation_error', error?.message || '');
                 }
             } finally {
                 setLoading(false);
             }
         };
 
-        validateLicense();
-    }, []);
+        void validateLicense();
+    }, [LICENSE_KEY, setInstallationId]);
 
     if (loading) {
-        return <Loading label="Validando licenca" />;
+        return <Loading label={t('license_guard_validating')} />;
     }
 
     if (isValid === false) {
@@ -262,21 +237,17 @@ export const LicenseGuard: React.FC<LicenseGuardProps> = ({ children }) => {
                     <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6 text-red-500">
                         <Lock className="w-8 h-8" />
                     </div>
-                    <h1 className="text-2xl font-bold text-white mb-2">Acesso Bloqueado</h1>
-                    <p className="text-gray-400 mb-6">
-                        {message === 'Missing key or domain'
-                            ? 'Esta instalaÃ§Ã£o nÃ£o possui uma licenÃ§a configurada.'
-                            : message}
-                    </p>
+                    <h1 className="text-2xl font-bold text-white mb-2">{t('license_guard_access_blocked')}</h1>
+                    <p className="text-gray-400 mb-6">{resolvedMessage}</p>
 
                     <div className="bg-red-500/5 border border-red-500/10 rounded-lg p-4 text-left mb-6">
                         <div className="flex items-start gap-3">
                             <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
                             <div className="text-sm text-gray-300">
-                                <p className="font-bold text-red-400 mb-1">Motivo:</p>
-                                <p>{message}</p>
+                                <p className="font-bold text-red-400 mb-1">{t('license_guard_reason')}</p>
+                                <p>{resolvedMessage}</p>
                                 {LICENSE_KEY && (
-                                    <p className="mt-2 text-xs text-gray-500 font-mono">Key: {LICENSE_KEY.substring(0, 8)}...</p>
+                                    <p className="mt-2 text-xs text-gray-500 font-mono">{t('config_loader_license_label')}: {LICENSE_KEY.substring(0, 8)}...</p>
                                 )}
                             </div>
                         </div>
@@ -287,12 +258,12 @@ export const LicenseGuard: React.FC<LicenseGuardProps> = ({ children }) => {
                             onClick={() => window.location.reload()}
                             className="w-full py-3 bg-primary hover:bg-primary-dark text-white rounded-xl transition-colors font-medium shadow-lg shadow-primary/20"
                         >
-                            Tentar Novamente
+                            {t('license_guard_try_again')}
                         </button>
 
                         <button
                             onClick={() => {
-                                if (confirm('Isso irÃ¡ limpar as configuraÃ§Ãµes locais. Deseja continuar?')) {
+                                if (confirm(t('license_guard_reset_confirm'))) {
                                     localStorage.removeItem('installer_license_key');
                                     localStorage.removeItem('installer_supabase_url');
                                     localStorage.removeItem('installer_supabase_anon_key');
@@ -303,7 +274,7 @@ export const LicenseGuard: React.FC<LicenseGuardProps> = ({ children }) => {
                             }}
                             className="w-full py-3 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white rounded-xl transition-colors font-medium text-sm"
                         >
-                            Resetar InstalaÃ§Ã£o (Limpar Dados)
+                            {t('license_guard_reset_installation')}
                         </button>
                     </div>
                 </div>
