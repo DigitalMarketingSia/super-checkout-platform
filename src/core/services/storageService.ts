@@ -20,6 +20,12 @@ export { supabase };
 
 import { User } from '@supabase/supabase-js';
 
+const debugLog = (...args: unknown[]) => {
+  if (import.meta.env.DEV) {
+    console.log(...args);
+  }
+};
+
 function mapProductRecord(record: any, overrides: Partial<Product> = {}): Product {
   const priceReal = record.price_real ?? record.price;
   const normalizedPriceReal = priceReal === null || priceReal === undefined || priceReal === ''
@@ -92,7 +98,7 @@ class StorageService {
       if (isDemoMemberSurface) {
         const demoMemberUser = demoDataService.getCurrentMemberUser();
         if (demoMemberUser) {
-          console.log('[StorageService] getUser: Returning demo member user', demoMemberUser.id);
+          debugLog('[StorageService] getUser: Returning demo member user', demoMemberUser.id);
           return demoMemberUser;
         }
       }
@@ -102,12 +108,12 @@ class StorageService {
     // 1. Priority: Check cached user from AuthContext (Source of Truth)
     const cachedUser = getCachedAuthUser();
     if (cachedUser) {
-      console.log('[StorageService] getUser: Returning cached user', cachedUser.id);
+      debugLog('[StorageService] getUser: Returning cached user', cachedUser.id);
       return cachedUser;
     }
 
     try {
-      console.log('[StorageService] getUser: No cache, fetching session...');
+      debugLog('[StorageService] getUser: No cache, fetching session...');
       // 2. Try local session (Standard)
       const sessionPromise = supabase.auth.getSession();
       const timeoutPromise = new Promise<{ data: { session: null }, error: any }>((resolve) =>
@@ -117,7 +123,7 @@ class StorageService {
       const { data: { session }, error } = await Promise.race([sessionPromise, timeoutPromise]);
 
       if (session?.user) {
-        console.log('[StorageService] getUser: Session found', session.user.id);
+        debugLog('[StorageService] getUser: Session found', session.user.id);
         setCachedAuthUser(session.user);
         return session.user;
       }
@@ -128,7 +134,7 @@ class StorageService {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
 
       if (user) {
-        console.log('[StorageService] getUser: Server user found', user.id);
+        debugLog('[StorageService] getUser: Server user found', user.id);
         setCachedAuthUser(user);
         return user;
       }
@@ -2365,6 +2371,10 @@ class StorageService {
     const user = await this.getUser();
     if (!user) return null;
 
+    if (isDemoDataRuntime()) {
+      return demoDataService.getLessonProgress(lessonId, user.id);
+    }
+
     const { data, error } = await supabase
       .from('lesson_progress')
       .select('*')
@@ -2443,6 +2453,14 @@ class StorageService {
   async updateLessonProgress(progress: { lesson_id: string, completed: boolean, last_position_seconds?: number }) {
     const user = await this.getUser();
     if (!user) return;
+
+    if (isDemoDataRuntime()) {
+      await demoDataService.updateLessonProgress({
+        ...progress,
+        user_id: user.id,
+      });
+      return;
+    }
 
     const { error } = await supabase
       .from('lesson_progress')

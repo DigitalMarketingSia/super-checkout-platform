@@ -23,6 +23,12 @@ import {
 import { domainLookupService } from './services/domainLookupService';
 import { DomainUsage } from './types';
 
+const debugLog = (...args: unknown[]) => {
+  if (import.meta.env.DEV) {
+    console.log(...args);
+  }
+};
+
 const Dashboard = React.lazy(() => import('./pages/admin/Dashboard').then((mod) => ({ default: mod.Dashboard })));
 const Products = React.lazy(() => import('./pages/admin/Products').then((mod) => ({ default: mod.Products })));
 const Offers = React.lazy(() => import('./pages/admin/Offers').then((mod) => ({ default: mod.Offers })));
@@ -219,29 +225,29 @@ const DomainDispatcher = () => {
     const checkDomain = async () => {
       const hostname = window.location.hostname;
 
-      console.log('Current hostname:', hostname);
+      debugLog('Current hostname:', hostname);
 
       // Ignorar dominios do sistema
       if (isSystemHostname(hostname)) {
-        console.log('System domain detected, skipping custom domain check.');
+        debugLog('System domain detected, skipping custom domain check.');
         setLoading(false);
         return;
       }
 
       try {
-        console.log('Checking custom domain in DB...');
+        debugLog('Checking custom domain in DB...');
         const domain = await domainLookupService.getDomainByHostname(hostname);
-        console.log('Domain found:', domain);
+        debugLog('Domain found:', domain);
 
         if (domain) {
           if (domain.status !== 'active') {
-            console.log('Domain pending. Attempting auto-verification...');
+            debugLog('Domain pending. Attempting auto-verification...');
             try {
               const verifyRes = await fetch(`/api/domains/verify?domain=${hostname}`);
               const verifyData = await verifyRes.json();
 
               if (verifyData.verified && verifyData.status === 'active') {
-                console.log('Auto-verification successful! Reloading...');
+                debugLog('Auto-verification successful! Reloading...');
                 window.location.reload();
                 return;
               }
@@ -288,12 +294,12 @@ const DomainDispatcher = () => {
           }
 
           if (domain.usage === DomainUsage.SYSTEM) {
-            console.log('System domain detected, allowing standard routing.');
+            debugLog('System domain detected, allowing standard routing.');
             setLoading(false);
             return;
           }
 
-          console.log('Unknown domain usage, allowing standard routing.');
+          debugLog('Unknown domain usage, allowing standard routing.');
           setLoading(false);
         } else {
           setError(t('domain_not_configured'));

@@ -10,6 +10,7 @@ import {
   GatewayProvider,
   Integration,
   Lesson,
+  LessonProgress,
   LessonResource,
   MemberArea,
   Module,
@@ -186,6 +187,7 @@ interface DemoRuntimeState {
   orders: Order[];
   payments: Payment[];
   access_grants: AccessGrant[];
+  lesson_progress: LessonProgress[];
   members: DemoRuntimeMember[];
   member_tickets: DemoRuntimeMemberTicket[];
   business_settings: DemoBusinessSettingsRecord | null;
@@ -642,6 +644,7 @@ const buildEmptyRuntimeState = (workspace: DemoWorkspace): DemoRuntimeState => (
   orders: [],
   payments: [],
   access_grants: [],
+  lesson_progress: [],
   members: [buildSeedMember(workspace)],
   member_tickets: [],
   business_settings: buildDefaultDemoBusinessSettings(workspace),
@@ -973,6 +976,24 @@ const normalizeTickets = (tickets: unknown): DemoRuntimeMemberTicket[] =>
         })
     : [];
 
+const normalizeLessonProgress = (progressEntries: unknown): LessonProgress[] =>
+  Array.isArray(progressEntries)
+    ? progressEntries
+        .filter((entry) => entry && typeof entry === 'object')
+        .map((entry: any): LessonProgress => ({
+          id: String(entry.id || `demo-progress:${simpleHash(`${entry.user_id || ''}:${entry.lesson_id || ''}`)}`),
+          user_id: String(entry.user_id || '').trim(),
+          lesson_id: String(entry.lesson_id || '').trim(),
+          completed: entry.completed === true,
+          last_position_seconds:
+            typeof entry.last_position_seconds === 'number'
+              ? entry.last_position_seconds
+              : undefined,
+          updated_at: String(entry.updated_at || new Date().toISOString()),
+        }))
+        .filter((entry) => Boolean(entry.user_id) && Boolean(entry.lesson_id))
+    : [];
+
 const normalizeDemoWebhooks = (webhooks: unknown): WebhookConfig[] =>
   Array.isArray(webhooks)
     ? webhooks
@@ -1301,6 +1322,7 @@ const loadRuntimeState = (workspace: DemoWorkspace): DemoRuntimeState => {
       orders: Array.isArray(parsed.orders) ? parsed.orders : [],
       payments: Array.isArray(parsed.payments) ? parsed.payments : [],
       access_grants: Array.isArray(parsed.access_grants) ? parsed.access_grants : [],
+      lesson_progress: normalizeLessonProgress(parsed.lesson_progress),
       members: normalizeMembers(workspace, parsed.members),
       member_tickets: normalizeTickets(parsed.member_tickets),
       business_settings: normalizeDemoBusinessSettings(workspace, parsed.business_settings),
@@ -2946,6 +2968,53 @@ export const demoDataService = {
     persistRuntimeState(workspace, {
       ...state,
       access_grants: upsertById(state.access_grants, nextGrant),
+    });
+  },
+
+  async getLessonProgress(lessonId: string, userId?: string | null): Promise<LessonProgress | null> {
+    const workspace = await getWorkspace();
+    if (!workspace) return null;
+
+    const resolvedUserId = String(userId || this.getCurrentMemberSession()?.user_id || '').trim();
+    if (!resolvedUserId) return null;
+
+    const state = reconcileRuntimeState(workspace, loadRuntimeState(workspace));
+    persistRuntimeState(workspace, state);
+
+    return state.lesson_progress.find(
+      (entry) => entry.lesson_id === lessonId && entry.user_id === resolvedUserId,
+    ) || null;
+  },
+
+  async updateLessonProgress(progress: {
+    lesson_id: string;
+    completed: boolean;
+    last_position_seconds?: number;
+    user_id?: string | null;
+  }) {
+    const workspace = await getWorkspace();
+    if (!workspace) return;
+
+    const resolvedUserId = String(progress.user_id || this.getCurrentMemberSession()?.user_id || '').trim();
+    if (!resolvedUserId) return;
+
+    const state = reconcileRuntimeState(workspace, loadRuntimeState(workspace));
+    const existing = state.lesson_progress.find(
+      (entry) => entry.lesson_id === progress.lesson_id && entry.user_id === resolvedUserId,
+    );
+
+    const nextEntry: LessonProgress = {
+      id: existing?.id || `demo-progress:${workspace.id}:${simpleHash(`${resolvedUserId}:${progress.lesson_id}`)}`,
+      user_id: resolvedUserId,
+      lesson_id: progress.lesson_id,
+      completed: progress.completed,
+      last_position_seconds: progress.last_position_seconds,
+      updated_at: new Date().toISOString(),
+    };
+
+    persistRuntimeState(workspace, {
+      ...state,
+      lesson_progress: upsertById(state.lesson_progress, nextEntry),
     });
   },
 

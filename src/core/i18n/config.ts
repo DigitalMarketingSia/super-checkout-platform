@@ -41,6 +41,7 @@ i18n
   .use(initReactI18next)
   .init({
     fallbackLng: 'en',
+    showSupportNotice: false,
     ns: ['common', 'auth', 'portal', 'installer', 'admin', 'member', 'public'],
     defaultNS: 'common',
     interpolation: {
