@@ -132,6 +132,40 @@ function buildPagbankReconnectError(message: string) {
   return new Error(message);
 }
 
+function getPagbankErrorCode(error: Error | null) {
+  const message = String(error?.message || '').trim();
+  if (!message) return null;
+  const [code] = message.split(':');
+  return code || null;
+}
+
+async function persistGatewayOauthHealth(params: {
+  supabaseAdmin: any;
+  gateway: GatewayLike;
+  patch: Record<string, any>;
+}) {
+  if (!params.gateway?.id) return;
+
+  const nextCredentials = {
+    ...((params.gateway?.credentials || {}) as Record<string, any>),
+    ...params.patch,
+  };
+
+  let query = params.supabaseAdmin
+    .from('gateways')
+    .update({ credentials: nextCredentials })
+    .eq('id', params.gateway.id);
+
+  if (params.gateway.user_id) {
+    query = query.eq('user_id', params.gateway.user_id);
+  }
+
+  const { error } = await query;
+  if (error) throw error;
+
+  params.gateway.credentials = nextCredentials;
+}
+
 function buildLocalPagbankConfig(environment: PagbankEnvironment) {
   const sandbox = environment === 'sandbox';
   const clientId = String(
@@ -309,11 +343,15 @@ async function persistGatewayOauthState(params: {
   supabaseAdmin: any;
   gateway: GatewayLike;
   response: RefreshResponse;
+  environment: PagbankEnvironment;
+  source: 'central_refresh' | 'local_refresh';
 }) {
   const accessToken = String(params.response.access_token || '').trim();
   if (!accessToken) {
     throw new Error('PAGBANK_REFRESH_EMPTY_ACCESS_TOKEN');
   }
+
+  const nowIso = new Date().toISOString();
 
   const nextCredentials = {
     ...((params.gateway?.credentials || {}) as Record<string, any>),
@@ -321,9 +359,18 @@ async function persistGatewayOauthState(params: {
     oauth_refresh_token: params.response.refresh_token
       ? encrypt(params.response.refresh_token)
       : ((params.gateway?.credentials || {}) as Record<string, any>)?.oauth_refresh_token || null,
+    oauth_environment: params.environment,
     oauth_expires_at: toExpiresAt(params.response.expires_in),
     oauth_scope: params.response.scope || ((params.gateway?.credentials || {}) as Record<string, any>)?.oauth_scope || null,
     oauth_token_type: params.response.token_type || ((params.gateway?.credentials || {}) as Record<string, any>)?.oauth_token_type || null,
+    oauth_status: 'connected',
+    oauth_last_refresh_attempt_at: nowIso,
+    oauth_last_refresh_status: 'success',
+    oauth_last_refresh_source: params.source,
+    oauth_last_refresh_error: null,
+    oauth_last_refresh_error_code: null,
+    oauth_reconnect_required_at: null,
+    oauth_last_connected_at: nowIso,
   };
 
   const updatePayload: Record<string, unknown> = {
@@ -439,6 +486,8 @@ export async function resolvePagbankAccessToken(params: {
         supabaseAdmin: params.supabaseAdmin,
         gateway,
         response: refreshResponse,
+        environment,
+        source: refreshSource || 'central_refresh',
       });
 
       return {
@@ -461,6 +510,25 @@ export async function resolvePagbankAccessToken(params: {
       error: refreshError?.message || 'unknown',
     });
 
+    try {
+      await persistGatewayOauthHealth({
+        supabaseAdmin: params.supabaseAdmin,
+        gateway,
+        patch: {
+          oauth_status: 'attention',
+          oauth_last_refresh_attempt_at: new Date().toISOString(),
+          oauth_last_refresh_status: 'fallback',
+          oauth_last_refresh_source: refreshSource || 'fallback',
+          oauth_last_refresh_error: refreshError?.message || null,
+          oauth_last_refresh_error_code: getPagbankErrorCode(refreshError),
+          oauth_reconnect_required_at: null,
+          oauth_last_token_source: 'stored_token_fallback',
+        },
+      });
+    } catch (healthError: any) {
+      console.error('[PagBankToken] Failed to persist fallback OAuth health:', healthError?.message || healthError);
+    }
+
     return {
       accessToken: currentAccessToken,
       environment,
@@ -475,6 +543,24 @@ export async function resolvePagbankAccessToken(params: {
     environment,
     error: refreshError?.message || 'unknown',
   });
+
+  try {
+    await persistGatewayOauthHealth({
+      supabaseAdmin: params.supabaseAdmin,
+      gateway,
+      patch: {
+        oauth_status: 'reconnect_required',
+        oauth_last_refresh_attempt_at: new Date().toISOString(),
+        oauth_last_refresh_status: 'failed',
+        oauth_last_refresh_source: refreshSource || 'failed',
+        oauth_last_refresh_error: refreshError?.message || null,
+        oauth_last_refresh_error_code: getPagbankErrorCode(refreshError),
+        oauth_reconnect_required_at: new Date().toISOString(),
+      },
+    });
+  } catch (healthError: any) {
+    console.error('[PagBankToken] Failed to persist failed OAuth health:', healthError?.message || healthError);
+  }
 
   throw buildPagbankReconnectError('A conexao PagBank expirou ou precisa ser reconectada no admin antes de processar novos pagamentos.');
 }

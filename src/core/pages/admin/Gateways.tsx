@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { CheckCircle, Lock, ShieldCheck, Zap, ArrowRight } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Lock, ShieldCheck, Zap, ArrowRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { BusinessSetupModal } from '../../components/admin/BusinessSetupModal';
 import { Layout } from '../../components/Layout';
@@ -66,6 +66,53 @@ const DEFAULT_PAGSEGURO_CONFIG: PagSeguroConfigState = {
   min_installment_value: 5.0,
   has_private_key: false,
   has_webhook_secret: false,
+};
+
+type PagbankStatusTone = 'success' | 'warning' | 'danger' | 'neutral';
+
+const formatStatusDate = (value: unknown) => {
+  const rawValue = typeof value === 'string' ? value.trim() : '';
+  if (!rawValue) return null;
+
+  const parsed = Date.parse(rawValue);
+  if (!Number.isFinite(parsed)) return null;
+
+  return new Date(parsed).toLocaleString('pt-BR');
+};
+
+const formatPagbankEnvironmentLabel = (value: unknown) => {
+  return value === 'sandbox' ? 'Sandbox' : 'Producao';
+};
+
+const formatPagbankRefreshSource = (value: unknown) => {
+  switch (String(value || '').trim()) {
+    case 'central_refresh':
+      return 'Refresh central';
+    case 'local_refresh':
+      return 'Refresh local';
+    case 'oauth_connect':
+      return 'Conexao oficial';
+    case 'oauth_connect_sandbox':
+      return 'Conexao sandbox';
+    case 'oauth_callback':
+      return 'Callback oficial';
+    case 'oauth_callback_sandbox':
+      return 'Callback sandbox';
+    case 'admin_disconnect':
+      return 'Desconexao manual';
+    case 'fallback':
+      return 'Fallback do token salvo';
+    case 'failed':
+      return 'Falha sem refresh';
+    default:
+      return String(value || '').trim() || null;
+  }
+};
+
+const normalizeInlineMessage = (value: unknown, maxLength: number = 140) => {
+  const message = String(value || '').replace(/\s+/g, ' ').trim();
+  if (!message) return null;
+  return message.length > maxLength ? `${message.slice(0, maxLength - 3)}...` : message;
 };
 
 export const Gateways = () => {
@@ -291,6 +338,7 @@ export const Gateways = () => {
         ...(activeModalApp === 'pagseguro' && pagbankDisconnectRequested ? {
           clear_private_key: true,
           clear_public_key: true,
+          clear_oauth_credentials: true,
         } : {}),
       };
 
@@ -540,6 +588,164 @@ export const Gateways = () => {
   const webhookSecretStatusMessage = activeConfig.has_webhook_secret && !activeConfig.webhook_secret.trim()
     ? 'Webhook secret ja salvo. Deixe em branco para manter ou preencha para substituir.'
     : 'Preencha apenas se quiser salvar ou substituir o token de webhook.';
+  const pagbankGateway = gateways.find(gateway => {
+    const gatewayName = String(gateway.name || '').trim().toLowerCase();
+    const gatewayProvider = String(gateway.provider || '').trim().toLowerCase();
+    return gatewayName === GatewayProvider.PAGSEGURO || gatewayProvider === GatewayProvider.PAGSEGURO;
+  });
+  const pagbankCredentials = pagbankGateway?.credentials && typeof pagbankGateway.credentials === 'object'
+    ? pagbankGateway.credentials
+    : {};
+  const pagbankOauthConnected = pagbankCredentials.connected_via_oauth === true;
+  const pagbankOauthEnvironment = pagbankCredentials.oauth_environment === 'sandbox'
+    ? 'sandbox'
+    : pagbankCredentials.oauth_environment === 'production'
+      ? 'production'
+      : null;
+  const pagbankOauthStatus = String(pagbankCredentials.oauth_status || '').trim();
+  const pagbankRefreshStatus = String(pagbankCredentials.oauth_last_refresh_status || '').trim();
+  const pagbankRefreshSource = formatPagbankRefreshSource(pagbankCredentials.oauth_last_refresh_source);
+  const pagbankRefreshError = normalizeInlineMessage(pagbankCredentials.oauth_last_refresh_error);
+  const pagbankRefreshErrorCode = String(pagbankCredentials.oauth_last_refresh_error_code || '').trim();
+  const pagbankAccountId = String(pagbankCredentials.oauth_account_id || '').trim();
+  const pagbankExpiresAt = typeof pagbankCredentials.oauth_expires_at === 'string'
+    ? pagbankCredentials.oauth_expires_at
+    : null;
+  const pagbankLastAttemptAt = typeof pagbankCredentials.oauth_last_refresh_attempt_at === 'string'
+    ? pagbankCredentials.oauth_last_refresh_attempt_at
+    : null;
+  const pagbankReconnectRequiredAt = typeof pagbankCredentials.oauth_reconnect_required_at === 'string'
+    ? pagbankCredentials.oauth_reconnect_required_at
+    : null;
+  const pagbankConnectedAt = typeof pagbankCredentials.oauth_last_connected_at === 'string'
+    ? pagbankCredentials.oauth_last_connected_at
+    : null;
+  const pagbankHasRefreshToken = Boolean(pagbankCredentials.oauth_refresh_token);
+  const pagbankExpiresAtMs = pagbankExpiresAt ? Date.parse(pagbankExpiresAt) : 0;
+  const pagbankReconnectRequired = pagbankOauthStatus === 'reconnect_required';
+  const pagbankFallbackMode = pagbankOauthStatus === 'attention' || pagbankRefreshStatus === 'fallback';
+  const pagbankDisconnected = pagbankOauthStatus === 'disconnected';
+  const pagbankEnvironmentMismatch = pagbankOauthConnected
+    && Boolean(pagbankOauthEnvironment)
+    && pagbankOauthEnvironment !== pagSeguroConfig.environment;
+  const pagbankManualMode = pagSeguroConfig.has_private_key && !pagbankOauthConnected && !pagbankDisconnectRequested;
+  const pagbankTokenExpired = Number.isFinite(pagbankExpiresAtMs) && pagbankExpiresAtMs > 0 && pagbankExpiresAtMs <= Date.now();
+  const pagbankTokenExpiringSoon = Number.isFinite(pagbankExpiresAtMs)
+    && pagbankExpiresAtMs > Date.now()
+    && pagbankExpiresAtMs <= Date.now() + (24 * 60 * 60 * 1000);
+  const pagbankIncompleteOauth = pagbankOauthConnected && !pagbankHasRefreshToken;
+  const pagbankOperationalToneClasses: Record<PagbankStatusTone, string> = {
+    success: 'border-emerald-500/30 bg-emerald-500/10',
+    warning: 'border-amber-500/30 bg-amber-500/10',
+    danger: 'border-red-500/30 bg-red-500/10',
+    neutral: 'border-white/10 bg-white/5',
+  };
+  const pagbankOperationalStatus = (() => {
+    if (pagbankDisconnectRequested) {
+      return {
+        tone: 'neutral' as PagbankStatusTone,
+        badge: 'Desconexao pendente',
+        title: 'Desconexao pronta para salvar',
+        message: 'Ao salvar, o gateway sera desativado e os tokens OAuth do PagBank serao removidos desta conta.',
+        actionLabel: 'Conectar com PagBank',
+      };
+    }
+
+    if (pagbankEnvironmentMismatch) {
+      return {
+        tone: 'warning' as PagbankStatusTone,
+        badge: 'Reautorizacao necessaria',
+        title: 'Ambiente alterado apos a conexao',
+        message: `A conta foi autorizada em ${formatPagbankEnvironmentLabel(pagbankOauthEnvironment)} e o gateway agora esta em ${formatPagbankEnvironmentLabel(pagSeguroConfig.environment)}. Reconecte para emitir um token no ambiente correto.`,
+        actionLabel: 'Reautorizar com PagBank',
+      };
+    }
+
+    if (pagbankReconnectRequired || pagbankIncompleteOauth) {
+      return {
+        tone: 'danger' as PagbankStatusTone,
+        badge: 'Reconexao obrigatoria',
+        title: 'O PagBank exige nova autorizacao',
+        message: pagbankTokenExpired
+          ? 'O token atual ja expirou e o PagBank pediu nova autorizacao. Reconecte antes de liberar novos pagamentos por este gateway.'
+          : 'O refresh expirou, foi recusado ou ficou incompleto. Reconecte antes de liberar novos pagamentos por este gateway.',
+        actionLabel: 'Reconectar com PagBank',
+      };
+    }
+
+    if (pagbankFallbackMode) {
+      return {
+        tone: 'warning' as PagbankStatusTone,
+        badge: 'Operando em fallback',
+        title: 'Refresh falhou, mas o token atual segue em uso',
+        message: 'O sistema manteve o ultimo token valido para evitar parada imediata. Reautorize o PagBank para restaurar a renovacao automatica.',
+        actionLabel: 'Reautorizar com PagBank',
+      };
+    }
+
+    if (pagbankManualMode) {
+      return {
+        tone: 'warning' as PagbankStatusTone,
+        badge: 'Modo manual ativo',
+        title: 'Gateway funcionando fora da conexao oficial',
+        message: 'Existe um token salvo manualmente. O fluxo funciona, mas sem refresh automatico. Recomendado migrar para a conexao oficial do PagBank.',
+        actionLabel: 'Migrar para Conexao Oficial',
+      };
+    }
+
+    if (pagbankOauthConnected && pagSeguroConfig.has_private_key) {
+      return {
+        tone: 'success' as PagbankStatusTone,
+        badge: 'Conexao oficial ativa',
+        title: pagbankTokenExpiringSoon ? 'Conta conectada com renovacao proxima' : 'Conta conectada e pronta para uso',
+        message: pagbankTokenExpiringSoon
+          ? 'A conexao oficial esta ativa. O sistema deve renovar o token sozinho na proxima operacao, mas voce ja pode reautorizar se quiser antecipar.'
+          : 'A conta esta autorizada via OAuth oficial, com refresh automatico e chaves operacionais mantidas pelo sistema.',
+        actionLabel: 'Reautorizar com PagBank',
+      };
+    }
+
+    if (pagbankDisconnected) {
+      return {
+        tone: 'neutral' as PagbankStatusTone,
+        badge: 'Conta desconectada',
+        title: 'Nenhum token oficial salvo',
+        message: 'Esta conta foi desconectada do PagBank. Use a conexao oficial para gerar um novo token e reativar o gateway.',
+        actionLabel: 'Conectar com PagBank',
+      };
+    }
+
+    return {
+      tone: 'neutral' as PagbankStatusTone,
+      badge: 'Conta nao conectada',
+      title: 'Conecte o PagBank para operar',
+      message: 'A autorizacao oficial cria e renova o token automaticamente. Se preferir rollback, voce pode desconectar e salvar para desativar o gateway.',
+      actionLabel: 'Conectar com PagBank',
+    };
+  })();
+  const pagbankOperationalBadgeClass = pagbankOperationalStatus.tone === 'success'
+    ? 'text-primary'
+    : pagbankOperationalStatus.tone === 'danger'
+      ? 'text-red-400'
+      : pagbankOperationalStatus.tone === 'warning'
+        ? 'text-amber-300'
+        : 'text-gray-400';
+  const pagbankOperationalMeta = [
+    { label: 'Ambiente do gateway', value: formatPagbankEnvironmentLabel(pagSeguroConfig.environment) },
+    ...(pagbankOauthEnvironment ? [{ label: 'Ambiente autorizado', value: formatPagbankEnvironmentLabel(pagbankOauthEnvironment) }] : []),
+    ...(pagbankAccountId ? [{ label: 'Conta OAuth', value: pagbankAccountId }] : []),
+    ...(pagbankConnectedAt ? [{ label: 'Ultima conexao', value: formatStatusDate(pagbankConnectedAt) }] : []),
+    ...(pagbankExpiresAt ? [{ label: 'Expira em', value: formatStatusDate(pagbankExpiresAt) }] : []),
+    ...(pagbankLastAttemptAt ? [{ label: 'Ultima tentativa de refresh', value: formatStatusDate(pagbankLastAttemptAt) }] : []),
+    ...(pagbankRefreshSource ? [{ label: 'Origem da ultima atualizacao', value: pagbankRefreshSource }] : []),
+    ...(pagbankReconnectRequiredAt ? [{ label: 'Reconexao exigida em', value: formatStatusDate(pagbankReconnectRequiredAt) }] : []),
+    ...((pagbankRefreshErrorCode || pagbankRefreshError)
+      ? [{
+          label: 'Ultimo erro',
+          value: [pagbankRefreshErrorCode, pagbankRefreshError].filter(Boolean).join(' - '),
+        }]
+      : []),
+  ].filter(meta => Boolean(meta.value));
 
   const updateActiveConfig = (partial: Partial<MercadoPagoConfigState & StripeConfigState & PagSeguroConfigState>) => {
     if (isMercadoPagoModal) {
@@ -725,6 +931,7 @@ export const Gateways = () => {
         onClose={() => {
           setIsModalOpen(false);
           setActiveModalApp(null);
+          setPagbankDisconnectRequested(false);
         }}
         title={activeModalTitle}
         className="max-w-2xl"
@@ -782,6 +989,44 @@ export const Gateways = () => {
                   </p>
                 </div>
                 
+                <div className={`w-full max-w-xl rounded-[1.6rem] border p-5 text-left ${pagbankOperationalToneClasses[pagbankOperationalStatus.tone]}`}>
+                  <div className="flex items-start gap-4">
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${pagbankOperationalStatus.tone === 'success' ? 'bg-emerald-500/15 text-emerald-300' : pagbankOperationalStatus.tone === 'danger' ? 'bg-red-500/15 text-red-300' : pagbankOperationalStatus.tone === 'warning' ? 'bg-amber-500/15 text-amber-200' : 'bg-white/10 text-gray-300'}`}>
+                      {pagbankOperationalStatus.tone === 'success' ? (
+                        <CheckCircle className="w-5 h-5" />
+                      ) : (
+                        <AlertTriangle className="w-5 h-5" />
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <div className={`text-[10px] font-black uppercase tracking-[0.18em] ${pagbankOperationalBadgeClass}`}>
+                        {pagbankOperationalStatus.badge}
+                      </div>
+                      <h4 className="mt-2 text-sm font-black uppercase tracking-[0.08em] text-white">
+                        {pagbankOperationalStatus.title}
+                      </h4>
+                      <p className="mt-2 text-xs text-gray-300 leading-relaxed">
+                        {pagbankOperationalStatus.message}
+                      </p>
+                    </div>
+                  </div>
+
+                  {pagbankOperationalMeta.length > 0 && (
+                    <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {pagbankOperationalMeta.map(meta => (
+                        <div key={meta.label} className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+                          <div className="text-[9px] font-black uppercase tracking-[0.16em] text-gray-500">
+                            {meta.label}
+                          </div>
+                          <div className="mt-1 text-xs text-white leading-relaxed break-words">
+                            {meta.value}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 <Button 
                   type="button" 
                   onClick={handlePagbankOauth} 
@@ -789,7 +1034,7 @@ export const Gateways = () => {
                   variant="primary" 
                   className="px-8 py-4 font-black uppercase text-xs tracking-widest rounded-full w-full max-w-sm"
                 >
-                  {isConnectingOauth ? 'Conectando...' : (activeConfig.has_private_key ? 'Re-Conectar com PagBank' : 'Conectar com PagBank')}
+                  {isConnectingOauth ? 'Conectando...' : pagbankOperationalStatus.actionLabel}
                 </Button>
 
                 {pagbankDebugUnlocked && pagSeguroConfig.environment === 'sandbox' && (
@@ -816,18 +1061,25 @@ export const Gateways = () => {
                   </div>
                 )}
                 
-                {activeConfig.has_private_key && (
+                {(pagSeguroConfig.has_private_key || pagbankOauthConnected || pagbankDisconnectRequested) && (
                   <div className="flex flex-col items-center gap-3 w-full mt-2">
-                    <div className="text-[10px] font-black text-primary uppercase tracking-widest flex items-center gap-2">
-                      <CheckCircle className="w-3 h-3" /> Conta Conectada
+                    <div className={`text-[10px] font-black uppercase tracking-widest flex items-center gap-2 ${pagbankOperationalBadgeClass}`}>
+                      {pagbankOperationalStatus.tone === 'success' ? (
+                        <CheckCircle className="w-3 h-3" />
+                      ) : (
+                        <AlertTriangle className="w-3 h-3" />
+                      )}
+                      {pagbankOperationalStatus.badge}
                     </div>
-                    <button
-                      type="button"
-                      onClick={handlePagbankDisconnect}
-                      className="text-[10px] font-black text-red-500 uppercase tracking-widest hover:underline"
-                    >
-                      Desconectar
-                    </button>
+                    {!pagbankDisconnectRequested && (
+                      <button
+                        type="button"
+                        onClick={handlePagbankDisconnect}
+                        className="text-[10px] font-black text-red-500 uppercase tracking-widest hover:underline"
+                      >
+                        Desconectar
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -851,6 +1103,11 @@ export const Gateways = () => {
                     </button>
                   ))}
                 </div>
+                <p className="mt-4 text-[10px] font-black text-gray-600 uppercase tracking-widest leading-relaxed">
+                  {pagbankOauthConnected
+                    ? 'Se voce trocar o ambiente depois da conexao, reautorize o PagBank para emitir um token no destino correto.'
+                    : 'Escolha o ambiente antes de conectar para gerar o token oficial certo.'}
+                </p>
               </Card>
             )}
 
@@ -931,7 +1188,17 @@ export const Gateways = () => {
               <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Habilitar Gateway</span>
             </div>
             <div className="flex gap-4">
-              <button type="button" onClick={() => setIsModalOpen(false)} className="px-6 py-4 text-[10px] font-black text-gray-600 uppercase tracking-widest">Abortar</button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsModalOpen(false);
+                  setActiveModalApp(null);
+                  setPagbankDisconnectRequested(false);
+                }}
+                className="px-6 py-4 text-[10px] font-black text-gray-600 uppercase tracking-widest"
+              >
+                Abortar
+              </button>
               <Button type="submit" variant="primary" className="px-10 py-5 font-black uppercase text-xs tracking-widest rounded-3xl border-none shadow-2xl">
                 {isPagSeguroModal ? 'Salvar Configurações' : 'Vincular Motor'}
               </Button>

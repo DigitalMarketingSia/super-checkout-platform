@@ -65,6 +65,53 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, isO
         style: 'currency',
         currency: orderCurrency,
     }).format(val);
+    const orderMetadata = order.metadata && typeof order.metadata === 'object' ? order.metadata : {};
+    const rawEmailTypes = Array.isArray(orderMetadata.order_completed_email_types)
+        ? orderMetadata.order_completed_email_types
+        : [];
+    const inferredEmailTypes = [
+        ...(orderMetadata.purchase_confirmation_email_sent_at ? ['purchase_confirmation'] : []),
+        ...(orderMetadata.direct_delivery_email_sent_at ? ['direct_delivery'] : []),
+        ...(orderMetadata.member_access_email_sent_at ? ['member_access'] : []),
+    ];
+    const emailTypes = Array.from(new Set([...rawEmailTypes, ...inferredEmailTypes]));
+    const deliverableSnapshot = Array.isArray(orderMetadata.order_deliverables_email_snapshot)
+        ? orderMetadata.order_deliverables_email_snapshot
+        : [];
+    const lastEmailSentAt = typeof orderMetadata.order_completed_email_sent_at === 'string'
+        ? orderMetadata.order_completed_email_sent_at
+        : null;
+    const emailSource = typeof orderMetadata.order_completed_email_source === 'string'
+        ? orderMetadata.order_completed_email_source
+        : null;
+    const formatDateTime = (dateStr: string) => new Intl.DateTimeFormat(numberLocale, {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+    }).format(new Date(dateStr));
+    const getEmailTypeLabel = (type: string) => {
+        switch (type) {
+            case 'purchase_confirmation':
+                return t('orders.modals.order_details.email_type_purchase_confirmation');
+            case 'direct_delivery':
+                return t('orders.modals.order_details.email_type_direct_delivery');
+            case 'member_access':
+                return t('orders.modals.order_details.email_type_member_access');
+            default:
+                return type;
+        }
+    };
+    const getDeliverableTypeLabel = (type: string) => {
+        switch (type) {
+            case 'member_area':
+                return t('orders.modals.order_details.deliverable_member_area');
+            case 'external_link':
+                return t('orders.modals.order_details.deliverable_external_link');
+            case 'file_download':
+                return t('orders.modals.order_details.deliverable_file_download');
+            default:
+                return type;
+        }
+    };
     const emailService = {
         sendPaymentApproved: async (targetOrder: Order) => {
             await resendOrderAccessEmail(targetOrder.id);
@@ -250,6 +297,91 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, isO
                                         </tr>
                                     </tfoot>
                                 </table>
+                            </div>
+                        </div>
+
+                        <div className="space-y-3">
+                            <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                                <Mail className="w-4 h-4 text-purple-400" /> {t('orders.modals.order_details.email_delivery_title')}
+                            </h3>
+                            <div className="bg-black/20 rounded-xl border border-purple-500/20 overflow-hidden p-4 space-y-4">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+                                        <div className="text-xs text-gray-500 mb-2">{t('orders.modals.order_details.email_delivery_status')}</div>
+                                        <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-widest ${
+                                            emailTypes.length > 0
+                                                ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400'
+                                                : 'border-yellow-500/20 bg-yellow-500/10 text-yellow-400'
+                                        }`}>
+                                            {emailTypes.length > 0 ? (
+                                                <>
+                                                    <CheckCircle className="w-3.5 h-3.5" />
+                                                    {t('orders.modals.order_details.email_delivery_sent')}
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Clock className="w-3.5 h-3.5" />
+                                                    {t('orders.modals.order_details.email_delivery_not_sent')}
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+                                        <div className="text-xs text-gray-500 mb-2">{t('orders.modals.order_details.email_delivery_last_sent')}</div>
+                                        <div className="font-medium text-white text-sm">
+                                            {lastEmailSentAt ? formatDateTime(lastEmailSentAt) : t('orders.modals.order_details.email_delivery_pending')}
+                                        </div>
+                                    </div>
+
+                                    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+                                        <div className="text-xs text-gray-500 mb-2">{t('orders.modals.order_details.email_delivery_source')}</div>
+                                        <div className="font-medium text-white text-sm uppercase">
+                                            {emailSource || '-'}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <div className="text-xs text-gray-500 mb-2">{t('orders.modals.order_details.email_delivery_types')}</div>
+                                    {emailTypes.length > 0 ? (
+                                        <div className="flex flex-wrap gap-2">
+                                            {emailTypes.map((type) => (
+                                                <span
+                                                    key={type}
+                                                    className="px-3 py-1.5 rounded-lg bg-purple-500/10 text-purple-300 text-xs border border-purple-500/20"
+                                                >
+                                                    {getEmailTypeLabel(String(type))}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="text-sm text-gray-400">{t('orders.modals.order_details.email_delivery_pending')}</div>
+                                    )}
+                                </div>
+
+                                <div>
+                                    <div className="text-xs text-gray-500 mb-2">{t('orders.modals.order_details.email_delivery_snapshot')}</div>
+                                    {deliverableSnapshot.length > 0 ? (
+                                        <div className="space-y-2">
+                                            {deliverableSnapshot.map((deliverable: any, index: number) => (
+                                                <div
+                                                    key={`${deliverable?.product_id || 'deliverable'}-${index}`}
+                                                    className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3"
+                                                >
+                                                    <div className="font-medium text-white">
+                                                        {deliverable?.title || t('orders.modals.order_details.product_fallback')}
+                                                    </div>
+                                                    <div className="mt-1 text-xs uppercase tracking-widest text-gray-500">
+                                                        {getDeliverableTypeLabel(String(deliverable?.delivery_type || ''))}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="text-sm text-gray-400">{t('orders.modals.order_details.email_delivery_no_snapshot')}</div>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>

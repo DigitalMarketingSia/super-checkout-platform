@@ -1521,6 +1521,7 @@ async function upsertPagbankGatewayOauth(params: {
 }) {
   const encryptedToken = encrypt(params.accessToken);
   const gatewayName = 'pagseguro';
+  const nowIso = new Date().toISOString();
 
   const { data: existingGateway, error: existingGatewayError } = await params.supabaseAdmin
     .from('gateways')
@@ -1548,13 +1549,22 @@ async function upsertPagbankGatewayOauth(params: {
   const credentials = {
     ...((existingGateway?.credentials || {}) as Record<string, any>),
     connected_via_oauth: true,
+    oauth_environment: params.sandbox ? 'sandbox' : 'production',
     oauth_account_id: params.accountId || null,
     oauth_expires_at: params.expiresIn
       ? new Date(Date.now() + (Number(params.expiresIn) * 1000)).toISOString()
       : null,
     oauth_refresh_token: params.refreshToken ? encrypt(params.refreshToken) : null,
     oauth_scope: params.scope || null,
-    oauth_token_type: params.tokenType || null
+    oauth_token_type: params.tokenType || null,
+    oauth_status: 'connected',
+    oauth_last_refresh_attempt_at: nowIso,
+    oauth_last_refresh_status: 'connected',
+    oauth_last_refresh_source: params.sandbox ? 'oauth_connect_sandbox' : 'oauth_connect',
+    oauth_last_refresh_error: null,
+    oauth_last_refresh_error_code: null,
+    oauth_reconnect_required_at: null,
+    oauth_last_connected_at: nowIso,
   };
 
   const gatewayPayload = {
@@ -2023,13 +2033,22 @@ async function pagbankOauthCallbackHandler(req: VercelRequest, res: VercelRespon
     const credentials = {
       ...((existingGateway?.credentials || {}) as Record<string, any>),
       connected_via_oauth: true,
+      oauth_environment: isOauthSandbox ? 'sandbox' : 'production',
       oauth_account_id: tokenResponse.account_id || null,
       oauth_expires_at: tokenResponse.expires_in
         ? new Date(Date.now() + (Number(tokenResponse.expires_in) * 1000)).toISOString()
         : null,
       oauth_refresh_token: tokenResponse.refresh_token ? encrypt(tokenResponse.refresh_token) : null,
       oauth_scope: tokenResponse.scope || null,
-      oauth_token_type: tokenResponse.token_type || null
+      oauth_token_type: tokenResponse.token_type || null,
+      oauth_status: 'connected',
+      oauth_last_refresh_attempt_at: new Date().toISOString(),
+      oauth_last_refresh_status: 'connected',
+      oauth_last_refresh_source: isOauthSandbox ? 'oauth_callback_sandbox' : 'oauth_callback',
+      oauth_last_refresh_error: null,
+      oauth_last_refresh_error_code: null,
+      oauth_reconnect_required_at: null,
+      oauth_last_connected_at: new Date().toISOString(),
     };
 
     if (existingGateway?.id) {

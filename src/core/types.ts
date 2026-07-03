@@ -202,6 +202,12 @@ export interface Gateway {
   private_key: string; // Stored but usually not sent to frontend in real app
   webhook_secret: string;
   active: boolean;
+  provider?: GatewayProvider | string;
+  user_id?: string;
+  is_active?: boolean;
+  credentials?: Record<string, any>;
+  created_at?: string;
+  updated_at?: string;
   config?: {
     max_installments?: number;
     min_installment_value?: number;

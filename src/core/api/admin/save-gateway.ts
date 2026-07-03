@@ -80,6 +80,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       clear_private_key,
       clear_public_key,
       clear_webhook_secret,
+      clear_oauth_credentials,
     } = body;
     const normalizedProvider = normalizeGatewayProvider(provider || name);
 
@@ -120,12 +121,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       webhook_secret?: string | null;
       provider?: string | null;
       name?: string | null;
+      credentials?: Record<string, any> | null;
     } | null = null;
 
     if (id) {
       const { data: gatewayById, error: existingGatewayError } = await supabaseAdmin
         .from('gateways')
-        .select('id,user_id,private_key,webhook_secret,provider,name')
+        .select('id,user_id,private_key,webhook_secret,provider,name,credentials')
         .eq('id', id)
         .maybeSingle();
 
@@ -136,7 +138,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } else if (normalizedProvider) {
       const { data: ownedGateways, error: lookupError } = await supabaseAdmin
         .from('gateways')
-        .select('id,user_id,private_key,webhook_secret,provider,name,created_at')
+        .select('id,user_id,private_key,webhook_secret,provider,name,created_at,credentials')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
@@ -163,6 +165,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Keep existing encrypted secrets when the UI leaves the field blank.
     const encryptedPrivateKey = resolveSecretToPersist(private_key, existingGateway?.private_key, Boolean(clear_private_key));
     const encryptedWebhookSecret = resolveSecretToPersist(webhook_secret, existingGateway?.webhook_secret, Boolean(clear_webhook_secret));
+    const shouldClearOauthCredentials = Boolean(clear_oauth_credentials) && normalizedProvider === 'pagseguro';
+    const nextCredentials = shouldClearOauthCredentials
+      ? {
+          ...((existingGateway?.credentials || {}) as Record<string, any>),
+          connected_via_oauth: false,
+          oauth_environment: null,
+          oauth_account_id: null,
+          oauth_expires_at: null,
+          oauth_refresh_token: null,
+          oauth_scope: null,
+          oauth_token_type: null,
+          oauth_status: 'disconnected',
+          oauth_last_refresh_status: 'disconnected',
+          oauth_last_refresh_source: 'admin_disconnect',
+          oauth_last_refresh_error: null,
+          oauth_last_refresh_error_code: null,
+          oauth_reconnect_required_at: null,
+          oauth_last_token_source: null,
+          oauth_last_disconnected_at: new Date().toISOString(),
+        }
+      : undefined;
 
     const gatewayData = {
       name: provider || name,
@@ -172,7 +195,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       webhook_secret: encryptedWebhookSecret,
       config: config || {},
       active: active ?? true,
-      user_id: user.id
+      user_id: user.id,
+      ...(nextCredentials ? { credentials: nextCredentials } : {}),
     };
 
     let result;
@@ -251,6 +275,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           private_key: !!private_key,
           webhook_secret: !!webhook_secret,
           config: !!config,
+          clear_oauth_credentials: shouldClearOauthCredentials,
         },
       },
     });
