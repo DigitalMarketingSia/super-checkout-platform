@@ -1017,30 +1017,18 @@ class StorageService {
   async getPublicGateway(id: string): Promise<Gateway | null> {
     if (isDemoDataRuntime()) return demoDataService.getPublicGateway(id);
 
-    const { data, error } = await supabase
-      .from('public_gateways')
-      .select('id, name, public_key, active, config')
-      .eq('id', id)
-      .single();
-
-    if (!error && data) {
-      return data as Gateway;
-    }
-
-    console.warn('Public gateway view failed, trying server fallback:', error?.message);
-
     try {
       const response = await fetch(`/api/system?action=public-gateway&id=${encodeURIComponent(id)}`);
       const json = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        console.error('Public gateway fallback failed:', json.error || response.statusText);
+        console.error('Public gateway request failed:', json.error || response.statusText);
         return null;
       }
 
       return json as Gateway;
-    } catch (fallbackError) {
-      console.error('Error fetching public gateway fallback:', fallbackError);
+    } catch (requestError) {
+      console.error('Error fetching public gateway:', requestError);
       return null;
     }
   }

@@ -62,6 +62,47 @@ export const validateCPF = (cpf: string): boolean => {
     return true;
 };
 
+export const validateCNPJ = (cnpj: string): boolean => {
+    const clean = cnpj.replace(/\D/g, '');
+    if (clean.length !== 14) return false;
+
+    if (/^(\d)\1+$/.test(clean)) return false;
+
+    let length = clean.length - 2;
+    let numbers = clean.substring(0, length);
+    const digits = clean.substring(length);
+    let sum = 0;
+    let position = length - 7;
+
+    for (let i = length; i >= 1; i -= 1) {
+        sum += Number(numbers.charAt(length - i)) * position;
+        position = position === 2 ? 9 : position - 1;
+    }
+
+    let result = sum % 11 < 2 ? 0 : 11 - (sum % 11);
+    if (result !== Number(digits.charAt(0))) return false;
+
+    length += 1;
+    numbers = clean.substring(0, length);
+    sum = 0;
+    position = length - 7;
+
+    for (let i = length; i >= 1; i -= 1) {
+        sum += Number(numbers.charAt(length - i)) * position;
+        position = position === 2 ? 9 : position - 1;
+    }
+
+    result = sum % 11 < 2 ? 0 : 11 - (sum % 11);
+    return result === Number(digits.charAt(1));
+};
+
+export const validateTaxId = (value: string): boolean => {
+    const clean = String(value || '').replace(/\D/g, '');
+    if (clean.length === 11) return validateCPF(clean);
+    if (clean.length === 14) return validateCNPJ(clean);
+    return false;
+};
+
 // Masks
 export const maskPhone = (value: string): string => {
     const v = value.replace(/\D/g, '');
@@ -81,5 +122,20 @@ export const maskCPF = (value: string): string => {
         .replace(/(\d{3})(\d)/, '$1.$2')
         .replace(/(\d{3})(\d)/, '$1.$2')
         .replace(/(\d{3})(\d{1,2})/, '$1-$2')
+        .replace(/(-\d{2})\d+?$/, '$1');
+};
+
+export const maskTaxId = (value: string): string => {
+    const digits = String(value || '').replace(/\D/g, '').slice(0, 14);
+
+    if (digits.length <= 11) {
+        return maskCPF(digits);
+    }
+
+    return digits
+        .replace(/^(\d{2})(\d)/, '$1.$2')
+        .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+        .replace(/\.(\d{3})(\d)/, '.$1/$2')
+        .replace(/(\d{4})(\d)/, '$1-$2')
         .replace(/(-\d{2})\d+?$/, '$1');
 };

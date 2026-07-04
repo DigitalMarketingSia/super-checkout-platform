@@ -356,7 +356,19 @@ SELECT
     public_key,
     active,
     is_active,
-    config
+    jsonb_strip_nulls(
+      jsonb_build_object(
+        'demo', COALESCE(config, '{}'::jsonb)->'demo',
+        'environment', COALESCE(config, '{}'::jsonb)->'environment',
+        'env', COALESCE(config, '{}'::jsonb)->'env',
+        'max_installments', COALESCE(config, '{}'::jsonb)->'max_installments',
+        'maxInstallments', COALESCE(config, '{}'::jsonb)->'maxInstallments',
+        'min_installment_value', COALESCE(config, '{}'::jsonb)->'min_installment_value',
+        'minInstallmentValue', COALESCE(config, '{}'::jsonb)->'minInstallmentValue',
+        'interest_rate', COALESCE(config, '{}'::jsonb)->'interest_rate',
+        'interestRate', COALESCE(config, '{}'::jsonb)->'interestRate'
+      )
+    ) AS config
 FROM public.gateways
 WHERE COALESCE(active, true) = true
   AND COALESCE(is_active, true) = true;

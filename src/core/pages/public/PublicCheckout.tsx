@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { loadStripe, type PaymentRequest } from '@stripe/stripe-js';
 import { PaymentRequestButtonElement, Elements, useStripe, useElements, CardNumberElement, CardExpiryElement, CardCvcElement, LinkAuthenticationElement } from '@stripe/react-stripe-js';
-import { validateName, validateEmail, validatePhone, validateCPF, maskPhone, maskCPF } from '../../utils/validations';
+import { validateName, validateEmail, validatePhone, validateTaxId, maskPhone, maskTaxId } from '../../utils/validations';
 import { PhoneInput } from '../../components/ui/PhoneInput';
 import { AlertModal } from '../../components/ui/Modal';
 import { Loading } from '../../components/ui/Loading';
@@ -985,7 +985,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
             if (!validatePhone(value)) error = t('checkout.validation.phone', 'Número de WhatsApp inválido');
             break;
          case 'cpf':
-            if (!validateCPF(value)) error = t('checkout.validation.cpf', 'CPF inválido');
+            if (!validateTaxId(value)) error = t('checkout.validation.cpf', 'CPF/CNPJ inválido');
             break;
       }
       return error;
@@ -1004,7 +1004,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
 
       // Apply Masks
       // Phone mask is now handled by PhoneInput component
-      if (name === 'cpf') newValue = maskCPF(value);
+      if (name === 'cpf') newValue = maskTaxId(value);
 
       setCustomer(prev => ({ ...prev, [name]: newValue }));
 
@@ -1173,18 +1173,19 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
             return;
          }
 
-         if ((data.gateway.name === GatewayProvider.MERCADO_PAGO || data.gateway.name === GatewayProvider.PAGSEGURO) && !validateCPF(customer.cpf)) {
+         if ((data.gateway.name === GatewayProvider.MERCADO_PAGO || data.gateway.name === GatewayProvider.PAGSEGURO) && !validateTaxId(customer.cpf)) {
+            const providerLabel = data.gateway.name === GatewayProvider.PAGSEGURO ? 'PagBank' : 'Mercado Pago';
             const cpfInput = document.getElementById('input-cpf');
             setTouched(prev => ({ ...prev, cpf: true }));
             setErrors(prev => ({
                ...prev,
-               cpf: prev.cpf || t('checkout.validation.cpf', 'CPF invalido'),
+               cpf: prev.cpf || t('checkout.validation.cpf', 'CPF/CNPJ invalido'),
             }));
             cpfInput?.scrollIntoView({ behavior: 'smooth', block: 'center' });
             cpfInput?.focus();
             showAlert(
                t('checkout.error_title', 'Erro'),
-               'O Mercado Pago exige um CPF valido para pagamentos com cartao.',
+               `${providerLabel} exige um CPF ou CNPJ valido para pagamentos com cartao.`,
                'error'
             );
             return;

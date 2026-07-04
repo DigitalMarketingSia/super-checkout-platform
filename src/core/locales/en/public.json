@@ -200,7 +200,7 @@
       "full_name": "Enter your full name (at least 2 words)",
       "email": "Enter a valid email",
       "phone": "Invalid WhatsApp number",
-      "cpf": "Invalid CPF"
+      "cpf": "Invalid CPF/CNPJ"
     }
   },
   "legal_pages": {

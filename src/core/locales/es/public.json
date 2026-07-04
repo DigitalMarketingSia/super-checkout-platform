@@ -200,7 +200,7 @@
       "full_name": "Ingresa tu nombre completo (mínimo 2 palabras)",
       "email": "Ingresa un correo válido",
       "phone": "Número de WhatsApp inválido",
-      "cpf": "CPF inválido"
+      "cpf": "CPF/CNPJ inválido"
     }
   },
   "legal_pages": {

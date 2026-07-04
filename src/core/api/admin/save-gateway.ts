@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { encrypt } from '../../utils/cryptoUtils.js';
+import { stripGatewayPrivateConfig } from '../../utils/gatewayPublicConfig.js';
 import { logAuthzEvent, requireApiAuth } from '../_authz.js';
 import { enforceApiRateLimit } from '../_rate-limit.js';
 
@@ -193,7 +194,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       public_key: clear_public_key ? null : public_key,
       private_key: encryptedPrivateKey,
       webhook_secret: encryptedWebhookSecret,
-      config: config || {},
+      config: stripGatewayPrivateConfig(config || {}),
       active: active ?? true,
       user_id: user.id,
       ...(nextCredentials ? { credentials: nextCredentials } : {}),

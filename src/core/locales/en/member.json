@@ -145,6 +145,17 @@
     "footer_privacy_policy": "Privacy Policy",
     "footer_legal_contact": "Legal contact: {{contact}}"
   },
+  "session_switch_guard": {
+    "eyebrow": "Admin session active",
+    "title": "This link will switch your current session",
+    "description": "You already have an administrative account open in this browser. If you continue, the current access will be replaced by the student account from this link.",
+    "current_session_label": "Current session",
+    "current_session_fallback": "Authenticated administrative account",
+    "recommendation": "To test the buyer experience without leaving the admin area, open this link in an incognito window or another browser.",
+    "continue": "Continue and switch session",
+    "cancel": "Go back without switching",
+    "switching": "Signing in..."
+  },
   "profile": {
     "title": "My Profile",
     "user": "User",

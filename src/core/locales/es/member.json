@@ -171,5 +171,16 @@
     "footer_terms_of_purchase": "Términos de compra",
     "footer_privacy_policy": "Política de privacidad",
     "footer_legal_contact": "Contacto legal: {{contact}}"
+  },
+  "session_switch_guard": {
+    "eyebrow": "SesiÃ³n administrativa activa",
+    "title": "Este enlace cambiarÃ¡ tu sesiÃ³n actual",
+    "description": "Ya tienes una cuenta administrativa abierta en este navegador. Si continÃºas, el acceso actual serÃ¡ sustituido por la cuenta del alumno de este enlace.",
+    "current_session_label": "SesiÃ³n actual",
+    "current_session_fallback": "Cuenta administrativa autenticada",
+    "recommendation": "Para probar la experiencia del comprador sin salir del admin, abre este enlace en una ventana de incÃ³gnito o en otro navegador.",
+    "continue": "Continuar y cambiar sesiÃ³n",
+    "cancel": "Volver sin cambiar",
+    "switching": "Entrando..."
   }
 }

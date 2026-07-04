@@ -6,6 +6,7 @@ import {
     resolveLocalSupabaseServerClient,
 } from '../src/core/api/_supabase-server.js';
 import { decrypt, verifySignature, encrypt } from '../src/core/utils/cryptoUtils.js';
+import { sanitizeGatewayPublicConfig, stripGatewayPrivateConfig } from '../src/core/utils/gatewayPublicConfig.js';
 import { enforceApiRateLimit } from '../src/core/api/_rate-limit.js';
 import { fulfillOrder } from '../src/core/services/fulfillment.js';
 import { sendOrderAccessEmail } from '../src/core/services/orderEmail.js';
@@ -422,7 +423,7 @@ async function publicGatewayHandler(req: VercelRequest, res: VercelResponse) {
         public_key: gateway.public_key,
         active: gateway.active,
         is_active: gateway.is_active,
-        config: gateway.config || {},
+        config: sanitizeGatewayPublicConfig(gateway.config || {}),
     });
 }
 
@@ -1532,14 +1533,7 @@ async function upsertPagbankGatewayOauth(params: {
 
   if (existingGatewayError) throw existingGatewayError;
 
-  const existingConfig = { ...(existingGateway?.config || {}) } as Record<string, any>;
-  delete existingConfig.oauth_refresh_token;
-  delete existingConfig.oauth_expires_in;
-  delete existingConfig.oauth_expires_at;
-  delete existingConfig.oauth_account_id;
-  delete existingConfig.connected_via_oauth;
-  delete existingConfig.oauth_scope;
-  delete existingConfig.oauth_token_type;
+  const existingConfig = stripGatewayPrivateConfig(existingGateway?.config || {});
 
   const config = {
     ...existingConfig,
@@ -2016,14 +2010,7 @@ async function pagbankOauthCallbackHandler(req: VercelRequest, res: VercelRespon
       .eq('name', gatewayName)
       .maybeSingle();
 
-    const existingConfig = { ...(existingGateway?.config || {}) } as Record<string, any>;
-    delete existingConfig.oauth_refresh_token;
-    delete existingConfig.oauth_expires_in;
-    delete existingConfig.oauth_expires_at;
-    delete existingConfig.oauth_account_id;
-    delete existingConfig.connected_via_oauth;
-    delete existingConfig.oauth_scope;
-    delete existingConfig.oauth_token_type;
+    const existingConfig = stripGatewayPrivateConfig(existingGateway?.config || {});
 
     const config = {
       ...existingConfig,
