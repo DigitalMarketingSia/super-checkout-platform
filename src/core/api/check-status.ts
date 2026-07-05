@@ -9,6 +9,10 @@ import { fulfillOrder } from '../services/fulfillment.js';
 import { sendOrderAccessEmail } from '../services/orderEmail.js';
 import { enforceApiRateLimit } from './_rate-limit.js';
 import {
+    buildSafeMercadoPagoRawResponse,
+    buildSafeStripeRawResponse,
+} from '../utils/paymentRawResponse.js';
+import {
     buildSafePagSeguroRawResponse,
     getPagSeguroApiBaseUrl,
     getPagSeguroStatus,
@@ -38,35 +42,6 @@ function maskIdentifier(value?: string | null): string {
     if (!text) return 'unknown';
     if (text.length <= 12) return `${text.slice(0, 4)}...`;
     return `${text.slice(0, 8)}...${text.slice(-4)}`;
-}
-
-function safeString(value: unknown, maxLength = 160) {
-    if (value === null || value === undefined) return null;
-    return String(value).slice(0, maxLength);
-}
-
-function buildSafeMercadoPagoRawResponse(mpData: any) {
-    return JSON.stringify({
-        redacted: true,
-        provider: 'mercadopago',
-        id: safeString(mpData?.id),
-        status: safeString(mpData?.status),
-        external_reference: safeString(mpData?.external_reference),
-        captured_at: new Date().toISOString(),
-    });
-}
-
-function buildSafeStripeRawResponse(stripeData: any) {
-    return JSON.stringify({
-        redacted: true,
-        provider: 'stripe',
-        id: safeString(stripeData?.id),
-        status: safeString(stripeData?.status),
-        amount: typeof stripeData?.amount === 'number' ? stripeData.amount : undefined,
-        currency: safeString(stripeData?.currency),
-        payment_method: safeString(stripeData?.payment_method),
-        captured_at: new Date().toISOString(),
-    });
 }
 
 function buildOrderUpdateUrl(supabaseUrl: string, safeOrderId: string, checkoutId?: string | null) {

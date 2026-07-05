@@ -20,6 +20,7 @@ export interface CheckoutTrackingAttribution {
 }
 
 export const CHECKOUT_TRACKING_ATTRIBUTION_STORAGE_KEY = 'checkout_tracking_attribution_v1';
+const TRACKING_ATTRIBUTION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 const ATTRIBUTION_KEYS: Array<keyof CheckoutTrackingAttribution> = [
   'utm_source',
@@ -75,13 +76,58 @@ export function normalizeCheckoutTrackingAttribution(
   return normalized;
 }
 
+function getTrackingAttributionStorage() {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
+
+function clearLegacyTrackingAttributionStorage() {
+  if (typeof window === 'undefined') return;
+
+  try {
+    window.localStorage.removeItem(CHECKOUT_TRACKING_ATTRIBUTION_STORAGE_KEY);
+  } catch {
+    // Ignore storage cleanup failures.
+  }
+}
+
+function isExpiredAttribution(attribution: CheckoutTrackingAttribution | null) {
+  if (!attribution?.captured_at) return true;
+
+  const capturedAt = new Date(attribution.captured_at).getTime();
+  if (Number.isNaN(capturedAt)) return true;
+
+  return Date.now() - capturedAt > TRACKING_ATTRIBUTION_MAX_AGE_MS;
+}
+
 export function readStoredCheckoutTrackingAttribution() {
   if (typeof window === 'undefined') return null;
 
   try {
-    const raw = window.localStorage.getItem(CHECKOUT_TRACKING_ATTRIBUTION_STORAGE_KEY);
+    const storage = getTrackingAttributionStorage();
+    const sessionRaw = storage?.getItem(CHECKOUT_TRACKING_ATTRIBUTION_STORAGE_KEY) || '';
+    const legacyRaw = sessionRaw ? '' : String(window.localStorage.getItem(CHECKOUT_TRACKING_ATTRIBUTION_STORAGE_KEY) || '');
+    const raw = sessionRaw || legacyRaw;
     if (!raw) return null;
-    return normalizeCheckoutTrackingAttribution(JSON.parse(raw));
+
+    const normalized = normalizeCheckoutTrackingAttribution(JSON.parse(raw));
+    if (!normalized || isExpiredAttribution(normalized)) {
+      storage?.removeItem(CHECKOUT_TRACKING_ATTRIBUTION_STORAGE_KEY);
+      clearLegacyTrackingAttributionStorage();
+      return null;
+    }
+
+    if (!sessionRaw && legacyRaw && storage) {
+      storage.setItem(CHECKOUT_TRACKING_ATTRIBUTION_STORAGE_KEY, JSON.stringify(normalized));
+      clearLegacyTrackingAttributionStorage();
+    }
+
+    return normalized;
   } catch {
     return null;
   }
@@ -143,10 +189,12 @@ export function captureCheckoutTrackingAttribution() {
   if (!next) return null;
 
   try {
-    window.localStorage.setItem(
+    const storage = getTrackingAttributionStorage();
+    storage?.setItem(
       CHECKOUT_TRACKING_ATTRIBUTION_STORAGE_KEY,
       JSON.stringify(next),
     );
+    clearLegacyTrackingAttributionStorage();
   } catch (error) {
     console.warn('[TrackingAttribution] Failed to persist attribution:', error);
   }

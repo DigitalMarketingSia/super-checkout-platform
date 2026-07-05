@@ -2531,7 +2531,7 @@ const PublicCheckoutContent = ({ checkoutId }: { checkoutId?: string }) => {
       loadGateway();
    }, [id]);
 
-   if (loading) return <Loading label={t('checkout.loading', 'Carregando checkout')} />;
+   if (loading || !id) return <Loading label={t('checkout.loading', 'Carregando checkout')} />;
 
    return (
       <StripeHooksBridge gatewayName={gatewayName}>

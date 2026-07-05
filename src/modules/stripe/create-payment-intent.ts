@@ -8,6 +8,7 @@ import { securityService } from '../../core/services/securityService.js';
 import { applyCors } from '../../core/api/_cors.js';
 import { fulfillOrder } from '../../core/services/fulfillment.js';
 import { sendOrderAccessEmail } from '../../core/services/orderEmail.js';
+import { buildSafeStripeRawResponse } from '../../core/utils/paymentRawResponse.js';
 import { upsertCustomerPaymentProfile } from '../payments/customer-payment-profiles.js';
 import {
     PaymentSecurityError,
@@ -586,7 +587,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             gateway_id: gateway.id,
                             status: pendingStripeStatus,
                             user_id: checkout.user_id,
-                            raw_response: authenticationIntent,
+                            raw_response: buildSafeStripeRawResponse(authenticationIntent),
                         };
 
                         if (pendingPaymentData.transaction_id) {
@@ -727,7 +728,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 gateway_id: gateway.id,
                 status: internalPaymentStatus,
                 user_id: checkout.user_id,
-                raw_response: paymentIntent
+                raw_response: buildSafeStripeRawResponse(paymentIntent)
             };
 
             // Avoid duplicate records when Stripe/webhook retries reuse the same PaymentIntent.

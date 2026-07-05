@@ -4,6 +4,7 @@ import type {
   DataRetentionRun,
   PrivacyDashboardSnapshot,
   PrivacyRequest,
+  PrivacyRequestChannel,
   PrivacyRequestStatus,
   PrivacyRequestType,
 } from '../types';
@@ -44,10 +45,15 @@ export const privacyOpsService = {
   async createRequest(input: {
     accountId?: string | null;
     requestType: PrivacyRequestType;
+    requestChannel: PrivacyRequestChannel;
     subjectEmail: string;
     subjectName?: string;
     subjectPhone?: string;
     subjectDocument?: string;
+    correctionTargetEmail?: string;
+    correctionTargetName?: string;
+    correctionTargetPhone?: string;
+    correctionTargetDocument?: string;
     notes?: string;
   }): Promise<PrivacyRequest> {
     return request<PrivacyRequest>('POST', {
@@ -70,6 +76,7 @@ export const privacyOpsService = {
   async updatePolicy(input: {
     id: string;
     retentionDays: number;
+    runMode: 'delete' | 'anonymize';
     active: boolean;
     notes?: string;
   }): Promise<DataRetentionPolicy> {

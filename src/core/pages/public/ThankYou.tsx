@@ -128,6 +128,23 @@ function resolveOriginalOrderId(order: Order | null) {
   return typeof postPurchase.original_order_id === 'string' ? postPurchase.original_order_id.trim() : '';
 }
 
+function buildCurrentUrl(params: URLSearchParams) {
+  const query = params.toString();
+  return `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`;
+}
+
+function stripSignedOrderAccessParams() {
+  if (typeof window === 'undefined') return;
+
+  const params = new URLSearchParams(window.location.search);
+  const hasSignedParams = params.has('sig') || params.has('origSig');
+  if (!hasSignedParams) return;
+
+  params.delete('sig');
+  params.delete('origSig');
+  window.history.replaceState({}, document.title, buildCurrentUrl(params));
+}
+
 const PurchaseTracker: React.FC<{ order: Order; attribution?: CheckoutTrackingAttribution | null }> = ({ order, attribution }) => {
   const { trackPurchase, isInitialized } = useTracking();
   useEffect(() => {
@@ -265,6 +282,7 @@ export const ThankYou = () => {
         }
 
         setDeliverables(mergeDeliverables(originalStoredDeliverables, currentDeliverables));
+        stripSignedOrderAccessParams();
 
         // Fetch checkout
         if (orderData?.checkout_id) {

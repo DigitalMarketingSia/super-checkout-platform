@@ -1025,10 +1025,10 @@
     "banner_description": "Descripción del Banner",
     "banner_description_placeholder": "Ej: Aprenda todo sobre marketing digital con nuestros cursos exclusivos.",
     "cta_control": "Control de llamada a la acción",
-      "button_text": "Texto del Botón",
-      "button_text_placeholder": "Ej: Empezar Ahora",
-      "button_preview_fallback": "Acción",
-      "button_link": "Enlace del Botón",
+    "button_text": "Texto del Botón",
+    "button_text_placeholder": "Ej: Empezar Ahora",
+    "button_preview_fallback": "Acción",
+    "button_link": "Enlace del Botón",
     "button_link_deep": "URL de destino / deep link",
     "button_link_placeholder": "Ej: /curso/123 o https://...",
     "menu_links": "Enlaces del Menú",
@@ -1083,23 +1083,23 @@
     "operational_status": "Estado operacional",
     "live": "Online",
     "preview_portal": "Pré-vitulizar portal",
-      "domains_heading": {
-        "prefix": "Dominios",
-        "highlight": "personalizados",
-        "subtitle": "Configure el apuntado externo"
-      },
-      "domains_loading": "Resolviendo nodos DNS...",
-      "domains_mapping_label": "Configuración del nodo de mapeo",
-      "domains_default_gateway": "Gateway predeterminado del sistema (super-checkout.net)",
-      "domains_save_hint": "Confirma los cambios con el botón global GUARDAR de arriba",
-      "domains_status_active": "Estado: activo",
-      "domains_status_verified": "Nodo verificado",
-      "domains_status_passive": "Estado: pasivo",
-      "domains_status_core": "Usando dominio core",
-      "domains_no_nodes": "No se encontraron nodos",
-      "domains_configure_tab": "Configura en la pestaña Dominios",
-      "domains_engine": "Motor de mapeo de red v4.0"
+    "domains_heading": {
+      "prefix": "Dominios",
+      "highlight": "personalizados",
+      "subtitle": "Configure el apuntado externo"
     },
+    "domains_loading": "Resolviendo nodos DNS...",
+    "domains_mapping_label": "Configuración del nodo de mapeo",
+    "domains_default_gateway": "Gateway predeterminado del sistema (super-checkout.net)",
+    "domains_save_hint": "Confirma los cambios con el botón global GUARDAR de arriba",
+    "domains_status_active": "Estado: activo",
+    "domains_status_verified": "Nodo verificado",
+    "domains_status_passive": "Estado: pasivo",
+    "domains_status_core": "Usando dominio core",
+    "domains_no_nodes": "No se encontraron nodos",
+    "domains_configure_tab": "Configura en la pestaña Dominios",
+    "domains_engine": "Motor de mapeo de red v4.0"
+  },
   "content_editor": {
     "load_error": "Error al cargar el contenido.",
     "missing_area_id": "Error interno: ID del área de miembros no encontrado.",
@@ -2620,9 +2620,24 @@
     "no": "No",
     "summary": {
       "open_requests": "Solicitudes abiertas",
+      "overdue_requests": "Solicitudes vencidas",
       "total_records": "Total registrado",
       "active_policies": "Políticas activas",
       "last_cleanup": "Último cleanup"
+    },
+    "governance": {
+      "title": "Canal y SLA",
+      "subtitle": "Canal oficial heredado de Mi Negocio y plazo interno de la operación",
+      "official_channel_label": "Canal oficial",
+      "channel_source_label": "Origen del canal",
+      "sla_label": "SLA operativo",
+      "sla_value": "Triaje en {{acknowledgement}} días hábiles • respuesta objetivo en {{response}} días corridos",
+      "unconfigured_warning": "Configura el contacto legal o el correo de soporte en Mi Negocio para formalizar el canal oficial de privacidad de esta instalación.",
+      "channel_sources": {
+        "legal_responsible_email": "Contacto legal / privacidad",
+        "support_email": "Correo de soporte",
+        "not_configured": "No configurado"
+      }
     },
     "subject_rights": {
       "title": "Derechos del titular",
@@ -2630,11 +2645,19 @@
     },
     "form": {
       "request_type": "Tipo",
+      "request_channel": "Canal de entrada",
       "subject_email": "Correo del titular",
       "subject_name": "Nombre",
       "subject_phone": "Teléfono",
       "subject_document": "Documento",
-      "internal_notes": "Notas internas"
+      "internal_notes": "Notas internas",
+      "retention_review_hint": "Las solicitudes de eliminación y anonimización pasan por un bloqueo operativo cuando existan orders o payments todavía sujetos a retención legal, contractual, antifraude o probatoria.",
+      "correction_targets_title": "Correccion solicitada",
+      "correction_targets_desc": "Completa solo los campos que deben corregirse en el dato activo del titular. El e-mail/login y los registros financieros siguen con follow-up manual controlado.",
+      "correction_target_email": "Nuevo correo",
+      "correction_target_name": "Nuevo nombre",
+      "correction_target_phone": "Nuevo telefono",
+      "correction_target_document": "Nuevo documento"
     },
     "placeholders": {
       "subject_email": "cliente@ejemplo.com",
@@ -2646,6 +2669,7 @@
     "actions": {
       "register_request": "Registrar solicitud",
       "export_subject": "Exportar titular",
+      "export_request": "Exportar solicitud",
       "run_global_cleanup": "Ejecutar cleanup general",
       "clean": "Limpiar"
     },
@@ -2654,25 +2678,73 @@
       "title": "Cola de atención",
       "subtitle": "Solicitudes recientes del titular",
       "created_at": "Creada el {{date}}{{name}}",
+      "channel_label": "Canal:",
+      "sla_due_label": "Plazo objetivo:",
+      "sla_status_label": "SLA: {{status}}",
+      "sla_policy_hint": "Política actual: triaje en {{acknowledgement}} días hábiles y respuesta objetivo en {{response}} días corridos.",
+      "revocation_applied_title": "Revocación aplicada",
+      "revocation_applied_desc": "Perfiles de pago guardado desactivados para reutilización local: {{count}}.",
+      "export_applied_title": "Exportación auditada",
+      "export_applied_desc": "Resumen de exportación registrado el {{date}} con {{sections}} sección(es) completada(s).",
+      "sla_states": {
+        "within_sla": "en plazo",
+        "due_today": "vence hoy",
+        "overdue": "vencida",
+        "closed": "cerrada",
+        "unknown": "sin plazo calculado"
+      },
       "phone_label": "Teléfono:",
       "document_label": "Documento:",
       "notes_label": "Notas:",
       "current_status": "Estado actual: {{status}}",
+      "retention_review_title": "Revisión obligatoria de retención",
+      "retention_blocked_title": "Eliminación total bloqueada por retención activa",
+      "retention_summary": "Orders: {{orders}} • Payments: {{payments}} • Liquidados: {{liquidated}} • Pendientes: {{pending}} • Fallidos/abandonados: {{failed}}",
+      "retention_review_desc": "La solicitud requiere revisión manual antes de cualquier conclusión final sobre eliminación o anonimización.",
+      "retention_blocked_desc": "Todavía existe núcleo financiero/comercial retenido. El panel no permite concluir la solicitud como fulfilled mientras ese bloqueo siga activo.",
       "fulfilled_at": " • completada el {{date}}",
-      "empty": "No hay solicitudes registradas en esta instalación."
+      "empty": "No hay solicitudes registradas en esta instalación.",
+      "correction_requested_title": "Correccion solicitada",
+      "correction_target_email_label": "Nuevo correo:",
+      "correction_target_name_label": "Nuevo nombre:",
+      "correction_target_phone_label": "Nuevo telefono:",
+      "correction_target_document_label": "Nuevo documento:",
+      "correction_applied_title": "Correccion aplicada",
+      "correction_applied_desc": "Perfiles actualizados: {{profiles}} ? metadata Auth: {{authMetadata}} ? licencias: {{licenses}} ? perfiles de pago: {{paymentProfiles}}.",
+      "correction_manual_follow_up": "Follow-up manual restante: {{fields}}.",
+      "objection_applied_title": "Oposicion aplicada",
+      "objection_applied_desc": "Procesamiento opcional vinculado por e-mail restringido en perfiles de pago locales: {{count}}.",
+      "objection_manual_follow_up": "Escopos todavia manuales: {{fields}}.",
+      "correction_field_labels": {
+        "email": "correo",
+        "name": "nombre",
+        "phone": "telefono",
+        "document": "documento",
+        "email_auth_identity": "e-mail/login (identidad Auth)",
+        "phone_external_or_financial_records": "telefono en registros financieros/externos",
+        "document_external_or_financial_records": "documento en registros financieros/externos",
+        "auth_metadata_sync": "metadata de autenticacion",
+        "anonymous_consent_preferences_by_visitor_key": "consent_preferences anonimo por visitor_key"
+      }
     },
     "retention": {
       "title": "Retención y purge",
       "subtitle": "Políticas operativas con ejecución manual y registro del lado del servidor",
       "default_policy_notes": "Sin observación operativa.",
       "days_label": "Días",
+      "mode_label": "Modo",
       "active_label": "Activa",
-      "notes_label": "Notas"
+      "notes_label": "Notas",
+      "run_modes": {
+        "delete": "Eliminación",
+        "anonymize": "Anonimización"
+      }
     },
     "history": {
       "title": "Historial reciente",
       "cutoff": " • cutoff {{date}}",
       "rows_affected": "{{count}} fila(s)",
+      "mode": "modo {{mode}}",
       "empty": "Todavía no hay ningún cleanup registrado."
     },
     "request_types": {
@@ -2683,6 +2755,16 @@
       "objection": "Oposición",
       "portability": "Portabilidad",
       "revocation": "Revocación"
+    },
+    "request_channels": {
+      "privacy_email": "Correo de privacidad",
+      "support_email": "Correo de soporte",
+      "checkout_form": "Checkout / formulario",
+      "member_portal": "Portal / área de miembros",
+      "admin_panel": "Registro interno del admin",
+      "anpd": "ANPD",
+      "consumer_authority": "Autoridad del consumidor",
+      "other": "Otro canal"
     },
     "statuses": {
       "open": "Abierta",

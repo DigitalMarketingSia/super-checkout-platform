@@ -478,6 +478,16 @@ export type PrivacyRequestStatus =
   | 'fulfilled'
   | 'rejected';
 
+export type PrivacyRequestChannel =
+  | 'privacy_email'
+  | 'support_email'
+  | 'checkout_form'
+  | 'member_portal'
+  | 'admin_panel'
+  | 'anpd'
+  | 'consumer_authority'
+  | 'other';
+
 export interface PrivacyRequest {
   id: string;
   account_id: string;
@@ -487,7 +497,7 @@ export interface PrivacyRequest {
   subject_name?: string | null;
   subject_phone?: string | null;
   subject_document?: string | null;
-  request_channel: string;
+  request_channel: PrivacyRequestChannel;
   notes?: string | null;
   resolution_notes?: string | null;
   fulfilled_at?: string | null;
@@ -520,8 +530,20 @@ export interface DataRetentionRun {
   created_at: string;
 }
 
+export interface PrivacyGovernanceSnapshot {
+  business_name?: string | null;
+  official_channel_email?: string | null;
+  official_channel_source: 'legal_responsible_email' | 'support_email' | 'not_configured';
+  official_channel_configured: boolean;
+  acknowledgement_business_days: number;
+  response_target_calendar_days: number;
+  policy_version: string;
+  reference: string;
+}
+
 export interface PrivacyDashboardSnapshot {
   scope_account_id?: string | null;
+  governance?: PrivacyGovernanceSnapshot | null;
   requests: PrivacyRequest[];
   policies: DataRetentionPolicy[];
   runs: DataRetentionRun[];

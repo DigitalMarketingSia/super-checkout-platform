@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 import { fulfillOrder } from '../../core/services/fulfillment.js';
+import { buildSafeStripeRawResponse } from '../../core/utils/paymentRawResponse.js';
 
 // --- CONFIG ---
 export const config = {
@@ -160,10 +161,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (eventType === 'payment_intent.succeeded' || eventType === 'charge.succeeded' || eventType === 'checkout.session.completed') {
             const orderId = paymentRecord.order_id;
             console.log(`[Stripe Webhook] Processing success for Order: ${orderId}`);
+            const stripeObject = payload?.data?.object && typeof payload.data.object === 'object' ? payload.data.object : {};
+            const safeStripeRawResponse = buildSafeStripeRawResponse({
+                id: paymentIntentId,
+                status: 'succeeded',
+                amount: stripeObject?.amount_received ?? stripeObject?.amount_total ?? stripeObject?.amount,
+                currency: stripeObject?.currency,
+                payment_method: stripeObject?.payment_method || null,
+                payment_method_types: stripeObject?.payment_method_types,
+                last_payment_error: stripeObject?.last_payment_error || null,
+            });
 
             // ATOMIC UPDATES (Admin Power)
             const [payUpdate, ordUpdate] = await Promise.all([
-                supabaseAdmin.from('payments').update({ status: 'paid' }).eq('id', paymentRecord.id),
+                supabaseAdmin.from('payments').update({ status: 'paid', raw_response: safeStripeRawResponse }).eq('id', paymentRecord.id),
                 supabaseAdmin.from('orders').update({ status: 'paid' }).eq('id', orderId)
             ]);
 

@@ -507,9 +507,21 @@ async function mergeWaitlistLeadMetadata(central: SupabaseClient, email: string,
     if (currentError) throw currentError;
     if (!currentLead) return null;
 
+    const sanitizedCurrentMetadata = {
+        ...(currentLead.metadata || {})
+    };
+    delete sanitizedCurrentMetadata.ip;
+    delete sanitizedCurrentMetadata.user_agent;
+
+    const sanitizedPatch = {
+        ...metadataPatch
+    };
+    delete sanitizedPatch.ip;
+    delete sanitizedPatch.user_agent;
+
     const nextMetadata = {
-        ...(currentLead.metadata || {}),
-        ...metadataPatch,
+        ...sanitizedCurrentMetadata,
+        ...sanitizedPatch,
         updated_at: new Date().toISOString()
     };
 
@@ -1252,8 +1264,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const waitlistMetadata = {
                 name: name || null,
                 whatsapp: whatsapp || null,
-                ip,
-                user_agent: userAgent,
                 last_join_attempt_at: acceptanceTimestamp,
                 platform_legal_acceptance: {
                     surface: 'register',

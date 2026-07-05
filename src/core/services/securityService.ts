@@ -9,6 +9,27 @@ import { createClient } from '@supabase/supabase-js';
 
 let supabaseAdmin: ReturnType<typeof createClient> | null | undefined;
 
+function sanitizeSecurityMetadata(metadata: Record<string, any> = {}) {
+  const blocked = new Set([
+    'password',
+    'secret',
+    'private_key',
+    'webhook_secret',
+    'token',
+    'access_token',
+    'refresh_token',
+    'captcha_token',
+  ]);
+  const blockedFragments = ['cpf', 'cnpj', 'document', 'phone', 'whatsapp'];
+
+  return Object.fromEntries(
+    Object.entries(metadata).filter(([key]) => {
+      const normalized = String(key || '').toLowerCase();
+      return !blocked.has(normalized) && !blockedFragments.some((fragment) => normalized.includes(fragment));
+    }),
+  );
+}
+
 function getSupabaseAdmin() {
   if (supabaseAdmin !== undefined) {
     return supabaseAdmin;
@@ -56,7 +77,8 @@ export class SecurityService {
       | 'suspicious_activity',
     metadata: any = {},
   ) {
-    console.error(`[SecurityViolation] IP: ${ip} | Type: ${type}`, metadata);
+    const sanitizedMetadata = sanitizeSecurityMetadata(metadata);
+    console.error(`[SecurityViolation] IP: ${ip} | Type: ${type}`, sanitizedMetadata);
 
     const admin = getSupabaseAdmin();
     let severity = 'WARNING';
@@ -69,7 +91,7 @@ export class SecurityService {
         event_type: type,
         severity,
         ip_address: ip,
-        metadata: { ...metadata, origin: 'edge_security_service' },
+        metadata: { ...sanitizedMetadata, origin: 'edge_security_service' },
       };
 
       if (metadata.user_id && metadata.user_id !== '00000000-0000-0000-0000-000000000000') {

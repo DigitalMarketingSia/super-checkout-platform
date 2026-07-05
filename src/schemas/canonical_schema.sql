@@ -2261,11 +2261,12 @@ END $$;
 
 INSERT INTO public.data_retention_policies(table_name, retention_days, run_mode, active, notes)
 VALUES
-    ('webhook_logs', 90, 'delete', true, 'Payloads tecnicos de webhook nao devem permanecer identificaveis por prazo indefinido.'),
+    ('webhook_logs', 90, 'anonymize', true, 'Payloads tecnicos de webhook devem ser anonimizados apos a janela operacional, preservando apenas trilha minima.'),
     ('activity_logs', 180, 'delete', true, 'Historico operacional de membros deve ser reavaliado periodicamente.'),
-    ('validation_logs', 180, 'delete', true, 'Logs de validacao de licenca devem expirar apos uso operacional razoavel.'),
+    ('validation_logs', 180, 'anonymize', true, 'Logs de validacao de licenca devem remover identificadores tecnicos apos a janela operacional.'),
     ('two_factor_challenges', 30, 'delete', true, 'Desafios MFA expiram rapidamente e nao exigem retencao longa.'),
-    ('security_events', 365, 'delete', true, 'Eventos de seguranca podem permanecer por janela maior para investigacao.'),
+    ('security_events', 365, 'anonymize', true, 'Eventos de seguranca podem manter severidade e timeline, mas devem remover IP/usuario/metadados sensiveis apos a janela investigativa.'),
+    ('payments', 30, 'anonymize', true, 'Pagamentos em status terminal devem remover QR Code PIX, URLs de ticket e payloads verbosos do provedor apos a janela operacional.'),
     ('system_updates_log', 365, 'delete', true, 'Trilha operacional de updates deve permanecer por prazo controlado.')
 ON CONFLICT (table_name) DO UPDATE SET
     retention_days = EXCLUDED.retention_days,

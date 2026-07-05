@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import { decrypt } from '../../core/utils/cryptoUtils.js';
 import { fulfillOrder } from '../../core/services/fulfillment.js';
 import { sendOrderAccessEmail } from '../../core/services/orderEmail.js';
+import { buildSafeMercadoPagoRawResponse } from '../../core/utils/paymentRawResponse.js';
 
 // --- TYPES ---
 interface WebhookLog {
@@ -380,7 +381,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     },
                     body: JSON.stringify({
                         status: orderStatus,
-                        raw_response: JSON.stringify(paymentData)
+                        raw_response: buildSafeMercadoPagoRawResponse(paymentData)
                     })
                 });
 

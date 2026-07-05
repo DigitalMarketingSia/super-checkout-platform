@@ -52,9 +52,22 @@ export function normalizeConsentSourceSurface(value: unknown, fallback: ConsentS
 }
 
 export function parseStoredConsentPreference(value: unknown): StoredConsentPreference | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  let parsedValue = value;
 
-  const raw = value as Record<string, unknown>;
+  if (typeof parsedValue === 'string') {
+    const normalized = parsedValue.trim();
+    if (!normalized) return null;
+
+    try {
+      parsedValue = JSON.parse(normalized);
+    } catch {
+      return null;
+    }
+  }
+
+  if (!parsedValue || typeof parsedValue !== 'object' || Array.isArray(parsedValue)) return null;
+
+  const raw = parsedValue as Record<string, unknown>;
   const visitorKey = String(raw.visitorKey || '').trim();
   const checkoutId = String(raw.checkoutId || '').trim();
   const consentVersion = String(raw.consentVersion || '').trim();

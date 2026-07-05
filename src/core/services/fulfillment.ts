@@ -387,8 +387,6 @@ export async function fulfillOrder(
       payer_snapshot: {
         email: payerEmail,
         name: payerName,
-        phone: order.customer_phone || null,
-        cpf: order.customer_cpf || null,
       },
     });
   }

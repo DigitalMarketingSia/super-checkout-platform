@@ -764,23 +764,23 @@
       "products": "Linked Products"
     },
     "custom_domain": "Custom Domain",
-      "domains_heading": {
-        "prefix": "Custom",
-        "highlight": "domains",
-        "subtitle": "Configure external mapping"
-      },
-      "domains_loading": "Resolving DNS nodes...",
-      "domains_mapping_label": "Mapping node configuration",
-      "domains_default_gateway": "System default gateway (super-checkout.net)",
-      "domains_save_hint": "Commit changes via the global save button above",
-      "domains_status_active": "Status: active",
-      "domains_status_verified": "Node verified",
-      "domains_status_passive": "Status: passive",
-      "domains_status_core": "Using core domain",
-      "domains_no_nodes": "No nodes found",
-      "domains_configure_tab": "Configure in domains tab",
-      "domains_engine": "Network mapping engine v4.0",
-      "appearance": "Appearance and Settings",
+    "domains_heading": {
+      "prefix": "Custom",
+      "highlight": "domains",
+      "subtitle": "Configure external mapping"
+    },
+    "domains_loading": "Resolving DNS nodes...",
+    "domains_mapping_label": "Mapping node configuration",
+    "domains_default_gateway": "System default gateway (super-checkout.net)",
+    "domains_save_hint": "Commit changes via the global save button above",
+    "domains_status_active": "Status: active",
+    "domains_status_verified": "Node verified",
+    "domains_status_passive": "Status: passive",
+    "domains_status_core": "Using core domain",
+    "domains_no_nodes": "No nodes found",
+    "domains_configure_tab": "Configure in domains tab",
+    "domains_engine": "Network mapping engine v4.0",
+    "appearance": "Appearance and Settings",
     "appearance_desc": "Customize the visual identity of your portal.",
     "save_changes": "Save Changes",
     "studio_title_prefix": "Appearance &",
@@ -827,10 +827,10 @@
     "banner_description": "Banner Description",
     "banner_description_placeholder": "Ex: Learn everything about digital marketing with our exclusive courses.",
     "cta_control": "Call to action control",
-      "button_text": "Button Text",
-      "button_text_placeholder": "Ex: Start Now",
-      "button_preview_fallback": "Action",
-      "button_link": "Button Link",
+    "button_text": "Button Text",
+    "button_text_placeholder": "Ex: Start Now",
+    "button_preview_fallback": "Action",
+    "button_link": "Button Link",
     "button_link_deep": "Destination URL / deep link",
     "button_link_placeholder": "Ex: /course/123 or https://...",
     "menu_links": "Menu Links",
@@ -2621,9 +2621,24 @@
     "no": "No",
     "summary": {
       "open_requests": "Open requests",
+      "overdue_requests": "Overdue requests",
       "total_records": "Total recorded",
       "active_policies": "Active policies",
       "last_cleanup": "Last cleanup"
+    },
+    "governance": {
+      "title": "Channel and SLA",
+      "subtitle": "Official channel inherited from Business Settings and the internal operating deadline",
+      "official_channel_label": "Official channel",
+      "channel_source_label": "Channel source",
+      "sla_label": "Operational SLA",
+      "sla_value": "Triage in {{acknowledgement}} business days • target response in {{response}} calendar days",
+      "unconfigured_warning": "Set the legal contact or support email in Business Settings to formalize the official privacy channel for this installation.",
+      "channel_sources": {
+        "legal_responsible_email": "Legal / privacy contact",
+        "support_email": "Support email",
+        "not_configured": "Not configured"
+      }
     },
     "subject_rights": {
       "title": "Data subject rights",
@@ -2631,11 +2646,19 @@
     },
     "form": {
       "request_type": "Type",
+      "request_channel": "Intake channel",
       "subject_email": "Data subject email",
       "subject_name": "Name",
       "subject_phone": "Phone",
       "subject_document": "Document",
-      "internal_notes": "Internal notes"
+      "internal_notes": "Internal notes",
+      "retention_review_hint": "Deletion and anonymization requests go through an operational block whenever orders or payments are still subject to legal, contractual, antifraud, or evidentiary retention.",
+      "correction_targets_title": "Requested correction",
+      "correction_targets_desc": "Fill only the fields that should be corrected in the subject's active data. Login email and financial records still require controlled manual follow-up.",
+      "correction_target_email": "New email",
+      "correction_target_name": "New name",
+      "correction_target_phone": "New phone",
+      "correction_target_document": "New document"
     },
     "placeholders": {
       "subject_email": "customer@example.com",
@@ -2647,6 +2670,7 @@
     "actions": {
       "register_request": "Register request",
       "export_subject": "Export subject",
+      "export_request": "Export request",
       "run_global_cleanup": "Run global cleanup",
       "clean": "Clean"
     },
@@ -2655,25 +2679,73 @@
       "title": "Service queue",
       "subtitle": "Recent data subject requests",
       "created_at": "Created at {{date}}{{name}}",
+      "channel_label": "Channel:",
+      "sla_due_label": "Target due date:",
+      "sla_status_label": "SLA: {{status}}",
+      "sla_policy_hint": "Current policy: triage in {{acknowledgement}} business days and target response in {{response}} calendar days.",
+      "revocation_applied_title": "Revocation applied",
+      "revocation_applied_desc": "Saved payment profiles disabled for local reuse: {{count}}.",
+      "export_applied_title": "Export audited",
+      "export_applied_desc": "Export summary recorded on {{date}} with {{sections}} populated section(s).",
+      "sla_states": {
+        "within_sla": "within SLA",
+        "due_today": "due today",
+        "overdue": "overdue",
+        "closed": "closed",
+        "unknown": "no calculated deadline"
+      },
       "phone_label": "Phone:",
       "document_label": "Document:",
       "notes_label": "Notes:",
       "current_status": "Current status: {{status}}",
+      "retention_review_title": "Mandatory retention review",
+      "retention_blocked_title": "Full deletion blocked by active retention",
+      "retention_summary": "Orders: {{orders}} • Payments: {{payments}} • Liquidated: {{liquidated}} • Pending: {{pending}} • Failed/abandoned: {{failed}}",
+      "retention_review_desc": "The request requires manual review before any final deletion or anonymization outcome.",
+      "retention_blocked_desc": "There is still retained financial/commercial core data. The panel does not allow this request to be concluded as fulfilled while that block remains active.",
       "fulfilled_at": " • fulfilled at {{date}}",
-      "empty": "No requests registered in this installation."
+      "empty": "No requests registered in this installation.",
+      "correction_requested_title": "Requested correction",
+      "correction_target_email_label": "New email:",
+      "correction_target_name_label": "New name:",
+      "correction_target_phone_label": "New phone:",
+      "correction_target_document_label": "New document:",
+      "correction_applied_title": "Correction applied",
+      "correction_applied_desc": "Updated profiles: {{profiles}} ? Auth metadata: {{authMetadata}} ? licenses: {{licenses}} ? payment profiles: {{paymentProfiles}}.",
+      "correction_manual_follow_up": "Remaining manual follow-up: {{fields}}.",
+      "objection_applied_title": "Objection applied",
+      "objection_applied_desc": "Optional email-linked processing restricted on local payment profiles: {{count}}.",
+      "objection_manual_follow_up": "Scopes still manual: {{fields}}.",
+      "correction_field_labels": {
+        "email": "email",
+        "name": "name",
+        "phone": "phone",
+        "document": "document",
+        "email_auth_identity": "email/login (Auth identity)",
+        "phone_external_or_financial_records": "phone in financial/external records",
+        "document_external_or_financial_records": "document in financial/external records",
+        "auth_metadata_sync": "authentication metadata",
+        "anonymous_consent_preferences_by_visitor_key": "anonymous consent_preferences by visitor_key"
+      }
     },
     "retention": {
       "title": "Retention and purge",
       "subtitle": "Operational policies with manual execution and server-side logging",
       "default_policy_notes": "No operational notes.",
       "days_label": "Days",
+      "mode_label": "Mode",
       "active_label": "Active",
-      "notes_label": "Notes"
+      "notes_label": "Notes",
+      "run_modes": {
+        "delete": "Delete",
+        "anonymize": "Anonymize"
+      }
     },
     "history": {
       "title": "Recent history",
       "cutoff": " • cutoff {{date}}",
       "rows_affected": "{{count}} row(s)",
+      "mode": "mode {{mode}}",
       "empty": "No cleanup recorded yet."
     },
     "request_types": {
@@ -2684,6 +2756,16 @@
       "objection": "Objection",
       "portability": "Portability",
       "revocation": "Revocation"
+    },
+    "request_channels": {
+      "privacy_email": "Privacy email",
+      "support_email": "Support email",
+      "checkout_form": "Checkout / form",
+      "member_portal": "Portal / members area",
+      "admin_panel": "Internal admin record",
+      "anpd": "ANPD",
+      "consumer_authority": "Consumer authority",
+      "other": "Other channel"
     },
     "statuses": {
       "open": "Open",

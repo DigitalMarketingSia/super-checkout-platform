@@ -12,7 +12,8 @@ import type { UpgradeIntentContext } from './licenseService';
 import type { UpsellGatewayCapability } from '../config/upsellCapabilities';
 import type { CheckoutTrackingAttribution } from '../utils/trackingAttribution';
 import { encryptPagSeguroCard } from '../utils/pagSeguroBrowser';
-import { getPagSeguroStatus, mapPagSeguroStatusToLocal } from '../utils/pagSeguro';
+import { buildSafePagSeguroRawResponse, getPagSeguroStatus, mapPagSeguroStatusToLocal } from '../utils/pagSeguro';
+import { buildSafeMercadoPagoRawResponse, buildSafeStripeRawResponse } from '../utils/paymentRawResponse';
 import { dispatchDemoWebhookEvent } from './demoWebhookService';
 
 // Helper for UUID generation
@@ -868,7 +869,7 @@ class PaymentService {
         gateway_id: gateway.id,
         status: mpAdapter.translateStatus(paymentResponse.status),
         transaction_id: paymentResponse.id.toString(),
-        raw_response: JSON.stringify(paymentResponse),
+        raw_response: buildSafeMercadoPagoRawResponse(paymentResponse),
         created_at: new Date().toISOString()
       };
 
@@ -1013,7 +1014,7 @@ class PaymentService {
         gateway_id: gateway.id,
         status: this.mapPagSeguroOrderStatus(providerStatus),
         transaction_id: String(paymentResponse?.id || order.id),
-        raw_response: JSON.stringify(paymentResponse),
+        raw_response: buildSafePagSeguroRawResponse(paymentResponse),
         created_at: new Date().toISOString()
       };
 
@@ -1128,7 +1129,14 @@ class PaymentService {
         gateway_id: gateway.id,
         status: stripeAdapter.translateStatus(result.status),
         transaction_id: result.paymentIntentId,
-        raw_response: JSON.stringify(result),
+        raw_response: buildSafeStripeRawResponse({
+          paymentIntentId: result.paymentIntentId,
+          status: result.status,
+          amount: order.amount,
+          currency: request.currency,
+          payment_method: request.stripePaymentMethodId || null,
+          lastPaymentError: result.lastPaymentError || null,
+        }),
         created_at: new Date().toISOString()
       };
 

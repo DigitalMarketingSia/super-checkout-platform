@@ -14,6 +14,8 @@ import {
 } from '../utils/trackingAttribution';
 
 type TrackingPolicy = 'consent_required' | 'market_standard' | 'disabled';
+const TRACKED_PURCHASE_STORAGE_PREFIX = 'sc_tracked_purchase_v1';
+const TRACKED_PURCHASE_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 
 type TrackingItem = {
     id?: string;
@@ -56,6 +58,69 @@ function mapItems(items?: TrackingItem[]) {
         price: Number(item.price || 0) || 0,
         quantity: Number(item.quantity || 1) || 1,
         item_category: item.type || undefined,
+    }));
+}
+
+function getTrackedPurchaseStorage() {
+    if (typeof window === 'undefined') return null;
+
+    try {
+        return window.localStorage;
+    } catch {
+        return null;
+    }
+}
+
+function getTrackedPurchaseStorageKey(orderId: string) {
+    return `${TRACKED_PURCHASE_STORAGE_PREFIX}:${orderId}`;
+}
+
+function cleanupTrackedPurchaseStorage(storage: Storage) {
+    const now = Date.now();
+
+    for (let index = storage.length - 1; index >= 0; index -= 1) {
+        const key = storage.key(index);
+        if (!key || !key.startsWith(`${TRACKED_PURCHASE_STORAGE_PREFIX}:`)) continue;
+
+        try {
+            const raw = storage.getItem(key);
+            const parsed = raw ? JSON.parse(raw) : null;
+            const trackedAt = typeof parsed?.trackedAt === 'string' ? Date.parse(parsed.trackedAt) : Number.NaN;
+
+            if (!raw || Number.isNaN(trackedAt) || now - trackedAt > TRACKED_PURCHASE_RETENTION_MS) {
+                storage.removeItem(key);
+            }
+        } catch {
+            storage.removeItem(key);
+        }
+    }
+}
+
+function hasTrackedPurchase(orderId: string) {
+    const storage = getTrackedPurchaseStorage();
+    if (!storage) return false;
+
+    cleanupTrackedPurchaseStorage(storage);
+
+    if (storage.getItem(`tracked_order_${orderId}`)) {
+        storage.removeItem(`tracked_order_${orderId}`);
+        storage.setItem(getTrackedPurchaseStorageKey(orderId), JSON.stringify({
+            trackedAt: new Date().toISOString(),
+        }));
+        return true;
+    }
+
+    return Boolean(storage.getItem(getTrackedPurchaseStorageKey(orderId)));
+}
+
+function markPurchaseTracked(orderId: string) {
+    const storage = getTrackedPurchaseStorage();
+    if (!storage) return;
+
+    cleanupTrackedPurchaseStorage(storage);
+    storage.removeItem(`tracked_order_${orderId}`);
+    storage.setItem(getTrackedPurchaseStorageKey(orderId), JSON.stringify({
+        trackedAt: new Date().toISOString(),
     }));
 }
 
@@ -201,16 +266,15 @@ export const TrackingProvider: React.FC<{
         if (!isActive) return;
 
         const currency = order.currency || 'BRL';
-        const storageKey = `tracked_order_${order.id}`;
         const items = mapItems(order.items);
 
-        if (localStorage.getItem(storageKey)) {
+        if (hasTrackedPurchase(order.id)) {
             console.warn('[Tracking] Purchase event blocked (Duplicate):', order.id);
             return;
         }
 
         console.log('[Tracking] Purchase:', order);
-        localStorage.setItem(storageKey, 'true');
+        markPurchaseTracked(order.id);
 
         if (canLoadMarketing && pixels?.gtm_id) {
             getWindow().dataLayer?.push({
@@ -306,8 +370,10 @@ export const useTracking = () => {
 function injectGTM(rawId: string) {
     const id = sanitizeGtmId(rawId);
     if (!id) return;
+    if (document.getElementById(`sc-tracking-gtm-script-${id}`)) return;
 
     const script = document.createElement('script');
+    script.id = `sc-tracking-gtm-script-${id}`;
     script.innerHTML = `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
     new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
     j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
@@ -315,17 +381,22 @@ function injectGTM(rawId: string) {
     })(window,document,'script','dataLayer',${JSON.stringify(id)});`;
     document.head.appendChild(script);
 
-    const noscript = document.createElement('noscript');
-    noscript.innerHTML = `<iframe src="https://www.googletagmanager.com/ns.html?id=${encodeURIComponent(id)}"
-    height="0" width="0" style="display:none;visibility:hidden"></iframe>`;
-    document.body.appendChild(noscript);
+    if (!document.getElementById(`sc-tracking-gtm-noscript-${id}`)) {
+        const noscript = document.createElement('noscript');
+        noscript.id = `sc-tracking-gtm-noscript-${id}`;
+        noscript.innerHTML = `<iframe src="https://www.googletagmanager.com/ns.html?id=${encodeURIComponent(id)}"
+        height="0" width="0" style="display:none;visibility:hidden"></iframe>`;
+        document.body.appendChild(noscript);
+    }
 }
 
 function injectFacebook(rawId: string) {
     const id = sanitizeFacebookId(rawId);
     if (!id) return;
+    if (document.getElementById(`sc-tracking-facebook-${id}`)) return;
 
     const script = document.createElement('script');
+    script.id = `sc-tracking-facebook-${id}`;
     script.innerHTML = `!function(f,b,e,v,n,t,s)
     {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
     n.callMethod.apply(n,arguments):n.queue.push(arguments)};
@@ -341,8 +412,10 @@ function injectFacebook(rawId: string) {
 function injectTikTok(rawId: string) {
     const id = sanitizeTiktokId(rawId);
     if (!id) return;
+    if (document.getElementById(`sc-tracking-tiktok-${id}`)) return;
 
     const script = document.createElement('script');
+    script.id = `sc-tracking-tiktok-${id}`;
     script.innerHTML = `!function (w, d, t) {
       w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];
       ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie"],
@@ -362,12 +435,17 @@ function injectGA4(rawId: string) {
     const id = sanitizeGoogleAnalyticsId(rawId);
     if (!id) return;
 
-    const script = document.createElement('script');
-    script.async = true;
-    script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(id)}`;
-    document.head.appendChild(script);
+    if (!document.querySelector(`script[src="https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(id)}"]`)) {
+        const script = document.createElement('script');
+        script.async = true;
+        script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(id)}`;
+        document.head.appendChild(script);
+    }
+
+    if (document.getElementById(`sc-tracking-ga-config-${id}`)) return;
 
     const initScript = document.createElement('script');
+    initScript.id = `sc-tracking-ga-config-${id}`;
     initScript.innerHTML = `
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
@@ -387,7 +465,10 @@ function injectGoogleAds(rawId: string) {
         script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(id)}`;
         document.head.appendChild(script);
 
+        if (document.getElementById(`sc-tracking-ads-config-${id}`)) return;
+
         const initScript = document.createElement('script');
+        initScript.id = `sc-tracking-ads-config-${id}`;
         initScript.innerHTML = `
           window.dataLayer = window.dataLayer || [];
           function gtag(){dataLayer.push(arguments);}
@@ -398,7 +479,10 @@ function injectGoogleAds(rawId: string) {
         return;
     }
 
+    if (document.getElementById(`sc-tracking-ads-config-${id}`)) return;
+
     const configScript = document.createElement('script');
+    configScript.id = `sc-tracking-ads-config-${id}`;
     configScript.innerHTML = `gtag('config', ${JSON.stringify(id)});`;
     document.head.appendChild(configScript);
 }

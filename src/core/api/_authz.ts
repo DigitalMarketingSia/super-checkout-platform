@@ -76,9 +76,13 @@ function sanitizeMetadata(metadata: Record<string, unknown> = {}) {
     'refresh_token',
     'captcha_token',
   ]);
+  const blockedFragments = ['cpf', 'cnpj', 'document', 'phone', 'whatsapp'];
 
   return Object.fromEntries(
-    Object.entries(metadata).filter(([key]) => !blocked.has(key.toLowerCase())),
+    Object.entries(metadata).filter(([key]) => {
+      const normalized = key.toLowerCase();
+      return !blocked.has(normalized) && !blockedFragments.some((fragment) => normalized.includes(fragment));
+    }),
   );
 }
 
