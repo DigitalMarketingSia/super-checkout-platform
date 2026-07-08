@@ -2745,6 +2745,8 @@
       "cutoff": " • cutoff {{date}}",
       "rows_affected": "{{count}} fila(s)",
       "mode": "modo {{mode}}",
+      "failed": "Falla registrada: {{message}}",
+      "unknown_failure": "error no informado",
       "empty": "Todavía no hay ningún cleanup registrado."
     },
     "request_types": {

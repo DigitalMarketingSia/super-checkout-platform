@@ -1098,17 +1098,25 @@ export const PrivacyCenter = () => {
           <div className="pt-4 border-t border-white/5 space-y-3">
             <h3 className="text-sm font-bold text-white">{t('privacy_center.history.title')}</h3>
             <div className="space-y-2">
-              {(dashboard?.runs || []).slice(0, 10).map((run) => (
-                <div key={run.id} className="rounded-xl border border-white/5 bg-black/20 px-4 py-3 flex flex-col md:flex-row md:items-center justify-between gap-2 text-sm">
-                  <div>
-                    <span className="font-bold text-white">{run.table_name}</span>
-                    <span className="text-gray-500">{t('privacy_center.history.cutoff', { date: formatDateTime(run.cutoff_at) })}</span>
+              {(dashboard?.runs || []).slice(0, 10).map((run) => {
+                const failed = run.metadata?.failed === true;
+                return (
+                  <div key={run.id} className={`rounded-xl border px-4 py-3 flex flex-col md:flex-row md:items-center justify-between gap-2 text-sm ${failed ? 'border-red-500/30 bg-red-500/10' : 'border-white/5 bg-black/20'}`}>
+                    <div>
+                      <span className="font-bold text-white">{run.table_name}</span>
+                      <span className="text-gray-500">{t('privacy_center.history.cutoff', { date: formatDateTime(run.cutoff_at) })}</span>
+                      {failed && (
+                        <p className="text-xs text-red-200 mt-1">
+                          {t('privacy_center.history.failed', { message: run.metadata?.error_message || run.metadata?.failure_log_error || t('privacy_center.history.unknown_failure') })}
+                        </p>
+                      )}
+                    </div>
+                    <div className={failed ? 'text-red-200' : 'text-gray-400'}>
+                      {t('privacy_center.history.rows_affected', { count: run.rows_affected })} • {t('privacy_center.history.mode', { mode: runModeLabels[run.run_mode] || run.run_mode })} • {formatDateTime(run.created_at)}
+                    </div>
                   </div>
-                  <div className="text-gray-400">
-                    {t('privacy_center.history.rows_affected', { count: run.rows_affected })} • {t('privacy_center.history.mode', { mode: runModeLabels[run.run_mode] || run.run_mode })} • {formatDateTime(run.created_at)}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
               {!loading && (dashboard?.runs || []).length === 0 && (
                 <div className="rounded-xl border border-dashed border-white/10 p-6 text-center text-sm text-gray-500">
                   {t('privacy_center.history.empty')}

@@ -2746,6 +2746,8 @@
       "cutoff": " • cutoff {{date}}",
       "rows_affected": "{{count}} row(s)",
       "mode": "mode {{mode}}",
+      "failed": "Failure recorded: {{message}}",
+      "unknown_failure": "unknown error",
       "empty": "No cleanup recorded yet."
     },
     "request_types": {

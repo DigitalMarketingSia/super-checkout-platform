@@ -53,6 +53,7 @@ type CorrectionRequestSnapshot = {
 };
 type RetentionTableConfig = {
   supportedModes: RetentionRunMode[];
+  dateColumn?: string;
   anonymize?: (supabase: any, cutoff: string) => Promise<RetentionExecutionResult>;
 };
 
@@ -190,6 +191,7 @@ const RETENTION_TABLE_CONFIG: Record<string, RetentionTableConfig> = {
   },
   system_updates_log: {
     supportedModes: ['delete'],
+    dateColumn: 'executed_at',
   },
 };
 
@@ -999,11 +1001,12 @@ async function executeRetentionCleanup(supabase: any, policy: any, userId: strin
     throw new Error(`Retention days invalido para ${tableName}`);
   }
 
+  const dateColumn = tableConfig.dateColumn || 'created_at';
   const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000).toISOString();
 
   const probe = await supabase
     .from(tableName)
-    .select('created_at', { head: true, count: 'exact' })
+    .select(dateColumn, { head: true, count: 'exact' })
     .limit(1);
 
   if (probe.error && !isMissingTableError(probe.error)) {
@@ -1033,7 +1036,7 @@ async function executeRetentionCleanup(supabase: any, policy: any, userId: strin
       const deletion = await supabase
         .from(tableName)
         .delete({ count: 'exact' })
-        .lt('created_at', cutoff);
+        .lt(dateColumn, cutoff);
 
       if (deletion.error) {
         throw deletion.error;
@@ -1042,6 +1045,7 @@ async function executeRetentionCleanup(supabase: any, policy: any, userId: strin
       rowsAffected = Number(deletion.count || 0);
     }
   }
+  metadata.date_column = dateColumn;
 
   const { data: run, error: runError } = await supabase
     .from('data_retention_runs')
