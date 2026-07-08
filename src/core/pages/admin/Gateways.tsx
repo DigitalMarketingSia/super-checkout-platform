@@ -68,6 +68,8 @@ const DEFAULT_PAGSEGURO_CONFIG: PagSeguroConfigState = {
   has_webhook_secret: false,
 };
 
+const PAGBANK_GATEWAY_ENABLED = false;
+
 type PagbankStatusTone = 'success' | 'warning' | 'danger' | 'neutral';
 
 const formatStatusDate = (value: unknown) => {
@@ -243,6 +245,14 @@ export const Gateways = () => {
     const providerError = urlParams.get('provider_error');
     const providerErrorDescription = urlParams.get('provider_error_description');
 
+    if (!PAGBANK_GATEWAY_ENABLED) {
+      const hasLegacyPagbankCallback = successParam === 'pagbank_oauth' || String(errorParam || '').startsWith('pagbank_');
+      if (hasLegacyPagbankCallback) {
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+      return;
+    }
+
     if (successParam === 'pagbank_oauth') {
       setTimeout(() => showAlert('Conexão Concluída', 'Conta PagBank conectada com sucesso via autorização oficial.', 'success'), 500);
       window.history.replaceState({}, '', window.location.pathname);
@@ -261,6 +271,12 @@ export const Gateways = () => {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+
+    if (!PAGBANK_GATEWAY_ENABLED) {
+      window.localStorage.removeItem('sc_unlock_pagbank');
+      setPagbankDebugUnlocked(false);
+      return;
+    }
 
     const params = new URLSearchParams(window.location.search);
     const queryUnlock = params.get('unlock_pagbank');
@@ -535,6 +551,11 @@ export const Gateways = () => {
   };
 
   const openGatewayModal = (provider: 'mp' | 'stripe' | 'pagseguro') => {
+    if (provider === 'pagseguro' && !PAGBANK_GATEWAY_ENABLED) {
+      showAlert('PagBank indisponivel', 'A integracao com o PagBank foi removida porque a homologacao foi negada.', 'info');
+      return;
+    }
+
     setPagbankDisconnectRequested(false);
     if (!compliance?.is_ready) {
       setShowComplianceModal(true);
@@ -885,19 +906,6 @@ export const Gateways = () => {
           logoAlt: 'PayPal',
           subtitle: 'Global Payments',
           onClick: () => showAlert('PayPal', 'A integracao com o PayPal estara disponivel em breve.', 'info'),
-        })}
-
-        {pagbankDebugUnlocked ? renderGatewayCard({
-          logoSrc: '/pag-seguro-logoo.png',
-          logoAlt: 'PagBank',
-          subtitle: 'Sandbox / Producao',
-          isActive: pagSeguroConfig.active,
-          onClick: () => openGatewayModal('pagseguro'),
-        }) : renderComingSoonCard({
-          logoSrc: '/pag-seguro-logoo.png',
-          logoAlt: 'PagBank',
-          subtitle: 'Em validacao com o suporte',
-          onClick: () => showAlert('PagBank', 'A integracao com o PagBank esta temporariamente em validacao e sera liberada em breve.', 'info'),
         })}
 
         {renderComingSoonCard({

@@ -38,6 +38,8 @@ import { useAuth } from '../../context/AuthContext';
 import { BusinessSetupModal } from '../../components/admin/BusinessSetupModal';
 import { useTranslation } from 'react-i18next';
 
+const isSelectableGateway = (gateway: Gateway) => gateway.name !== GatewayProvider.PAGSEGURO;
+
 const initialConfig: CheckoutConfig = {
    fields: { name: true, email: true, phone: false, cpf: false },
    payment_methods: { pix: true, credit_card: true, boleto: true, apple_pay: false, google_pay: false },
@@ -146,7 +148,11 @@ export const CheckoutEditor = () => {
    const availableBumps = activeProducts.filter(p => p.is_order_bump && p.id !== productId);
    const availableUpsells = activeProducts.filter(p => p.is_upsell && p.id !== productId);
    const selectedGatewayName = gateways.find(g => g.id === gatewayId)?.name;
+   const selectedBackupGatewayName = gateways.find(g => g.id === backupGatewayId)?.name;
    const isPagSeguroSelected = selectedGatewayName === GatewayProvider.PAGSEGURO;
+   const isPagSeguroBackupSelected = selectedBackupGatewayName === GatewayProvider.PAGSEGURO;
+   const selectableGateways = gateways.filter(isSelectableGateway);
+   const activeSelectableGateways = selectableGateways.filter(g => g.active);
 
    useEffect(() => {
       const load = async () => {
@@ -196,6 +202,11 @@ export const CheckoutEditor = () => {
          return;
       }
 
+      if (isPagSeguroSelected) {
+         showAlert('Gateway indisponível', 'O PagBank foi removido do sistema porque a homologação foi negada. Escolha Mercado Pago ou Stripe para salvar este checkout.', 'info');
+         return;
+      }
+
       try {
          setLoading(true);
          const sanitizedPixels = config.pixels ? {
@@ -242,7 +253,7 @@ export const CheckoutEditor = () => {
             thank_you_button_url: thankYouButtonUrl || null,
             thank_you_button_text: thankYouButtonText || null,
             currency,
-            backup_gateway_id: backupGatewayId || null,
+            backup_gateway_id: isPagSeguroBackupSelected ? null : backupGatewayId || null,
             config: sanitizedConfig,
             user_id: user?.id || '', // Requisito da interface
             offer_id: undefined // Legacy field, not used in current implementation
@@ -551,8 +562,8 @@ export const CheckoutEditor = () => {
                                     onChange={e => setBackupGatewayId(e.target.value)}
                                  >
                                     <option value="" className="bg-[#0A0A15] text-white">{t('checkout_editor.backup_inactive')}</option>
-                                    {gateways
-                                       .filter(g => g.active && g.id !== gatewayId)
+                                    {activeSelectableGateways
+                                       .filter(g => g.id !== gatewayId)
                                        .filter(g => {
                                           if (currency !== 'BRL') return g.name === GatewayProvider.STRIPE;
                                           return true;
@@ -571,7 +582,7 @@ export const CheckoutEditor = () => {
                         <div className="pt-4 space-y-6">
                            <label className="block text-[10px] font-black text-gray-700 uppercase tracking-[0.3em] ml-1 italic">{t('checkout_editor.primary_gateway')}</label>
                            
-                           {gateways.filter(g => g.active).length === 0 ? (
+                           {activeSelectableGateways.length === 0 ? (
                               <div className="text-center py-12 bg-white/[0.01] border-2 border-dashed border-white/5 rounded-[2rem]">
                                  <Wallet className="w-12 h-12 text-gray-800 mx-auto mb-4" />
                                  <p className="text-sm text-gray-700 font-bold uppercase tracking-widest italic">{t('checkout_editor.no_gateway')}</p>
@@ -579,8 +590,7 @@ export const CheckoutEditor = () => {
                               </div>
                            ) : (
                               <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
-                                 {gateways
-                                    .filter(g => g.active)
+                                 {activeSelectableGateways
                                     .filter(g => {
                                        if (currency !== 'BRL') return g.name === GatewayProvider.STRIPE;
                                        return true;
@@ -615,7 +625,16 @@ export const CheckoutEditor = () => {
                               </div>
                            )}
 
-                           {currency !== 'BRL' && gateways.filter(g => g.active && g.name === GatewayProvider.STRIPE).length === 0 && (
+                           {isPagSeguroSelected && (
+                              <div className="p-6 rounded-[1.5rem] bg-amber-500/5 border border-amber-500/10 flex gap-4 items-center">
+                                 <AlertCircle className="w-6 h-6 text-amber-400 shrink-0" />
+                                 <p className="text-[10px] text-amber-100/70 font-medium uppercase tracking-widest italic leading-relaxed">
+                                    O PagBank foi removido do sistema porque a homologação foi negada. Troque o gateway principal para Mercado Pago ou Stripe antes de salvar.
+                                 </p>
+                              </div>
+                           )}
+
+                           {currency !== 'BRL' && activeSelectableGateways.filter(g => g.name === GatewayProvider.STRIPE).length === 0 && (
                               <div className="p-6 rounded-[1.5rem] bg-rose-500/5 border border-rose-500/10 flex gap-4 items-center">
                                  <AlertCircle className="w-6 h-6 text-rose-500 shrink-0" />
                                  <p className="text-[10px] text-rose-200/60 font-medium uppercase tracking-widest italic leading-relaxed">

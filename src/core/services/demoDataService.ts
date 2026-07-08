@@ -1509,21 +1509,6 @@ const mapGateway = (): Gateway[] => [
       interest_rate: 2.99,
     },
   },
-  {
-    id: 'demo-gateway-pagseguro',
-    name: GatewayProvider.PAGSEGURO,
-    public_key: '',
-    private_key: '',
-    webhook_secret: '',
-    active: false,
-    config: {
-      demo: true,
-      environment: 'sandbox',
-      provider_label: 'PagBank sandbox guiado',
-      max_installments: 12,
-      min_installment_value: 5,
-    },
-  },
 ];
 
 const mapIntegrations = (workspace: DemoWorkspace): Integration[] =>
@@ -2214,7 +2199,8 @@ function normalizeDemoGateways(input: unknown): Gateway[] {
 
   return input
     .filter((item) => item && typeof item === 'object' && 'id' in item)
-    .map((item) => sanitizeGatewayForRuntime(item as Gateway));
+    .map((item) => sanitizeGatewayForRuntime(item as Gateway))
+    .filter((gateway) => gateway.name !== GatewayProvider.PAGSEGURO);
 }
 
 function normalizeDemoIntegrations(workspace: DemoWorkspace, input: unknown): Integration[] {
