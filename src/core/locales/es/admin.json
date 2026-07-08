@@ -2785,6 +2785,8 @@
       "policy_update_error": "No fue posible guardar la política de retención.",
       "cleanup_success_table": "Cleanup ejecutado en {{table}}. {{count}} fila(s) afectada(s).",
       "cleanup_success_all": "Cleanup ejecutado. {{count}} fila(s) afectada(s).",
+      "cleanup_partial_table": "Cleanup parcial ejecutado en {{table}}. {{count}} fila(s) afectada(s), {{failures}} falla(s) registrada(s).",
+      "cleanup_partial_all": "Cleanup parcial ejecutado. {{count}} fila(s) afectada(s), {{failures}} falla(s) registrada(s).",
       "cleanup_error": "No fue posible ejecutar el cleanup."
     }
   },

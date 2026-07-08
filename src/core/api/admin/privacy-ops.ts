@@ -65,16 +65,20 @@ const RETENTION_TABLE_CONFIG: Record<string, RetentionTableConfig> = {
     supportedModes: ['delete', 'anonymize'],
     anonymize: async (supabase, cutoff) => {
       const anonymizedAt = new Date().toISOString();
+      const updatePayload: Record<string, any> = {
+        payload: {
+          retention_anonymized_at: anonymizedAt,
+          retention_scope: 'payload_removed',
+          retention_mode: 'anonymize',
+        },
+      };
+      if (await canSelectColumn(supabase, 'webhook_logs', 'response_body')) {
+        updatePayload.response_body = null;
+      }
+
       const { count, error } = await supabase
         .from('webhook_logs')
-        .update({
-          payload: {
-            retention_anonymized_at: anonymizedAt,
-            retention_scope: 'payload_removed',
-            retention_mode: 'anonymize',
-          },
-          response_body: null,
-        }, { count: 'exact' })
+        .update(updatePayload, { count: 'exact' })
         .lt('created_at', cutoff)
         .filter('payload->>retention_anonymized_at', 'is', null);
 
@@ -1057,6 +1061,52 @@ async function executeRetentionCleanup(supabase: any, policy: any, userId: strin
   return run;
 }
 
+async function recordFailedRetentionCleanup(supabase: any, policy: any, userId: string, error: any) {
+  const tableName = normalizeText(policy?.table_name, 120) || 'unknown';
+  const retentionDays = Number(policy?.retention_days || 0);
+  const runMode = normalizeRunMode(policy?.run_mode);
+  const metadata = {
+    failed: true,
+    skipped: false,
+    retention_days: Number.isFinite(retentionDays) && retentionDays > 0 ? retentionDays : null,
+    requested_run_mode: runMode,
+    error_message: normalizeText(error?.message || error, 1000) || 'retention_cleanup_failed',
+  };
+
+  const { data, error: insertError } = await supabase
+    .from('data_retention_runs')
+    .insert({
+      policy_id: policy?.id || null,
+      table_name: tableName,
+      rows_affected: 0,
+      cutoff_at: null,
+      run_mode: runMode,
+      triggered_by_user_id: userId,
+      metadata,
+    })
+    .select('*')
+    .single();
+
+  if (insertError) {
+    return {
+      id: null,
+      policy_id: policy?.id || null,
+      table_name: tableName,
+      rows_affected: 0,
+      cutoff_at: null,
+      run_mode: runMode,
+      triggered_by_user_id: userId,
+      metadata: {
+        ...metadata,
+        failure_log_error: normalizeText(insertError.message, 1000) || 'failed_to_record_retention_run',
+      },
+      created_at: new Date().toISOString(),
+    };
+  }
+
+  return data;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'GET' && req.method !== 'POST') {
@@ -1350,7 +1400,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const results: any[] = [];
       for (const policy of policies || []) {
-        results.push(await executeRetentionCleanup(supabase, policy, user.id));
+        try {
+          results.push(await executeRetentionCleanup(supabase, policy, user.id));
+        } catch (cleanupError: any) {
+          results.push(await recordFailedRetentionCleanup(supabase, policy, user.id, cleanupError));
+        }
       }
 
       return res.status(200).json({ success: true, data: { results } });

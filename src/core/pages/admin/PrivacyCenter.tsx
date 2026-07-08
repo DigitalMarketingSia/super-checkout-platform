@@ -434,11 +434,20 @@ export const PrivacyCenter = () => {
     try {
       const result = await privacyOpsService.runCleanup(tableName);
       const totalRows = (result.results || []).reduce((sum, run) => sum + Number(run.rows_affected || 0), 0);
-      toast.success(
-        tableName
-          ? t('privacy_center.toasts.cleanup_success_table', { table: tableName, count: totalRows })
-          : t('privacy_center.toasts.cleanup_success_all', { count: totalRows }),
-      );
+      const failedRuns = (result.results || []).filter((run) => run.metadata?.failed === true);
+      if (failedRuns.length > 0) {
+        toast.warning(
+          tableName
+            ? t('privacy_center.toasts.cleanup_partial_table', { table: tableName, count: totalRows, failures: failedRuns.length })
+            : t('privacy_center.toasts.cleanup_partial_all', { count: totalRows, failures: failedRuns.length }),
+        );
+      } else {
+        toast.success(
+          tableName
+            ? t('privacy_center.toasts.cleanup_success_table', { table: tableName, count: totalRows })
+            : t('privacy_center.toasts.cleanup_success_all', { count: totalRows }),
+        );
+      }
       await refresh();
     } catch (error: any) {
       toast.error(error?.message || t('privacy_center.toasts.cleanup_error'));

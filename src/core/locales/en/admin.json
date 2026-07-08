@@ -2786,6 +2786,8 @@
       "policy_update_error": "Failed to save the retention policy.",
       "cleanup_success_table": "Cleanup executed on {{table}}. {{count}} row(s) affected.",
       "cleanup_success_all": "Cleanup executed. {{count}} row(s) affected.",
+      "cleanup_partial_table": "Partial cleanup executed on {{table}}. {{count}} row(s) affected, {{failures}} failure(s) recorded.",
+      "cleanup_partial_all": "Partial cleanup executed. {{count}} row(s) affected, {{failures}} failure(s) recorded.",
       "cleanup_error": "Failed to execute cleanup."
     }
   },

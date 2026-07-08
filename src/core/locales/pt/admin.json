@@ -2785,6 +2785,8 @@
       "policy_update_error": "Falha ao salvar política de retenção.",
       "cleanup_success_table": "Cleanup executado em {{table}}. {{count}} linha(s) afetada(s).",
       "cleanup_success_all": "Cleanup executado. {{count}} linha(s) afetada(s).",
+      "cleanup_partial_table": "Cleanup parcial em {{table}}. {{count}} linha(s) afetada(s), {{failures}} falha(s) registrada(s).",
+      "cleanup_partial_all": "Cleanup parcial executado. {{count}} linha(s) afetada(s), {{failures}} falha(s) registrada(s).",
       "cleanup_error": "Falha ao executar cleanup."
     }
   },
