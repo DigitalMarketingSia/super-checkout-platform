@@ -646,7 +646,13 @@ export const UpsellPage = () => {
                     : originalOrder?.payment_method === 'boleto'
                         ? t('upsell.method_boleto', 'Boleto')
                         : t('upsell.method_unknown', 'Método não identificado');
-    const originalGatewayLabel = gateway?.name === 'stripe' ? 'Stripe' : gateway?.name === 'mercado_pago' ? 'Mercado Pago' : t('upsell.gateway_unknown', 'Gateway padrão');
+    const originalGatewayLabel = gateway?.name === 'stripe'
+        ? 'Stripe'
+        : gateway?.name === 'mercado_pago'
+            ? 'Mercado Pago'
+            : gateway?.name === 'asaas'
+                ? 'Asaas'
+                : t('upsell.gateway_unknown', 'Gateway padrão');
     const trustModeDescription = upsellCapability.mode === 'not_immediate'
         ? t('upsell.not_immediate_mode_desc', 'Este método não será oferecido imediatamente para evitar confusão ou dupla cobrança percebida após o pedido principal.')
         : upsellCapability.mode === 'one_click'
@@ -715,6 +721,10 @@ export const UpsellPage = () => {
                         setProcessing(false);
                         return;
                     }
+                }
+                if (result.redirectUrl) {
+                    window.location.href = result.redirectUrl;
+                    return;
                 }
                 if (result.pixData) {
                     setPixCode(result.pixData.qr_code);
@@ -955,6 +965,16 @@ export const UpsellPage = () => {
                                     }}
                                     onSubmit={async (mercadoPagoCardToken) => processPurchase('credit_card', undefined, { useSavedPaymentMethod: true, mercadoPagoCardToken })}
                                 />
+                            ) : gateway?.name === 'asaas' ? (
+                                <div className="w-full max-w-sm space-y-4">
+                                    <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-left">
+                                        <h4 className="mb-3 flex items-center gap-2 font-bold"><CreditCard className="w-4 h-4 text-primary" /> {t('upsell.card_details', 'Dados do cartão')}</h4>
+                                        <p className="text-sm leading-relaxed text-gray-300">
+                                            {t('upsell.asaas_redirect_notice', 'Ao continuar, vamos abrir a etapa segura do Asaas para concluir o pagamento deste item adicional.')}
+                                        </p>
+                                    </div>
+                                    <Button onClick={() => processPurchase('credit_card')} className="w-full bg-green-500 hover:bg-green-400 text-black font-bold h-12" disabled={processing}>{processing ? t('upsell.finalizing', 'Finalizando...') : t('upsell.continue_secure_payment', 'Continuar pagamento seguro')}</Button>
+                                </div>
                             ) : (
                                 <div className="w-full max-w-sm space-y-4">
                                     <div className="bg-white/5 p-4 rounded-xl border border-white/10">

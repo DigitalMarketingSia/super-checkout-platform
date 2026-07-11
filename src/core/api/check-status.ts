@@ -13,6 +13,11 @@ import {
     buildSafeStripeRawResponse,
 } from '../utils/paymentRawResponse.js';
 import {
+    buildSafeAsaasRawResponse,
+    getAsaasApiBaseUrl,
+    mapAsaasStatusToLocal,
+} from '../utils/asaas.js';
+import {
     buildSafePagSeguroRawResponse,
     getPagSeguroApiBaseUrl,
     getPagSeguroStatus,
@@ -484,6 +489,127 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 serviceRoleKey,
                 orderId: orderId as string,
                 knownOrder: { ...order, status: 'paid' },
+                origin: requestOrigin,
+            });
+        }
+
+        return res.status(200).json({ status: newStatus });
+    }
+
+    if (gatewayName === 'asaas') {
+        const accessToken = decrypt(gateway.private_key || '').replace(/\s/g, '').trim();
+        if (!accessToken || accessToken.startsWith('iv:')) {
+            console.error('[CheckStatus] Asaas private key could not be decrypted for status polling.');
+            return res.status(200).json({ status: order.status || 'pending' });
+        }
+
+        const asaasApiBaseUrl = getAsaasApiBaseUrl(gateway.config?.sandbox === true);
+        const providerPaymentId = payment?.transaction_id || (order as any).payment_id;
+        let asaasData: any = null;
+
+        if (providerPaymentId) {
+            const asaasPaymentResponse = await fetch(`${asaasApiBaseUrl}/payments/${encodeURIComponent(String(providerPaymentId))}`, {
+                headers: {
+                    access_token: accessToken,
+                    accept: 'application/json',
+                },
+            });
+
+            if (asaasPaymentResponse.ok) {
+                asaasData = await asaasPaymentResponse.json();
+            } else if (asaasPaymentResponse.status !== 404) {
+                console.error('[CheckStatus] Asaas status polling failed:', {
+                    status: asaasPaymentResponse.status,
+                    providerPaymentId: maskIdentifier(String(providerPaymentId)),
+                });
+                return res.status(200).json({ status: order.status || 'pending' });
+            }
+        }
+
+        if (!asaasData) {
+            const searchResponse = await fetch(`${asaasApiBaseUrl}/payments?externalReference=${encodeURIComponent(String(orderId))}`, {
+                headers: {
+                    access_token: accessToken,
+                    accept: 'application/json',
+                },
+            });
+
+            if (!searchResponse.ok) {
+                console.error('[CheckStatus] Asaas externalReference lookup failed:', { status: searchResponse.status });
+                return res.status(200).json({ status: order.status || 'pending' });
+            }
+
+            const searchPayload = await searchResponse.json();
+            const candidates = Array.isArray(searchPayload?.data) ? searchPayload.data : [];
+            asaasData = candidates.sort((left: any, right: any) => {
+                const leftDate = Date.parse(String(left?.dateCreated || left?.date_created || 0));
+                const rightDate = Date.parse(String(right?.dateCreated || right?.date_created || 0));
+                return rightDate - leftDate;
+            })[0] || null;
+        }
+
+        if (!asaasData) {
+            return res.status(200).json({ status: order.status || 'pending' });
+        }
+
+        if (asaasData?.externalReference && String(asaasData.externalReference) !== String(orderId)) {
+            console.warn('[CheckStatus] Asaas externalReference does not match order.');
+            return res.status(200).json({ status: order.status || 'pending' });
+        }
+
+        const providerStatus = String(asaasData?.status || '').trim().toUpperCase();
+        const newStatus = mapAsaasStatusToLocal(providerStatus, asaasData?.billingType);
+        const currentStatusNorm = (order.status || 'pending').toLowerCase();
+        const rawResponse = buildSafeAsaasRawResponse(asaasData);
+        const resolvedTransactionId = String(asaasData?.id || providerPaymentId || '');
+
+        if (newStatus !== currentStatusNorm || String((order as any).payment_id || '') !== resolvedTransactionId) {
+            const { error: asaasOrderUpdateError } = await supabaseAdmin
+                .from('orders')
+                .update({
+                    status: newStatus,
+                    payment_id: resolvedTransactionId || (order as any).payment_id || null,
+                })
+                .eq('id', orderId)
+                .eq('checkout_id', order.checkout_id);
+            if (asaasOrderUpdateError) throw asaasOrderUpdateError;
+        }
+
+        if (payment?.id) {
+            const { error: asaasPaymentUpdateError } = await supabaseAdmin
+                .from('payments')
+                .update({
+                    status: newStatus,
+                    transaction_id: resolvedTransactionId || payment.transaction_id,
+                    raw_response: rawResponse,
+                    user_id: merchantUserId || payment?.user_id || (order as any).user_id,
+                })
+                .eq('id', String(payment.id))
+                .eq('order_id', orderId);
+            if (asaasPaymentUpdateError) throw asaasPaymentUpdateError;
+        } else {
+            const { error: asaasPaymentInsertError } = await supabaseAdmin
+                .from('payments')
+                .insert({
+                    id: crypto.randomUUID(),
+                    order_id: orderId,
+                    gateway_id: gatewayId,
+                    status: newStatus,
+                    transaction_id: resolvedTransactionId,
+                    raw_response: rawResponse,
+                    user_id: merchantUserId || payment?.user_id || (order as any).user_id,
+                    created_at: new Date().toISOString(),
+                });
+            if (asaasPaymentInsertError) throw asaasPaymentInsertError;
+        }
+
+        if (newStatus === 'paid') {
+            await processPaidSideEffects({
+                supabaseAdmin,
+                supabaseUrl,
+                serviceRoleKey,
+                orderId: orderId as string,
+                knownOrder: { ...order, status: 'paid', payment_id: resolvedTransactionId },
                 origin: requestOrigin,
             });
         }

@@ -14,6 +14,7 @@ import type { CheckoutTrackingAttribution } from '../utils/trackingAttribution';
 import { encryptPagSeguroCard } from '../utils/pagSeguroBrowser';
 import { buildSafePagSeguroRawResponse, getPagSeguroStatus, mapPagSeguroStatusToLocal } from '../utils/pagSeguro';
 import { buildSafeMercadoPagoRawResponse, buildSafeStripeRawResponse } from '../utils/paymentRawResponse';
+import { buildSafeAsaasRawResponse, mapAsaasStatusToLocal } from '../utils/asaas';
 import { dispatchDemoWebhookEvent } from './demoWebhookService';
 
 // Helper for UUID generation
@@ -486,6 +487,9 @@ class PaymentService {
             case GatewayProvider.PAGSEGURO:
               gatewayResponse = await this.processPagSeguro(gateway, currentOrder, request);
               break;
+            case GatewayProvider.ASAAS:
+              gatewayResponse = await this.processAsaas(gateway, currentOrder, request);
+              break;
             default:
               gatewayResponse = { success: false, message: i18n.t('unknown_gateway') };
           }
@@ -933,6 +937,20 @@ class PaymentService {
     }
   }
 
+  private mapAsaasOrderStatus(status: string, billingType?: string): OrderStatus {
+    const normalized = mapAsaasStatusToLocal(status, billingType);
+    switch (normalized) {
+      case 'paid':
+        return OrderStatus.PAID;
+      case 'refunded':
+        return OrderStatus.REFUNDED;
+      case 'canceled':
+        return OrderStatus.CANCELED;
+      default:
+        return OrderStatus.PENDING;
+    }
+  }
+
   private async processPagSeguro(
     gateway: Gateway,
     order: Order,
@@ -1043,6 +1061,96 @@ class PaymentService {
       return {
         success: false,
         message: translatePaymentError(undefined, undefined, error.message || 'Failed to process with PagBank')
+      };
+    }
+  }
+
+  private async processAsaas(
+    gateway: Gateway,
+    order: Order,
+    request: ProcessPaymentRequest
+  ): Promise<ProcessPaymentResult> {
+    try {
+      if (String(request.currency || '').trim().toUpperCase() !== 'BRL') {
+        throw new Error('O Asaas está disponível apenas para checkouts em BRL.');
+      }
+
+      console.log('[PaymentService] Calling Backend Payment Hub for Asaas...');
+
+      const response = await fetch('/api/payments?action=asaas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          checkoutId: order.checkout_id,
+          orderId: order.id,
+          gatewayId: gateway.id,
+          paymentMethod: request.paymentMethod,
+          customerEmail: order.customer_email,
+          customerName: order.customer_name,
+          customerPhone: order.customer_phone,
+          customerCpf: order.customer_cpf,
+          installments: request.installments || 1,
+          selectedBumpIds: request.selectedBumps,
+          total: order.amount || 0
+        })
+      });
+
+      const responseText = await response.text();
+      let result;
+      try {
+        result = responseText ? JSON.parse(responseText) : {};
+      } catch (parseError) {
+        console.error('[PaymentService] Failed to parse Asaas response:', responseText);
+        throw new Error(`Invalid Asaas response (Status ${response.status}).`);
+      }
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || result.message || 'Erro ao processar pagamento no Asaas.');
+      }
+
+      const paymentResponse = result.data;
+      const providerStatus = String(result.status || paymentResponse?.status || 'PENDING').trim().toUpperCase();
+      const localStatus = this.mapAsaasOrderStatus(providerStatus, paymentResponse?.billingType);
+
+      const newPayment: Payment = {
+        id: generateUUID(),
+        order_id: order.id,
+        gateway_id: gateway.id,
+        status: localStatus,
+        transaction_id: String(paymentResponse?.id || order.id),
+        raw_response: buildSafeAsaasRawResponse(paymentResponse, result.pixData ? {
+          payload: result.pixData.qr_code,
+          encodedImage: result.pixData.qr_code_base64,
+        } : undefined),
+        created_at: new Date().toISOString()
+      };
+
+      try {
+        await this.savePayment(newPayment);
+      } catch (saveError) {
+        console.warn('[PaymentService] Asaas payment save failed:', saveError);
+      }
+
+      if (localStatus === OrderStatus.FAILED || localStatus === OrderStatus.CANCELED) {
+        return {
+          success: false,
+          message: result.message || i18n.t('payment_rejected')
+        };
+      }
+
+      return {
+        success: true,
+        gatewayStatus: providerStatus,
+        statusSignature: result.statusSignature,
+        redirectUrl: result.redirectUrl,
+        pixData: result.pixData,
+        boletoData: result.boletoData,
+      };
+    } catch (error: any) {
+      console.error('[PaymentService] Asaas error:', error);
+      return {
+        success: false,
+        message: translatePaymentError(undefined, undefined, error.message || 'Failed to process with Asaas')
       };
     }
   }

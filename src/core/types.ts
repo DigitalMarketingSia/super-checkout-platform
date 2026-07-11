@@ -17,6 +17,7 @@ export enum GatewayProvider {
   MERCADO_PAGO = 'mercado_pago',
   STRIPE = 'stripe', // Future
   PAGSEGURO = 'pagseguro',
+  ASAAS = 'asaas',
   PIX = 'pix',       // Native/Manual
 }
 

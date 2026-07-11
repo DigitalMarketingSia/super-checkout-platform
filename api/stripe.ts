@@ -302,6 +302,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return await handleCentral(req, res, rawBody, supabaseAdmin);
         }
 
+        if (action === 'asaas') {
+            const { handleAsaasWebhook } = await import('../src/core/api/webhooks/asaas.js');
+            return await handleAsaasWebhook(req, res, rawBody, supabaseAdmin);
+        }
+
         return res.status(404).json({ error: 'ACTION_NOT_FOUND' });
 
     } catch (error: any) {

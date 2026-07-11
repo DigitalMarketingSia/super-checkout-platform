@@ -12,6 +12,7 @@ import { supabase } from '../../services/supabase';
 import { storage } from '../../services/storageService';
 import { isDemoDataRuntime } from '../../services/demoDataService';
 import { Gateway, GatewayProvider } from '../../types';
+import { detectAsaasApiKeyEnvironment } from '../../utils/asaas';
 import { sanitizeTranslationHtml } from '../../utils/sanitize';
 
 type MercadoPagoConfigState = {
@@ -56,6 +57,28 @@ const DEFAULT_STRIPE_CONFIG: StripeConfigState = {
   has_webhook_secret: false,
 };
 
+type AsaasConfigState = {
+  private_key: string;
+  webhook_secret: string;
+  active: boolean;
+  max_installments: number;
+  min_installment_value: number;
+  has_private_key: boolean;
+  has_webhook_secret: boolean;
+  sandbox: boolean;
+};
+
+const DEFAULT_ASAAS_CONFIG: AsaasConfigState = {
+  private_key: '',
+  webhook_secret: '',
+  active: false,
+  max_installments: 12,
+  min_installment_value: 5.0,
+  has_private_key: false,
+  has_webhook_secret: false,
+  sandbox: false,
+};
+
 const DEFAULT_PAGSEGURO_CONFIG: PagSeguroConfigState = {
   public_key: '',
   private_key: '',
@@ -84,6 +107,10 @@ const formatStatusDate = (value: unknown) => {
 
 const formatPagbankEnvironmentLabel = (value: unknown) => {
   return value === 'sandbox' ? 'Sandbox' : 'Producao';
+};
+
+const formatAsaasEnvironmentLabel = (value: unknown) => {
+  return value === true ? 'Sandbox' : 'Producao';
 };
 
 const formatPagbankRefreshSource = (value: unknown) => {
@@ -127,8 +154,9 @@ export const Gateways = () => {
   const [mpConfig, setMpConfig] = useState<MercadoPagoConfigState>(DEFAULT_MP_CONFIG);
   const [stripeConfig, setStripeConfig] = useState<StripeConfigState>(DEFAULT_STRIPE_CONFIG);
   const [pagSeguroConfig, setPagSeguroConfig] = useState<PagSeguroConfigState>(DEFAULT_PAGSEGURO_CONFIG);
+  const [asaasConfig, setAsaasConfig] = useState<AsaasConfigState>(DEFAULT_ASAAS_CONFIG);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [activeModalApp, setActiveModalApp] = useState<'mp' | 'stripe' | 'pagseguro' | null>(null);
+  const [activeModalApp, setActiveModalApp] = useState<'mp' | 'stripe' | 'pagseguro' | 'asaas' | null>(null);
   const [isConnectingOauth, setIsConnectingOauth] = useState(false);
   const [pagbankDisconnectRequested, setPagbankDisconnectRequested] = useState(false);
   const [pagbankDebugUnlocked, setPagbankDebugUnlocked] = useState(false);
@@ -157,6 +185,7 @@ export const Gateways = () => {
     const mercadoPago = all.find(gateway => gateway.name === GatewayProvider.MERCADO_PAGO);
     const stripe = all.find(gateway => gateway.name === GatewayProvider.STRIPE);
     const pagSeguro = all.find(gateway => gateway.name === GatewayProvider.PAGSEGURO);
+    const asaas = all.find(gateway => gateway.name === GatewayProvider.ASAAS);
 
     setMpConfig(
       mercadoPago
@@ -203,6 +232,21 @@ export const Gateways = () => {
             has_webhook_secret: Boolean(pagSeguro.webhook_secret),
           }
         : DEFAULT_PAGSEGURO_CONFIG
+    );
+
+    setAsaasConfig(
+      asaas
+        ? {
+            private_key: '',
+            webhook_secret: '',
+            active: asaas.active ?? (asaas as any).is_active ?? false,
+            max_installments: asaas.config?.max_installments ?? DEFAULT_ASAAS_CONFIG.max_installments,
+            min_installment_value: asaas.config?.min_installment_value ?? DEFAULT_ASAAS_CONFIG.min_installment_value,
+            has_private_key: Boolean(asaas.private_key),
+            has_webhook_secret: Boolean(asaas.webhook_secret),
+            sandbox: Boolean(asaas.config?.sandbox),
+          }
+        : DEFAULT_ASAAS_CONFIG
     );
   };
 
@@ -326,22 +370,28 @@ export const Gateways = () => {
         ? GatewayProvider.MERCADO_PAGO
         : activeModalApp === 'pagseguro'
           ? GatewayProvider.PAGSEGURO
-          : GatewayProvider.STRIPE;
+          : activeModalApp === 'asaas'
+            ? GatewayProvider.ASAAS
+            : GatewayProvider.STRIPE;
       const configState = activeModalApp === 'mp'
         ? mpConfig
         : activeModalApp === 'pagseguro'
           ? pagSeguroConfig
-          : stripeConfig;
+          : activeModalApp === 'asaas'
+            ? asaasConfig
+            : stripeConfig;
 
       const {
         max_installments,
         min_installment_value,
         has_private_key: _hasPrivateKey,
         has_webhook_secret: _hasWebhookSecret,
-        ...restConfig
+        ...restConfigRaw
       } = configState;
       const interest_rate = 'interest_rate' in configState ? configState.interest_rate : undefined;
       const environment = 'environment' in configState ? configState.environment : undefined;
+      const sandbox = 'sandbox' in restConfigRaw ? restConfigRaw.sandbox : undefined;
+      const { sandbox: _sandbox, ...restConfig } = restConfigRaw as any;
 
       const gatewayData = {
         ...restConfig,
@@ -349,6 +399,7 @@ export const Gateways = () => {
           max_installments,
           min_installment_value,
           ...(environment ? { environment } : {}),
+          ...(sandbox !== undefined ? { sandbox } : {}),
           ...(interest_rate !== undefined ? { interest_rate } : {}),
         },
         ...(activeModalApp === 'pagseguro' && pagbankDisconnectRequested ? {
@@ -550,7 +601,7 @@ export const Gateways = () => {
     }
   };
 
-  const openGatewayModal = (provider: 'mp' | 'stripe' | 'pagseguro') => {
+  const openGatewayModal = (provider: 'mp' | 'stripe' | 'pagseguro' | 'asaas') => {
     if (provider === 'pagseguro' && !PAGBANK_GATEWAY_ENABLED) {
       showAlert('PagBank indisponivel', 'A integracao com o PagBank foi removida porque a homologacao foi negada.', 'info');
       return;
@@ -569,22 +620,31 @@ export const Gateways = () => {
   const isMercadoPagoModal = activeModalApp === 'mp';
   const isStripeModal = activeModalApp === 'stripe';
   const isPagSeguroModal = activeModalApp === 'pagseguro';
+  const isAsaasModal = activeModalApp === 'asaas';
   const activeConfig = isMercadoPagoModal
     ? mpConfig
     : isPagSeguroModal
       ? pagSeguroConfig
-      : stripeConfig;
+      : isAsaasModal
+        ? asaasConfig
+        : stripeConfig;
   const activeModalTitle = isMercadoPagoModal
     ? 'Sincronizar Mercado Pago'
     : isPagSeguroModal
       ? 'Sincronizar PagSeguro / PagBank'
-      : 'Sincronizar Stripe';
+      : isAsaasModal
+        ? 'Sincronizar Asaas'
+        : 'Sincronizar Stripe';
   const activeHintHtml = isMercadoPagoModal
     ? sanitizeTranslationHtml(t('gateways.mp_hint'))
     : isPagSeguroModal
       ? sanitizeTranslationHtml(
           'Para integrar com o PagBank, use o botão "Conectar com PagBank" para autorizar nosso aplicativo oficial automaticamente.'
         )
+      : isAsaasModal
+        ? sanitizeTranslationHtml(
+            'Sua API Key do Asaas é criptografada com AES-256 no momento em que você salva e nunca mais retorna para o navegador.'
+          )
       : sanitizeTranslationHtml(
           'Para configurar o Stripe, acesse seu painel na aba Desenvolvedores, crie as chaves de API e configure o Webhook para apontar para seu sistema.'
         );
@@ -597,11 +657,15 @@ export const Gateways = () => {
     ? 'APP_USR-...'
     : isPagSeguroModal
       ? 'PAGSEGURO_TOKEN'
+      : isAsaasModal
+        ? '$aact_prod_...'
       : 'sk_live_...';
   const webhookSecretPlaceholder = isStripeModal
     ? 'whsec_...'
     : isPagSeguroModal
       ? 'authenticity-token'
+      : isAsaasModal
+        ? 'asaas-access-token'
       : 'Opcional';
   const privateKeyStatusMessage = activeConfig.has_private_key && !activeConfig.private_key.trim()
     ? 'Segredo ja salvo. Deixe em branco para manter ou preencha para substituir.'
@@ -609,6 +673,9 @@ export const Gateways = () => {
   const webhookSecretStatusMessage = activeConfig.has_webhook_secret && !activeConfig.webhook_secret.trim()
     ? 'Webhook secret ja salvo. Deixe em branco para manter ou preencha para substituir.'
     : 'Preencha apenas se quiser salvar ou substituir o token de webhook.';
+  const inferredAsaasEnvironment = isAsaasModal
+    ? detectAsaasApiKeyEnvironment(asaasConfig.private_key)
+    : null;
   const pagbankGateway = gateways.find(gateway => {
     const gatewayName = String(gateway.name || '').trim().toLowerCase();
     const gatewayProvider = String(gateway.provider || '').trim().toLowerCase();
@@ -768,7 +835,7 @@ export const Gateways = () => {
       : []),
   ].filter(meta => Boolean(meta.value));
 
-  const updateActiveConfig = (partial: Partial<MercadoPagoConfigState & StripeConfigState & PagSeguroConfigState>) => {
+  const updateActiveConfig = (partial: Partial<MercadoPagoConfigState & StripeConfigState & PagSeguroConfigState & AsaasConfigState>) => {
     if (isMercadoPagoModal) {
       setMpConfig(prev => ({ ...prev, ...partial }));
       return;
@@ -779,7 +846,12 @@ export const Gateways = () => {
       return;
     }
 
-    setStripeConfig(prev => ({ ...prev, ...partial }));
+    if (isAsaasModal) {
+      setAsaasConfig(prev => ({ ...prev, ...partial as AsaasConfigState }));
+      return;
+    }
+
+    setStripeConfig(prev => ({ ...prev, ...partial as StripeConfigState }));
   };
 
   const sanitizeCurrencyInput = (value: string) => {
@@ -908,11 +980,12 @@ export const Gateways = () => {
           onClick: () => showAlert('PayPal', 'A integracao com o PayPal estara disponivel em breve.', 'info'),
         })}
 
-        {renderComingSoonCard({
+        {renderGatewayCard({
           logoSrc: '/asaas-logo.svg',
           logoAlt: 'Asaas',
           subtitle: 'Cashflow Automation',
-          onClick: () => showAlert('Asaas', 'A integracao com o Asaas estara disponivel em breve.', 'info'),
+          isActive: asaasConfig.active,
+          onClick: () => openGatewayModal('asaas'),
         })}
       </div>
 
@@ -954,7 +1027,7 @@ export const Gateways = () => {
           </div>
 
           <div className="space-y-6">
-            {!isPagSeguroModal && (
+            {!isPagSeguroModal && !isAsaasModal && (
               <div className="grid grid-cols-1 gap-6">
                 <div>
                   <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-3 block">Chave Publica (Public Key)</label>
@@ -981,6 +1054,37 @@ export const Gateways = () => {
                   <p className="mt-3 text-[10px] font-black text-gray-600 uppercase tracking-widest leading-relaxed">
                     {privateKeyStatusMessage}
                   </p>
+                </div>
+              </div>
+            )}
+
+            {isAsaasModal && (
+              <div className="grid grid-cols-1 gap-6">
+                <div>
+                  <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-3 block">Access Token (API Key)</label>
+                  <input
+                    type="password"
+                    className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-4 focus:border-primary/50 outline-none text-white font-mono text-sm transition-all"
+                    placeholder="Insira a API Key do Asaas"
+                    value={activeConfig.private_key}
+                    onChange={event => {
+                      const nextValue = event.target.value;
+                      const inferredEnvironment = detectAsaasApiKeyEnvironment(nextValue);
+                      updateActiveConfig({
+                        private_key: nextValue,
+                        ...(inferredEnvironment ? { sandbox: inferredEnvironment === 'sandbox' } : {}),
+                      });
+                    }}
+                    required={!activeConfig.has_private_key}
+                  />
+                  <p className="mt-3 text-[10px] font-black text-gray-600 uppercase tracking-widest leading-relaxed">
+                    {privateKeyStatusMessage}
+                  </p>
+                  {inferredAsaasEnvironment && (
+                    <p className="mt-2 text-[10px] font-black text-gray-600 uppercase tracking-widest leading-relaxed">
+                      Ambiente detectado pela chave: {formatAsaasEnvironmentLabel(inferredAsaasEnvironment === 'sandbox')}.
+                    </p>
+                  )}
                 </div>
               </div>
             )}
@@ -1115,6 +1219,30 @@ export const Gateways = () => {
                   {pagbankOauthConnected
                     ? 'Se voce trocar o ambiente depois da conexao, reautorize o PagBank para emitir um token no destino correto.'
                     : 'Escolha o ambiente antes de conectar para gerar o token oficial certo.'}
+                </p>
+              </Card>
+            )}
+
+            {isAsaasModal && (
+              <Card className="bg-white/5 border-white/5 rounded-[1.8rem]">
+                <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-4 block">Ambiente</label>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { id: 'production', label: 'Producao' },
+                    { id: 'sandbox', label: 'Sandbox' },
+                  ].map(option => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => updateActiveConfig({ sandbox: option.id === 'sandbox' })}
+                      className={`py-4 rounded-2xl text-[10px] font-black border uppercase tracking-widest transition-all ${Boolean(asaasConfig.sandbox) === (option.id === 'sandbox') ? 'bg-primary border-primary text-white shadow-lg shadow-primary/20' : 'bg-black/20 border-white/5 text-gray-700 hover:bg-white/5'}`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-4 text-[10px] font-black text-gray-600 uppercase tracking-widest leading-relaxed">
+                  Escolha o mesmo ambiente da sua chave do Asaas. Chaves com prefixo `$aact_hmlg_` usam Sandbox e chaves com `$aact_prod_` usam Producao.
                 </p>
               </Card>
             )}

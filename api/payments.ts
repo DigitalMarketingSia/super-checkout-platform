@@ -37,7 +37,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
     const { action } = req.query;
-    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || 'unknown';
+    const forwardedFor = Array.isArray(req.headers['x-forwarded-for'])
+        ? req.headers['x-forwarded-for'][0]
+        : req.headers['x-forwarded-for'];
+    const cfConnectingIp = Array.isArray(req.headers['cf-connecting-ip'])
+        ? req.headers['cf-connecting-ip'][0]
+        : req.headers['cf-connecting-ip'];
+    const realIp = Array.isArray(req.headers['x-real-ip'])
+        ? req.headers['x-real-ip'][0]
+        : req.headers['x-real-ip'];
+    const ip = String(
+        cfConnectingIp
+        || forwardedFor?.split(',')[0]
+        || realIp
+        || req.socket.remoteAddress
+        || 'unknown',
+    ).trim();
 
     try {
         const { securityService } = await import('../src/core/services/securityService.js');
@@ -89,6 +104,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const baseUrl = `${protocol}://${host}`;
 
             const result = await processPagSeguroPayment({
+                ...req.body,
+                baseUrl,
+                ip
+            });
+
+            if (!result.success) {
+                const { details, data, ...safeResult } = result as any;
+                return res.status(400).json(safeResult);
+            }
+
+            return res.status(200).json(result);
+        }
+
+        if (action === 'asaas') {
+            const { processAsaasPayment } = await import('../src/modules/payments/asaas.js');
+            console.log('[PaymentsHub] Action: asaas');
+
+            const protocol = req.headers['x-forwarded-proto'] || 'https';
+            const host = req.headers.host;
+            const baseUrl = `${protocol}://${host}`;
+
+            const result = await processAsaasPayment({
                 ...req.body,
                 baseUrl,
                 ip

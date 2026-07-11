@@ -200,10 +200,14 @@ export const PixPayment = () => {
                   const qrCodeBase64 = raw.point_of_interaction?.transaction_data?.qr_code_base64;
                   const pagSeguroQrCode = raw.qr_codes?.[0]?.text;
                   const pagSeguroQrCodeImage = raw.qr_codes?.[0]?.image_url;
+                  const asaasQrCode = raw.qr_code;
+                  const asaasQrCodeImage = raw.qr_code_base64;
                   if (qrCode) realPixCode = qrCode;
                   if (qrCodeBase64) realPixQrImageSrc = toPixQrImageSrc(qrCodeBase64);
                   if (pagSeguroQrCode) realPixCode = pagSeguroQrCode;
                   if (pagSeguroQrCodeImage) realPixQrImageSrc = toPixQrImageSrc(pagSeguroQrCodeImage);
+                  if (asaasQrCode) realPixCode = asaasQrCode;
+                  if (asaasQrCodeImage) realPixQrImageSrc = toPixQrImageSrc(asaasQrCodeImage);
                 } catch (e) { console.warn('Erro PIX parse', e); }
               }
 

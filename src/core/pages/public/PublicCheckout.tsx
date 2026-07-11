@@ -1092,6 +1092,50 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
       return total;
    };
 
+   useEffect(() => {
+      if (!data || paymentMethod !== 'credit_card') {
+         setLoadingInstallments(false);
+         return;
+      }
+
+      const gatewayName = data.gateway?.name;
+      const cardBin = customer.cardNumber.replace(/\D/g, '').slice(0, 6);
+      if (gatewayName === GatewayProvider.MERCADO_PAGO && cardBin.length >= 6) {
+         return;
+      }
+
+      let cancelled = false;
+      const totalAmount = calculateTotal();
+      const currency = data.product.currency || 'BRL';
+
+      setLoadingInstallments(true);
+      paymentService.getPaymentOptions(data.gateway.id, totalAmount, currency)
+         .then((options) => {
+            if (cancelled) return;
+            setInstallmentOptions(options);
+
+            const currentInstallment = String(customer.installments || '1');
+            const isCurrentInstallmentAvailable = options.some((option) => String(option.installments) === currentInstallment);
+            if (!isCurrentInstallmentAvailable && options[0]) {
+               setCustomer((prev) => ({ ...prev, installments: String(options[0].installments) }));
+            }
+         })
+         .catch(() => {
+            if (!cancelled) {
+               setInstallmentOptions([]);
+            }
+         })
+         .finally(() => {
+            if (!cancelled) {
+               setLoadingInstallments(false);
+            }
+         });
+
+      return () => {
+         cancelled = true;
+      };
+   }, [customer.cardNumber, data, paymentMethod, selectedBumps]);
+
    const configuredUpsellProductId = String(data?.checkout?.config?.upsell?.product_id || '').trim();
    const hasConfiguredUpsell = Boolean(
       data?.checkout?.config?.upsell?.active && configuredUpsellProductId
@@ -1227,7 +1271,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
             }
 
             stripePaymentMethodId = stripePM.id;
-         } else {
+         } else if (data.gateway.name !== GatewayProvider.ASAAS) {
             // 🔒 LEGACY / MERCADO PAGO FLOW (Manual Validation)
             const cleanCardNumber = customer.cardNumber.replace(/\D/g, '');
             if (!cleanCardNumber || cleanCardNumber.length < 13) {
@@ -1313,7 +1357,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
             ),
             legalAcceptance: buildLegalAcceptanceSnapshot(),
             // Pass Card Data only if it's NOT a Stripe payment
-            cardData: (paymentMethod === 'credit_card' && !stripePaymentMethodId) ? {
+            cardData: (paymentMethod === 'credit_card' && !stripePaymentMethodId && data.gateway.name !== GatewayProvider.ASAAS) ? {
                number: customer.cardNumber,
                holderName: customer.name,
                expiryMonth: customer.expiry.split('/')[0],
@@ -1368,7 +1412,9 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
             // Artificial delay to show success state in the modal
             setTimeout(() => {
                // Handle Success Types
-               if (paymentMethod === 'pix' && result.pixData) {
+               if (result.redirectUrl) {
+                  window.location.href = result.redirectUrl;
+               } else if (paymentMethod === 'pix' && result.pixData) {
                   console.log('[PublicCheckout] Navigating to Pix page...');
                   const pixUrl = result.statusSignature
                      ? `/pagamento/pix/${result.orderId}?sig=${encodeURIComponent(result.statusSignature)}`
@@ -1513,6 +1559,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
       || isPagSeguroCheckout
       || (data.gateway?.name === GatewayProvider.MERCADO_PAGO && paymentMethod === 'credit_card');
    const shouldRenderCpfField = config.fields.cpf || shouldRequireCpfField;
+   const isAsaasHostedCardFlow = data.gateway?.name === GatewayProvider.ASAAS && paymentMethod === 'credit_card';
 
    return (
       <TrackingProvider
@@ -1810,212 +1857,270 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                   {/* SEÇÃO CARTÃO */}
                   {paymentMethod === 'credit_card' && (
                      <div className="space-y-4 animate-in fade-in duration-300">
-                        {/* Card Container - Centered and Constrained */}
-                        <div className="w-full max-w-[280px] mx-auto">
-                           <div className="perspective-1000 w-full h-[176px] relative cursor-pointer group" onClick={() => setCardFlipped(!cardFlipped)}>
-                              <div className={`w-full h-full relative preserve-3d transition-transform duration-700 ${cardFlipped ? 'rotate-y-180' : ''}`} style={{ transformStyle: 'preserve-3d', transform: cardFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)' }}>
-                                 {/* Front */}
-                                 <div className={`absolute w-full h-full backface-hidden bg-gradient-to-br ${currentCardStyle.gradient} rounded-xl shadow-xl p-4 text-white flex flex-col justify-between z-10 transition-all duration-500`} style={{ backfaceVisibility: 'hidden' }}>
-                                    <div className="flex justify-between items-start">
-                                       <div className="w-10 h-7 bg-yellow-500/80 rounded-md border-2 border-white"></div>
-                                       <span className={`font-mono text-base italic font-bold ${currentCardStyle.textColor}`}>{currentCardStyle.logo}</span>
+                        {isAsaasHostedCardFlow ? (
+                           <div className="w-full max-w-[320px] mx-auto space-y-4 pt-2">
+                              <div className="rounded-2xl border border-blue-100 bg-blue-50 p-5 text-left shadow-sm">
+                                 <div className="flex items-start gap-3">
+                                    <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 text-blue-700">
+                                       <ShieldCheck className="h-5 w-5" />
                                     </div>
-                                    <div>
-                                       <p className="font-mono text-base tracking-widest shadow-black drop-shadow-md flex items-center gap-2">
-                                          {customer.cardNumber || '•••• •••• •••• ••••'}
-                                          <ShieldCheck className="w-3.5 h-3.5 text-white/50" />
+                                    <div className="space-y-2">
+                                       <p className="text-sm font-bold text-gray-900">
+                                          {t('checkout.asaas_card_redirect_title', 'Finalização segura no Asaas')}
+                                       </p>
+                                       <p className="text-sm leading-relaxed text-gray-600">
+                                          {t('checkout.asaas_card_redirect_desc', 'Depois de confirmar a compra, vamos abrir a etapa segura do Asaas para você digitar os dados do cartão e concluir o pagamento.')}
+                                       </p>
+                                       <p className="text-xs font-medium text-gray-500">
+                                          {t('checkout.asaas_card_redirect_return', 'Quando o pagamento for aprovado, o cliente volta automaticamente para a confirmação do pedido.')}
                                        </p>
                                     </div>
-                                    <div className="flex justify-between items-end">
-                                       <div>
-                                          <p className="text-[7px] uppercase text-gray-400">{t('checkout.cardholder_short', 'Titular')}</p>
-                                          <p className="font-medium uppercase text-xs tracking-wide">{customer.name || t('checkout.cardholder_placeholder', 'NOME DO TITULAR')}</p>
-                                       </div>
-                                       <div>
-                                          <p className="text-[7px] uppercase text-gray-400">{t('checkout.expiry_short', 'Validade')}</p>
-                                          <p className="font-medium text-xs tracking-widest">{customer.expiry || '••/••'}</p>
-                                       </div>
-                                    </div>
                                  </div>
-                                 {/* Back */}
-                                 <div className="absolute w-full h-full backface-hidden bg-gray-800 rounded-xl shadow-xl overflow-hidden" style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}>
-                                    <div className="w-full h-8 bg-black mt-4"></div>
-                                    <div className="p-4">
-                                       <div className="bg-white h-6 w-full flex items-center justify-end px-2">
-                                          <span className="font-mono text-sm text-gray-900">{customer.cvc || '123'}</span>
-                                       </div>
+                              </div>
+
+                              <div>
+                                 {loadingInstallments ? (
+                                    <div className="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2.5 text-sm text-gray-400 animate-pulse">
+                                       {t('checkout.loading_installments', 'Carregando parcelas...')}
                                     </div>
-                                 </div>
+                                 ) : installmentOptions.length > 1 ? (
+                                    <select
+                                       className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 outline-none transition-all focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/20"
+                                       value={customer.installments}
+                                       onChange={e => setCustomer({ ...customer, installments: e.target.value })}
+                                    >
+                                       {installmentOptions.map(opt => (
+                                          <option key={opt.installments} value={String(opt.installments)}>
+                                             {opt.label}
+                                          </option>
+                                       ))}
+                                    </select>
+                                 ) : installmentOptions.length === 1 ? (
+                                    <div className="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2.5 text-sm text-gray-700">
+                                       {installmentOptions[0].label}
+                                    </div>
+                                 ) : (
+                                    <select
+                                       className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 outline-none transition-all focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/20"
+                                       value={customer.installments}
+                                       onChange={e => setCustomer({ ...customer, installments: e.target.value })}
+                                    >
+                                       {Array.from({ length: 12 }, (_, index) => index + 1).map((count) => (
+                                          <option key={count} value={String(count)}>
+                                             {t('checkout.installment_no_interest', '{{count}}x sem juros', { count })}
+                                          </option>
+                                       ))}
+                                    </select>
+                                 )}
                               </div>
                            </div>
-                        </div>
-
-                        {/* Form Container - Matching Card Width */}
-                        <div className="w-full max-w-[280px] mx-auto space-y-3 pt-2">
-                           {data.gateway.name === GatewayProvider.STRIPE ? (
-                              <div className="space-y-3 pt-2">
-                                 <StripeInputWrapper label={t('checkout.fields.card_number', 'Número do cartão')}>
-                                    <CardNumberElement
-                                       options={strypeElementOptions}
-                                       onFocus={() => setCardFlipped(false)}
-                                       onChange={(e) => {
-                                          if (e.brand) {
-                                             // Map Stripe brands to our internal brand types
-                                             const brandMap: Record<string, CardBrand> = {
-                                                'visa': 'visa',
-                                                'mastercard': 'mastercard',
-                                                'amex': 'amex',
-                                                'discover': 'discover',
-                                                'diners': 'diners',
-                                                'jcb': 'default',
-                                                'unionpay': 'default',
-                                                'unknown': 'default'
-                                             };
-                                             setCardBrand(brandMap[e.brand] || 'default');
-                                          }
-                                          if (e.error) {
-                                             setErrors(prev => ({ ...prev, stripe: e.error.message }));
-                                          } else {
-                                             setErrors(prev => {
-                                                const newErrors = { ...prev };
-                                                delete newErrors.stripe;
-                                                return newErrors;
-                                             });
-                                          }
-                                       }}
-                                    />
-                                 </StripeInputWrapper>
-
-                                 <div className="grid grid-cols-2 gap-3">
-                                    <StripeInputWrapper label={t('checkout.expiry_short', 'Validade')}>
-                                       <CardExpiryElement
-                                          options={strypeElementOptions}
-                                          onFocus={() => setCardFlipped(false)}
-                                       />
-                                    </StripeInputWrapper>
-
-                                    <StripeInputWrapper label="CVC">
-                                       <CardCvcElement
-                                          options={strypeElementOptions}
-                                          onFocus={() => setCardFlipped(true)}
-                                       />
-                                    </StripeInputWrapper>
+                        ) : (
+                           <>
+                              {/* Card Container - Centered and Constrained */}
+                              <div className="w-full max-w-[280px] mx-auto">
+                                 <div className="perspective-1000 w-full h-[176px] relative cursor-pointer group" onClick={() => setCardFlipped(!cardFlipped)}>
+                                    <div className={`w-full h-full relative preserve-3d transition-transform duration-700 ${cardFlipped ? 'rotate-y-180' : ''}`} style={{ transformStyle: 'preserve-3d', transform: cardFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)' }}>
+                                       {/* Front */}
+                                       <div className={`absolute w-full h-full backface-hidden bg-gradient-to-br ${currentCardStyle.gradient} rounded-xl shadow-xl p-4 text-white flex flex-col justify-between z-10 transition-all duration-500`} style={{ backfaceVisibility: 'hidden' }}>
+                                          <div className="flex justify-between items-start">
+                                             <div className="w-10 h-7 bg-yellow-500/80 rounded-md border-2 border-white"></div>
+                                             <span className={`font-mono text-base italic font-bold ${currentCardStyle.textColor}`}>{currentCardStyle.logo}</span>
+                                          </div>
+                                          <div>
+                                             <p className="font-mono text-base tracking-widest shadow-black drop-shadow-md flex items-center gap-2">
+                                                {customer.cardNumber || '•••• •••• •••• ••••'}
+                                                <ShieldCheck className="w-3.5 h-3.5 text-white/50" />
+                                             </p>
+                                          </div>
+                                          <div className="flex justify-between items-end">
+                                             <div>
+                                                <p className="text-[7px] uppercase text-gray-400">{t('checkout.cardholder_short', 'Titular')}</p>
+                                                <p className="font-medium uppercase text-xs tracking-wide">{customer.name || t('checkout.cardholder_placeholder', 'NOME DO TITULAR')}</p>
+                                             </div>
+                                             <div>
+                                                <p className="text-[7px] uppercase text-gray-400">{t('checkout.expiry_short', 'Validade')}</p>
+                                                <p className="font-medium text-xs tracking-widest">{customer.expiry || '••/••'}</p>
+                                             </div>
+                                          </div>
+                                       </div>
+                                       {/* Back */}
+                                       <div className="absolute w-full h-full backface-hidden bg-gray-800 rounded-xl shadow-xl overflow-hidden" style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}>
+                                          <div className="w-full h-8 bg-black mt-4"></div>
+                                          <div className="p-4">
+                                             <div className="bg-white h-6 w-full flex items-center justify-end px-2">
+                                                <span className="font-mono text-sm text-gray-900">{customer.cvc || '123'}</span>
+                                             </div>
+                                          </div>
+                                       </div>
+                                    </div>
                                  </div>
                               </div>
-                           ) : (
-                              <>
+
+                              {/* Form Container - Matching Card Width */}
+                              <div className="w-full max-w-[280px] mx-auto space-y-3 pt-2">
+                                 {data.gateway.name === GatewayProvider.STRIPE ? (
+                                    <div className="space-y-3 pt-2">
+                                       <StripeInputWrapper label={t('checkout.fields.card_number', 'Número do cartão')}>
+                                          <CardNumberElement
+                                             options={strypeElementOptions}
+                                             onFocus={() => setCardFlipped(false)}
+                                             onChange={(e) => {
+                                                if (e.brand) {
+                                                   const brandMap: Record<string, CardBrand> = {
+                                                      'visa': 'visa',
+                                                      'mastercard': 'mastercard',
+                                                      'amex': 'amex',
+                                                      'discover': 'discover',
+                                                      'diners': 'diners',
+                                                      'jcb': 'default',
+                                                      'unionpay': 'default',
+                                                      'unknown': 'default'
+                                                   };
+                                                   setCardBrand(brandMap[e.brand] || 'default');
+                                                }
+                                                if (e.error) {
+                                                   setErrors(prev => ({ ...prev, stripe: e.error.message }));
+                                                } else {
+                                                   setErrors(prev => {
+                                                      const newErrors = { ...prev };
+                                                      delete newErrors.stripe;
+                                                      return newErrors;
+                                                   });
+                                                }
+                                             }}
+                                          />
+                                       </StripeInputWrapper>
+
+                                       <div className="grid grid-cols-2 gap-3">
+                                          <StripeInputWrapper label={t('checkout.expiry_short', 'Validade')}>
+                                             <CardExpiryElement
+                                                options={strypeElementOptions}
+                                                onFocus={() => setCardFlipped(false)}
+                                             />
+                                          </StripeInputWrapper>
+
+                                          <StripeInputWrapper label="CVC">
+                                             <CardCvcElement
+                                                options={strypeElementOptions}
+                                                onFocus={() => setCardFlipped(true)}
+                                             />
+                                          </StripeInputWrapper>
+                                       </div>
+                                    </div>
+                                 ) : (
+                                    <>
+                                       <div>
+                                          <input
+                                             type="text"
+                                             className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/20 transition-all"
+                                             placeholder={t('checkout.fields.card_number', 'Número do cartão')}
+                                             value={customer.cardNumber}
+                                             onChange={e => {
+                                                const newValue = e.target.value;
+                                                setCustomer({ ...customer, cardNumber: newValue });
+                                                setCardBrand(detectCardBrand(newValue));
+
+                                                const cleanedBin = newValue.replace(/\D/g, '');
+                                                if (cleanedBin.length >= 6 && data) {
+                                                   const bin = cleanedBin.substring(0, 6);
+                                                   const totalAmount = calculateTotal();
+                                                   const currency = data.product.currency || 'BRL';
+                                                   setLoadingInstallments(true);
+                                                   paymentService.getPaymentOptions(data.gateway.id, totalAmount, currency, bin)
+                                                      .then(options => {
+                                                         setInstallmentOptions(options);
+                                                         setCustomer(prev => ({ ...prev, installments: '1' }));
+                                                      })
+                                                      .catch(() => setInstallmentOptions([]))
+                                                      .finally(() => setLoadingInstallments(false));
+                                                } else if (cleanedBin.length < 6) {
+                                                   setInstallmentOptions([]);
+                                                }
+                                             }}
+                                             onFocus={() => setCardFlipped(false)}
+                                          />
+                                       </div>
+                                       <div className="grid grid-cols-[1fr_80px] gap-3">
+                                          <input
+                                             type="text"
+                                             className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/20 transition-all"
+                                             placeholder="MM/AA"
+                                             maxLength={5}
+                                             value={customer.expiry}
+                                             onChange={e => {
+                                                let value = e.target.value.replace(/\D/g, '');
+                                                if (value.length >= 2) {
+                                                   value = value.slice(0, 2) + '/' + value.slice(2, 4);
+                                                }
+                                                setCustomer({ ...customer, expiry: value });
+                                             }}
+                                             onFocus={() => setCardFlipped(false)}
+                                          />
+                                          <input
+                                             type="text"
+                                             className="w-full border border-gray-300 rounded-lg px-3 py-2.5 outline-none focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/20 transition-all"
+                                             placeholder="CVV"
+                                             maxLength={4}
+                                             value={customer.cvc}
+                                             onChange={e => setCustomer({ ...customer, cvc: e.target.value })}
+                                             onFocus={() => setCardFlipped(true)}
+                                          />
+                                       </div>
+                                    </>
+                                 )}
                                  <div>
-                                    <input
-                                       type="text"
-                                       className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/20 transition-all"
-                                       placeholder={t('checkout.fields.card_number', 'Número do cartão')}
-                                       value={customer.cardNumber}
-                                       onChange={e => {
-                                          const newValue = e.target.value;
-                                          setCustomer({ ...customer, cardNumber: newValue });
-                                          setCardBrand(detectCardBrand(newValue));
-
-                                          // === MOTOR FINANCEIRO: Trigger BIN detection ===
-                                          const cleanedBin = newValue.replace(/\D/g, '');
-                                          if (cleanedBin.length >= 6 && data) {
-                                             const bin = cleanedBin.substring(0, 6);
-                                             const totalAmount = calculateTotal();
-                                             const currency = data.product.currency || 'BRL';
-                                             setLoadingInstallments(true);
-                                             paymentService.getPaymentOptions(data.gateway.id, totalAmount, currency, bin)
-                                                .then(options => {
-                                                   setInstallmentOptions(options);
-                                                   setCustomer(prev => ({ ...prev, installments: '1' }));
-                                                })
-                                                .catch(() => setInstallmentOptions([]))
-                                                .finally(() => setLoadingInstallments(false));
-                                          } else if (cleanedBin.length < 6) {
-                                             setInstallmentOptions([]);
-                                          }
-                                       }}
-                                       onFocus={() => setCardFlipped(false)}
-                                    />
+                                    {loadingInstallments ? (
+                                       <div className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-gray-400 text-sm animate-pulse bg-gray-50">
+                                          {t('checkout.loading_installments', 'Carregando parcelas...')}
+                                       </div>
+                                    ) : installmentOptions.length > 1 ? (
+                                       <select
+                                          className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/20 transition-all bg-white"
+                                          value={customer.installments}
+                                          onChange={e => setCustomer({ ...customer, installments: e.target.value })}
+                                       >
+                                          {installmentOptions.map(opt => (
+                                             <option key={opt.installments} value={String(opt.installments)}>
+                                                {opt.label}
+                                             </option>
+                                          ))}
+                                       </select>
+                                    ) : installmentOptions.length === 1 ? (
+                                       <div className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-gray-700 text-sm bg-gray-50">
+                                          {installmentOptions[0].label}
+                                       </div>
+                                    ) : (
+                                       <select
+                                          className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/20 transition-all bg-white"
+                                          value={customer.installments}
+                                          onChange={e => setCustomer({ ...customer, installments: e.target.value })}
+                                       >
+                                          {Array.from({ length: 12 }, (_, index) => index + 1).map((count) => (
+                                             <option key={count} value={String(count)}>
+                                                {t('checkout.installment_no_interest', '{{count}}x sem juros', { count })}
+                                             </option>
+                                          ))}
+                                       </select>
+                                    )}
                                  </div>
-                                 <div className="grid grid-cols-[1fr_80px] gap-3">
-                                    <input
-                                       type="text"
-                                       className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/20 transition-all"
-                                       placeholder="MM/AA"
-                                       maxLength={5}
-                                       value={customer.expiry}
-                                       onChange={e => {
-                                          let value = e.target.value.replace(/\D/g, ''); // Remove non-digits
-                                          if (value.length >= 2) {
-                                             value = value.slice(0, 2) + '/' + value.slice(2, 4);
-                                          }
-                                          setCustomer({ ...customer, expiry: value });
-                                       }}
-                                       onFocus={() => setCardFlipped(false)}
-                                    />
-                                    <input
-                                       type="text"
-                                       className="w-full border border-gray-300 rounded-lg px-3 py-2.5 outline-none focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/20 transition-all"
-                                       placeholder="CVV"
-                                       maxLength={4}
-                                       value={customer.cvc}
-                                       onChange={e => setCustomer({ ...customer, cvc: e.target.value })}
-                                       onFocus={() => setCardFlipped(true)}
-                                    />
-                                 </div>
-                              </>
-                           )}
-                           <div>
-                              {loadingInstallments ? (
-                                  <div className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-gray-400 text-sm animate-pulse bg-gray-50">
-                                     {t('checkout.loading_installments', 'Carregando parcelas...')}
-                                  </div>
-                               ) : installmentOptions.length > 1 ? (
-                                  <select
-                                     className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/20 transition-all bg-white"
-                                     value={customer.installments}
-                                     onChange={e => setCustomer({ ...customer, installments: e.target.value })}
-                                  >
-                                     {installmentOptions.map(opt => (
-                                        <option key={opt.installments} value={String(opt.installments)}>
-                                           {opt.label}
-                                        </option>
-                                     ))}
-                                  </select>
-                               ) : installmentOptions.length === 1 ? (
-                                  <div className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-gray-700 text-sm bg-gray-50">
-                                     {installmentOptions[0].label}
-                                  </div>
-                               ) : (
-                                  <select
-                                     className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/20 transition-all bg-white"
-                                     value={customer.installments}
-                                     onChange={e => setCustomer({ ...customer, installments: e.target.value })}
-                                  >
-                                     {Array.from({ length: 12 }, (_, index) => index + 1).map((count) => (
-                                        <option key={count} value={String(count)}>
-                                           {t('checkout.installment_no_interest', '{{count}}x sem juros', { count })}
-                                        </option>
-                                     ))}
-                                  </select>
-                               )}
-                           </div>
 
-                           {/* LINK AUTHENTICATION (MOVIDO PARA BAIXO DOS JUROS) */}
-                           {data.gateway.name === GatewayProvider.STRIPE && (
-                              <div className="w-full mt-4 animate-in fade-in duration-500">
-                                 <StripeInputWrapper>
-                                    <LinkAuthenticationElement
-                                       options={{
-                                          defaultValues: { email: customer.email }
-                                       }}
-                                    />
-                                 </StripeInputWrapper>
-                                 <p className="text-[10px] text-gray-400 text-center font-medium mt-1.5">
-                                    {t('checkout.stripe_link_hint', 'Pagamento expresso com 1-Clique na rede Stripe')}
-                                 </p>
+                                 {data.gateway.name === GatewayProvider.STRIPE && (
+                                    <div className="w-full mt-4 animate-in fade-in duration-500">
+                                       <StripeInputWrapper>
+                                          <LinkAuthenticationElement
+                                             options={{
+                                                defaultValues: { email: customer.email }
+                                             }}
+                                          />
+                                       </StripeInputWrapper>
+                                       <p className="text-[10px] text-gray-400 text-center font-medium mt-1.5">
+                                          {t('checkout.stripe_link_hint', 'Pagamento expresso com 1-Clique na rede Stripe')}
+                                       </p>
+                                    </div>
+                                 )}
                               </div>
-                           )}
-                        </div>
+                           </>
+                        )}
                      </div>
                   )}
 
