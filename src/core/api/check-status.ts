@@ -209,7 +209,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         const { data: order, error: orderError } = await supabaseAdmin
             .from('orders')
-            .select('id,status,payment_method,checkout_id,user_id,payment_id,amount,customer_email,customer_name,customer_user_id,items,metadata')
+            .select('id,status,payment_method,checkout_id,user_id,payment_id,customer_email,customer_name,customer_user_id,items,metadata,total')
             .eq('id', orderId)
             .maybeSingle();
 

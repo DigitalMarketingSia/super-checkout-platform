@@ -212,8 +212,8 @@ export const PixPayment = () => {
               }
 
               const adaptedOrder = {
-                items: order.items || [{ name: t('pix.fallback_item', 'Oferta selecionada'), price: order.amount, quantity: 1 }],
-                totalAmount: order.amount,
+                items: order.items || [{ name: t('pix.fallback_item', 'Oferta selecionada'), price: order.total || order.amount, quantity: 1 }],
+                totalAmount: order.total || order.amount,
                 customer: { name: order.customer_name, email: order.customer_email }
               };
               setOrderData(adaptedOrder);
