@@ -1075,6 +1075,10 @@ class PaymentService {
         throw new Error('O Asaas está disponível apenas para checkouts em BRL.');
       }
 
+      if (request.paymentMethod !== 'pix') {
+        throw new Error('O Asaas está disponível apenas via Pix no Super Checkout neste momento.');
+      }
+
       console.log('[PaymentService] Calling Backend Payment Hub for Asaas...');
 
       const response = await fetch('/api/payments?action=asaas', {

@@ -149,6 +149,7 @@ export const CheckoutEditor = () => {
    const availableUpsells = activeProducts.filter(p => p.is_upsell && p.id !== productId);
    const selectedGatewayName = gateways.find(g => g.id === gatewayId)?.name;
    const selectedBackupGatewayName = gateways.find(g => g.id === backupGatewayId)?.name;
+   const isAsaasSelected = selectedGatewayName === GatewayProvider.ASAAS;
    const isPagSeguroSelected = selectedGatewayName === GatewayProvider.PAGSEGURO;
    const isPagSeguroBackupSelected = selectedBackupGatewayName === GatewayProvider.PAGSEGURO;
    const selectableGateways = gateways.filter(isSelectableGateway);
@@ -226,7 +227,8 @@ export const CheckoutEditor = () => {
             ...config,
             payment_methods: {
                ...config.payment_methods,
-               boleto: selectedGatewayName === GatewayProvider.PAGSEGURO ? false : config.payment_methods.boleto,
+               credit_card: isAsaasSelected ? false : config.payment_methods.credit_card,
+               boleto: isPagSeguroSelected || isAsaasSelected ? false : config.payment_methods.boleto,
                apple_pay: selectedGatewayName === GatewayProvider.STRIPE ? config.payment_methods.apple_pay : false,
                google_pay: selectedGatewayName === GatewayProvider.STRIPE ? config.payment_methods.google_pay : false,
             },
@@ -891,8 +893,10 @@ export const CheckoutEditor = () => {
                               ].map(method => {
                                  const isStripeOnly = method.id === 'apple_pay' || method.id === 'google_pay';
                                  const isPagSeguroBoleto = method.id === 'boleto' && isPagSeguroSelected;
+                                 const isAsaasPixOnlyMethod = isAsaasSelected && (method.id === 'credit_card' || method.id === 'boleto');
                                  const isDisabled = (isStripeOnly && gatewayId && gateways.find(g => g.id === gatewayId)?.name !== GatewayProvider.STRIPE)
-                                    || isPagSeguroBoleto;
+                                    || isPagSeguroBoleto
+                                    || isAsaasPixOnlyMethod;
                                  
                                  return (
                                     <button
@@ -913,6 +917,11 @@ export const CheckoutEditor = () => {
                                  );
                               })}
                            </div>
+                           {isAsaasSelected && (
+                              <div className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-amber-200">
+                                 {t('checkout_editor.asaas_pix_only_hint', 'Asaas permanece temporariamente apenas com Pix no Super Checkout.')}
+                              </div>
+                           )}
                         </div>
                      </section>
                   </div>

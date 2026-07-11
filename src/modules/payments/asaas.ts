@@ -19,7 +19,6 @@ import {
   loadOwnedActiveGateway,
   loadOwnedOrderForCheckoutWithMerchant,
   loadValidCheckoutBumps,
-  normalizeInstallmentsForGateway,
   resolveCheckoutMerchantUserId,
 } from './payment-security.js';
 
@@ -194,7 +193,6 @@ export async function processAsaasPayment(payload: AsaasPaymentPayload) {
     orderId,
     gatewayId,
     paymentMethod,
-    installments = 1,
     selectedBumpIds = [],
     customerEmail,
     customerName,
@@ -225,6 +223,13 @@ export async function processAsaasPayment(payload: AsaasPaymentPayload) {
     const serverCurrency = getServerCurrency(checkout, mainProduct);
     if (serverCurrency !== 'BRL') {
       throw new PaymentSecurityError('PAYMENT_CURRENCY_GATEWAY_FORBIDDEN', 'O Asaas esta habilitado apenas para BRL.');
+    }
+
+    if (paymentMethod !== 'pix') {
+      throw new PaymentSecurityError(
+        'PAYMENT_METHOD_GATEWAY_FORBIDDEN',
+        'O Asaas esta disponivel apenas via Pix no Super Checkout neste momento.',
+      );
     }
 
     const authToken = decrypt(gateway.private_key || '').replace(/\s/g, '').trim();
@@ -295,12 +300,7 @@ export async function processAsaasPayment(payload: AsaasPaymentPayload) {
       throw new PaymentSecurityError('ORDER_TOTAL_INVALID', 'Nao foi possivel calcular o valor do pedido.');
     }
 
-    const billingType = paymentMethod === 'credit_card'
-      ? 'CREDIT_CARD'
-      : paymentMethod === 'boleto'
-        ? 'BOLETO'
-        : 'PIX';
-    const safeInstallments = normalizeInstallmentsForGateway(installments, gateway);
+    const billingType: 'PIX' | 'CREDIT_CARD' | 'BOLETO' = 'PIX';
     const statusSignature = generateSignature(orderId);
     const callbackUrl = buildPublicReturnUrl(baseUrl, orderId, statusSignature);
     const paymentPayload: Record<string, any> = {
@@ -314,11 +314,6 @@ export async function processAsaasPayment(payload: AsaasPaymentPayload) {
         successUrl: callbackUrl,
       },
     };
-
-    if (billingType === 'CREDIT_CARD' && safeInstallments > 1) {
-      paymentPayload.installmentCount = safeInstallments;
-      paymentPayload.totalValue = Number(totalAmount.toFixed(2));
-    }
 
     const paymentResponse = await callAsaasJson(
       `${apiBaseUrl}/payments`,
@@ -353,13 +348,7 @@ export async function processAsaasPayment(payload: AsaasPaymentPayload) {
     const localStatus = mapAsaasStatusToLocal(paymentResponse?.status, paymentResponse?.billingType);
     const safeRawResponse = buildSafeAsaasRawResponse(paymentResponse, pixQrCodeResponse);
     const transactionId = String(paymentResponse?.id || orderId);
-    const redirectUrl = billingType === 'CREDIT_CARD'
-      ? String(paymentResponse?.invoiceUrl || '').trim()
-      : undefined;
-
-    if (billingType === 'CREDIT_CARD' && !redirectUrl) {
-      throw new Error('O Asaas nao retornou uma URL segura para concluir o pagamento com cartao.');
-    }
+    const redirectUrl = undefined;
 
     await supabaseAdmin
       .from('orders')
@@ -389,18 +378,11 @@ export async function processAsaasPayment(payload: AsaasPaymentPayload) {
       data: paymentResponse,
       statusSignature,
       redirectUrl,
-      pixData: billingType === 'PIX'
-        ? {
-            qr_code: String(pixQrCodeResponse?.payload || ''),
-            qr_code_base64: String(pixQrCodeResponse?.encodedImage || ''),
-          }
-        : undefined,
-      boletoData: billingType === 'BOLETO'
-        ? {
-            barcode: String(paymentResponse?.identificationField || ''),
-            url: String(paymentResponse?.invoiceUrl || paymentResponse?.bankSlipUrl || ''),
-          }
-        : undefined,
+      pixData: {
+        qr_code: String(pixQrCodeResponse?.payload || ''),
+        qr_code_base64: String(pixQrCodeResponse?.encodedImage || ''),
+      },
+      boletoData: undefined,
     };
   } catch (error: any) {
     const isSecurityError = error instanceof PaymentSecurityError;

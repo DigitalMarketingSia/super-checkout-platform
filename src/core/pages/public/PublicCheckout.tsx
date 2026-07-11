@@ -536,6 +536,35 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
       ));
    };
 
+   useEffect(() => {
+      if (!data || !paymentMethod) return;
+
+      const normalizedConfig = normalizePublicCheckoutConfig(data.checkout.config);
+      const asaasInvalidMethod =
+         data.gateway.name === GatewayProvider.ASAAS
+         && (paymentMethod === 'credit_card' || paymentMethod === 'boleto');
+      const pagSeguroInvalidMethod =
+         data.gateway.name === GatewayProvider.PAGSEGURO
+         && paymentMethod === 'boleto';
+
+      const methodDisabledInConfig = (
+         (paymentMethod === 'credit_card' && !normalizedConfig.payment_methods.credit_card)
+         || (paymentMethod === 'pix' && !normalizedConfig.payment_methods.pix)
+         || (paymentMethod === 'boleto' && !normalizedConfig.payment_methods.boleto)
+         || (paymentMethod === 'apple_pay' && !normalizedConfig.payment_methods.apple_pay)
+         || (paymentMethod === 'google_pay' && !normalizedConfig.payment_methods.google_pay)
+      );
+
+      if (!asaasInvalidMethod && !pagSeguroInvalidMethod && !methodDisabledInConfig) return;
+
+      if (normalizedConfig.payment_methods.pix) {
+         handlePaymentMethodSelect('pix');
+         return;
+      }
+
+      setPaymentMethod(null);
+   }, [data, paymentMethod, isDemoCheckout]);
+
    // Form State
    const [customer, setCustomer] = useState({
       name: '',
@@ -1210,6 +1239,17 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
          return;
       }
 
+      if (data.gateway.name === GatewayProvider.ASAAS && paymentMethod !== 'pix') {
+         showAlert(
+            t('checkout.error_title', 'Erro'),
+            'O Asaas está disponível apenas via Pix neste checkout.',
+            'error'
+         );
+         setProcessState('idle');
+         setIsProcessing(false);
+         return;
+      }
+
       if (paymentMethod === 'credit_card') {
          if (isMercadoPagoSandboxGateway(data.gateway) && !isMercadoPagoSandboxBuyerEmail(customer.email)) {
             const emailInput = document.getElementById('input-email');
@@ -1560,7 +1600,8 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
    const totalAmount = calculateTotal();
    const config = normalizePublicCheckoutConfig(data.checkout.config);
    const shouldRequirePhoneField = config.fields.phone;
-    const isPagSeguroCheckout = data.gateway?.name === GatewayProvider.PAGSEGURO;
+   const isPagSeguroCheckout = data.gateway?.name === GatewayProvider.PAGSEGURO;
+   const isAsaasCheckout = data.gateway?.name === GatewayProvider.ASAAS;
    const availableDemoScenarios = demoScenarios.filter((scenario) =>
       paymentMethod === 'pix'
          ? scenario.status === 'pix_pending' || scenario.status === 'pix_paid'
@@ -1771,7 +1812,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                    </h3>
 
                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
-                     {config.payment_methods?.credit_card && (
+                     {config.payment_methods?.credit_card && !isAsaasCheckout && (
                         <button
                            onClick={() => handlePaymentMethodSelect('credit_card')}
                            className={`relative flex items-center justify-center gap-2 p-4 rounded-xl border-2 transition-all ${paymentMethod === 'credit_card'
@@ -1807,7 +1848,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                         </button>
                      )}
 
-                     {config.payment_methods?.boleto && !isPagSeguroCheckout && (
+                     {config.payment_methods?.boleto && !isPagSeguroCheckout && !isAsaasCheckout && (
                         <button
                            onClick={() => handlePaymentMethodSelect('boleto')}
                            className={`relative flex items-center justify-center gap-2 p-4 rounded-xl border-2 transition-all ${paymentMethod === 'boleto'
@@ -1845,6 +1886,12 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                   </div>
 
                   {/* SEÇÃO CARTEIRA DIGITAL */}
+                  {isAsaasCheckout && (
+                     <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                        {t('checkout.asaas_pix_only_notice', 'Neste momento, checkouts com Asaas aceitam pagamentos apenas via Pix.')}
+                     </div>
+                  )}
+
                   {(paymentMethod === 'apple_pay' || paymentMethod === 'google_pay') && (
                      <div className="p-6 bg-gray-50 border border-gray-200 rounded-xl text-center animate-in fade-in duration-300">
                         {walletAvailability?.simulated && (
@@ -1866,7 +1913,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                   )}
 
                   {/* SEÇÃO CARTÃO */}
-                  {paymentMethod === 'credit_card' && (
+                  {paymentMethod === 'credit_card' && !isAsaasCheckout && (
                      <div className="space-y-4 animate-in fade-in duration-300">
                         {isAsaasHostedCardFlow ? (
                            <div className="w-full max-w-[320px] mx-auto space-y-4 pt-2">
