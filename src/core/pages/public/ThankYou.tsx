@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { CheckCircle, Package, Mail, ArrowRight, ExternalLink, LockKeyhole } from 'lucide-react';
+import { CheckCircle, Package, Mail, ArrowRight, ExternalLink, LockKeyhole, Clock3, RefreshCcw } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Loading } from '../../components/ui/Loading';
 import { supabase } from '../../services/supabase';
@@ -182,6 +182,8 @@ export const ThankYou = () => {
   const [deliverables, setDeliverables] = useState<OrderDeliverable[]>([]);
   const [businessName, setBusinessName] = useState('Super Checkout');
   const [loading, setLoading] = useState(true);
+  const [statusSignature, setStatusSignature] = useState('');
+  const [isStatusChecking, setIsStatusChecking] = useState(false);
   const [trackingAttribution, setTrackingAttribution] = useState<CheckoutTrackingAttribution | null>(() => (
     typeof window !== 'undefined' ? captureCheckoutTrackingAttribution() : null
   ));
@@ -255,6 +257,7 @@ export const ThankYou = () => {
         setOriginalOrder(null);
         const sig = new URLSearchParams(location.search).get('sig') || '';
         const originalSig = new URLSearchParams(location.search).get('origSig') || '';
+        setStatusSignature(sig);
         let currentSnapshot = sig ? await waitForOrderSnapshot(orderId, sig) : null;
         let orderData = currentSnapshot?.order || await fetchPublicOrderById(orderId);
 
@@ -282,7 +285,9 @@ export const ThankYou = () => {
         }
 
         setDeliverables(mergeDeliverables(originalStoredDeliverables, currentDeliverables));
-        stripSignedOrderAccessParams();
+        if (isPaidStatus(orderData?.status)) {
+          stripSignedOrderAccessParams();
+        }
 
         // Fetch checkout
         if (orderData?.checkout_id) {
@@ -327,6 +332,50 @@ export const ThankYou = () => {
     fetchOrder();
   }, [orderId, location.search]);
 
+  useEffect(() => {
+    if (isDemoRuntime || !orderId || !statusSignature || !order || isPaidStatus(order.status)) {
+      return;
+    }
+
+    let cancelled = false;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let attempts = 0;
+
+    const pollPaymentStatus = async () => {
+      attempts += 1;
+
+      try {
+        if (!cancelled) setIsStatusChecking(true);
+
+        const response = await fetch(
+          getApiUrl(`/api/check-status?orderId=${encodeURIComponent(orderId)}&sig=${encodeURIComponent(statusSignature)}&t=${Date.now()}`),
+        );
+        const payload = await response.json().catch(() => ({}));
+        const normalizedStatus = String(payload?.status || '').toLowerCase();
+
+        if (!cancelled && (normalizedStatus === 'paid' || normalizedStatus === 'approved')) {
+          window.location.reload();
+          return;
+        }
+      } catch (statusError) {
+        console.warn('[ThankYou] Failed to poll payment status:', statusError);
+      } finally {
+        if (!cancelled) setIsStatusChecking(false);
+      }
+
+      if (!cancelled && attempts < 20) {
+        timeoutId = setTimeout(pollPaymentStatus, 3000);
+      }
+    };
+
+    timeoutId = setTimeout(pollPaymentStatus, 1500);
+
+    return () => {
+      cancelled = true;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [isDemoRuntime, order, orderId, statusSignature]);
+
   if (loading) {
     return <Loading label={t('thank_you.loading', 'Carregando pedido')} />;
   }
@@ -335,6 +384,8 @@ export const ThankYou = () => {
   const config = checkout?.config || {};
   const displayedOrders = [originalOrder, order].filter((entry): entry is Order => Boolean(entry));
   const effectiveOrders = displayedOrders.length > 0 ? displayedOrders : (order ? [order] : []);
+  const currentOrderPaid = isPaidStatus(order?.status);
+  const isAwaitingConfirmation = Boolean(order) && !currentOrderPaid;
   const combinedItems = effectiveOrders.flatMap((entry) => Array.isArray(entry.items) ? entry.items : []);
   const paidTotal = effectiveOrders.reduce((sum, entry) => sum + Number(entry.total || entry.amount || 0), 0);
   const orderTimestamp = originalOrder?.created_at || order?.created_at || null;
@@ -357,15 +408,27 @@ export const ThankYou = () => {
 
           {/* Success Card */}
           <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden text-center p-8 sm:p-12">
-            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6 animate-in zoom-in duration-300">
-              <CheckCircle className="w-10 h-10 text-green-600" />
+            <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 animate-in zoom-in duration-300 ${isAwaitingConfirmation ? 'bg-amber-100' : 'bg-green-100'}`}>
+              {isAwaitingConfirmation ? (
+                <Clock3 className="w-10 h-10 text-amber-600" />
+              ) : (
+                <CheckCircle className="w-10 h-10 text-green-600" />
+              )}
             </div>
 
             <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
-              {t('thank_you.title', 'Pagamento confirmado!')}
+              {isAwaitingConfirmation
+                ? t('thank_you.pending_title', 'Pagamento em processamento')
+                : t('thank_you.title', 'Pagamento confirmado!')}
             </h1>
             <p className="text-lg text-gray-600 mb-8 max-w-lg mx-auto">
-              {t('thank_you.subtitle', 'Sua compra foi realizada com sucesso. Você receberá os detalhes do acesso no seu e-mail em instantes.')}
+              {isAwaitingConfirmation
+                ? (
+                  order?.payment_method === 'credit_card'
+                    ? t('thank_you.pending_card_subtitle', 'O cliente voltou da etapa segura do Asaas, mas a cobrança ainda está aguardando confirmação final. Esta página atualiza automaticamente assim que o pagamento for aprovado.')
+                    : t('thank_you.pending_subtitle', 'Estamos aguardando a confirmação final do pagamento. Esta página atualiza automaticamente assim que o pedido for aprovado.')
+                )
+                : t('thank_you.subtitle', 'Sua compra foi realizada com sucesso. Você receberá os detalhes do acesso no seu e-mail em instantes.')}
             </p>
 
             {/* Order Details Box */}
@@ -396,15 +459,42 @@ export const ThankYou = () => {
                 ))}
 
                 <div className="pt-3 mt-3 border-t border-gray-200 flex justify-between items-center">
-                  <span className="font-bold text-gray-900">{t('thank_you.total_paid', 'Total pago')}</span>
-                  <span className="font-bold text-green-600 text-lg">
+                  <span className="font-bold text-gray-900">
+                    {isAwaitingConfirmation
+                      ? t('thank_you.total_order', 'Total do pedido')
+                      : t('thank_you.total_paid', 'Total pago')}
+                  </span>
+                  <span className={`font-bold text-lg ${isAwaitingConfirmation ? 'text-amber-600' : 'text-green-600'}`}>
                     {formatCurrencyValue(paidTotal, displayLocale, displayCurrency)}
                   </span>
                 </div>
               </div>
             </div>
 
-            {actionableDeliverables.length > 0 && (
+            {isAwaitingConfirmation && (
+              <div className="max-w-lg mx-auto mb-8 rounded-xl border border-amber-100 bg-amber-50 p-4 text-left">
+                <p className="text-sm font-bold text-amber-900">
+                  {t('thank_you.pending_status_title', 'Status atual: aguardando confirmação')}
+                </p>
+                <p className="text-xs text-amber-800 mt-1">
+                  {t('thank_you.pending_status_desc', 'O Asaas ainda não confirmou esta cobrança. Assim que a confirmação chegar por webhook ou consulta de status, esta página será atualizada automaticamente.')}
+                </p>
+                <div className="mt-4">
+                  <Button
+                    onClick={() => window.location.reload()}
+                    className="w-full sm:w-auto"
+                    disabled={isStatusChecking}
+                  >
+                    <RefreshCcw className={`w-4 h-4 mr-2 ${isStatusChecking ? 'animate-spin' : ''}`} />
+                    {isStatusChecking
+                      ? t('thank_you.checking_status', 'Verificando status...')
+                      : t('thank_you.refresh_status', 'Atualizar status')}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {!isAwaitingConfirmation && actionableDeliverables.length > 0 && (
               <div className="max-w-lg mx-auto mb-8 text-left">
                 <div className="flex items-center gap-2 mb-3">
                   <LockKeyhole className="w-4 h-4 text-green-600" />
@@ -447,7 +537,7 @@ export const ThankYou = () => {
               </div>
             )}
 
-            {missingDeliverables.length > 0 && actionableDeliverables.length === 0 && (
+            {!isAwaitingConfirmation && missingDeliverables.length > 0 && actionableDeliverables.length === 0 && (
               <div className="max-w-lg mx-auto mb-8 rounded-xl border border-amber-100 bg-amber-50 p-4 text-left">
                 <p className="text-sm font-bold text-amber-900">
                   {t('thank_you.delivery_pending_title', 'Entrega em processamento')}
@@ -463,14 +553,22 @@ export const ThankYou = () => {
               <div className="p-4 rounded-xl border border-gray-100 bg-blue-50/50 flex items-start gap-3 text-left">
                 <Mail className="w-5 h-5 text-blue-600 mt-0.5" />
                 <div>
-                  <h3 className="font-bold text-sm text-gray-900">{t('thank_you.check_email_title', 'Verifique seu e-mail')}</h3>
-                  <p className="text-xs text-gray-500 mt-1">{t('thank_you.check_email_desc', 'Enviamos o link de acesso e a nota fiscal para {{email}}.', { email: order?.customer_email })}</p>
+                  <h3 className="font-bold text-sm text-gray-900">
+                    {isAwaitingConfirmation
+                      ? t('thank_you.pending_email_title', 'Acompanhe seu e-mail')
+                      : t('thank_you.check_email_title', 'Verifique seu e-mail')}
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {isAwaitingConfirmation
+                      ? t('thank_you.pending_email_desc', 'Se o pagamento for aprovado, a confirmação e os acessos serão enviados para {{email}}.', { email: order?.customer_email })
+                      : t('thank_you.check_email_desc', 'Enviamos o link de acesso e a nota fiscal para {{email}}.', { email: order?.customer_email })}
+                  </p>
                 </div>
               </div>
             </div>
 
             <div className="mt-10 flex justify-center">
-              {primaryAccessUrl ? (
+              {!isAwaitingConfirmation && primaryAccessUrl ? (
                 <Button
                   onClick={() => {
                     const buttonUrl = primaryAccessUrl;
@@ -493,7 +591,9 @@ export const ThankYou = () => {
                 </Button>
               ) : (
                 <p className="text-gray-400 text-sm">
-                  {t('thank_you.thanks', 'Obrigado pela sua compra.')}
+                  {isAwaitingConfirmation
+                    ? t('thank_you.pending_footer', 'Assim que o pagamento for confirmado, seus acessos aparecerão aqui.')
+                    : t('thank_you.thanks', 'Obrigado pela sua compra.')}
                 </p>
               )}
             </div>

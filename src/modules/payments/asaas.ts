@@ -6,7 +6,6 @@ import {
 } from '../../core/api/_supabase-server.js';
 import { securityService } from '../../core/services/securityService.js';
 import {
-  appendAsaasAutoRedirect,
   buildSafeAsaasRawResponse,
   detectAsaasApiKeyEnvironment,
   getAsaasApiBaseUrl,
@@ -355,7 +354,7 @@ export async function processAsaasPayment(payload: AsaasPaymentPayload) {
     const safeRawResponse = buildSafeAsaasRawResponse(paymentResponse, pixQrCodeResponse);
     const transactionId = String(paymentResponse?.id || orderId);
     const redirectUrl = billingType === 'CREDIT_CARD'
-      ? appendAsaasAutoRedirect(paymentResponse?.invoiceUrl)
+      ? String(paymentResponse?.invoiceUrl || '').trim()
       : undefined;
 
     if (billingType === 'CREDIT_CARD' && !redirectUrl) {

@@ -54,16 +54,6 @@ export function mapAsaasStatusToLocal(status: string, billingType?: string) {
   }
 }
 
-export function appendAsaasAutoRedirect(invoiceUrl?: string | null) {
-  const normalized = String(invoiceUrl || '').trim();
-  if (!normalized) return '';
-
-  const separator = normalized.includes('?') ? '&' : '?';
-  return normalized.includes('autoRedirect=')
-    ? normalized
-    : `${normalized}${separator}autoRedirect=true`;
-}
-
 export function buildSafeAsaasRawResponse(paymentData: any, pixData?: any) {
   const qrCode = safeString(
     pixData?.payload

@@ -280,7 +280,8 @@ const ProcessingModal = ({
    errorDetail,
    onClose,
    businessName,
-   paymentMethod
+   paymentMethod,
+   hostedCardRedirect = false,
 }: {
    isOpen: boolean;
    state: ProcessState;
@@ -288,6 +289,7 @@ const ProcessingModal = ({
    onClose: () => void;
    businessName: string;
    paymentMethod?: string;
+   hostedCardRedirect?: boolean;
 }) => {
    const { t } = useTranslation('public');
 
@@ -332,15 +334,24 @@ const ProcessingModal = ({
 
             {state === 'success' && (
                <>
-                  <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center mb-6 animate-in zoom-in">
-                     <Check className="w-10 h-10 text-green-500" strokeWidth={3} />
+                  <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-6 animate-in zoom-in ${hostedCardRedirect ? 'bg-blue-100' : 'bg-green-100'}`}>
+                     {hostedCardRedirect ? (
+                        <ShieldCheck className="w-10 h-10 text-blue-600" strokeWidth={2.5} />
+                     ) : (
+                        <Check className="w-10 h-10 text-green-500" strokeWidth={3} />
+                     )}
                   </div>
-                  <h3 className="text-xl font-medium text-green-600 text-center mb-2">
-                     {paymentMethod === 'pix' ? t('checkout.pix_generated', 'Pix gerado!') :
+                  <h3 className={`text-xl font-medium text-center mb-2 ${hostedCardRedirect ? 'text-blue-700' : 'text-green-600'}`}>
+                     {hostedCardRedirect ? t('checkout.asaas_card_redirect_modal_title', 'Abrindo o pagamento seguro...') :
+                      paymentMethod === 'pix' ? t('checkout.pix_generated', 'Pix gerado!') :
                       paymentMethod === 'boleto' ? t('checkout.boleto_generated', 'Boleto gerado!') :
                       t('checkout.payment_approved', 'Pagamento aprovado!')}
                   </h3>
-                  <p className="text-sm text-gray-500 text-center">{t('checkout.redirecting', 'Redirecionando...')}</p>
+                  <p className="text-sm text-gray-500 text-center">
+                     {hostedCardRedirect
+                        ? t('checkout.asaas_card_redirect_modal_desc', 'Você vai concluir o pagamento no ambiente seguro do Asaas.')
+                        : t('checkout.redirecting', 'Redirecionando...')}
+                  </p>
                </>
             )}
          </div>
@@ -2334,6 +2345,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                onClose={() => setProcessState('idle')}
                businessName={businessName}
                paymentMethod={paymentMethod || undefined}
+               hostedCardRedirect={Boolean(paymentMethod === 'credit_card' && isAsaasHostedCardFlow)}
             />
             <AlertModal
                isOpen={alertState.isOpen}
