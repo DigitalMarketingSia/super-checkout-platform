@@ -1060,6 +1060,15 @@ export const Gateways = () => {
 
             {isAsaasModal && (
               <div className="grid grid-cols-1 gap-6">
+                <div className="rounded-[1.6rem] border border-amber-500/20 bg-amber-500/5 px-5 py-4 text-left">
+                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">
+                    Escopo atual do Asaas
+                  </div>
+                  <p className="mt-2 text-xs leading-relaxed text-amber-100">
+                    No Super Checkout, o Asaas está liberado apenas para Pix neste momento. Cartão e boleto permanecem desativados nesse gateway.
+                  </p>
+                </div>
+
                 <div>
                   <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-3 block">Access Token (API Key)</label>
                   <input

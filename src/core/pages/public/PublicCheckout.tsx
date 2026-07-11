@@ -1886,12 +1886,6 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                   </div>
 
                   {/* SEÇÃO CARTEIRA DIGITAL */}
-                  {isAsaasCheckout && (
-                     <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                        {t('checkout.asaas_pix_only_notice', 'Neste momento, checkouts com Asaas aceitam pagamentos apenas via Pix.')}
-                     </div>
-                  )}
-
                   {(paymentMethod === 'apple_pay' || paymentMethod === 'google_pay') && (
                      <div className="p-6 bg-gray-50 border border-gray-200 rounded-xl text-center animate-in fade-in duration-300">
                         {walletAvailability?.simulated && (
