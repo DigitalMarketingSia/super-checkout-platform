@@ -5,6 +5,31 @@ import { ShieldCheck, User, Mail, Lock, ChevronRight, AlertCircle, Check } from 
 import { useTranslation } from 'react-i18next';
 import { useInstallation } from '../../context/InstallationContext';
 
+const resolveSetupToken = () => {
+    if (typeof window === 'undefined') return '';
+
+    try {
+        const match = window.location.hash.match(/installer_config=([^&]+)/);
+        if (match) {
+            const decoded = JSON.parse(atob(decodeURIComponent(match[1])));
+            if (decoded?.setup_token) return String(decoded.setup_token);
+        }
+    } catch {
+        // ignore hash parsing errors
+    }
+
+    return localStorage.getItem('installer_setup_token') || '';
+};
+
+const shouldFallbackSetupCheck = (error: any) => {
+    const message = `${error?.message || ''} ${error?.details || ''}`.toLowerCase();
+    return (
+        message.includes('is_setup_required')
+        || message.includes('schema cache')
+        || (message.includes('operator does not exist') && message.includes('uuid = text'))
+    );
+};
+
 export default function Setup() {
     const { t } = useTranslation('auth');
     const navigate = useNavigate();
@@ -16,6 +41,7 @@ export default function Setup() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [setupComplete, setSetupComplete] = useState(false);
+    const [setupToken, setSetupToken] = useState(() => resolveSetupToken());
 
     const checkIsSetupRequired = async (targetInstallationId: string) => {
         const { data, error } = await supabase.rpc('is_setup_required', {
@@ -24,8 +50,7 @@ export default function Setup() {
 
         if (!error) return data;
 
-        const msg = error.message || '';
-        if (msg.includes('is_setup_required') || msg.includes('schema cache')) {
+        if (shouldFallbackSetupCheck(error)) {
             const fallback = await supabase.rpc('is_setup_required');
             if (!fallback.error) return fallback.data;
         }
@@ -45,7 +70,16 @@ export default function Setup() {
             try {
                 const isRequired = await checkIsSetupRequired(installationId);
                 if (!isRequired) {
+                    localStorage.removeItem('installer_setup_token');
                     navigate('/login');
+                    return;
+                }
+
+                const storedToken = resolveSetupToken();
+                setSetupToken(storedToken);
+
+                if (!storedToken) {
+                    setError(t('setup.secure_entry_required', 'Abertura segura expirada. Reabra o acesso final enviado pelo instalador para criar o primeiro administrador.'));
                 }
             } catch (err) {
                 console.error('Error checking setup status:', err);
@@ -54,23 +88,14 @@ export default function Setup() {
         checkSetup();
     }, [navigate, installationId, instLoading]);
 
-    // Extract central_id from URL hash (injected by InstallerWizard)
-    const getCentralIdFromHash = (): string | null => {
-        try {
-            const hash = window.location.hash;
-            const match = hash.match(/installer_config=([^&]+)/);
-            if (match) {
-                const decoded = JSON.parse(atob(match[1]));
-                return decoded.central_id || null;
-            }
-        } catch { /* ignore parse errors */ }
-        return localStorage.getItem('installer_owner_id') || null;
-    };
-
     const handleSetup = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!installationId) {
             setError(t('setup.critical_error_no_id'));
+            return;
+        }
+        if (!setupToken) {
+            setError(t('setup.secure_entry_required', 'Abertura segura expirada. Reabra o acesso final enviado pelo instalador para criar o primeiro administrador.'));
             return;
         }
 
@@ -88,8 +113,6 @@ export default function Setup() {
                 return;
             }
 
-            const centralUserId = getCentralIdFromHash();
-
             const response = await fetch('/api/setup-admin', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -98,7 +121,7 @@ export default function Setup() {
                     email,
                     password,
                     installation_id: installationId,
-                    central_user_id: centralUserId
+                    setup_token: setupToken
                 })
             });
 
@@ -107,6 +130,7 @@ export default function Setup() {
                 throw new Error(payload.error || payload.message || 'Falha ao criar administrador.');
             }
 
+            localStorage.removeItem('installer_setup_token');
             setSetupComplete(true);
         } catch (err: any) {
             console.error(err);
@@ -114,6 +138,10 @@ export default function Setup() {
                 setError(t('setup.email_exists_error'));
             } else if (err.message && err.message.includes('Error sending confirmation email')) {
                 setError(t('activation.errors.link_failed'));
+            } else if (err.message && (err.message.includes('bootstrap') || err.message.includes('expirado') || err.message.includes('setup_token'))) {
+                localStorage.removeItem('installer_setup_token');
+                setSetupToken('');
+                setError(t('setup.secure_entry_required', 'Abertura segura expirada. Reabra o acesso final enviado pelo instalador para criar o primeiro administrador.'));
             } else {
                 setError(err.message || t('common:error'));
             }

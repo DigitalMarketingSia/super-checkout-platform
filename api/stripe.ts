@@ -10,6 +10,7 @@ import {
     getPagSeguroStatus,
     mapPagSeguroStatusToLocal,
 } from '../src/core/utils/pagSeguro.js';
+import { getAllowedGatewayIdsForPaymentMethod } from '../src/core/config/paymentRouting.js';
 
 // --- CONFIG ---
 export const config = {
@@ -226,11 +227,14 @@ function verifyCentralSignature(req: VercelRequest, rawBody: string) {
     return { ok: true, status: 'OK' };
 }
 
-function checkoutAllowsGateway(checkout: any, gatewayId?: string | null) {
+function checkoutAllowsGateway(checkout: any, gatewayId?: string | null, paymentMethod?: string | null) {
     if (!checkout || !gatewayId) return false;
-    const allowedGatewayIds = [checkout.gateway_id, checkout.backup_gateway_id]
-        .filter(Boolean)
-        .map((id) => String(id));
+    const allowedGatewayIds = getAllowedGatewayIdsForPaymentMethod({
+        config: checkout.config || null,
+        gatewayId: checkout.gateway_id || null,
+        backupGatewayId: checkout.backup_gateway_id || null,
+        paymentMethod: (paymentMethod || '').trim() as any,
+    });
     return allowedGatewayIds.includes(String(gatewayId));
 }
 
@@ -259,7 +263,7 @@ function webhookOwnershipMatches(order: any, checkout: any, gateway: any, paymen
     if (checkout.user_id !== order.user_id) return false;
     if (gateway.user_id !== order.user_id) return false;
     if (paymentRecord?.user_id && paymentRecord.user_id !== order.user_id) return false;
-    return checkoutAllowsGateway(checkout, gateway.id);
+    return checkoutAllowsGateway(checkout, gateway.id, order?.payment_method || null);
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -353,7 +357,15 @@ async function handleStripe(req: VercelRequest, res: VercelResponse, rawBody: st
         if (metaOrder) {
             const { order, checkout } = await loadOrderAndCheckout(supabaseAdmin, metaOrder);
             if (order && checkout) {
-                const allowedGatewayIds = [checkout.gateway_id, checkout.backup_gateway_id].filter(Boolean).map(String);
+                const allowedGatewayIds = getAllowedGatewayIdsForPaymentMethod({
+                    config: checkout.config || null,
+                    gatewayId: checkout.gateway_id || null,
+                    backupGatewayId: checkout.backup_gateway_id || null,
+                    paymentMethod: String(order.payment_method || '').trim() as any,
+                });
+                if (allowedGatewayIds.length === 0) {
+                    return res.status(200).json({ status: 'NOT_FOUND' });
+                }
                 const { data: gts } = await supabaseAdmin
                     .from('gateways')
                     .select('*')
@@ -361,7 +373,7 @@ async function handleStripe(req: VercelRequest, res: VercelResponse, rawBody: st
                     .eq('user_id', order.user_id)
                     .eq('name', 'stripe')
                     .eq('active', true);
-                gatewayRecord = gts?.find((gateway: any) => checkoutAllowsGateway(checkout, gateway.id));
+                gatewayRecord = gts?.find((gateway: any) => checkoutAllowsGateway(checkout, gateway.id, order.payment_method));
                 if (gatewayRecord) {
                     paymentRecord = {
                         order_id: order.id,
@@ -621,7 +633,16 @@ async function handlePagSeguro(req: VercelRequest, res: VercelResponse, rawBody:
         return res.status(200).json({ status: 'ORDER_NOT_FOUND' });
     }
 
-    const allowedGatewayIds = [checkout.gateway_id, checkout.backup_gateway_id].filter(Boolean).map(String);
+    const allowedGatewayIds = getAllowedGatewayIdsForPaymentMethod({
+        config: checkout.config || null,
+        gatewayId: checkout.gateway_id || null,
+        backupGatewayId: checkout.backup_gateway_id || null,
+        paymentMethod: String(order.payment_method || '').trim() as any,
+    });
+    if (allowedGatewayIds.length === 0) {
+        await logWebhook(supabaseAdmin, webhookEventId, 'PagBank route not allowed for order', 200, rawBody);
+        return res.status(200).json({ status: 'GATEWAY_NOT_FOUND' });
+    }
     const { data: candidateGateways } = await supabaseAdmin
         .from('gateways')
         .select('*')
@@ -630,7 +651,7 @@ async function handlePagSeguro(req: VercelRequest, res: VercelResponse, rawBody:
         .eq('active', true)
         .eq('name', 'pagseguro');
 
-    const gatewayRecord = candidateGateways?.find((gateway: any) => checkoutAllowsGateway(checkout, gateway.id)) || null;
+    const gatewayRecord = candidateGateways?.find((gateway: any) => checkoutAllowsGateway(checkout, gateway.id, order.payment_method)) || null;
     if (!gatewayRecord) {
         await logWebhook(supabaseAdmin, webhookEventId, 'PagBank gateway not found', 200, rawBody);
         return res.status(200).json({ status: 'GATEWAY_NOT_FOUND' });

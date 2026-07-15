@@ -494,11 +494,10 @@ const App = () => {
           console.log('🔧 Hydrating Cross-Domain Config...');
           if (config.url) localStorage.setItem('installer_supabase_url', config.url);
           if (config.anon) localStorage.setItem('installer_supabase_anon_key', config.anon);
-          if (config.service) localStorage.setItem('installer_supabase_service_key', config.service);
           if (config.license) localStorage.setItem('installer_license_key', config.license);
           if (config.org) localStorage.setItem('installer_org_slug', config.org);
           if (config.install_id) localStorage.setItem('installation_id', config.install_id); // Hydrate Installation ID
-          if (config.central_id) localStorage.setItem('installer_owner_id', config.central_id);
+          if (config.setup_token) localStorage.setItem('installer_setup_token', config.setup_token);
 
           // Clear hash and reload to initialize services with new keys
           window.history.replaceState(null, document.title, window.location.pathname + window.location.search);

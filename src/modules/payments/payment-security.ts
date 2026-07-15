@@ -1,3 +1,6 @@
+import type { PaymentMethodType } from '../../core/types.js';
+import { getAllowedGatewayIdsForPaymentMethod } from '../../core/config/paymentRouting.js';
+
 export class PaymentSecurityError extends Error {
   code: string;
   status: number;
@@ -124,15 +127,32 @@ export function normalizeInstallmentsForGateway(value: unknown, gateway: any) {
   return requested;
 }
 
-function getAllowedGatewayIds(checkout: any) {
-  return [checkout?.gateway_id, checkout?.backup_gateway_id]
-    .filter(Boolean)
-    .map((id) => String(id));
+function getAllowedGatewayIds(checkout: any, paymentMethod?: PaymentMethodType | string | null) {
+  const normalizedMethod = typeof paymentMethod === 'string' && paymentMethod.trim()
+    ? paymentMethod.trim() as PaymentMethodType
+    : null;
+
+  if (!normalizedMethod) {
+    return [checkout?.gateway_id, checkout?.backup_gateway_id]
+      .filter(Boolean)
+      .map((id) => String(id));
+  }
+
+  return getAllowedGatewayIdsForPaymentMethod({
+    config: checkout?.config || null,
+    gatewayId: checkout?.gateway_id || null,
+    backupGatewayId: checkout?.backup_gateway_id || null,
+    paymentMethod: normalizedMethod,
+  });
 }
 
-export function assertGatewayAllowedForCheckout(checkout: any, gatewayId: unknown) {
+export function assertGatewayAllowedForCheckout(
+  checkout: any,
+  gatewayId: unknown,
+  paymentMethod?: PaymentMethodType | string | null
+) {
   const safeGatewayId = requireId(gatewayId, 'GATEWAY_ID_REQUIRED');
-  const allowedGatewayIds = getAllowedGatewayIds(checkout);
+  const allowedGatewayIds = getAllowedGatewayIds(checkout, paymentMethod);
 
   if (!allowedGatewayIds.includes(safeGatewayId)) {
     throw new PaymentSecurityError('PAYMENT_GATEWAY_FORBIDDEN');
@@ -146,9 +166,10 @@ export async function loadOwnedActiveGateway(
   merchantUserId: string,
   checkout: any,
   gatewayId: unknown,
-  expectedProvider: string
+  expectedProvider: string,
+  paymentMethod?: PaymentMethodType | string | null
 ) {
-  const safeGatewayId = assertGatewayAllowedForCheckout(checkout, gatewayId);
+  const safeGatewayId = assertGatewayAllowedForCheckout(checkout, gatewayId, paymentMethod);
   const { data: gateway, error } = await supabaseAdmin
     .from('gateways')
     .select('*')
@@ -184,7 +205,7 @@ export async function loadOwnedOrderForCheckoutWithMerchant(
   const safeOrderId = requireId(orderId, 'ORDER_ID_REQUIRED');
   const { data: order, error } = await supabaseAdmin
     .from('orders')
-    .select('id, checkout_id, user_id, customer_user_id, status, customer_email, customer_name, total, items, metadata')
+    .select('id, checkout_id, user_id, customer_user_id, status, payment_method, customer_email, customer_name, total, items, metadata')
     .eq('id', safeOrderId)
     .maybeSingle();
 

@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../services/supabase';
 import { storage } from '../../services/storageService';
-import { Checkout, CheckoutConfig, Product, Gateway, Order, OrderStatus, OrderItem, InstallmentOption, GatewayProvider } from '../../types';
+import { Checkout, CheckoutConfig, CheckoutPaymentRoutingConfig, Product, Gateway, Order, OrderStatus, OrderItem, InstallmentOption, GatewayProvider, PaymentMethodType } from '../../types';
 import { licenseService, UpgradeIntentContext } from '../../services/licenseService';
 import {
   Barcode, Check, Clock, ShieldCheck, Lock, AlertCircle, ShoppingBag, Smartphone, Link2
@@ -10,6 +10,7 @@ import {
 import { loadStripe, type PaymentRequest } from '@stripe/stripe-js';
 import { PaymentRequestButtonElement, Elements, useStripe, useElements, CardNumberElement, CardExpiryElement, CardCvcElement, LinkAuthenticationElement } from '@stripe/react-stripe-js';
 import { validateName, validateEmail, validatePhone, validateTaxId, maskPhone, maskTaxId } from '../../utils/validations';
+import { formatPaymentCardNumberInput, formatPaymentCardSecurityCodeInput, MAX_PAYMENT_CARD_INPUT_LENGTH } from '../../utils/paymentCardFormatting';
 import { PhoneInput } from '../../components/ui/PhoneInput';
 import { AlertModal } from '../../components/ui/Modal';
 import { Loading } from '../../components/ui/Loading';
@@ -33,10 +34,16 @@ import {
 } from '../../utils/trackingAttribution';
 import { getRuntimeMode } from '../../config/runtimeMode';
 import { demoDataService } from '../../services/demoDataService';
+import {
+   collectCheckoutRoutingGatewayIds,
+   normalizeCheckoutPaymentRouting,
+   ROUTABLE_PAYMENT_METHODS,
+} from '../../config/paymentRouting';
 
 const defaultPublicCheckoutConfig: CheckoutConfig = {
    fields: { name: true, email: true, phone: false, cpf: false },
    payment_methods: { pix: true, credit_card: true, boleto: true, apple_pay: false, google_pay: false },
+   payment_routing: {},
    timer: { active: false, minutes: 0, bg_color: '', text_color: '' },
 };
 
@@ -64,7 +71,45 @@ const normalizePublicCheckoutConfig = (value?: Partial<CheckoutConfig> | null): 
    primary_color: value?.primary_color || '',
    pixels: value?.pixels,
    upsell: value?.upsell,
+   payment_routing: value?.payment_routing || {},
 });
+
+const buildGatewayMap = (gateways: Gateway[]) =>
+   gateways.reduce<Record<string, Gateway>>((acc, gateway) => {
+      acc[gateway.id] = gateway;
+      return acc;
+   }, {});
+
+const getGatewayForPaymentMethod = (
+   routing: CheckoutPaymentRoutingConfig | undefined,
+   gatewaysById: Record<string, Gateway>,
+   paymentMethod: PaymentMethodType | null
+) => {
+   if (!paymentMethod) return null;
+   const gatewayId = routing?.[paymentMethod]?.primary_gateway_id;
+   if (!gatewayId) return null;
+   return gatewaysById[gatewayId] || null;
+};
+
+const hasGatewayRouteForPaymentMethod = (
+   routing: CheckoutPaymentRoutingConfig | undefined,
+   gatewaysById: Record<string, Gateway>,
+   paymentMethod: PaymentMethodType
+) => Boolean(getGatewayForPaymentMethod(routing, gatewaysById, paymentMethod));
+
+const getPreferredStripeGateway = (
+   routing: CheckoutPaymentRoutingConfig | undefined,
+   gatewaysById: Record<string, Gateway>
+) => {
+   for (const paymentMethod of ['credit_card', 'apple_pay', 'google_pay'] as PaymentMethodType[]) {
+      const gateway = getGatewayForPaymentMethod(routing, gatewaysById, paymentMethod);
+      if (gateway?.name === GatewayProvider.STRIPE) {
+         return gateway;
+      }
+   }
+
+   return Object.values(gatewaysById).find((gateway) => gateway.name === GatewayProvider.STRIPE) || null;
+};
 
 // --- PREMIUM PAYMENT ICONS (INLINE SVG - EXTRAÍDOS DA TICTO) ---
 const PixIcon = ({ className }: { className?: string }) => (
@@ -128,7 +173,7 @@ const CheckoutTracker = ({
    return null;
 };
 
-type PaymentMethod = 'credit_card' | 'pix' | 'boleto' | 'apple_pay' | 'google_pay';
+type PaymentMethod = PaymentMethodType;
 type ProcessState = 'idle' | 'processing' | 'error' | 'success';
 type WalletAvailability = { applePay?: boolean; googlePay?: boolean; link?: boolean; simulated?: boolean };
 
@@ -399,46 +444,60 @@ const StripeWrapper = ({ children, checkoutId: propId }: { children: React.React
          if (!id) return;
          try {
             const checkout = await storage.getPublicCheckout(id);
-            if (checkout?.gateway_id) {
-               const gateway = await storage.getPublicGateway(checkout.gateway_id);
-               const product = await storage.getPublicProduct(checkout.product_id);
+            if (!checkout) {
+               setStripePromise('no_gateway');
+               return;
+            }
 
-               if (gateway?.name === GatewayProvider.STRIPE && gateway.public_key) {
-                  setStripePromise(loadStripe(gateway.public_key));
-                  setStripeOptions({
-                     mode: 'payment',
-                     currency: (product?.currency || 'BRL').toLowerCase(),
-                     amount: Math.round((product?.price_real || 1) * 100),
-                     appearance: {
-                        theme: 'stripe' as const,
-                        variables: {
-                           colorPrimary: '#10B981',
-                           colorBackground: 'transparent',
-                           colorText: '#374151',
-                           fontFamily: 'Inter, sans-serif',
-                           spacingUnit: '4px',
-                           borderRadius: '4px',
-                           fontSizeBase: '13.5px'
+            const gatewayIds = collectCheckoutRoutingGatewayIds({
+               config: checkout.config,
+               gatewayId: checkout.gateway_id,
+               backupGatewayId: checkout.backup_gateway_id,
+            });
+            const gateways = (await Promise.all(gatewayIds.map((gatewayId) => storage.getPublicGateway(gatewayId))))
+               .filter((gateway): gateway is Gateway => Boolean(gateway?.id));
+            const gatewaysById = buildGatewayMap(gateways);
+            const routing = normalizeCheckoutPaymentRouting({
+               config: checkout.config,
+               gatewayId: checkout.gateway_id,
+               backupGatewayId: checkout.backup_gateway_id,
+               gateways,
+            });
+            const stripeGateway = getPreferredStripeGateway(routing, gatewaysById);
+            const product = await storage.getPublicProduct(checkout.product_id);
+
+            if (stripeGateway?.public_key) {
+               setStripePromise(loadStripe(stripeGateway.public_key));
+               setStripeOptions({
+                  mode: 'payment',
+                  currency: (product?.currency || 'BRL').toLowerCase(),
+                  amount: Math.round((product?.price_real || 1) * 100),
+                  appearance: {
+                     theme: 'stripe' as const,
+                     variables: {
+                        colorPrimary: '#10B981',
+                        colorBackground: 'transparent',
+                        colorText: '#374151',
+                        fontFamily: 'Inter, sans-serif',
+                        spacingUnit: '4px',
+                        borderRadius: '4px',
+                        fontSizeBase: '13.5px'
+                     },
+                     labels: 'hidden',
+                     rules: {
+                        '.Input': {
+                           backgroundColor: 'transparent',
+                           border: 'none',
+                           boxShadow: 'none'
                         },
-                        labels: 'hidden',
-                        rules: {
-                           '.Input': {
-                              backgroundColor: 'transparent',
-                              border: 'none',
-                              boxShadow: 'none'
-                           },
-                           '.Input:focus': {
-                              boxShadow: 'none'
-                           }
+                        '.Input:focus': {
+                           boxShadow: 'none'
                         }
                      }
-                  });
-               } else {
-                  // If not stripe, we still need to render the children without Elements
-                  setStripePromise('not_stripe');
-               }
+                  }
+               });
             } else {
-               setStripePromise('no_gateway');
+               setStripePromise('not_stripe');
             }
          } catch (e) {
             setStripePromise('error');
@@ -488,7 +547,8 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
    const [data, setData] = useState<{
       checkout: Checkout;
       product: Product;
-      gateway: Gateway;
+      gatewaysById: Record<string, Gateway>;
+      routing: CheckoutPaymentRoutingConfig;
       bumps: Product[];
    } | null>(null);
    const [error, setError] = useState<string | null>(null);
@@ -540,25 +600,18 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
       if (!data || !paymentMethod) return;
 
       const normalizedConfig = normalizePublicCheckoutConfig(data.checkout.config);
-      const asaasInvalidMethod =
-         data.gateway.name === GatewayProvider.ASAAS
-         && (paymentMethod === 'credit_card' || paymentMethod === 'boleto');
-      const pagSeguroInvalidMethod =
-         data.gateway.name === GatewayProvider.PAGSEGURO
-         && paymentMethod === 'boleto';
+      const methodDisabledInConfig = normalizedConfig.payment_methods[paymentMethod] !== true;
+      const missingGatewayRoute = !hasGatewayRouteForPaymentMethod(data.routing, data.gatewaysById, paymentMethod);
 
-      const methodDisabledInConfig = (
-         (paymentMethod === 'credit_card' && !normalizedConfig.payment_methods.credit_card)
-         || (paymentMethod === 'pix' && !normalizedConfig.payment_methods.pix)
-         || (paymentMethod === 'boleto' && !normalizedConfig.payment_methods.boleto)
-         || (paymentMethod === 'apple_pay' && !normalizedConfig.payment_methods.apple_pay)
-         || (paymentMethod === 'google_pay' && !normalizedConfig.payment_methods.google_pay)
+      if (!methodDisabledInConfig && !missingGatewayRoute) return;
+
+      const fallbackMethod = ROUTABLE_PAYMENT_METHODS.find((method) =>
+         normalizedConfig.payment_methods[method] === true
+         && hasGatewayRouteForPaymentMethod(data.routing, data.gatewaysById, method)
       );
 
-      if (!asaasInvalidMethod && !pagSeguroInvalidMethod && !methodDisabledInConfig) return;
-
-      if (normalizedConfig.payment_methods.pix) {
-         handlePaymentMethodSelect('pix');
+      if (fallbackMethod && fallbackMethod !== paymentMethod) {
+         handlePaymentMethodSelect(fallbackMethod);
          return;
       }
 
@@ -898,10 +951,23 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                console.warn("Could not load hostname business settings", hostnameSettingsErr);
             }
 
-            // 3. Get Gateway (Public)
-            const gateway = await storage.getPublicGateway(checkout.gateway_id);
+            const gatewayIds = collectCheckoutRoutingGatewayIds({
+               config: checkout.config,
+               gatewayId: checkout.gateway_id,
+               backupGatewayId: checkout.backup_gateway_id,
+            });
+            const gateways = (await Promise.all(gatewayIds.map((gatewayId) => storage.getPublicGateway(gatewayId))))
+               .filter((gateway): gateway is Gateway => Boolean(gateway?.id));
+            const gatewaysById = buildGatewayMap(gateways);
+            const routing = normalizeCheckoutPaymentRouting({
+               config: checkout.config,
+               gatewayId: checkout.gateway_id,
+               backupGatewayId: checkout.backup_gateway_id,
+               gateways,
+            });
+            const stripeGateway = getPreferredStripeGateway(routing, gatewaysById);
 
-            if (!mainProduct || !gateway) {
+            if (!mainProduct || Object.keys(gatewaysById).length === 0) {
                setError(t('checkout.invalid_configuration', 'Configuracao invalida de produto ou gateway.'));
                setLoading(false);
                return;
@@ -918,7 +984,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                }
             }
 
-            setData({ checkout, product: mainProduct, gateway, bumps: resolvedBumps });
+            setData({ checkout, product: mainProduct, gatewaysById, routing, bumps: resolvedBumps });
 
             if (isDemoCheckout) {
                const scenarios = await demoDataService.getScenarios();
@@ -933,8 +999,8 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
              setLoading(false);
 
              // 5. Initialize Stripe Payment Request for Wallets
-             if (gateway.name === GatewayProvider.STRIPE && gateway.public_key) {
-                const stripeInstance = await loadStripe(gateway.public_key);
+             if (stripeGateway?.public_key) {
+                const stripeInstance = await loadStripe(stripeGateway.public_key);
                 if (stripeInstance) {
                    const pr = stripeInstance.paymentRequest({
                       country: 'BR',
@@ -956,6 +1022,9 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                       setWalletAvailability({ googlePay: true, applePay: true, simulated: true });
                    }
                 }
+             } else {
+                setPaymentRequest(null);
+                setWalletAvailability(null);
              }
           } catch (err: any) {
              console.error('Error loading checkout:', err);
@@ -1138,7 +1207,14 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
          return;
       }
 
-      const gatewayName = data.gateway?.name;
+      const creditCardGateway = getGatewayForPaymentMethod(data.routing, data.gatewaysById, 'credit_card');
+      if (!creditCardGateway) {
+         setInstallmentOptions([]);
+         setLoadingInstallments(false);
+         return;
+      }
+
+      const gatewayName = creditCardGateway.name;
       const cardBin = customer.cardNumber.replace(/\D/g, '').slice(0, 6);
       if (gatewayName === GatewayProvider.MERCADO_PAGO && cardBin.length >= 6) {
          return;
@@ -1149,7 +1225,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
       const currency = data.product.currency || 'BRL';
 
       setLoadingInstallments(true);
-      paymentService.getPaymentOptions(data.gateway.id, totalAmount, currency)
+      paymentService.getPaymentOptions(creditCardGateway.id, totalAmount, currency)
          .then((options) => {
             if (cancelled) return;
             setInstallmentOptions(options);
@@ -1227,8 +1303,20 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
 
       // --- GATEWAY SPECIFIC PREPARATION ---
       let stripePaymentMethodId: string | undefined = undefined;
+      const methodGateway = getGatewayForPaymentMethod(data.routing, data.gatewaysById, paymentMethod);
 
-      if (data.gateway.name === GatewayProvider.PAGSEGURO && paymentMethod === 'boleto') {
+      if (!methodGateway) {
+         showAlert(
+            t('checkout.error_title', 'Erro'),
+            'Nao existe um gateway ativo compativel com esta forma de pagamento neste checkout.',
+            'error'
+         );
+         setProcessState('idle');
+         setIsProcessing(false);
+         return;
+      }
+
+      if (methodGateway.name === GatewayProvider.PAGSEGURO && paymentMethod === 'boleto') {
          showAlert(
             t('checkout.error_title', 'Erro'),
             'O boleto do PagBank sera liberado quando o checkout coletar endereco de cobranca completo.',
@@ -1239,7 +1327,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
          return;
       }
 
-      if (data.gateway.name === GatewayProvider.ASAAS && paymentMethod !== 'pix') {
+      if (methodGateway.name === GatewayProvider.ASAAS && paymentMethod !== 'pix') {
          showAlert(
             t('checkout.error_title', 'Erro'),
             'O Asaas está disponível apenas via Pix neste checkout.',
@@ -1251,7 +1339,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
       }
 
       if (paymentMethod === 'credit_card') {
-         if (isMercadoPagoSandboxGateway(data.gateway) && !isMercadoPagoSandboxBuyerEmail(customer.email)) {
+         if (isMercadoPagoSandboxGateway(methodGateway) && !isMercadoPagoSandboxBuyerEmail(customer.email)) {
             const emailInput = document.getElementById('input-email');
             setTouched(prev => ({ ...prev, email: true }));
             setErrors(prev => ({
@@ -1268,8 +1356,8 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
             return;
          }
 
-         if ((data.gateway.name === GatewayProvider.MERCADO_PAGO || data.gateway.name === GatewayProvider.PAGSEGURO) && !validateTaxId(customer.cpf)) {
-            const providerLabel = data.gateway.name === GatewayProvider.PAGSEGURO ? 'PagBank' : 'Mercado Pago';
+         if ((methodGateway.name === GatewayProvider.MERCADO_PAGO || methodGateway.name === GatewayProvider.PAGSEGURO) && !validateTaxId(customer.cpf)) {
+            const providerLabel = methodGateway.name === GatewayProvider.PAGSEGURO ? 'PagBank' : 'Mercado Pago';
             const cpfInput = document.getElementById('input-cpf');
             setTouched(prev => ({ ...prev, cpf: true }));
             setErrors(prev => ({
@@ -1286,7 +1374,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
             return;
          }
 
-         if (data.gateway.name === GatewayProvider.STRIPE) {
+         if (methodGateway.name === GatewayProvider.STRIPE) {
             // ✅ STRIPE ELEMENTS FLOW (PCI-DSS COMPLIANT)
             if (!stripe || !elements) {
                showAlert(t('checkout.error_title', 'Erro'), t('checkout.gateway_init_error', 'O gateway de pagamento não foi inicializado corretamente.'), 'error');
@@ -1322,7 +1410,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
             }
 
             stripePaymentMethodId = stripePM.id;
-         } else if (data.gateway.name !== GatewayProvider.ASAAS) {
+         } else if (methodGateway.name !== GatewayProvider.ASAAS) {
             // 🔒 LEGACY / MERCADO PAGO FLOW (Manual Validation)
             const cleanCardNumber = customer.cardNumber.replace(/\D/g, '');
             if (!cleanCardNumber || cleanCardNumber.length < 13) {
@@ -1390,7 +1478,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
             customerEmail: customer.email || 'cliente@email.com',
             customerPhone: customer.phone,
             customerCpf: customer.cpf,
-            gatewayId: data.gateway.id,
+            gatewayId: methodGateway.id,
             paymentMethod: paymentMethod,
             items: items,
             selectedBumps: selectedBumps, // Passando IDs para cálculo seguro no backend
@@ -1403,12 +1491,12 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
             trackingAttribution: effectiveTrackingAttribution || undefined,
             saveCardForUpsell: Boolean(
                paymentMethod === 'credit_card'
-               && data.gateway?.name === GatewayProvider.MERCADO_PAGO
+               && methodGateway.name === GatewayProvider.MERCADO_PAGO
                && hasConfiguredUpsell
             ),
             legalAcceptance: buildLegalAcceptanceSnapshot(),
             // Pass Card Data only if it's NOT a Stripe payment
-            cardData: (paymentMethod === 'credit_card' && !stripePaymentMethodId && data.gateway.name !== GatewayProvider.ASAAS) ? {
+            cardData: (paymentMethod === 'credit_card' && !stripePaymentMethodId && methodGateway.name !== GatewayProvider.ASAAS) ? {
                number: customer.cardNumber,
                holderName: customer.name,
                expiryMonth: customer.expiry.split('/')[0],
@@ -1599,9 +1687,23 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
 
    const totalAmount = calculateTotal();
    const config = normalizePublicCheckoutConfig(data.checkout.config);
+   const activeGateway = getGatewayForPaymentMethod(data.routing, data.gatewaysById, paymentMethod)
+      || data.gatewaysById[data.checkout.gateway_id]
+      || Object.values(data.gatewaysById)[0]
+      || null;
+   const creditCardGateway = getGatewayForPaymentMethod(data.routing, data.gatewaysById, 'credit_card');
+   const pixGateway = getGatewayForPaymentMethod(data.routing, data.gatewaysById, 'pix');
+   const boletoGateway = getGatewayForPaymentMethod(data.routing, data.gatewaysById, 'boleto');
+   const applePayGateway = getGatewayForPaymentMethod(data.routing, data.gatewaysById, 'apple_pay');
+   const googlePayGateway = getGatewayForPaymentMethod(data.routing, data.gatewaysById, 'google_pay');
+   const canPayWithCreditCard = config.payment_methods.credit_card && Boolean(creditCardGateway);
+   const canPayWithPix = config.payment_methods.pix && Boolean(pixGateway);
+   const canPayWithBoleto = config.payment_methods.boleto && Boolean(boletoGateway);
+   const canPayWithApplePay = config.payment_methods.apple_pay && applePayGateway?.name === GatewayProvider.STRIPE;
+   const canPayWithGooglePay = config.payment_methods.google_pay && googlePayGateway?.name === GatewayProvider.STRIPE;
    const shouldRequirePhoneField = config.fields.phone;
-   const isPagSeguroCheckout = data.gateway?.name === GatewayProvider.PAGSEGURO;
-   const isAsaasCheckout = data.gateway?.name === GatewayProvider.ASAAS;
+   const isPagSeguroCheckout = activeGateway?.name === GatewayProvider.PAGSEGURO;
+   const isAsaasCheckout = activeGateway?.name === GatewayProvider.ASAAS;
    const availableDemoScenarios = demoScenarios.filter((scenario) =>
       paymentMethod === 'pix'
          ? scenario.status === 'pix_pending' || scenario.status === 'pix_paid'
@@ -1609,9 +1711,9 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
    );
    const shouldRequireCpfField = config.fields.cpf
       || isPagSeguroCheckout
-      || (data.gateway?.name === GatewayProvider.MERCADO_PAGO && paymentMethod === 'credit_card');
+      || (activeGateway?.name === GatewayProvider.MERCADO_PAGO && paymentMethod === 'credit_card');
    const shouldRenderCpfField = config.fields.cpf || shouldRequireCpfField;
-   const isAsaasHostedCardFlow = data.gateway?.name === GatewayProvider.ASAAS && paymentMethod === 'credit_card';
+   const isAsaasHostedCardFlow = activeGateway?.name === GatewayProvider.ASAAS && paymentMethod === 'credit_card';
 
    return (
       <TrackingProvider
@@ -1812,7 +1914,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                    </h3>
 
                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
-                     {config.payment_methods?.credit_card && !isAsaasCheckout && (
+                     {canPayWithCreditCard && (
                         <button
                            onClick={() => handlePaymentMethodSelect('credit_card')}
                            className={`relative flex items-center justify-center gap-2 p-4 rounded-xl border-2 transition-all ${paymentMethod === 'credit_card'
@@ -1830,7 +1932,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                         </button>
                      )}
 
-                     {config.payment_methods?.pix && (
+                     {canPayWithPix && (
                         <button
                            onClick={() => handlePaymentMethodSelect('pix')}
                            className={`relative flex items-center justify-center gap-2 p-4 rounded-xl border-2 transition-all ${paymentMethod === 'pix'
@@ -1848,7 +1950,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                         </button>
                      )}
 
-                     {config.payment_methods?.boleto && !isPagSeguroCheckout && !isAsaasCheckout && (
+                     {canPayWithBoleto && (
                         <button
                            onClick={() => handlePaymentMethodSelect('boleto')}
                            className={`relative flex items-center justify-center gap-2 p-4 rounded-xl border-2 transition-all ${paymentMethod === 'boleto'
@@ -1866,7 +1968,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                         </button>
                      )}
 
-                     {config.payment_methods?.apple_pay && paymentRequest && walletAvailability && (
+                     {canPayWithApplePay && paymentRequest && walletAvailability && (
                         <WalletTabButton
                            type="apple"
                            walletAvailability={walletAvailability}
@@ -1875,7 +1977,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                         />
                      )}
 
-                     {config.payment_methods?.google_pay && paymentRequest && walletAvailability && (
+                     {canPayWithGooglePay && paymentRequest && walletAvailability && (
                         <WalletTabButton
                            type="google"
                            walletAvailability={walletAvailability}
@@ -1907,7 +2009,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                   )}
 
                   {/* SEÇÃO CARTÃO */}
-                  {paymentMethod === 'credit_card' && !isAsaasCheckout && (
+                  {paymentMethod === 'credit_card' && canPayWithCreditCard && (
                      <div className="space-y-4 animate-in fade-in duration-300">
                         {isAsaasHostedCardFlow ? (
                            <div className="w-full max-w-[320px] mx-auto space-y-4 pt-2">
@@ -2010,7 +2112,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
 
                               {/* Form Container - Matching Card Width */}
                               <div className="w-full max-w-[280px] mx-auto space-y-3 pt-2">
-                                 {data.gateway.name === GatewayProvider.STRIPE ? (
+                                 {creditCardGateway?.name === GatewayProvider.STRIPE ? (
                                     <div className="space-y-3 pt-2">
                                        <StripeInputWrapper label={t('checkout.fields.card_number', 'Número do cartão')}>
                                           <CardNumberElement
@@ -2067,18 +2169,19 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                                              className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/20 transition-all"
                                              placeholder={t('checkout.fields.card_number', 'Número do cartão')}
                                              value={customer.cardNumber}
-                                             onChange={e => {
-                                                const newValue = e.target.value;
-                                                setCustomer({ ...customer, cardNumber: newValue });
-                                                setCardBrand(detectCardBrand(newValue));
+                                             maxLength={MAX_PAYMENT_CARD_INPUT_LENGTH}
+                                              onChange={e => {
+                                                 const newValue = formatPaymentCardNumberInput(e.target.value);
+                                                 setCustomer({ ...customer, cardNumber: newValue });
+                                                 setCardBrand(detectCardBrand(newValue));
 
-                                                const cleanedBin = newValue.replace(/\D/g, '');
+                                                 const cleanedBin = newValue.replace(/\D/g, '');
                                                 if (cleanedBin.length >= 6 && data) {
                                                    const bin = cleanedBin.substring(0, 6);
                                                    const totalAmount = calculateTotal();
                                                    const currency = data.product.currency || 'BRL';
                                                    setLoadingInstallments(true);
-                                                   paymentService.getPaymentOptions(data.gateway.id, totalAmount, currency, bin)
+                                                   paymentService.getPaymentOptions(creditCardGateway.id, totalAmount, currency, bin)
                                                       .then(options => {
                                                          setInstallmentOptions(options);
                                                          setCustomer(prev => ({ ...prev, installments: '1' }));
@@ -2114,7 +2217,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                                              placeholder="CVV"
                                              maxLength={4}
                                              value={customer.cvc}
-                                             onChange={e => setCustomer({ ...customer, cvc: e.target.value })}
+                                             onChange={e => setCustomer({ ...customer, cvc: formatPaymentCardSecurityCodeInput(e.target.value) })}
                                              onFocus={() => setCardFlipped(true)}
                                           />
                                        </div>
@@ -2156,7 +2259,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                                     )}
                                  </div>
 
-                                 {data.gateway.name === GatewayProvider.STRIPE && (
+                                 {creditCardGateway?.name === GatewayProvider.STRIPE && (
                                     <div className="w-full mt-4 animate-in fade-in duration-500">
                                        <StripeInputWrapper>
                                           <LinkAuthenticationElement
@@ -2488,6 +2591,7 @@ const WalletExpressButton = ({
    const navigate = useNavigate();
    const { t } = useTranslation('public');
    const [isVisible, setIsVisible] = useState(false);
+   const walletPaymentMethod: PaymentMethodType = type === 'apple' ? 'apple_pay' : 'google_pay';
    const configuredUpsellProductId = String(data?.checkout?.config?.upsell?.product_id || '').trim();
    const hasConfiguredUpsell = Boolean(
       data?.checkout?.config?.upsell?.active && configuredUpsellProductId
@@ -2554,6 +2658,16 @@ const WalletExpressButton = ({
             });
 
             const effectiveTrackingAttribution = trackingAttribution || captureCheckoutTrackingAttribution();
+            const walletGateway = getGatewayForPaymentMethod(data?.routing, data?.gatewaysById || {}, walletPaymentMethod);
+            if (!walletGateway) {
+               ev.complete('fail');
+               showAlert(
+                  t('checkout.error_title', 'Erro'),
+                  'Nao existe um gateway Stripe ativo para esta carteira neste checkout.',
+                  'error'
+               );
+               return;
+            }
             const result = await paymentService.processPayment({
                checkoutId: data.checkout.id,
                offerId: data.checkout.offer_id || 'direct',
@@ -2561,8 +2675,8 @@ const WalletExpressButton = ({
                customerName: ev.payerName || t('checkout.wallet_customer_fallback', 'Cliente Wallet'),
                customerEmail: ev.payerEmail || 'cliente@wallet.com',
                customerPhone: ev.payerPhone || '',
-               gatewayId: data.gateway.id,
-               paymentMethod: 'credit_card',
+               gatewayId: walletGateway.id,
+               paymentMethod: walletPaymentMethod,
                items: items,
                currency: data.product.currency || 'BRL',
                 customerUserId: userId,
@@ -2599,7 +2713,7 @@ const WalletExpressButton = ({
                   customer_name: ev.payerName || t('checkout.wallet_customer_fallback', 'Cliente Wallet'),
                   customer_email: ev.payerEmail || 'cliente@wallet.com',
                   customer_phone: ev.payerPhone || '',
-                  payment_method: 'credit_card',
+                  payment_method: walletPaymentMethod,
                   status: OrderStatus.PENDING,
                   items,
                   customer_user_id: userId,
@@ -2668,7 +2782,7 @@ const PublicCheckoutContent = ({ checkoutId }: { checkoutId?: string }) => {
    const { id: paramId } = useParams<{ id: string }>();
    const id = checkoutId || paramId;
    const { t } = useTranslation('public');
-   const [gatewayName, setGatewayName] = useState<string | undefined>();
+   const [supportsStripeRuntime, setSupportsStripeRuntime] = useState(false);
    const [loading, setLoading] = useState(true);
 
    useEffect(() => {
@@ -2676,9 +2790,22 @@ const PublicCheckoutContent = ({ checkoutId }: { checkoutId?: string }) => {
          if (!id) return;
          try {
             const checkout = await storage.getPublicCheckout(id);
-            if (checkout?.gateway_id) {
-               const gateway = await storage.getPublicGateway(checkout.gateway_id);
-               setGatewayName(gateway?.name);
+            if (checkout) {
+               const gatewayIds = collectCheckoutRoutingGatewayIds({
+                  config: checkout.config,
+                  gatewayId: checkout.gateway_id,
+                  backupGatewayId: checkout.backup_gateway_id,
+               });
+               const gateways = (await Promise.all(gatewayIds.map((gatewayId) => storage.getPublicGateway(gatewayId))))
+                  .filter((gateway): gateway is Gateway => Boolean(gateway?.id));
+               const gatewaysById = buildGatewayMap(gateways);
+               const routing = normalizeCheckoutPaymentRouting({
+                  config: checkout.config,
+                  gatewayId: checkout.gateway_id,
+                  backupGatewayId: checkout.backup_gateway_id,
+                  gateways,
+               });
+               setSupportsStripeRuntime(Boolean(getPreferredStripeGateway(routing, gatewaysById)));
             }
          } catch (e) {
             console.warn("Could not load gateway for bridge", e);
@@ -2692,7 +2819,7 @@ const PublicCheckoutContent = ({ checkoutId }: { checkoutId?: string }) => {
    if (loading || !id) return <Loading label={t('checkout.loading', 'Carregando checkout')} />;
 
    return (
-      <StripeHooksBridge gatewayName={gatewayName}>
+      <StripeHooksBridge gatewayName={supportsStripeRuntime ? GatewayProvider.STRIPE : undefined}>
          {(stripe, elements) => (
             <PublicCheckoutUI checkoutId={checkoutId} stripe={stripe} elements={elements} />
          )}

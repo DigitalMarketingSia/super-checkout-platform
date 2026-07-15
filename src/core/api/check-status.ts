@@ -23,6 +23,7 @@ import {
     getPagSeguroStatus,
     mapPagSeguroStatusToLocal,
 } from '../utils/pagSeguro.js';
+import { getAllowedGatewayIdsForPaymentMethod } from '../config/paymentRouting.js';
 
 // Define types locally since we are in a serverless function structure that might not share types easily with frontend
 interface Order {
@@ -288,18 +289,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (order.checkout_id) {
             const { data: checkoutData, error: checkoutError } = await supabaseAdmin
                 .from('checkouts')
-                .select('id,user_id,gateway_id,backup_gateway_id,product_id')
+                .select('id,user_id,gateway_id,backup_gateway_id,product_id,config')
                 .eq('id', order.checkout_id)
                 .maybeSingle();
             if (checkoutError) throw checkoutError;
             checkout = checkoutData || null;
-            if (!gatewayId && checkout) gatewayId = checkout.gateway_id;
+            if (!gatewayId && checkout) {
+                const allowedGatewayIds = getAllowedGatewayIdsForPaymentMethod({
+                    config: checkout.config || null,
+                    gatewayId: checkout.gateway_id || null,
+                    backupGatewayId: checkout.backup_gateway_id || null,
+                    paymentMethod: String(order.payment_method || '').trim() as any,
+                });
+                gatewayId = allowedGatewayIds[0] || checkout.gateway_id;
+            }
         }
 
         if (!gatewayId) return res.status(200).json({ status: order.status || 'pending' });
         if (!checkout) return res.status(200).json({ status: order.status || 'pending' });
 
-        const allowedGatewayIds = [checkout.gateway_id, checkout.backup_gateway_id].filter(Boolean).map(String);
+        const allowedGatewayIds = getAllowedGatewayIdsForPaymentMethod({
+            config: checkout.config || null,
+            gatewayId: checkout.gateway_id || null,
+            backupGatewayId: checkout.backup_gateway_id || null,
+            paymentMethod: String(order.payment_method || '').trim() as any,
+        });
+        if (allowedGatewayIds.length === 0) {
+            return res.status(200).json({ status: order.status || 'pending' });
+        }
         if (!allowedGatewayIds.includes(String(gatewayId))) {
             console.warn('[CheckStatus] Gateway is not attached to checkout.');
             return res.status(200).json({ status: order.status || 'pending' });

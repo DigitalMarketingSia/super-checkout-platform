@@ -156,6 +156,10 @@ function mapMercadoPagoApiErrorMessage(message: string) {
     return 'No sandbox legado do Mercado Pago, use credenciais TEST do vendedor e um e-mail valido de comprador diferente do e-mail da conta Mercado Pago do vendedor.';
   }
 
+  if (normalized.includes('cannot infer payment method') || normalized.includes('payment methods inference error')) {
+    return 'O Mercado Pago nao conseguiu reconciliar bandeira e emissor desse cartao. Em testes, confirme se as credenciais sao TEST e use cartao/conta de teste compativeis.';
+  }
+
   if (normalized.includes('payment_method_id')) {
     return 'O Mercado Pago rejeitou a bandeira do cartao enviada pelo checkout.';
   }
@@ -177,6 +181,20 @@ function mapMercadoPagoApiErrorMessage(message: string) {
   }
 
   return message || 'Erro na API do Mercado Pago';
+}
+
+function isMercadoPagoPaymentInferenceError(payload: any) {
+  const message = String(payload?.message || '').toLowerCase();
+  const causes = Array.isArray(payload?.cause) ? payload.cause : [];
+
+  if (message.includes('cannot infer payment method')) {
+    return true;
+  }
+
+  return causes.some((cause: any) => (
+    Number(cause?.code) === 2131
+    || String(cause?.description || '').toLowerCase().includes('payment methods inference error')
+  ));
 }
 
 type MercadoPagoStoredProfile = {
@@ -389,7 +407,14 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
     const merchantUserId = resolveCheckoutMerchantUserId(checkout, mainProduct);
     const ownedOrder = await loadOwnedOrderForCheckoutWithMerchant(supabaseAdmin, checkout, merchantUserId, orderId);
 
-    const gateway = await loadOwnedActiveGateway(supabaseAdmin, merchantUserId, checkout, gatewayId, 'mercado_pago');
+    const gateway = await loadOwnedActiveGateway(
+      supabaseAdmin,
+      merchantUserId,
+      checkout,
+      gatewayId,
+      'mercado_pago',
+      paymentMethod,
+    );
     const exposeGatewayDetail = shouldExposeMercadoPagoDetail(gateway);
     const serverCurrency = getServerCurrency(checkout, mainProduct);
     if (serverCurrency !== 'BRL') {
@@ -514,23 +539,53 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
     // 4. Chamada API via FETCH (Bypass SDK)
     console.log(`[MP-FETCH] Processando pagamento para ${orderId}... Total: ${totalAmount}`);
     
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    const submitMercadoPagoPayment = async (requestBody: Record<string, unknown>, idempotencyKey: string) => {
+      const nestedController = new AbortController();
+      const nestedTimeoutId = setTimeout(() => nestedController.abort(), 15000);
 
-    const response = await fetch('https://api.mercadopago.com/v1/payments', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${privateKey}`,
-        'X-Idempotency-Key': orderId,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(body),
-      signal: controller.signal
-    });
+      try {
+        const response = await fetch('https://api.mercadopago.com/v1/payments', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${privateKey}`,
+            'X-Idempotency-Key': idempotencyKey,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(requestBody),
+          signal: nestedController.signal
+        });
 
-    clearTimeout(timeoutId);
-    const mpResult = await response.json();
-    const requestId = response.headers.get('x-request-id');
+        const mpResult = await response.json();
+        const requestId = response.headers.get('x-request-id');
+        return { response, mpResult, requestId };
+      } finally {
+        clearTimeout(nestedTimeoutId);
+      }
+    };
+
+    let effectiveBody = { ...body };
+    let submission = await submitMercadoPagoPayment(effectiveBody, orderId);
+
+    if (
+      !submission.response.ok
+      && paymentMethod === 'credit_card'
+      && !useSavedPaymentMethod
+      && effectiveBody.issuer_id
+      && isMercadoPagoPaymentInferenceError(submission.mpResult)
+    ) {
+      console.warn('[MP-FETCH] Retrying payment without issuer_id after inference error.', {
+        orderId,
+        issuerId: effectiveBody.issuer_id,
+        paymentMethodId: effectiveBody.payment_method_id,
+        requestId: submission.requestId,
+      });
+
+      const { issuer_id: _issuerId, ...bodyWithoutIssuer } = effectiveBody;
+      effectiveBody = bodyWithoutIssuer;
+      submission = await submitMercadoPagoPayment(effectiveBody, `${orderId}-noissuer`);
+    }
+
+    const { response, mpResult, requestId } = submission;
 
     if (!response.ok) {
       console.error(`[MP-FETCH] Erro API (Request-ID: ${requestId}):`, mpResult);

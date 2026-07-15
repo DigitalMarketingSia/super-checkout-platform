@@ -75,6 +75,28 @@ function isLegacyApiKeyDisabledError(error: any): boolean {
     return message.includes('legacy api keys are disabled') || message.includes('legacy api key');
 }
 
+function isCentralProfileSchemaError(error: any): boolean {
+    const message = String(error?.message || error?.details || error || '').toLowerCase();
+    const missingColumnHints = [
+        'account_status',
+        'approval_notes',
+        'is_blocked',
+        'blocked_at',
+        'totp_enabled',
+        'totp_secret_encrypted',
+    ];
+
+    return (
+        missingColumnHints.some((hint) => message.includes(hint))
+        && (
+            message.includes('column')
+            || message.includes('schema cache')
+            || message.includes('does not exist')
+            || message.includes('could not find')
+        )
+    );
+}
+
 // --- Rate Limiting ---
 // Upstash Redis coordinates limits across serverless instances when configured.
 // In-memory state remains as a conservative fallback for local/dev or outages.
@@ -869,11 +891,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
                 });
 
-                const { data: centralProfile } = await centralProfileClient
+                const { data: centralProfile, error: centralProfileError } = await centralProfileClient
                     .from('profiles')
-                    .select('account_status, approval_notes, is_blocked, blocked_at')
+                    .select('account_status, approval_notes, is_blocked, blocked_at, email, totp_enabled, totp_secret_encrypted')
                     .eq('id', data.user.id)
                     .maybeSingle();
+
+                if (centralProfileError) {
+                    throw centralProfileError;
+                }
+
+                if (!centralProfile) {
+                    await logAuthEvent({
+                        supabaseUrl: auditSupabaseUrl,
+                        serviceKey,
+                        eventType: 'central_profile_missing',
+                        severity: 'CRITICAL',
+                        ip,
+                        userAgent: getUserAgent(req),
+                        userId: null,
+                        metadata: {
+                            target: 'central',
+                            email: maskedEmail,
+                            source: 'auth_login_proxy'
+                        }
+                    });
+
+                    return res.status(403).json({
+                        error: 'Perfil central nao encontrado para este acesso.',
+                        error_code: 'central_profile_missing'
+                    });
+                }
 
                 if (centralProfile?.is_blocked) {
                     return res.status(403).json({
@@ -898,8 +946,126 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         approval_notes: centralProfile.approval_notes || null
                     });
                 }
+
+                if (centralProfile?.totp_enabled) {
+                    if (!centralProfile.totp_secret_encrypted) {
+                        await logAuthEvent({
+                            supabaseUrl: auditSupabaseUrl,
+                            serviceKey,
+                            eventType: 'two_factor_secret_missing',
+                            severity: 'CRITICAL',
+                            ip,
+                            userAgent: getUserAgent(req),
+                            userId: null,
+                            metadata: {
+                                target: 'central',
+                                email: maskedEmail,
+                                source: 'auth_login_proxy',
+                                two_factor_required: true
+                            }
+                        });
+
+                        return res.status(500).json({
+                            error: '2FA esta habilitada, mas a configuracao central esta incompleta.',
+                            error_code: 'two_factor_secret_missing'
+                        });
+                    }
+
+                    if (!data.session?.access_token || !data.session?.refresh_token) {
+                        await logAuthEvent({
+                            supabaseUrl: auditSupabaseUrl,
+                            serviceKey,
+                            eventType: 'two_factor_session_missing',
+                            severity: 'CRITICAL',
+                            ip,
+                            userAgent: getUserAgent(req),
+                            userId: null,
+                            metadata: {
+                                target: 'central',
+                                email: maskedEmail,
+                                source: 'auth_login_proxy',
+                                two_factor_required: true
+                            }
+                        });
+
+                        return res.status(500).json({
+                            error: 'Nao foi possivel preparar a validacao em duas etapas.',
+                            error_code: 'two_factor_session_missing'
+                        });
+                    }
+
+                    const challengeId = createOpaqueChallengeToken();
+                    const expiresAt = new Date(Date.now() + TWO_FACTOR_CHALLENGE_TTL_MS).toISOString();
+                    const challengeToken = createStatelessLoginChallengeToken({
+                        jti: challengeId,
+                        session: {
+                            ...data.session,
+                            user: data.user,
+                        },
+                        user_id: data.user.id,
+                        user_email: data.user.email || centralProfile.email || null,
+                        user_updated_at: data.user.updated_at || null,
+                        target: 'central',
+                        issued_at: new Date().toISOString(),
+                        expires_at: expiresAt,
+                        max_attempts: 5
+                    });
+
+                    await logAuthEvent({
+                        supabaseUrl: auditSupabaseUrl,
+                        serviceKey,
+                        eventType: 'login_2fa_required',
+                        severity: 'INFO',
+                        ip,
+                        userAgent: getUserAgent(req),
+                        userId: null,
+                        metadata: {
+                            target: 'central',
+                            email: maskedEmail,
+                            source: 'auth_login_proxy',
+                            two_factor_required: true
+                        }
+                    });
+
+                    return res.status(200).json({
+                        requires_two_factor: true,
+                        two_factor_token: challengeToken,
+                        two_factor_expires_in_sec: Math.floor(TWO_FACTOR_CHALLENGE_TTL_MS / 1000),
+                        user: {
+                            id: data.user.id,
+                            email: data.user.email || centralProfile.email || null
+                        }
+                    });
+                }
             } catch (centralProfileError: any) {
-                console.warn(`[Auth/Login] Central approval check skipped for ${maskedEmail}:`, centralProfileError?.message || centralProfileError);
+                console.error(`[Auth/Login] Central profile inspection failed closed for ${maskedEmail}:`, centralProfileError?.message || centralProfileError);
+                await logAuthEvent({
+                    supabaseUrl: auditSupabaseUrl,
+                    serviceKey,
+                    eventType: 'central_profile_inspection_failed',
+                    severity: 'CRITICAL',
+                    ip,
+                    userAgent: getUserAgent(req),
+                    userId: null,
+                    metadata: {
+                        target: 'central',
+                        email: maskedEmail,
+                        source: 'auth_login_proxy',
+                        reason: centralProfileError?.message || String(centralProfileError)
+                    }
+                });
+
+                if (isCentralProfileSchemaError(centralProfileError)) {
+                    return res.status(500).json({
+                        error: 'Portal central desatualizado: faltam colunas obrigatorias em public.profiles no Supabase Central. Aplique a migration de compatibilidade da Central antes de tentar logar novamente.',
+                        error_code: 'central_profile_schema_incomplete'
+                    });
+                }
+
+                return res.status(500).json({
+                    error: 'Nao foi possivel validar as regras de acesso do portal.',
+                    error_code: 'central_profile_inspection_failed'
+                });
             }
         }
 

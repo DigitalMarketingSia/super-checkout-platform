@@ -3,13 +3,18 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { applyCors } from '../_cors.js';
 import { enforceApiRateLimit } from '../_rate-limit.js';
 import { getLocalSupabaseServerConfig } from '../_supabase-server.js';
+import {
+    clearSetupBootstrapToken,
+    normalizeBootstrapDomain,
+    validateSetupBootstrapToken,
+} from './setup-bootstrap.js';
 
 type SetupBody = {
     name?: string;
     email?: string;
     password?: string;
+    setup_token?: string;
     installation_id?: string;
-    central_user_id?: string | null;
 };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -30,6 +35,15 @@ function parseBody(req: VercelRequest): SetupBody {
     return req.body;
 }
 
+function shouldFallbackSetupCheck(error: any) {
+    const message = `${error?.message || ''} ${error?.details || ''}`.toLowerCase();
+    return (
+        message.includes('is_setup_required')
+        || message.includes('schema cache')
+        || (message.includes('operator does not exist') && message.includes('uuid = text'))
+    );
+}
+
 async function isSetupRequired(supabase: any, installationId: string) {
     const scoped = await supabase.rpc('is_setup_required', {
         target_installation_id: installationId
@@ -37,8 +51,7 @@ async function isSetupRequired(supabase: any, installationId: string) {
 
     if (!scoped.error) return Boolean(scoped.data);
 
-    const msg = scoped.error.message || '';
-    if (!msg.includes('is_setup_required') && !msg.includes('schema cache')) {
+    if (!shouldFallbackSetupCheck(scoped.error)) {
         throw scoped.error;
     }
 
@@ -190,28 +203,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const name = String(body.name || '').trim();
     const email = String(body.email || '').trim().toLowerCase();
     const password = String(body.password || '');
-    const installationId = String(body.installation_id || '').trim();
-    const centralUserId = body.central_user_id && UUID_RE.test(String(body.central_user_id))
-        ? String(body.central_user_id)
-        : null;
+    const setupToken = String(body.setup_token || '').trim();
+    const requestedInstallationId = String(body.installation_id || '').trim();
 
-    if (!name || !email || !password || !installationId) {
-        return res.status(400).json({ error: 'Nome, e-mail, senha e installation_id sao obrigatorios.' });
+    if (!name || !email || !password || !setupToken) {
+        return res.status(400).json({ error: 'Nome, e-mail, senha e setup_token sao obrigatorios.' });
     }
 
     if (password.length < 6) {
         return res.status(400).json({ error: 'A senha deve ter pelo menos 6 caracteres.' });
-    }
-
-    const rateLimit = enforceApiRateLimit(req, res, {
-        scope: 'installer_setup_admin',
-        identifiers: [installationId, email],
-        limit: 5,
-        windowMs: 30 * 60 * 1000
-    });
-
-    if (!rateLimit.allowed) {
-        return res.status(429).json({ error: 'Muitas tentativas de setup. Tente novamente mais tarde.' });
     }
 
     const supabase = createClient(supabaseUrl, serviceKey, {
@@ -222,8 +222,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     try {
+        const requestDomain = normalizeBootstrapDomain(req.headers['x-forwarded-host'] || req.headers.host || '');
+        const bootstrapValidation = await validateSetupBootstrapToken(supabase, setupToken, requestDomain);
+        if (!bootstrapValidation.valid) {
+            return res.status(403).json({ error: 'Token de bootstrap invalido ou expirado.' });
+        }
+
+        const installationId = bootstrapValidation.state.installationId || '';
+        const centralUserId = bootstrapValidation.state.centralUserId && UUID_RE.test(bootstrapValidation.state.centralUserId)
+            ? bootstrapValidation.state.centralUserId
+            : null;
+
+        if (!installationId) {
+            return res.status(403).json({ error: 'Bootstrap sem installation_id valido.' });
+        }
+
+        if (requestedInstallationId && requestedInstallationId !== installationId) {
+            return res.status(403).json({ error: 'installation_id nao corresponde ao bootstrap autorizado.' });
+        }
+
+        const rateLimit = enforceApiRateLimit(req, res, {
+            scope: 'installer_setup_admin',
+            identifiers: [installationId, email],
+            limit: 5,
+            windowMs: 30 * 60 * 1000
+        });
+
+        if (!rateLimit.allowed) {
+            return res.status(429).json({ error: 'Muitas tentativas de setup. Tente novamente mais tarde.' });
+        }
+
         const required = await isSetupRequired(supabase, installationId);
         if (!required) {
+            await clearSetupBootstrapToken(supabase);
             return res.status(409).json({ error: 'Esta instalacao ja possui um administrador.' });
         }
 
@@ -234,6 +265,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (adminCountError) throw adminCountError;
         if ((count || 0) > 0) {
+            await clearSetupBootstrapToken(supabase);
             return res.status(409).json({ error: 'Esta instalacao ja possui um administrador.' });
         }
 
@@ -300,6 +332,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 active: false,
                 config: {}
             }, { onConflict: 'user_id,name' });
+
+        await clearSetupBootstrapToken(supabase);
 
         return res.status(200).json({
             success: true,

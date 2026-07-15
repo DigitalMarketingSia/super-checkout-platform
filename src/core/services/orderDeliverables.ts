@@ -85,11 +85,34 @@ function getAreaUrl(area: any, origin: string) {
   return `${normalizeOrigin(origin)}/app/${slug}`;
 }
 
-function tokenizedMemberAreaUrl(baseUrl: string, recipientEmail?: string | null, includeAccessTokens = true) {
+async function tokenizedMemberAreaUrl(
+  supabaseAdmin: SupabaseAdmin,
+  baseUrl: string,
+  params: {
+    recipientEmail?: string | null;
+    includeAccessTokens?: boolean;
+    orderId: string;
+    memberAreaId?: string | null;
+    productId?: string | null;
+  },
+) {
+  const includeAccessTokens = params.includeAccessTokens !== false;
+  const recipientEmail = params.recipientEmail;
   if (!includeAccessTokens || !recipientEmail) return baseUrl;
-  const loginToken = createLoginToken(recipientEmail);
-  const separator = baseUrl.includes('?') ? '&' : '?';
-  return `${baseUrl}${separator}login_token=${encodeURIComponent(loginToken)}`;
+
+  try {
+    const loginToken = await createLoginToken(supabaseAdmin, {
+      email: recipientEmail,
+      orderId: params.orderId,
+      memberAreaId: params.memberAreaId || null,
+      productId: params.productId || null,
+    });
+    const separator = baseUrl.includes('?') ? '&' : '?';
+    return `${baseUrl}${separator}login_token=${encodeURIComponent(loginToken)}`;
+  } catch (error: any) {
+    console.warn('[OrderDeliverables] Failed to create one-time member login ticket:', error?.message || error);
+    return baseUrl;
+  }
 }
 
 function isPdfUrl(url: string) {
@@ -189,7 +212,7 @@ export async function buildOrderDeliverables(
     }
   }
 
-  return items.map((item: any, index: number) => {
+  return Promise.all(items.map(async (item: any, index: number) => {
     const productId = getProductId(item) || null;
     const product = productId ? productsById.get(productId) : null;
     const title = getProductTitle(item, product);
@@ -254,7 +277,13 @@ export async function buildOrderDeliverables(
         title,
         delivery_type: 'member_area',
         status: 'available',
-        url: tokenizedMemberAreaUrl(visualUrl, input.recipientEmail, input.includeAccessTokens !== false),
+        url: await tokenizedMemberAreaUrl(supabaseAdmin, visualUrl, {
+          recipientEmail: input.recipientEmail,
+          includeAccessTokens: input.includeAccessTokens,
+          orderId,
+          memberAreaId: memberArea.id || null,
+          productId,
+        }),
         visual_url: visualUrl,
         label: 'Acessar conteudo',
         instructions: 'Seu acesso foi liberado na area de membros.',
@@ -278,7 +307,7 @@ export async function buildOrderDeliverables(
       sort_order: index,
       source: 'not_configured',
     } satisfies OrderDeliverable;
-  });
+  }));
 }
 
 function escapeHtml(value: string) {

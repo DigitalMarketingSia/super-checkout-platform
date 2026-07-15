@@ -52,10 +52,10 @@ export const getEnv = (key: string): string | undefined => {
   if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
     const isSupabaseKey = key.includes('SUPABASE');
     const isCentralKey = key.includes('CENTRAL_');
-    if (isSupabaseKey && !isCentralKey) {
+    if (isSupabaseKey && !isCentralKey && !isServerOnlyKey) {
       const localKey = key.includes('URL') ? 'installer_supabase_url' :
         (key.includes('ANON') || key.includes('PUBLISHABLE')) ? 'installer_supabase_anon_key' :
-          (key.includes('SERVICE') || key.includes('SECRET')) ? 'installer_supabase_service_key' : null;
+          null;
 
       if (localKey) {
         const localVal = window.localStorage.getItem(localKey);
@@ -97,10 +97,10 @@ export const getEnv = (key: string): string | undefined => {
 
     const isSupabaseKey = key.includes('SUPABASE');
     const isCentralKey = key.includes('CENTRAL_');
-    if (isSupabaseKey && !isCentralKey) {
+    if (isSupabaseKey && !isCentralKey && !isServerOnlyKey) {
       const localKey = key.includes('URL') ? 'installer_supabase_url' :
         (key.includes('ANON') || key.includes('PUBLISHABLE')) ? 'installer_supabase_anon_key' :
-          (key.includes('SERVICE') || key.includes('SECRET')) ? 'installer_supabase_service_key' : null;
+          null;
 
       if (localKey) {
         const localVal = window.localStorage.getItem(localKey);

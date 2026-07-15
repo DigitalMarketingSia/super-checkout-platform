@@ -128,6 +128,56 @@ export const Checkouts = () => {
     return gateway ? gateway.name.replace('_', ' ') : t('checkouts.undefined_gateway');
   };
 
+  const getActivePaymentMethodLabels = (checkout: Checkout) => {
+    const methods = checkout.config?.payment_methods;
+    if (!methods) return [];
+
+    const labels: string[] = [];
+    if (methods.pix) labels.push('PIX');
+    if (methods.credit_card) labels.push(t('checkouts.card_short', 'CARTÃO'));
+    if (methods.boleto) labels.push('BOLETO');
+    if (methods.apple_pay) labels.push('APPLE PAY');
+    if (methods.google_pay) labels.push('GOOGLE PAY');
+    return labels;
+  };
+
+  const hasMethodRoutingConfig = (checkout: Checkout) => {
+    return Object.values(checkout.config?.payment_routing || {}).some((route) =>
+      Boolean(route?.primary_gateway_id || route?.backup_gateway_id)
+    );
+  };
+
+  const getCheckoutGatewaySummary = (checkout: Checkout) => {
+    if (!hasMethodRoutingConfig(checkout)) {
+      return getGatewayNameStr(checkout.gateway_id);
+    }
+
+    const routeGatewayIds = Object.values(checkout.config?.payment_routing || {}).flatMap((route) => [
+      route?.primary_gateway_id || null,
+      route?.backup_gateway_id || null,
+    ]);
+    const uniqueGatewayIds = routeGatewayIds.filter((gatewayId, index, array): gatewayId is string => {
+      if (!gatewayId) return false;
+      return array.indexOf(gatewayId) === index;
+    });
+
+    if (uniqueGatewayIds.length === 0) {
+      return getGatewayNameStr(checkout.gateway_id);
+    }
+
+    if (uniqueGatewayIds.length === 1) {
+      return getGatewayNameStr(uniqueGatewayIds[0]);
+    }
+
+    return t('checkouts.multi_gateway_summary', '{{count}} gateways', { count: uniqueGatewayIds.length });
+  };
+
+  const getCheckoutGatewayLabel = (checkout: Checkout) => {
+    return hasMethodRoutingConfig(checkout)
+      ? t('checkouts.payments_label', 'Pagamentos')
+      : t('checkouts.processor');
+  };
+
   const { compliance } = useAuth();
   const [showComplianceModal, setShowComplianceModal] = useState(false);
 
@@ -229,12 +279,29 @@ export const Checkouts = () => {
                         <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-black/40 border border-white/5 min-w-[130px]">
                            <CreditCard className="w-3.5 h-3.5 text-gray-700" />
                            <div className="min-w-0">
-                              <p className="text-[7px] font-black uppercase text-gray-700 tracking-widest leading-none mb-0.5">{t('checkouts.processor')}</p>
-                              <p className="text-[11px] font-bold text-gray-400 truncate uppercase">{getGatewayNameStr(chk.gateway_id)}</p>
+                              <p className="text-[7px] font-black uppercase text-gray-700 tracking-widest leading-none mb-0.5">{getCheckoutGatewayLabel(chk)}</p>
+                              <p className="text-[11px] font-bold text-gray-400 truncate uppercase">{getCheckoutGatewaySummary(chk)}</p>
                            </div>
                         </div>
                      </div>
                       <div className="flex flex-wrap items-center gap-2">
+                         {getActivePaymentMethodLabels(chk).map((label) => (
+                            <div
+                              key={`${chk.id}-${label}`}
+                              className="flex items-center gap-2 px-3 py-1 rounded-lg bg-emerald-500/5 border border-emerald-500/10 text-emerald-300 whitespace-nowrap w-fit"
+                            >
+                              <CreditCard className="w-3 h-3" />
+                              <span className="text-[9px] font-black uppercase tracking-widest">{label}</span>
+                            </div>
+                         ))}
+
+                         {hasMethodRoutingConfig(chk) && (
+                            <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-cyan-500/5 border border-cyan-500/10 text-cyan-300 whitespace-nowrap w-fit">
+                               <Zap className="w-3 h-3" />
+                               <span className="text-[9px] font-black uppercase tracking-widest">{t('checkouts.method_routing_badge', 'Roteamento por método')}</span>
+                            </div>
+                         )}
+
                          {chk.order_bump_ids && chk.order_bump_ids.length > 0 && (
                             <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-orange-500/5 border border-orange-500/10 text-orange-500 whitespace-nowrap w-fit">
                                <Layers className="w-3 h-3" />

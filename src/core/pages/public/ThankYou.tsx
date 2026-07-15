@@ -396,6 +396,7 @@ export const ThankYou = () => {
   const primaryMemberDeliverable = actionableDeliverables.find((deliverable) => deliverable.delivery_type === 'member_area');
   const primaryAccessUrl = primaryMemberDeliverable?.url || checkout?.thank_you_button_url || '';
   const primaryAccessLabel = primaryMemberDeliverable?.label || checkout?.thank_you_button_text || t('thank_you.access', 'Acessar');
+  const shouldShowPrimaryAccessCta = !isAwaitingConfirmation && actionableDeliverables.length === 0 && Boolean(primaryAccessUrl);
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-gray-900">
       <TrackingProvider
@@ -568,7 +569,7 @@ export const ThankYou = () => {
             </div>
 
             <div className="mt-10 flex justify-center">
-              {!isAwaitingConfirmation && primaryAccessUrl ? (
+              {shouldShowPrimaryAccessCta ? (
                 <Button
                   onClick={() => {
                     const buttonUrl = primaryAccessUrl;

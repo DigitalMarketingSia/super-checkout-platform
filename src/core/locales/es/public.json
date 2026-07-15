@@ -75,6 +75,7 @@
     "not_immediate_mode_desc": "Este método no se ofrecerá de inmediato para evitar confusión o cobro duplicado percibido después del pedido principal.",
     "pix_mode_desc": "Tu pedido principal ya fue confirmado. Si aceptas esta oferta, generaremos un nuevo Pix solo para el artículo adicional.",
     "card_mode_desc": "Tu pedido principal ya fue confirmado. Para agregar este artículo, confirma un nuevo pago solo del artículo adicional.",
+    "card_mode_reconfirm_desc": "Tu pedido principal ya fue confirmado. Si aceptas esta oferta, abriremos la confirmación segura solo para el artículo adicional.",
     "processing": "Procesando...",
     "accept_default": "Sí, quiero agregarlo a mi pedido",
     "generate_pix_cta": "Generar Pix del artículo adicional",

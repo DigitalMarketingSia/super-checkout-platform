@@ -3,15 +3,17 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { loadStripe, type Stripe, type StripeCardNumberElement } from '@stripe/stripe-js';
 import { Elements, CardCvcElement, CardExpiryElement, CardNumberElement, useElements, useStripe } from '@stripe/react-stripe-js';
 import { useTranslation } from 'react-i18next';
-import { Check, CheckCircle, Clock, Copy, CreditCard, Loader2, Lock, QrCode, ShieldCheck } from 'lucide-react';
+import { Check, CheckCircle, Clock, Copy, CreditCard, Loader2, Lock, Package, QrCode, ShieldCheck, Sliders } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Loading } from '../../components/ui/Loading';
+import { collectCheckoutRoutingGatewayIds, getAllowedGatewayIdsForPaymentMethod } from '../../config/paymentRouting';
 import { resolveUpsellGatewayCapability, type UpsellGatewayCapability } from '../../config/upsellCapabilities';
 import { paymentService } from '../../services/paymentService';
 import { supabase } from '../../services/supabase';
 import { storage } from '../../services/storageService';
-import { Checkout, Gateway, Order, Product } from '../../types';
+import { Checkout, Gateway, Order, PaymentMethodType, Product } from '../../types';
 import { getApiUrl } from '../../utils/apiUtils';
+import { formatPaymentCardNumberInput, formatPaymentCardSecurityCodeInput, MAX_PAYMENT_CARD_INPUT_LENGTH } from '../../utils/paymentCardFormatting';
 import { translatePaymentError } from '../../utils/errorTranslator';
 import { getRuntimeMode } from '../../config/runtimeMode';
 import { demoDataService } from '../../services/demoDataService';
@@ -24,12 +26,300 @@ const toPixQrImageSrc = (value?: string | null) => {
     return value.startsWith('data:image') ? value : `data:image/png;base64,${value}`;
 };
 
+const extractYouTubeId = (url?: string | null) => {
+    const value = String(url || '').trim();
+    if (!value) return '';
+
+    const match = value.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?/]+)/i);
+    return match?.[1] || '';
+};
+
+const resolveYouTubeEmbedUrl = (url?: string | null) => {
+    const value = String(url || '').trim();
+    if (!value) return '';
+    if (/youtube\.com\/embed\//i.test(value)) return value;
+
+    const videoId = extractYouTubeId(value);
+    if (videoId) return `https://www.youtube.com/embed/${videoId}`;
+
+    return /^https?:\/\//i.test(value) ? value : '';
+};
+
+const resolveYouTubeThumbnailUrl = (url?: string | null) => {
+    const videoId = extractYouTubeId(url);
+    return videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : '';
+};
+
+const resolveUpsellCardImageUrl = (product?: Product | null, config?: Checkout['config']['upsell']) => {
+    const productImageUrl = String(product?.imageUrl || '').trim();
+    if (productImageUrl) return productImageUrl;
+
+    const configuredMediaUrl = String(config?.media_url || '').trim();
+    if (!configuredMediaUrl) return '';
+
+    if (config?.media_type === 'image') {
+        return configuredMediaUrl;
+    }
+
+    return resolveYouTubeThumbnailUrl(configuredMediaUrl);
+};
+
+const mergeUniqueGateways = (gateways: Array<Gateway | null | undefined>) => {
+    const byId = new Map<string, Gateway>();
+
+    gateways.forEach((gateway) => {
+        if (!gateway?.id) return;
+        byId.set(gateway.id, gateway);
+    });
+
+    return Array.from(byId.values());
+};
+
+const getUpsellGatewayMethodCandidates = (paymentMethod?: string | null): PaymentMethodType[] => {
+    switch (String(paymentMethod || '').trim().toLowerCase()) {
+        case 'pix':
+            return ['pix'];
+        case 'apple_pay':
+            return ['apple_pay', 'credit_card'];
+        case 'google_pay':
+            return ['google_pay', 'credit_card'];
+        case 'boleto':
+            return ['boleto', 'credit_card'];
+        case 'credit_card':
+        default:
+            return ['credit_card'];
+    }
+};
+
+const resolvePreferredUpsellGateway = (params: {
+    checkout?: Checkout | null;
+    gateways: Gateway[];
+    paymentMethod?: string | null;
+    preferredGatewayId?: string | null;
+    preferredGatewayName?: string | null;
+}) => {
+    if (!params.checkout || params.gateways.length === 0) {
+        return null;
+    }
+
+    const preferredGatewayId = String(params.preferredGatewayId || '').trim();
+    if (preferredGatewayId) {
+        const exactGateway = params.gateways.find((gateway) => gateway.id === preferredGatewayId) || null;
+        if (exactGateway) {
+            return exactGateway;
+        }
+    }
+
+    const candidateGatewayIds = getUpsellGatewayMethodCandidates(params.paymentMethod)
+        .flatMap((paymentMethod) => getAllowedGatewayIdsForPaymentMethod({
+            config: params.checkout?.config || null,
+            gatewayId: params.checkout?.gateway_id || null,
+            backupGatewayId: params.checkout?.backup_gateway_id || null,
+            paymentMethod,
+            gateways: params.gateways,
+        }))
+        .filter((gatewayId, index, array) => array.indexOf(gatewayId) === index);
+
+    const preferredGatewayName = String(params.preferredGatewayName || '').trim().toLowerCase();
+    if (preferredGatewayName && preferredGatewayName !== 'unknown') {
+        const preferredByRoute = candidateGatewayIds
+            .map((gatewayId) => params.gateways.find((gateway) => gateway.id === gatewayId) || null)
+            .find((gateway) => String(gateway?.name || gateway?.provider || '').trim().toLowerCase() === preferredGatewayName);
+
+        if (preferredByRoute) {
+            return preferredByRoute;
+        }
+    }
+
+    const routedGateway = candidateGatewayIds
+        .map((gatewayId) => params.gateways.find((gateway) => gateway.id === gatewayId) || null)
+        .find((gateway): gateway is Gateway => Boolean(gateway));
+
+    if (routedGateway) {
+        return routedGateway;
+    }
+
+    if (preferredGatewayName && preferredGatewayName !== 'unknown') {
+        const fallbackByName = params.gateways.find(
+            (gateway) => String(gateway.name || gateway.provider || '').trim().toLowerCase() === preferredGatewayName,
+        ) || null;
+        if (fallbackByName) {
+            return fallbackByName;
+        }
+    }
+
+    return params.gateways.find((gateway) => gateway.id === params.checkout?.gateway_id) || params.gateways[0] || null;
+};
+
 const stripeElementOptions = {
     style: {
         base: { color: '#FFFFFF', fontSize: '14px', '::placeholder': { color: '#9CA3AF' } },
         invalid: { color: '#F87171' },
     },
 };
+
+const mercadoPagoUpsellInputClassName = 'w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-gray-800 placeholder:text-gray-400 shadow-sm outline-none transition-all focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/20';
+const upsellFormSubmitButtonClassName = 'w-full !bg-[#10B981] hover:!bg-[#059669] disabled:!bg-gray-400 !text-white font-bold h-12 shadow-lg shadow-green-500/30 focus:!ring-[#10B981]';
+
+type UpsellCardBrand = 'visa' | 'mastercard' | 'elo' | 'amex' | 'hipercard' | 'diners' | 'discover' | 'default';
+
+const upsellCardStyles: Record<UpsellCardBrand, { gradient: string; logo: string; textColor: string }> = {
+    visa: { gradient: 'from-[#1A1F71] to-[#0D47A1]', logo: 'VISA', textColor: 'text-white' },
+    mastercard: { gradient: 'from-[#EB001B] to-[#F79E1B]', logo: 'MASTERCARD', textColor: 'text-white' },
+    elo: { gradient: 'from-[#FFCB05] to-[#000000]', logo: 'ELO', textColor: 'text-white' },
+    amex: { gradient: 'from-[#006FCF] to-[#003366]', logo: 'AMEX', textColor: 'text-white' },
+    hipercard: { gradient: 'from-[#D32F2F] to-[#B71C1C]', logo: 'HIPERCARD', textColor: 'text-white' },
+    diners: { gradient: 'from-[#0079BE] to-[#00457C]', logo: 'DINERS', textColor: 'text-white' },
+    discover: { gradient: 'from-[#FF6000] to-[#CC4D00]', logo: 'DISCOVER', textColor: 'text-white' },
+    default: { gradient: 'from-gray-900 to-gray-800', logo: 'CARD', textColor: 'text-white' },
+};
+
+const normalizeUpsellCardBrand = (brand?: string | null): UpsellCardBrand => {
+    const normalized = String(brand || '').trim().toLowerCase();
+    switch (normalized) {
+        case 'visa':
+            return 'visa';
+        case 'master':
+        case 'mastercard':
+            return 'mastercard';
+        case 'elo':
+            return 'elo';
+        case 'amex':
+        case 'american_express':
+        case 'american express':
+            return 'amex';
+        case 'hipercard':
+            return 'hipercard';
+        case 'diners':
+        case 'diners_club':
+            return 'diners';
+        case 'discover':
+            return 'discover';
+        default:
+            return 'default';
+    }
+};
+
+const detectUpsellCardBrand = (cardNumber: string): UpsellCardBrand => {
+    const cleaned = cardNumber.replace(/\D/g, '');
+    if (/^(636368|438935|504175|451416|636297|5067|4576|4011)/.test(cleaned)) return 'elo';
+    if (/^(606282|3841)/.test(cleaned)) return 'hipercard';
+    if (/^3[47]/.test(cleaned)) return 'amex';
+    if (/^(36|38|30[0-5])/.test(cleaned)) return 'diners';
+    if (/^5[1-5]/.test(cleaned) || /^2(22[1-9]|2[3-9][0-9]|[3-6][0-9]{2}|7[0-1][0-9]|720)/.test(cleaned)) return 'mastercard';
+    if (/^(6011|65|64[4-9])/.test(cleaned)) return 'discover';
+    if (/^4/.test(cleaned)) return 'visa';
+    return 'default';
+};
+
+const formatUpsellCardPreviewNumber = (cardNumber?: string | null, last4?: string | null) => {
+    const digits = String(cardNumber || '').replace(/\D/g, '');
+    if (digits) {
+        const padded = digits.padEnd(16, '•').slice(0, 16);
+        return padded.match(/.{1,4}/g)?.join(' ') || '•••• •••• •••• ••••';
+    }
+
+    const maskedLast4 = String(last4 || '').replace(/\D/g, '').slice(-4);
+    if (maskedLast4) {
+        return `•••• •••• •••• ${maskedLast4}`;
+    }
+
+    return '•••• •••• •••• ••••';
+};
+
+const formatUpsellExpiryPreview = (month?: string | number | null, year?: string | number | null) => {
+    const rawMonth = String(month ?? '').replace(/\D/g, '').slice(0, 2);
+    const rawYear = String(year ?? '').replace(/\D/g, '');
+    const normalizedMonth = rawMonth ? rawMonth.padStart(2, '0') : '••';
+    const normalizedYear = rawYear ? rawYear.slice(-2).padStart(2, '0') : '••';
+    return `${normalizedMonth}/${normalizedYear}`;
+};
+
+const formatUpsellInstallmentLabel = (amount: number, currency?: string | null) => {
+    const normalizedCurrency = String(currency || 'BRL').trim().toUpperCase() || 'BRL';
+
+    let formattedAmount = `${amount.toFixed(2)}`;
+    try {
+        formattedAmount = new Intl.NumberFormat('pt-BR', {
+            style: 'currency',
+            currency: normalizedCurrency,
+            minimumFractionDigits: 2,
+        }).format(amount || 0);
+    } catch (formatError) {
+        console.warn('[UpsellPage] Failed to format installment label currency:', formatError);
+    }
+
+    return normalizedCurrency === 'BRL'
+        ? `1x de ${formattedAmount} (À vista)`
+        : `1x de ${formattedAmount}`;
+};
+
+const formatUpsellExpiryInput = (value: string) => {
+    const digits = value.replace(/\D/g, '').slice(0, 4);
+    if (digits.length <= 2) return digits;
+    return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+};
+
+function UpsellCardPreview(props: {
+    brand?: string | null;
+    cardNumber?: string | null;
+    last4?: string | null;
+    holderName?: string | null;
+    expMonth?: string | number | null;
+    expYear?: string | number | null;
+    cvc?: string | null;
+    flipped?: boolean;
+    onToggle?: () => void;
+}) {
+    const resolvedBrand = props.cardNumber ? detectUpsellCardBrand(props.cardNumber) : normalizeUpsellCardBrand(props.brand);
+    const cardStyle = upsellCardStyles[resolvedBrand];
+    const displayNumber = formatUpsellCardPreviewNumber(undefined, props.last4);
+    const displayExpiry = formatUpsellExpiryPreview(props.expMonth, props.expYear);
+    const displayHolder = String(props.holderName || '').trim().toUpperCase() || 'NOME DO TITULAR';
+    const displayCvc = String(props.cvc || '').trim() || '123';
+
+    return (
+        <div className="w-full max-w-[280px] mx-auto">
+            <div className="w-full h-[176px] relative cursor-pointer group" style={{ perspective: '1000px' }} onClick={props.onToggle}>
+                <div
+                    className="w-full h-full relative transition-transform duration-700"
+                    style={{ transformStyle: 'preserve-3d', transform: props.flipped ? 'rotateY(180deg)' : 'rotateY(0deg)' }}
+                >
+                    <div className={`absolute w-full h-full bg-gradient-to-br ${cardStyle.gradient} rounded-xl shadow-xl p-4 text-white flex flex-col justify-between z-10 transition-all duration-500`} style={{ backfaceVisibility: 'hidden' }}>
+                        <div className="flex justify-between items-start">
+                            <div className="w-10 h-7 bg-yellow-500/80 rounded-md border-2 border-white" />
+                            <span className={`font-mono text-base italic font-bold ${cardStyle.textColor}`}>{cardStyle.logo}</span>
+                        </div>
+                        <div>
+                            <p className="font-mono text-base tracking-widest shadow-black drop-shadow-md flex items-center gap-2">
+                                {displayNumber}
+                                <ShieldCheck className="w-3.5 h-3.5 text-white/50" />
+                            </p>
+                        </div>
+                        <div className="flex justify-between items-end">
+                            <div>
+                                <p className="text-[7px] uppercase text-gray-400">Titular</p>
+                                <p className="font-medium uppercase text-xs tracking-wide">{displayHolder}</p>
+                            </div>
+                            <div>
+                                <p className="text-[7px] uppercase text-gray-400">Validade</p>
+                                <p className="font-medium text-xs tracking-widest">{displayExpiry}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="absolute w-full h-full bg-gray-800 rounded-xl shadow-xl overflow-hidden" style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}>
+                        <div className="w-full h-8 bg-black mt-4" />
+                        <div className="p-4">
+                            <div className="bg-white h-6 w-full flex items-center justify-end px-2">
+                                <span className="font-mono text-sm text-gray-900">{displayCvc}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
 
 function StripeUpsellForm(props: {
     processing: boolean;
@@ -89,7 +379,7 @@ function StripeUpsellForm(props: {
                 </div>
                 {props.errorMessage && <p className="text-sm text-amber-300 leading-relaxed">{props.errorMessage}</p>}
             </div>
-            <Button onClick={submit} className="w-full bg-green-500 hover:bg-green-400 text-black font-bold h-12" disabled={props.processing || !stripe}>
+            <Button onClick={submit} className={upsellFormSubmitButtonClassName} disabled={props.processing || !stripe}>
                 {props.processing ? t('upsell.finalizing', 'Finalizando...') : t('upsell.confirm_payment', 'Confirmar pagamento')}
             </Button>
         </div>
@@ -102,18 +392,22 @@ function MercadoPagoSavedCardUpsellForm(props: {
     cardId: string;
     brand?: string | null;
     last4?: string | null;
+    holderName?: string | null;
     expMonth?: number | null;
     expYear?: number | null;
     errorMessage: string;
     onError: (message: string) => void;
     onUseAnotherCard: () => void;
     onSubmit: (cardToken: string) => Promise<void>;
+    amount: number;
+    currency?: string | null;
 }) {
     const { t } = useTranslation('public');
     const containerIdRef = useRef(`mp-upsell-security-code-${Math.random().toString(36).slice(2, 10)}`);
     const mpRef = useRef<any>(null);
     const securityFieldRef = useRef<any>(null);
     const [ready, setReady] = useState(false);
+    const [cardFlipped, setCardFlipped] = useState(false);
 
     useEffect(() => {
         props.onError('');
@@ -135,8 +429,9 @@ function MercadoPagoSavedCardUpsellForm(props: {
             const securityField = mp.fields.create('securityCode', {
                 placeholder: 'CVC',
                 style: {
-                    fontSize: '14px',
-                    color: '#FFFFFF',
+                    fontSize: '15px',
+                    color: '#374151',
+                    fontFamily: 'Inter, sans-serif',
                 },
             });
 
@@ -193,31 +488,171 @@ function MercadoPagoSavedCardUpsellForm(props: {
     const expirationLabel = props.expMonth && props.expYear
         ? `${String(props.expMonth).padStart(2, '0')}/${String(props.expYear).slice(-2)}`
         : null;
+    const installmentLabel = formatUpsellInstallmentLabel(props.amount, props.currency);
 
     return (
-        <div className="w-full max-w-sm space-y-4">
-            <div className="bg-white/5 p-4 rounded-xl border border-white/10">
-                <h4 className="font-bold mb-4 flex items-center gap-2">
-                    <CreditCard className="w-4 h-4 text-primary" /> {t('upsell.saved_method_label', 'Cartão salvo')}
-                </h4>
-                <p className="text-xs text-gray-400 leading-relaxed mb-4">
-                    {t('upsell.saved_card_cvv_notice', 'Confirme apenas o CVC para adicionar este item. O pedido principal não será cobrado novamente.')}
-                </p>
-                <div className="rounded-xl bg-black/20 border border-white/5 p-3 mb-3">
-                    <p className="text-sm font-bold text-white">{savedCardLabel}</p>
-                    {expirationLabel && <p className="text-xs text-gray-400 mt-1">{t('upsell.saved_card_expires', 'Validade {{expiry}}', { expiry: expirationLabel })}</p>}
-                </div>
-                <div className="w-full bg-black/30 border border-white/10 rounded p-3 min-h-[48px] flex items-center">
-                    <div id={containerIdRef.current} className="w-full" />
-                </div>
-                {props.errorMessage && <p className="text-sm text-amber-300 leading-relaxed mt-3">{props.errorMessage}</p>}
+        <div className="w-full max-w-[280px] mx-auto space-y-3 pt-2">
+            <p className="text-xs text-gray-400 leading-relaxed">
+                {t('upsell.saved_card_cvv_notice', 'Confirme apenas o CVC para adicionar este item. O pedido principal não será cobrado novamente.')}
+            </p>
+
+            <UpsellCardPreview
+                brand={props.brand}
+                last4={props.last4}
+                holderName={props.holderName}
+                expMonth={props.expMonth}
+                expYear={props.expYear}
+                flipped={cardFlipped}
+                onToggle={() => setCardFlipped((current) => !current)}
+            />
+
+            <div
+                className={`${mercadoPagoUpsellInputClassName} bg-white shadow-sm`}
+                onClick={() => setCardFlipped(true)}
+                onFocusCapture={() => setCardFlipped(true)}
+            >
+                <div id={containerIdRef.current} className="w-full min-h-[24px]" />
             </div>
-            <Button onClick={submit} className="w-full bg-green-500 hover:bg-green-400 text-black font-bold h-12" disabled={props.processing || !ready}>
+
+            <div className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-gray-700 text-sm bg-gray-50">
+                {installmentLabel}
+            </div>
+
+            <div className="text-[11px] text-gray-500 text-center">
+                {savedCardLabel}
+                {expirationLabel ? ` • ${t('upsell.saved_card_expires', 'Validade {{expiry}}', { expiry: expirationLabel })}` : ''}
+            </div>
+
+            {props.errorMessage && (
+                <p className="text-sm text-amber-300 leading-relaxed">{props.errorMessage}</p>
+            )}
+
+            <Button onClick={submit} className={upsellFormSubmitButtonClassName} disabled={props.processing || !ready}>
                 {props.processing ? t('upsell.finalizing', 'Finalizando...') : t('upsell.confirm_payment', 'Confirmar pagamento')}
             </Button>
-            <button onClick={props.onUseAnotherCard} type="button" className="w-full text-sm text-gray-500 hover:text-white underline decoration-gray-700 underline-offset-4 transition-colors">
+
+            <button
+                onClick={props.onUseAnotherCard}
+                type="button"
+                className="w-full text-sm text-gray-500 underline decoration-gray-700 underline-offset-4 transition-colors hover:text-white"
+            >
                 {t('upsell.use_another_card', 'Usar outro cartão')}
             </button>
+        </div>
+    );
+}
+
+function MercadoPagoManualUpsellForm(props: {
+    processing: boolean;
+    notice: string;
+    errorMessage: string;
+    cardData: { number: string; holderName: string; expiryMonth: string; expiryYear: string; cvc: string };
+    onCardDataChange: (value: { number: string; holderName: string; expiryMonth: string; expiryYear: string; cvc: string }) => void;
+    amount: number;
+    currency?: string | null;
+    onSubmit: () => void;
+}) {
+    const { t } = useTranslation('public');
+    const installmentLabel = formatUpsellInstallmentLabel(props.amount, props.currency);
+    const [cardFlipped, setCardFlipped] = useState(false);
+    const expiryValue = props.cardData.expiryMonth || props.cardData.expiryYear
+        ? `${props.cardData.expiryMonth}/${props.cardData.expiryYear}`.replace(/^\/|\/$/g, '')
+        : '';
+    const cardBrand = detectUpsellCardBrand(props.cardData.number);
+
+    return (
+        <div className="w-full max-w-[280px] mx-auto space-y-3 pt-2">
+            {props.notice ? (
+                <div className="text-xs text-gray-400 leading-relaxed text-left">
+                    {props.notice}
+                </div>
+            ) : null}
+
+            <UpsellCardPreview
+                brand={cardBrand}
+                cardNumber={props.cardData.number}
+                holderName={props.cardData.holderName}
+                expMonth={props.cardData.expiryMonth}
+                expYear={props.cardData.expiryYear}
+                cvc={props.cardData.cvc}
+                flipped={cardFlipped}
+                onToggle={() => setCardFlipped((current) => !current)}
+            />
+
+            <form autoComplete="off" data-form-type="other" onSubmit={(event) => event.preventDefault()} className="space-y-3">
+                <div>
+                <input
+                    type="text"
+                    className={mercadoPagoUpsellInputClassName}
+                    placeholder={t('upsell.card_number', 'Número do cartão')}
+                    value={props.cardData.number}
+                    onChange={(e) => props.onCardDataChange({ ...props.cardData, number: formatPaymentCardNumberInput(e.target.value) })}
+                    autoComplete="new-password"
+                    name="upsell-billing-reference"
+                    data-lpignore="true"
+                    data-1p-ignore="true"
+                    spellCheck={false}
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    inputMode="numeric"
+                    maxLength={MAX_PAYMENT_CARD_INPUT_LENGTH}
+                    onFocus={() => setCardFlipped(false)}
+                />
+                </div>
+
+                <div className="grid grid-cols-[1fr_80px] gap-3">
+                    <input
+                        type="text"
+                        className={mercadoPagoUpsellInputClassName}
+                        placeholder="MM/AA"
+                        maxLength={5}
+                        value={expiryValue}
+                        onChange={(e) => {
+                            const formatted = formatUpsellExpiryInput(e.target.value);
+                            const [expiryMonth = '', expiryYear = ''] = formatted.split('/');
+                            props.onCardDataChange({ ...props.cardData, expiryMonth, expiryYear });
+                        }}
+                        autoComplete="new-password"
+                        name="upsell-validity-reference"
+                        data-lpignore="true"
+                        data-1p-ignore="true"
+                        spellCheck={false}
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        inputMode="numeric"
+                        onFocus={() => setCardFlipped(false)}
+                    />
+                    <input
+                        type="text"
+                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-gray-800 placeholder:text-gray-400 shadow-sm outline-none transition-all focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/20"
+                        placeholder="CVV"
+                        maxLength={4}
+                        value={props.cardData.cvc}
+                        onChange={(e) => props.onCardDataChange({ ...props.cardData, cvc: formatPaymentCardSecurityCodeInput(e.target.value) })}
+                        autoComplete="new-password"
+                        name="upsell-security-reference"
+                        data-lpignore="true"
+                        data-1p-ignore="true"
+                        spellCheck={false}
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        inputMode="numeric"
+                        onFocus={() => setCardFlipped(true)}
+                    />
+                </div>
+            </form>
+
+            <div className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-gray-700 text-sm bg-gray-50">
+                {installmentLabel}
+            </div>
+
+            {props.errorMessage && (
+                <p className="text-sm text-amber-300 leading-relaxed">{props.errorMessage}</p>
+            )}
+
+            <Button onClick={props.onSubmit} className={upsellFormSubmitButtonClassName} disabled={props.processing}>
+                {props.processing ? t('upsell.finalizing', 'Finalizando...') : t('upsell.confirm_payment', 'Confirmar pagamento')}
+            </Button>
         </div>
     );
 }
@@ -239,9 +674,10 @@ export const UpsellPage = () => {
     const [processing, setProcessing] = useState(false);
     const [originalOrder, setOriginalOrder] = useState<Order | null>(null);
     const [checkout, setCheckout] = useState<Checkout | null>(null);
-    const [gateway, setGateway] = useState<Gateway | null>(null);
+    const [checkoutGateways, setCheckoutGateways] = useState<Gateway[]>([]);
     const [upsellProduct, setUpsellProduct] = useState<Product | null>(null);
     const [serverCapability, setServerCapability] = useState<UpsellGatewayCapability | null>(null);
+    const [serverGatewayId, setServerGatewayId] = useState('');
     const [pixCode, setPixCode] = useState('');
     const [pixQrImageSrc, setPixQrImageSrc] = useState('');
     const [pixOrderId, setPixOrderId] = useState('');
@@ -257,6 +693,27 @@ export const UpsellPage = () => {
     const [error, setError] = useState('');
     const [cardData, setCardData] = useState({ number: '', holderName: '', expiryMonth: '', expiryYear: '', cvc: '' });
     const pixRedirectedRef = useRef(false);
+    const [timeLeft, setTimeLeft] = useState(600); // 10 minutos para escassez
+
+    useEffect(() => {
+        const timer = setInterval(() => {
+            setTimeLeft((prev) => (prev > 0 ? prev - 1 : 0));
+        }, 1000);
+        return () => clearInterval(timer);
+    }, []);
+
+    const formatTimeLeft = (seconds: number) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    };
+    const gateway = resolvePreferredUpsellGateway({
+        checkout,
+        gateways: checkoutGateways,
+        paymentMethod: originalOrder?.payment_method,
+        preferredGatewayId: serverGatewayId,
+        preferredGatewayName: serverCapability?.gateway,
+    });
     const buildUpsellThankYouTarget = useCallback((targetOrderId?: string | null, targetSignature?: string | null) => {
         if (!targetOrderId) {
             return appendOriginalSignature(`/thank-you/${orderId}`);
@@ -266,6 +723,30 @@ export const UpsellPage = () => {
         const originalSignatureQuery = originalStatusSignature ? `&origSig=${encodeURIComponent(originalStatusSignature)}` : '';
         return `/thank-you/${targetOrderId}?upsell=true${signedQuery}${originalSignatureQuery}`;
     }, [appendOriginalSignature, orderId, originalStatusSignature]);
+
+    const syncUpsellEligibility = useCallback(async (payload: any) => {
+        if (!payload?.authorized || !payload?.capability) {
+            return null;
+        }
+
+        setServerCapability(payload.capability);
+
+        const nextGatewayId = typeof payload.gatewayId === 'string' ? payload.gatewayId.trim() : '';
+        setServerGatewayId(nextGatewayId);
+
+        if (nextGatewayId) {
+            try {
+                const resolvedGateway = await storage.getPublicGateway(nextGatewayId);
+                if (resolvedGateway?.id) {
+                    setCheckoutGateways((current) => mergeUniqueGateways([...current, resolvedGateway]));
+                }
+            } catch (gatewayLoadError) {
+                console.warn('[UpsellPage] Failed to load effective upsell gateway:', gatewayLoadError);
+            }
+        }
+
+        return payload.capability as UpsellGatewayCapability;
+    }, []);
 
     useEffect(() => {
         if (!orderId) return;
@@ -289,7 +770,7 @@ export const UpsellPage = () => {
 
         try {
             sessionStorage.setItem(getUpsellPixSessionKey(orderId), JSON.stringify({
-                pixCode,
+            pixCode,
                 pixQrImageSrc,
                 pixOrderId,
                 pixStatusSignature,
@@ -303,6 +784,85 @@ export const UpsellPage = () => {
         const load = async () => {
             try {
                 if (!orderId) return;
+                
+                if (orderId === 'preview') {
+                    const searchParams = new URLSearchParams(location.search);
+                    const pm = searchParams.get('payment_method') || 'credit_card';
+                    const gw = searchParams.get('gateway') || 'asaas';
+                    const showSaved = searchParams.get('saved') !== 'false';
+                    
+                    setOriginalOrder({
+                        id: 'preview',
+                        checkout_id: 'preview-checkout',
+                        payment_method: pm as any,
+                        customer_name: 'João Silva',
+                        customer_email: 'joao.silva@example.com',
+                        total: 1.00,
+                        amount: 1.00,
+                        status: 'paid',
+                        created_at: new Date().toISOString()
+                    });
+                    setCheckout({
+                        id: 'preview-checkout',
+                        gateway_id: 'preview-gateway',
+                        name: 'Preview Checkout',
+                        config: {
+                            upsell: {
+                                active: true,
+                                product_id: 'preview-product',
+                                show_title: true,
+                                title: 'Oferta Especial Exclusiva',
+                                show_subtitle: true,
+                                subtitle: 'Não feche essa página! Tenho algo exclusivo para você.',
+                                show_media: false,
+                                show_description: true,
+                                benefits: [
+                                    'Acesso vitalício sem pagar nada a mais depois',
+                                    'Acesso imediato enviado para o seu e-mail',
+                                ],
+                                description: "Acesso vitalício sem pagar nada a mais depois\nAcesso imediato enviado para o seu e-mail",
+                                button_text: 'Sim, quero adicionar ao meu pedido'
+                            }
+                        } as any
+                    });
+                    setCheckoutGateways([
+                        {
+                            id: 'preview-gateway',
+                            name: gw as any,
+                            active: true,
+                            provider: gw as any,
+                            config: {}
+                        } as any
+                    ]);
+                    setUpsellProduct({
+                        id: 'preview-product',
+                        name: 'Master Canva GO',
+                        price_real: 10.00,
+                        price_fake: 97.00
+                    } as any);
+                    setServerCapability({
+                        authorized: true,
+                        original_payment_method: pm as any,
+                        mode: pm === 'pix' ? 'not_immediate' : (showSaved ? 'light_confirmation' : 'not_immediate'),
+                        reusable_profile_available: showSaved && pm !== 'pix',
+                        supports_off_session_charge: showSaved && pm !== 'pix',
+                        gateway: gw,
+                        saved_profile: showSaved && pm !== 'pix' ? {
+                            brand: 'visa',
+                            last4: '4242',
+                            wallet_type: null,
+                            gateway_payment_method_id: 'pm_preview',
+                            exp_month: 12,
+                            exp_year: 2030
+                        } : null
+                    });
+                    setLoading(false);
+                    return;
+                }
+
+                setCheckoutGateways([]);
+                setServerCapability(null);
+                setServerGatewayId('');
                 let order: any = null;
                 try {
                     const cached = sessionStorage.getItem(getUpsellOrderSessionKey(orderId));
@@ -330,7 +890,16 @@ export const UpsellPage = () => {
                     return;
                 }
                 setCheckout(chk);
-                setGateway(chk.gateway_id ? await storage.getPublicGateway(chk.gateway_id) : null);
+                const checkoutGatewayIds = collectCheckoutRoutingGatewayIds({
+                    config: chk.config || null,
+                    gatewayId: chk.gateway_id,
+                    backupGatewayId: chk.backup_gateway_id,
+                });
+                const loadedGateways = mergeUniqueGateways(await Promise.all(
+                    checkoutGatewayIds.map((gatewayId) => storage.getPublicGateway(gatewayId)),
+                ));
+                setCheckoutGateways(loadedGateways);
+                setServerGatewayId('');
 
                 const prod = await storage.getPublicProduct(chk.config.upsell.product_id);
                 if (!prod) {
@@ -346,7 +915,7 @@ export const UpsellPage = () => {
             }
         };
         load();
-    }, [buildUpsellThankYouTarget, isDemoRuntime, navigate, orderId, t]);
+    }, [buildUpsellThankYouTarget, isDemoRuntime, navigate, orderId, t, location.search]);
 
     useEffect(() => {
         if (gateway?.name === 'stripe' && gateway.public_key) {
@@ -469,13 +1038,13 @@ export const UpsellPage = () => {
                 const response = await fetch(getApiUrl(`/api/upsell-eligibility?orderId=${encodeURIComponent(orderId)}&sig=${encodeURIComponent(originalStatusSignature)}`));
                 if (!response.ok) return;
                 const payload = await response.json();
-                if (payload?.authorized && payload?.capability) setServerCapability(payload.capability);
+                await syncUpsellEligibility(payload);
             } catch (eligibilityError) {
                 console.warn('[UpsellPage] Failed to load upsell eligibility:', eligibilityError);
             }
         };
         loadEligibility();
-    }, [orderId, originalStatusSignature]);
+    }, [orderId, originalStatusSignature, syncUpsellEligibility]);
 
     const refreshUpsellCapability = useCallback(async () => {
         if (!orderId || !originalStatusSignature) {
@@ -489,16 +1058,13 @@ export const UpsellPage = () => {
             }
 
             const payload = await response.json().catch(() => null);
-            if (payload?.authorized && payload?.capability) {
-                setServerCapability(payload.capability);
-                return payload.capability as UpsellGatewayCapability;
-            }
+            return await syncUpsellEligibility(payload);
         } catch (eligibilityError) {
             console.warn('[UpsellPage] Failed to refresh upsell eligibility:', eligibilityError);
         }
 
         return serverCapability;
-    }, [orderId, originalStatusSignature, serverCapability]);
+    }, [orderId, originalStatusSignature, serverCapability, syncUpsellEligibility]);
 
     const checkPixUpsellStatus = useCallback(async () => {
         if (!pixOrderId || pixRedirectedRef.current || pixRedirectTarget) {
@@ -646,13 +1212,15 @@ export const UpsellPage = () => {
                     : originalOrder?.payment_method === 'boleto'
                         ? t('upsell.method_boleto', 'Boleto')
                         : t('upsell.method_unknown', 'Método não identificado');
-    const originalGatewayLabel = gateway?.name === 'stripe'
+    const originalGatewayName = String(gateway?.name || serverCapability?.gateway || '').trim().toLowerCase();
+    const originalGatewayLabel = originalGatewayName === 'stripe'
         ? 'Stripe'
-        : gateway?.name === 'mercado_pago'
+        : originalGatewayName === 'mercado_pago'
             ? 'Mercado Pago'
-            : gateway?.name === 'asaas'
+            : originalGatewayName === 'asaas'
                 ? 'Asaas'
                 : t('upsell.gateway_unknown', 'Gateway padrão');
+
     const trustModeDescription = upsellCapability.mode === 'not_immediate'
         ? t('upsell.not_immediate_mode_desc', 'Este método não será oferecido imediatamente para evitar confusão ou dupla cobrança percebida após o pedido principal.')
         : upsellCapability.mode === 'one_click'
@@ -662,6 +1230,7 @@ export const UpsellPage = () => {
                 : upsellCapability.original_payment_method === 'pix'
                     ? t('upsell.pix_mode_desc', 'Seu pedido principal já foi confirmado. Se você aceitar esta oferta, vamos gerar um novo Pix somente para o item adicional.')
                     : t('upsell.card_mode_desc', 'Seu pedido principal já foi confirmado. Para adicionar este item, confirme um novo pagamento somente do item adicional.');
+
     const primaryUpsellCta = upsellCapability.mode === 'not_immediate'
         ? t('upsell.not_immediate_cta', 'Oferta indisponível neste momento')
         : upsellCapability.mode === 'light_confirmation'
@@ -669,9 +1238,9 @@ export const UpsellPage = () => {
             : upsellCapability.original_payment_method === 'pix'
                 ? t('upsell.generate_pix_cta', 'Gerar Pix do item adicional')
                 : t('upsell.continue_card_cta', 'Continuar com pagamento adicional');
-    const displayTrustModeDescription = upsellCapability.original_payment_method === 'pix' || upsellCapability.mode === 'not_immediate'
+    const displayTrustModeDescription = upsellCapability.mode === 'not_immediate'
         ? trustModeDescription
-        : t('upsell.card_mode_reconfirm_desc', 'Seu pedido principal jÃ¡ foi confirmado. Se vocÃª aceitar esta oferta, vamos abrir a confirmaÃ§Ã£o segura apenas do item adicional.');
+        : t('upsell.order_confirmed_notice', 'Seu pedido principal está confirmado. Esta oferta cobra apenas o valor do item adicional.');
     const canAttemptSavedStripeCharge = gateway?.name === 'stripe' && originalOrder?.payment_method === 'credit_card' && upsellCapability.reusable_profile_available && upsellCapability.supports_off_session_charge;
     const canAttemptSavedMercadoPagoCharge = gateway?.name === 'mercado_pago'
         && originalOrder?.payment_method === 'credit_card'
@@ -684,6 +1253,15 @@ export const UpsellPage = () => {
         options?: { stripePaymentMethodId?: string; useSavedPaymentMethod?: boolean; mercadoPagoCardToken?: string }
     ) => {
         if (!originalOrder || !upsellProduct || !checkout) return;
+        const effectiveGatewayId = gateway?.id || '';
+        if (!effectiveGatewayId && orderId !== 'preview') {
+            alert(t('upsell.gateway_init_error', 'O gateway ainda está carregando. Tente novamente em alguns segundos.'));
+            return;
+        }
+        if (orderId === 'preview') {
+            alert(t('upsell.preview_success_alert', 'Sucesso! (Simulação de compra concluída no modo de visualização)'));
+            return;
+        }
         setProcessing(true);
         setCardFormError('');
         try {
@@ -695,7 +1273,7 @@ export const UpsellPage = () => {
                 customerEmail: originalOrder.customer_email,
                 customerPhone: originalOrder.customer_phone,
                 customerCpf: originalOrder.customer_cpf,
-                gatewayId: checkout.gateway_id,
+                gatewayId: effectiveGatewayId,
                 paymentMethod: method,
                 currency: checkout.currency || 'BRL',
                 items: [{ name: upsellProduct.name, price: upsellProduct.price_real || 0, quantity: 1, type: 'upsell', product_id: upsellProduct.id }],
@@ -747,6 +1325,10 @@ export const UpsellPage = () => {
                 }
                 if (gateway?.name === 'mercado_pago') {
                     setUseManualMercadoPagoForm(true);
+                    setCardData((current) => ({
+                        ...current,
+                        holderName: current.holderName || originalOrder.customer_name || '',
+                    }));
                 }
                 setCardFormNotice(result.message || t('upsell.saved_method_fallback_notice', 'O banco pediu uma confirmação adicional. Revise o cartão abaixo para concluir apenas este item adicional.'));
                 setShowCardForm(true);
@@ -870,68 +1452,193 @@ export const UpsellPage = () => {
         );
     }
 
-    if (loading) return <Loading label={t('upsell.loading', 'Carregando oferta')} />;
-    if (error) return <div className="min-h-screen bg-black flex items-center justify-center text-white">{error}</div>;
-    if (pixCode) {
-        return (
-            <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-4">
-                <div className="bg-[#111] p-8 rounded-2xl border border-white/10 max-w-md w-full text-center space-y-6">
-                    <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto"><CheckCircle className="w-8 h-8 text-green-500" /></div>
-                    <div>
-                        <h2 className="text-2xl font-bold mb-2">{t('upsell.reserved_title', 'Oferta reservada!')}</h2>
-                        <p className="text-gray-400">{t('upsell.reserved_desc', 'Escaneie o QR Code abaixo para concluir o pagamento do item adicional.')}</p>
-                    </div>
-                    <div className="bg-white p-4 rounded-xl mx-auto w-64 h-64 flex items-center justify-center">
-                        <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(pixCode)}`} className="w-full h-full" />
-                    </div>
-                    <textarea readOnly value={pixCode} className="w-full bg-black/50 border border-white/10 rounded-lg p-3 text-xs text-gray-500 h-24 resize-none" />
-                    <Button onClick={() => navigate(appendOriginalSignature(`/thank-you/${orderId}`))} className="w-full">{t('upsell.already_paid', 'Já realizei o pagamento')}</Button>
-                </div>
-            </div>
-        );
-    }
+
 
     const config = checkout?.config.upsell!;
+    const currentPrice = Number(upsellProduct?.price_real || 0);
+    const rawComparePrice = Number(upsellProduct?.price_fake ?? (config as any).compare_price ?? 0);
+    const comparePrice = Number.isFinite(rawComparePrice) && rawComparePrice > currentPrice ? rawComparePrice : null;
+    const discountPercentage = comparePrice && currentPrice > 0
+        ? Math.max(1, Math.round(((comparePrice - currentPrice) / comparePrice) * 100))
+        : null;
+    const upsellCardImageUrl = resolveUpsellCardImageUrl(upsellProduct, config);
+    const upsellHeroVideoUrl = config.show_media && config.media_type === 'video'
+        ? resolveYouTubeEmbedUrl(config.media_url)
+        : '';
+    const upsellHeroImageUrl = config.show_media && config.media_type === 'image'
+        ? String(config.media_url || '').trim() || upsellCardImageUrl
+        : '';
+    const benefits = config.description && config.description.includes('\n')
+        ? config.description.split('\n').filter(Boolean).map(line => line.replace(/^-\s*/, ''))
+        : [
+            config.description || t('upsell.default_benefit_1', 'Acesso vitalício sem pagar nada a mais depois'),
+            t('upsell.default_benefit_2', 'Acesso imediato enviado para o seu e-mail')
+          ];
+    const configuredBenefits = Array.isArray(config.benefits)
+        ? config.benefits.map(item => String(item || '').replace(/^-\s*/, '').trim()).filter(Boolean)
+        : [];
+    const resolvedBenefits = configuredBenefits.length > 0 ? configuredBenefits : benefits;
+    const ctaTextPattern = config.button_text || t('upsell.accept_default', 'Sim, quero adicionar ao meu pedido');
+    const ctaTextDesktop = ctaTextPattern.includes('R$') 
+        ? ctaTextPattern 
+        : `${ctaTextPattern} por apenas R$ ${upsellProduct?.price_real?.toFixed(2)}`;
+    const ctaTextMobile = ctaTextPattern.includes('R$') 
+        ? ctaTextPattern 
+        : `Sim, quero por R$ ${upsellProduct?.price_real?.toFixed(2)}`;
+
     return (
-        <div className="min-h-screen bg-[#05050A] text-white">
-            <div className="max-w-[800px] mx-auto px-4 py-8 md:py-12 flex flex-col items-center gap-8">
-                <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden"><div className="bg-green-500 h-full w-[80%]"></div></div>
-                {config.show_title && <h1 className="text-2xl md:text-4xl font-extrabold text-center leading-tight"><span className="text-primary">{config.title || t('upsell.special_offer', 'Oferta especial')}</span></h1>}
-                {config.show_subtitle && <p className="text-lg md:text-xl text-gray-300 text-center max-w-2xl">{config.subtitle || t('upsell.default_subtitle', 'Não feche essa página! Tenho algo exclusivo para você.')}</p>}
-                {config.show_media && config.media_url && (
+        <div className="min-h-screen bg-[#05050A] text-white flex flex-col">
+            {/* Barra de escassez/urgência de alto contraste com temporizador em destaque */}
+            <div className="w-full bg-gradient-to-r from-red-600 to-rose-600 text-white py-2.5 px-4 text-center text-xs font-semibold flex items-center justify-center gap-2 select-none shadow-md z-10">
+                <Clock className="w-3.5 h-3.5 text-white animate-pulse" />
+                <span className="tracking-wide hidden md:inline">
+                    {t('upsell.one_time_alert_text', 'ATENÇÃO: Seu pedido principal está garantido! Esta oportunidade única expira em')}
+                </span>
+                <span className="tracking-wide inline md:hidden">
+                    {t('upsell.one_time_alert_text_mobile', 'Oferta expira em')}
+                </span>
+                <span className="font-bold bg-white/20 px-2 py-0.5 rounded text-white animate-pulse inline-block tracking-wider font-mono">
+                    {formatTimeLeft(timeLeft)}
+                </span>
+            </div>
+            
+            {/* Barra de progresso animada encostada de fora a fora */}
+            <div className="w-full bg-white/5 h-1.5 overflow-hidden z-10">
+                <div 
+                    className="bg-gradient-to-r from-red-600 to-rose-600 h-full transition-all duration-1000 ease-out" 
+                    style={{ width: `${(timeLeft / 600) * 100}%` }}
+                />
+            </div>
+
+            <div className="max-w-[650px] mx-auto px-4 py-8 md:py-12 flex flex-col items-center gap-8 w-full flex-grow">
+                <div className="flex flex-col items-center gap-2 text-center w-full">
+                    {config.show_title && <h1 className="text-2xl md:text-4xl font-extrabold leading-tight text-white">{config.title || t('upsell.special_offer', 'Oferta especial')}</h1>}
+                    {config.show_subtitle && <p className="text-lg md:text-xl text-gray-300 max-w-2xl">{config.subtitle || t('upsell.default_subtitle', 'Não feche essa página! Tenho algo exclusivo para você.')}</p>}
+                </div>
+                {config.show_media && (upsellHeroVideoUrl || upsellHeroImageUrl) && (
                     <div className="w-full aspect-video bg-black rounded-2xl border border-white/10 overflow-hidden shadow-2xl">
-                        {config.media_type === 'video'
-                            ? <iframe src={config.media_url.replace('watch?v=', 'embed/')} className="w-full h-full" frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe>
-                            : <img src={config.media_url} className="w-full h-full object-cover" />}
+                        {upsellHeroVideoUrl
+                            ? <iframe src={upsellHeroVideoUrl} className="w-full h-full" frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe>
+                            : <img src={upsellHeroImageUrl} className="w-full h-full object-cover" />}
                     </div>
                 )}
-                <div className="w-full bg-[#111] border-2 border-primary/30 p-6 md:p-8 rounded-2xl flex flex-col items-center gap-6 shadow-[0_0_40px_rgba(138,43,226,0.1)]">
-                    <div className="w-full rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4 md:p-5 text-left">
-                        <div className="flex items-center gap-2 text-emerald-300 text-[10px] font-black uppercase tracking-[0.3em] mb-3"><ShieldCheck className="w-4 h-4" />{t('upsell.main_order_confirmed', 'Pedido principal confirmado')}</div>
-                        <p className="text-sm text-white leading-relaxed">{t('upsell.main_order_confirmed_desc', 'Sua compra anterior já está garantida. Esta oferta é opcional e não substitui o pedido que você acabou de pagar.')}</p>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
-                            <div className="rounded-xl bg-black/20 border border-white/5 p-3"><p className="text-[10px] uppercase tracking-[0.2em] text-gray-400 font-black mb-1">{t('upsell.original_payment_method', 'Método original')}</p><p className="text-sm font-bold text-white">{originalPaymentMethodLabel}</p></div>
-                            <div className="rounded-xl bg-black/20 border border-white/5 p-3"><p className="text-[10px] uppercase tracking-[0.2em] text-gray-400 font-black mb-1">{t('upsell.gateway_label', 'Gateway')}</p><p className="text-sm font-bold text-white">{originalGatewayLabel}</p></div>
+                {/* Bloco de Confiança Compacto e Elegante (Proporção equilibrada) */}
+                <div className="w-full rounded-2xl border border-white/[0.06] bg-[#0A0A0E]/50 p-4 text-xs md:text-sm relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-[3px] h-full bg-gradient-to-b from-emerald-500 via-emerald-500/50 to-transparent" />
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                            <div className="flex items-center gap-2">
+                                <span className="flex-shrink-0 w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                <span className="font-bold text-gray-200">
+                                    {t('upsell.main_order_confirmed_short', 'Pedido Principal Confirmado')}
+                                </span>
+                                <span className="text-[9px] md:text-[10px] px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-black uppercase tracking-wider whitespace-nowrap text-center flex items-center justify-center">
+                                    {originalGatewayLabel}
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-3 text-gray-400 text-xs">
+                                <div className="flex items-center gap-1">
+                                    {originalOrder?.payment_method === 'pix' ? <QrCode className="w-3.5 h-3.5" /> : <CreditCard className="w-3.5 h-3.5" />}
+                                    <span className="whitespace-nowrap">{originalPaymentMethodLabel}</span>
+                                </div>
+                                {savedProfileLabel && (
+                                    <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/5 border border-white/10 text-white font-semibold whitespace-nowrap text-center justify-center">
+                                        <Lock className="w-3 h-3 text-emerald-400/80 shrink-0" />
+                                        <span className="text-[9px] md:text-[10px]">{savedProfileLabel}</span>
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                        <p className="mt-4 text-xs text-gray-200 leading-relaxed">{displayTrustModeDescription}</p>
-                        {savedProfileLabel && <div className="mt-4 rounded-xl bg-black/20 border border-white/5 p-3"><p className="text-[10px] uppercase tracking-[0.2em] text-gray-400 font-black mb-1">{t('upsell.saved_method_label', 'Método detectado')}</p><p className="text-sm font-bold text-white">{savedProfileLabel}</p></div>}
+                        <p className="mt-2.5 text-[10px] text-gray-400 leading-relaxed border-t border-white/[0.04] pt-2 flex items-center justify-center gap-1.5 text-center w-full">
+                            <Lock className="w-3 h-3 text-gray-500 shrink-0" />
+                            <span>{t('upsell.order_confirmed_notice_short', 'Esta oferta cobra apenas o valor desse item adicional.')}</span>
+                        </p>
                     </div>
-                    <div className="text-center">
-                        <p className="text-sm text-gray-400 uppercase tracking-widest mb-2 font-bold">{t('upsell.order_summary', 'Resumo do pedido')}</p>
-                        <h3 className="text-xl font-bold">{upsellProduct?.name}</h3>
-                        <p className="text-2xl font-black text-green-400 mt-2">R$ {upsellProduct?.price_real?.toFixed(2)}</p>
+
+                    {/* Layout de Duas Colunas: Imagem na esquerda, Preço na direita */}
+                    <div className="w-full flex flex-col md:flex-row gap-6 md:gap-8 items-center justify-center">
+                        {/* Coluna da Esquerda: Imagem ou Mídia Quadrada Compacta */}
+                        <div className="w-[140px] md:w-[180px] shrink-0 mx-auto md:mx-0">
+                            {upsellCardImageUrl ? (
+                                <div className="w-full aspect-square bg-black rounded-2xl border border-white/10 overflow-hidden shadow-2xl">
+                                    <img
+                                        src={upsellCardImageUrl}
+                                        alt={upsellProduct?.name || t('upsell.product_image_alt', 'Imagem do produto adicional')}
+                                        className="w-full h-full object-cover"
+                                    />
+                                </div>
+                            ) : (
+                                <div className="w-full aspect-square rounded-2xl bg-gradient-to-tr from-white/10 via-white/5 to-transparent border border-white/10 flex flex-col items-center justify-center gap-3 shadow-lg shadow-white/5 p-4 text-center">
+                                    <Package className="w-12 h-12 text-gray-500 animate-pulse" />
+                                    <span className="text-xs text-gray-500 font-medium">Imagem do Produto</span>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Coluna da Direita: Preços */}
+                        <div className="w-full md:flex-grow flex flex-col gap-4 text-center md:text-left justify-center items-center md:items-start">
+                            <div className="space-y-3 w-full flex flex-col items-center md:items-start">
+                                <div className="text-center md:text-left">
+                                    <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-1 font-bold">{t('upsell.special_opportunity', 'Oportunidade Exclusiva')}</p>
+                                    <h3 className="text-2xl md:text-3xl font-black text-white tracking-tight leading-tight">{upsellProduct?.name}</h3>
+                                </div>
+
+                                {/* Bloco de Preços Empilhados (Desconto em cima -> Comparação no meio -> Final em baixo) */}
+                                <div className="flex flex-col gap-2 items-center md:items-start w-full">
+                                    {discountPercentage ? (
+                                        <div className="flex justify-center md:justify-start">
+                                            <span className="text-[10px] px-2 py-0.5 rounded bg-red-950/60 text-red-400 border border-red-500/20 font-black uppercase tracking-wider">
+                                                -{discountPercentage}% DE DESCONTO
+                                            </span>
+                                        </div>
+                                    ) : null}
+                                    
+                                    <div className="flex flex-col items-center md:items-start gap-1 mt-1.5 w-full">
+                                        {comparePrice ? (
+                                            <div className="flex items-center gap-1.5 text-xs md:text-sm text-gray-400 font-semibold justify-center md:justify-start">
+                                                <span>De</span>
+                                                <span className="line-through font-bold text-gray-400">
+                                                    R$ {comparePrice.toFixed(2)}
+                                                </span>
+                                            </div>
+                                        ) : null}
+                                        <div className="flex items-center gap-1.5 justify-center md:justify-start">
+                                            <span className="text-xs md:text-sm text-gray-400 font-semibold">por</span>
+                                            <span className="text-3xl md:text-4xl font-black text-green-400">
+                                                R$ {upsellProduct?.price_real?.toFixed(2)}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
+
                     {!showCardForm ? (
                         <>
-                            <button onClick={handleAccept} disabled={processing} className="w-full md:w-auto px-8 py-4 bg-green-500 hover:bg-green-400 text-black font-black text-lg md:text-xl rounded-full shadow-lg hover:scale-105 transition-all flex items-center justify-center gap-2 animate-pulse">
-                                {processing ? t('upsell.processing', 'Processando...') : (upsellCapability.original_payment_method === 'pix' || upsellCapability.mode === 'not_immediate' ? primaryUpsellCta : (configuredUpsellButtonText || t('upsell.accept_default', 'Sim, quero adicionar ao meu pedido')))}
+                            <button onClick={handleAccept} disabled={processing} className="w-full md:w-auto px-6 md:px-8 py-3.5 md:py-4 bg-[#10B981] hover:bg-[#059669] text-white font-black text-sm md:text-base lg:text-lg rounded-full shadow-lg hover:scale-105 transition-all flex items-center justify-center gap-2.5 animate-pulse shadow-green-500/10 whitespace-nowrap">
+                                {processing ? (
+                                    t('upsell.processing', 'Processando...')
+                                ) : (
+                                    <>
+                                        <Lock className="w-5 h-5 shrink-0" />
+                                        <span className="hidden md:inline">{upsellCapability.original_payment_method === 'pix' || upsellCapability.mode === 'not_immediate' ? primaryUpsellCta : ctaTextDesktop}</span>
+                                        <span className="inline md:hidden">{upsellCapability.original_payment_method === 'pix' || upsellCapability.mode === 'not_immediate' ? primaryUpsellCta : ctaTextMobile}</span>
+                                    </>
+                                )}
                             </button>
-                            <button onClick={() => navigate(appendOriginalSignature(`/thank-you/${orderId}`))} className="text-sm text-gray-500 hover:text-white underline decoration-gray-700 underline-offset-4 transition-colors">{t('upsell.decline', 'Não, obrigado. Vou perder essa oportunidade.')}</button>
+                            <button onClick={() => {
+                                if (orderId === 'preview') {
+                                    alert(t('upsell.preview_decline_alert', 'Você recusou a oferta no modo de visualização. Redirecionando para a página de obrigado simulada.'));
+                                    navigate('/thank-you/preview');
+                                    return;
+                                }
+                                navigate(appendOriginalSignature(`/thank-you/${orderId}`));
+                            }} className="text-sm text-gray-500 hover:text-white underline decoration-gray-700 underline-offset-4 transition-colors">{t('upsell.decline', 'Não, obrigado. Vou perder essa oportunidade.')}</button>
                             <p className="text-[11px] text-gray-500 text-center max-w-md">{t('upsell.order_safe_notice', 'Seu pedido principal continuará confirmado mesmo se você recusar esta oferta.')}</p>
                         </>
                     ) : (
                         <>
-                            {cardFormNotice && <div className="w-full max-w-sm rounded-xl border border-amber-400/20 bg-amber-400/10 p-4 text-sm text-amber-100 leading-relaxed">{cardFormNotice}</div>}
+                            {cardFormNotice && gateway?.name !== 'mercado_pago' && <div className="w-full max-w-sm rounded-xl border border-amber-400/20 bg-amber-400/10 p-4 text-sm text-amber-100 leading-relaxed">{cardFormNotice}</div>}
                             {gateway?.name === 'stripe' ? (
                                 stripePromise ? (
                                     <Elements stripe={stripePromise} options={{ mode: 'payment', currency: (checkout?.currency || 'BRL').toLowerCase(), amount: Math.max(100, Math.round((upsellProduct?.price_real || 0) * 100)), appearance: { theme: 'night', variables: { colorPrimary: '#22C55E', colorBackground: 'transparent', colorText: '#FFFFFF', colorDanger: '#F87171' } } }}>
@@ -947,24 +1654,40 @@ export const UpsellPage = () => {
                                         />
                                     </Elements>
                                 ) : <Loading label={t('upsell.loading_gateway', 'Carregando formulário seguro')} />
-                            ) : gateway?.name === 'mercado_pago' && canAttemptSavedMercadoPagoCharge && !useManualMercadoPagoForm && gateway.public_key && upsellCapability.saved_profile?.gateway_payment_method_id ? (
-                                <MercadoPagoSavedCardUpsellForm
-                                    processing={processing}
-                                    publicKey={gateway.public_key}
-                                    cardId={upsellCapability.saved_profile.gateway_payment_method_id}
-                                    brand={upsellCapability.saved_profile.brand}
-                                    last4={upsellCapability.saved_profile.last4}
-                                    expMonth={upsellCapability.saved_profile.exp_month}
-                                    expYear={upsellCapability.saved_profile.exp_year}
-                                    errorMessage={cardFormError}
-                                    onError={setCardFormError}
-                                    onUseAnotherCard={() => {
-                                        setUseManualMercadoPagoForm(true);
-                                        setCardFormError('');
-                                        setCardFormNotice(t('upsell.card_form_notice', 'Você está confirmando um pagamento adicional apenas para esta oferta. O pedido principal não será cobrado novamente.'));
-                                    }}
-                                    onSubmit={async (mercadoPagoCardToken) => processPurchase('credit_card', undefined, { useSavedPaymentMethod: true, mercadoPagoCardToken })}
-                                />
+                            ) : gateway?.name === 'mercado_pago' ? (
+                                canAttemptSavedMercadoPagoCharge && !useManualMercadoPagoForm && gateway.public_key && upsellCapability.saved_profile?.gateway_payment_method_id ? (
+                                    <MercadoPagoSavedCardUpsellForm
+                                        processing={processing}
+                                        publicKey={gateway.public_key}
+                                        cardId={upsellCapability.saved_profile.gateway_payment_method_id}
+                                        brand={upsellCapability.saved_profile.brand}
+                                        last4={upsellCapability.saved_profile.last4}
+                                        holderName={cardData.holderName || originalOrder?.customer_name || ''}
+                                        expMonth={upsellCapability.saved_profile.exp_month}
+                                        expYear={upsellCapability.saved_profile.exp_year}
+                                        amount={Number(upsellProduct?.price_real || 0)}
+                                        currency={checkout?.currency || 'BRL'}
+                                        errorMessage={cardFormError}
+                                        onError={setCardFormError}
+                                        onUseAnotherCard={() => {
+                                            setUseManualMercadoPagoForm(true);
+                                            setCardFormError('');
+                                            setCardFormNotice(t('upsell.card_form_notice', 'Você está confirmando um pagamento adicional apenas para esta oferta. O pedido principal não será cobrado novamente.'));
+                                        }}
+                                        onSubmit={async (mercadoPagoCardToken) => processPurchase('credit_card', undefined, { useSavedPaymentMethod: true, mercadoPagoCardToken })}
+                                    />
+                                ) : (
+                                    <MercadoPagoManualUpsellForm
+                                        processing={processing}
+                                        notice={cardFormNotice}
+                                        errorMessage={cardFormError}
+                                        cardData={cardData}
+                                        onCardDataChange={setCardData}
+                                        amount={Number(upsellProduct?.price_real || 0)}
+                                        currency={checkout?.currency || 'BRL'}
+                                        onSubmit={() => processPurchase('credit_card', cardData)}
+                                    />
+                                )
                             ) : gateway?.name === 'asaas' ? (
                                 <div className="w-full max-w-sm space-y-4">
                                     <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-left">
@@ -980,26 +1703,110 @@ export const UpsellPage = () => {
                                     <div className="bg-white/5 p-4 rounded-xl border border-white/10">
                                         <h4 className="font-bold mb-4 flex items-center gap-2"><CreditCard className="w-4 h-4 text-primary" /> {t('upsell.card_details', 'Dados do cartão')}</h4>
                                         <p className="text-xs text-gray-400 leading-relaxed mb-4">{t('upsell.card_form_notice', 'Você está confirmando um pagamento adicional apenas para esta oferta. O pedido principal não será cobrado novamente.')}</p>
-                                        <input className="w-full bg-black/30 border border-white/10 rounded mb-3 p-3 text-sm" placeholder={t('upsell.card_number', 'Número do cartão')} value={cardData.number} onChange={(e) => setCardData({ ...cardData, number: e.target.value })} />
+                                        <input className="w-full bg-black/30 border border-white/10 rounded mb-3 p-3 text-sm" placeholder={t('upsell.card_number', 'Número do cartão')} value={cardData.number} maxLength={MAX_PAYMENT_CARD_INPUT_LENGTH} onChange={(e) => setCardData({ ...cardData, number: formatPaymentCardNumberInput(e.target.value) })} />
                                         <div className="grid grid-cols-2 gap-3 mb-3">
                                             <input className="w-full bg-black/30 border border-white/10 rounded p-3 text-sm" placeholder="MM" value={cardData.expiryMonth} onChange={(e) => setCardData({ ...cardData, expiryMonth: e.target.value })} />
                                             <input className="w-full bg-black/30 border border-white/10 rounded p-3 text-sm" placeholder="AA" value={cardData.expiryYear} onChange={(e) => setCardData({ ...cardData, expiryYear: e.target.value })} />
                                         </div>
                                         <div className="grid grid-cols-2 gap-3">
-                                            <input className="w-full bg-black/30 border border-white/10 rounded p-3 text-sm" placeholder="CVC" value={cardData.cvc} onChange={(e) => setCardData({ ...cardData, cvc: e.target.value })} />
+                                            <input className="w-full bg-black/30 border border-white/10 rounded p-3 text-sm" placeholder="CVC" maxLength={4} value={cardData.cvc} onChange={(e) => setCardData({ ...cardData, cvc: formatPaymentCardSecurityCodeInput(e.target.value) })} />
                                             <input className="w-full bg-black/30 border border-white/10 rounded p-3 text-sm" placeholder={t('upsell.cardholder', 'Nome no cartão')} value={cardData.holderName} onChange={(e) => setCardData({ ...cardData, holderName: e.target.value })} />
                                         </div>
                                         {cardFormError && <p className="text-sm text-amber-300 leading-relaxed mt-3">{cardFormError}</p>}
                                     </div>
-                                    <Button onClick={() => processPurchase('credit_card', cardData)} className="w-full bg-green-500 hover:bg-green-400 text-black font-bold h-12" disabled={processing}>{processing ? t('upsell.finalizing', 'Finalizando...') : t('upsell.confirm_payment', 'Confirmar pagamento')}</Button>
+                                    <Button onClick={() => processPurchase('credit_card', cardData)} className={upsellFormSubmitButtonClassName} disabled={processing}>{processing ? t('upsell.finalizing', 'Finalizando...') : t('upsell.confirm_payment', 'Confirmar pagamento')}</Button>
                                 </div>
                             )}
                         </>
                     )}
-                </div>
-                {config.show_description && config.description && <div className="max-w-2xl text-center text-gray-400 text-sm md:text-base leading-relaxed">{config.description}</div>}
+
+                    {/* Caixa de Benefícios (Centralizada, com bulletpoints e garantia no rodapé integrado) */}
+                    {config.show_description && resolvedBenefits.length > 0 && (
+                        <div className="w-full text-left p-5 rounded-2xl bg-[#111] border border-white/[0.04] text-xs text-gray-300 shadow-sm flex flex-col gap-3">
+                            <p className="font-bold text-[9px] text-gray-500 uppercase tracking-widest border-b border-white/[0.04] pb-2 text-center">
+                                {t('upsell.benefits_included', 'Benefícios inclusos nesta oferta:')}
+                            </p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1.5 mt-2.5 max-w-lg mx-auto w-full">
+                                {resolvedBenefits.map((benefit, idx) => (
+                                    <div key={idx} className="text-gray-300 text-[11px] font-semibold py-0.5 px-2 flex items-start justify-start gap-2 text-left md:whitespace-nowrap">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-gray-400 shrink-0 mt-1.5" />
+                                        <span>{benefit}</span>
+                                    </div>
+                                ))}
+                            </div>
+                            
+                            {/* Linha de Garantia Integrada */}
+                            <div className="border-t border-white/[0.04] pt-3.5 mt-2 flex items-center justify-center gap-2 text-emerald-400 font-bold text-[11px] w-full text-center">
+                                <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                                <span>
+                                    <span className="hidden md:inline">{t('upsell.guarantee_notice', 'Garantia incondicional de satisfação de 7 dias')}</span>
+                                    <span className="inline md:hidden">{t('upsell.guarantee_notice_mobile', 'Garantia de 7 dias')}</span>
+                                </span>
+                            </div>
+                        </div>
+                    )}
                 <div className="flex items-center gap-2 text-xs text-gray-600 mt-8"><Lock className="w-3 h-3" /> {t('upsell.secure_environment', 'Ambiente seguro e criptografado')}</div>
             </div>
+
+            {orderId === 'preview' && (
+                <div className="fixed bottom-4 right-4 bg-[#111]/90 backdrop-blur-md border border-white/10 p-4 rounded-xl shadow-2xl z-50 text-left space-y-3 max-w-[280px]">
+                    <div className="flex items-center gap-1.5 text-xs font-black uppercase text-emerald-400 tracking-wider">
+                        <Sliders className="w-3.5 h-3.5" />
+                        Controles do Preview
+                    </div>
+                    <div className="space-y-2 text-xs">
+                        <div>
+                            <label className="block text-[10px] text-gray-400 font-bold mb-1">Método Original</label>
+                            <select 
+                                value={originalOrder?.payment_method || 'credit_card'} 
+                                onChange={(e) => {
+                                    const pm = e.target.value;
+                                    const params = new URLSearchParams(location.search);
+                                    params.set('payment_method', pm);
+                                    navigate(`?${params.toString()}`, { replace: true });
+                                }}
+                                className="w-full bg-black border border-white/10 p-1.5 rounded text-white font-semibold"
+                            >
+                                <option value="credit_card">Cartão de Crédito</option>
+                                <option value="pix">Pix</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-[10px] text-gray-400 font-bold mb-1">Gateway</label>
+                            <select 
+                                value={gateway?.name || 'asaas'} 
+                                onChange={(e) => {
+                                    const gw = e.target.value;
+                                    const params = new URLSearchParams(location.search);
+                                    params.set('gateway', gw);
+                                    navigate(`?${params.toString()}`, { replace: true });
+                                }}
+                                className="w-full bg-black border border-white/10 p-1.5 rounded text-white font-semibold"
+                            >
+                                <option value="asaas">Asaas</option>
+                                <option value="stripe">Stripe</option>
+                                <option value="mercado_pago">Mercado Pago</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-[10px] text-gray-400 font-bold mb-1">Cartão Salvo</label>
+                            <select 
+                                value={upsellCapability.reusable_profile_available ? 'true' : 'false'} 
+                                onChange={(e) => {
+                                    const saved = e.target.value;
+                                    const params = new URLSearchParams(location.search);
+                                    params.set('saved', saved);
+                                    navigate(`?${params.toString()}`, { replace: true });
+                                }}
+                                className="w-full bg-black border border-white/10 p-1.5 rounded text-white font-semibold"
+                            >
+                                <option value="true">Sim (Visa 4242)</option>
+                                <option value="false">Não</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

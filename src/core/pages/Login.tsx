@@ -47,6 +47,15 @@ export const Login = () => {
   const isMasterSession = (authz: any) =>
     authz?.is_master_admin || String(authz?.role || '').trim().toLowerCase() === 'master_admin';
 
+  const shouldFallbackSetupCheck = (error: any) => {
+    const message = `${error?.message || ''} ${error?.details || ''}`.toLowerCase();
+    return (
+      message.includes('is_setup_required')
+      || message.includes('schema cache')
+      || (message.includes('operator does not exist') && message.includes('uuid = text'))
+    );
+  };
+
   const completeSuccessfulLogin = async (loginData: any) => {
     const user = loginData.user;
     if (!user) throw new Error('Login falhou: usuário não encontrado.');
@@ -162,9 +171,15 @@ export const Login = () => {
         return;
       }
 
-      const { data, error } = await supabase.rpc('is_setup_required', {
+      let { data, error } = await supabase.rpc('is_setup_required', {
         target_installation_id: installationId
       });
+
+      if (error && shouldFallbackSetupCheck(error)) {
+        const fallback = await supabase.rpc('is_setup_required');
+        data = fallback.data;
+        error = fallback.error;
+      }
 
       console.log('[Login] Setup check result:', { data, error });
 

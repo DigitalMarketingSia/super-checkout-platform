@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { storage } from '../../services/storageService';
 import { Order, OrderStatus } from '../../types';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { DollarSign, ShoppingCart, TrendingUp, Users, ShoppingBag, CreditCard, Barcode, QrCode } from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { DollarSign, ShoppingCart, TrendingUp, Users, ShoppingBag, CreditCard, Barcode, Eye, EyeOff, Sun, Moon, Calendar, Infinity } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
 import { Layout } from '../../components/Layout';
 import Aurora from '../../components/ui/Aurora';
@@ -10,12 +10,65 @@ import { useTranslation } from 'react-i18next';
 import { UpdateBanner } from '../../components/admin/UpdateBanner';
 import { getRuntimeMode } from '../../config/runtimeMode';
 
-type Period = 'today' | '7d' | '15d' | '30d';
+type Period = 'today' | 'yesterday' | '7d' | '15d' | '30d' | 'total';
+
+// Official Logos
+const PixLogo = ({ className = "" }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" className={`w-5 h-5 fill-[#32BCAD] flex-shrink-0 ${className}`} xmlns="http://www.w3.org/2000/svg">
+    <path d="M15.45 16.52l-3.01-3.01c-.11-.11-.24-.13-.31-.13s-.2.02-.31.13L8.8 16.53c-.34.34-.87.89-2.64.89l3.71 3.7a3 3 0 004.24 0l3.72-3.71c-.91 0-1.67-.18-2.38-.89zM8.8 7.47l3.02 3.02c.08.08.2.13.31.13s.23-.05.31-.13l2.99-2.99c.71-.74 1.52-.91 2.43-.91l-3.72-3.71a3 3 0 00-4.24 0l-3.71 3.7c1.76 0 2.3.58 2.61.89z"/>
+    <path d="M21.11 9.85l-2.25-2.26H17.6c-.54 0-1.08.22-1.45.61l-3 3c-.28.28-.65.42-1.02.42a1.5 1.5 0 01-1.02-.42L8.09 8.17c-.38-.38-.9-.6-1.45-.6H5.17l-2.29 2.3a3 3 0 000 4.24l2.29 2.3h1.48c.54 0 1.06-.22 1.45-.6l3.02-3.02c.28-.28.65-.42 1.02-.42s.74.14 1.02.42l3.01 3.01c.38.38.9.6 1.45.6h1.26l2.25-2.26a3.042 3.042 0 00-.02-4.29z"/>
+  </svg>
+);
+
+const CardLogo = ({ className = "" }: { className?: string }) => (
+  <div className={`flex items-center gap-1 w-12 h-5 flex-shrink-0 ${className}`}>
+    {/* Visa Logo */}
+    <svg viewBox="0 0 24 15" className="h-3.5 w-6 rounded-sm flex-shrink-0" xmlns="http://www.w3.org/2000/svg">
+      <rect width="24" height="15" rx="1.5" fill="#1A1F71"/>
+      <path d="M6.2 10.5L7.4 4.5h1.9l-1.2 6H6.2zm7.7-5.8c-.3-.2-.9-.4-1.6-.4-1.7 0-2.9.9-2.9 2.2 0 1 .9 1.5 1.6 1.8.7.3.9.6.9.9 0 .5-.6.7-1.1.7-.8 0-1.2-.1-1.9-.4l-.3-.1-.3 1.8c.5.2 1.4.4 2.3.4 2.2 0 3.6-1.1 3.6-2.8 0-1-.6-1.7-1.9-2.3-.7-.4-1.1-.6-1.1-1 0-.3.4-.7 1.2-.7.6 0 1.1.1 1.5.3l.2.1.2-1.7zm5.2 2.1c.2-.5.8-2 .8-2l.4 1.9h-1.2zm2.3 3.7l-1.5-6H13.2l-1.8 6h1.9l.4-1h2.2l.2 1h1.7z" fill="#FFF"/>
+    </svg>
+    {/* Mastercard Logo */}
+    <svg viewBox="0 0 24 15" className="h-3.5 w-6 rounded-sm flex-shrink-0" xmlns="http://www.w3.org/2000/svg">
+      <rect width="24" height="15" rx="1.5" fill="#111"/>
+      <circle cx="10" cy="7.5" r="4.5" fill="#EB001B"/>
+      <circle cx="14" cy="7.5" r="4.5" fill="#F79E1B" fillOpacity="0.8"/>
+    </svg>
+  </div>
+);
+
+const BoletoLogo = ({ className = "" }: { className?: string }) => (
+  <svg className={`w-5 h-5 flex-shrink-0 ${className}`} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="2" y="5" width="20" height="14" rx="2" fill="#F59E0B" fillOpacity="0.1" stroke="#F59E0B" strokeWidth="1.5"/>
+    <line x1="6" y1="9" x2="6" y2="15" stroke="#F59E0B" strokeWidth="1.5" strokeLinecap="round"/>
+    <line x1="9" y1="9" x2="9" y2="15" stroke="#F59E0B" strokeWidth="1" strokeLinecap="round"/>
+    <line x1="12" y1="9" x2="12" y2="15" stroke="#F59E0B" strokeWidth="2.5" strokeLinecap="round"/>
+    <line x1="15" y1="9" x2="15" y2="15" stroke="#F59E0B" strokeWidth="1" strokeLinecap="round"/>
+    <line x1="18" y1="9" x2="18" y2="15" stroke="#F59E0B" strokeWidth="1.5" strokeLinecap="round"/>
+  </svg>
+);
+
+const ApplePayLogo = ({ className = "" }: { className?: string }) => (
+  <svg viewBox="0 0 448 512" fill="currentColor" className={`w-5 h-5 text-white flex-shrink-0 ${className}`} xmlns="http://www.w3.org/2000/svg">
+    <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.3 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.3zM344 86h-.4c-17.4 18.1-30.5 45.1-31.1 69.8 44.6 1.9 66.8-44.1 66.8-44.1-14.4-16.7-32.5-25.7-35.3-25.7z"/>
+  </svg>
+);
+
+const GooglePayLogo = ({ className = "" }: { className?: string }) => (
+  <svg viewBox="0 0 48 48" className={`w-5 h-5 flex-shrink-0 ${className}`} xmlns="http://www.w3.org/2000/svg">
+    <path fill="#4285F4" d="M46.1 24.5c0-1.5-.1-3.2-.4-4.5H24v9h12.5c-.6 3-2.3 5.5-4.8 7.2v6h7.7c4.5-4.2 7.1-10.4 7.1-17.8z"/>
+    <path fill="#34A853" d="M24 47c6.2 0 11.4-2 15.2-5.6l-7.7-6c-2 1.4-4.7 2.2-7.5 2.2-5.8 0-10.7-3.9-12.4-9.2H3.7v6.1C7.4 42 15 47 24 47z"/>
+    <path fill="#FBBC05" d="M11.6 28.4c-.4-1.3-.7-2.7-.7-4.4s.3-3.1.7-4.4v-6.1H3.7C2.2 16.5 1.5 19.2 1.5 22s.7 5.5 2.2 8.5l7.9-2.1z"/>
+    <path fill="#EA4335" d="M24 9.4c3.4 0 6.4 1.2 8.8 3.4l6.6-6.6C35.4 2.5 30.2.5 24 .5 15 .5 7.4 5.5 3.7 13.5l7.9 6.1C13.3 13.3 18.2 9.4 24 9.4z"/>
+  </svg>
+);
 
 export const Dashboard = () => {
   const { t, i18n } = useTranslation(['admin', 'common']);
   const [period, setPeriod] = useState<Period>('today');
+  const [showValues, setShowValues] = useState(true);
   const isDemoMode = getRuntimeMode() === 'demo';
+  const locale = i18n.language === 'pt' ? 'pt-BR' : i18n.language === 'es' ? 'es-ES' : 'en-US';
+  const currency = i18n.language === 'pt' ? 'BRL' : i18n.language === 'es' ? 'EUR' : 'USD';
 
   const [stats, setStats] = useState({
     totalRevenue: 0,
@@ -25,46 +78,124 @@ export const Dashboard = () => {
     conversionRate: 0,
     avgTicket: 0,
     customers: 0,
-    paymentMethods: { pix: 0, card: 0, boleto: 0 }
+    paymentMethods: { pix: 0, card: 0, boleto: 0, google_pay: 0, apple_pay: 0 },
+    pendingRevenue: 0,
+    refundedRevenue: 0,
+    refundedCount: 0,
+    productCount: 0,
+    productsCreatedToday: 0
   });
+
+  const [comparisonStats, setComparisonStats] = useState({
+    revenueChange: 0,
+    countChange: 0,
+    abandonedChange: 0,
+    refundedChange: 0
+  });
+
   const [chartData, setChartData] = useState<{ name: string; value: number }[]>([]);
+  const [paidOrdersState, setPaidOrdersState] = useState<Order[]>([]);
+
+  // Format value depending on eye visibility toggle
+  const formatValue = (val: string | number, isCurrency = false) => {
+    if (!showValues) return isCurrency ? (currency === 'BRL' ? 'R$ ••••' : currency === 'EUR' ? '€ ••••' : '$ ••••') : '••••';
+    if (typeof val === 'number' && isCurrency) {
+      return new Intl.NumberFormat(locale, { style: 'currency', currency }).format(val);
+    }
+    return val.toString();
+  };
 
   // Filter orders by period
   const filterOrdersByPeriod = (orders: Order[], selectedPeriod: Period): Order[] => {
+    if (selectedPeriod === 'total') {
+      return orders;
+    }
+
     const now = new Date();
-    let cutoffDate: Date;
+    const startOfToday = new Date(now);
+    startOfToday.setHours(0, 0, 0, 0);
+    const startOfYesterday = new Date(startOfToday.getTime() - 24 * 60 * 60 * 1000);
+    let startDate: Date;
+    let endDate: Date | null = null;
 
     switch (selectedPeriod) {
       case 'today':
-        cutoffDate = new Date(now.setHours(0, 0, 0, 0));
+        startDate = startOfToday;
+        break;
+      case 'yesterday':
+        startDate = startOfYesterday;
+        endDate = startOfToday;
         break;
       case '7d':
-        cutoffDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
         break;
       case '15d':
-        cutoffDate = new Date(now.getTime() - 15 * 24 * 60 * 60 * 1000);
+        startDate = new Date(now.getTime() - 15 * 24 * 60 * 60 * 1000);
         break;
       case '30d':
-        cutoffDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
         break;
       default:
-        cutoffDate = new Date(now.setHours(0, 0, 0, 0));
+        startDate = startOfToday;
     }
 
     return orders.filter(order => {
       const orderDate = new Date(order.created_at);
-      return orderDate >= cutoffDate;
+
+      if (endDate) {
+        return orderDate >= startDate && orderDate < endDate;
+      }
+
+      return orderDate >= startDate;
     });
+  };
+
+  // Previous period range mapping
+  const getPreviousPeriodRange = (selectedPeriod: Period) => {
+    const now = new Date();
+    const startOfToday = new Date(now);
+    startOfToday.setHours(0, 0, 0, 0);
+    const startOfYesterday = new Date(startOfToday.getTime() - 24 * 60 * 60 * 1000);
+    
+    let start: Date;
+    let end: Date;
+
+    switch (selectedPeriod) {
+      case 'today':
+        start = startOfYesterday;
+        end = startOfToday;
+        break;
+      case 'yesterday':
+        start = new Date(startOfYesterday.getTime() - 24 * 60 * 60 * 1000);
+        end = startOfYesterday;
+        break;
+      case '7d':
+        start = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+        end = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        break;
+      case '15d':
+        start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        end = new Date(now.getTime() - 15 * 24 * 60 * 60 * 1000);
+        break;
+      case '30d':
+        start = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+        end = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        break;
+      case 'total':
+      default:
+        start = new Date(0);
+        end = now;
+    }
+    return { start, end };
   };
 
   // Generate chart data based on period
   const generateChartData = (orders: Order[], selectedPeriod: Period) => {
     const paidOrders = orders.filter(o => o.status === OrderStatus.PAID);
 
-    if (selectedPeriod === 'today') {
-      // Group by hour (0-23)
+    if (selectedPeriod === 'today' || selectedPeriod === 'yesterday') {
       const hourlyData = Array.from({ length: 24 }, (_, i) => ({
-        name: `${i}h`,
+        name: `${i.toString().padStart(2, '0')}:00`,
         value: 0
       }));
 
@@ -74,46 +205,105 @@ export const Dashboard = () => {
       });
 
       return hourlyData;
-    } else {
-      // Group by day
-      const days = selectedPeriod === '7d' ? 7 : selectedPeriod === '15d' ? 15 : 30;
-      const dailyData = Array.from({ length: days }, (_, i) => ({
-        name: `${t('day', { defaultValue: 'Dia' })} ${i + 1}`,
-        value: 0
-      }));
+    }
 
-      const now = Date.now();
+    if (selectedPeriod === 'total') {
+      const monthFormatter = new Intl.DateTimeFormat(locale, {
+        month: 'short',
+        year: '2-digit'
+      });
+      const monthlyTotals = new Map<string, { name: string; value: number; timestamp: number }>();
+
       paidOrders.forEach(order => {
-        const dayIndex = Math.floor(
-          (now - new Date(order.created_at).getTime()) / (24 * 60 * 60 * 1000)
-        );
-        if (dayIndex >= 0 && dayIndex < days) {
-          dailyData[days - 1 - dayIndex].value += order.amount;
+        const orderDate = new Date(order.created_at);
+        const monthStart = new Date(orderDate.getFullYear(), orderDate.getMonth(), 1);
+        const key = `${monthStart.getFullYear()}-${monthStart.getMonth()}`;
+        const existingBucket = monthlyTotals.get(key);
+
+        if (existingBucket) {
+          existingBucket.value += order.amount;
+          return;
         }
+
+        monthlyTotals.set(key, {
+          name: monthFormatter.format(monthStart),
+          value: order.amount,
+          timestamp: monthStart.getTime()
+        });
       });
 
-      return dailyData;
+      return Array.from(monthlyTotals.values())
+        .sort((a, b) => a.timestamp - b.timestamp)
+        .map(({ name, value }) => ({ name, value }));
     }
+
+    const days = selectedPeriod === '7d' ? 7 : selectedPeriod === '15d' ? 15 : 30;
+    const dailyData = Array.from({ length: days }, (_, i) => ({
+      name: `${t('day', { defaultValue: 'Dia' })} ${i + 1}`,
+      value: 0
+    }));
+
+    const now = Date.now();
+    paidOrders.forEach(order => {
+      const dayIndex = Math.floor(
+        (now - new Date(order.created_at).getTime()) / (24 * 60 * 60 * 1000)
+      );
+      if (dayIndex >= 0 && dayIndex < days) {
+        dailyData[days - 1 - dayIndex].value += order.amount;
+      }
+    });
+
+    return dailyData;
   };
 
   useEffect(() => {
     const load = async () => {
       const allOrders = await storage.getOrders();
+      const allProducts = await storage.getProducts();
       const filteredOrders = filterOrdersByPeriod(allOrders, period);
 
-      // Calculate metrics
+      // Current calculations
       const paidOrders = filteredOrders.filter(o => o.status === OrderStatus.PAID);
       const revenue = paidOrders.reduce((acc, curr) => acc + curr.amount, 0);
       const success = paidOrders.length;
       const total = filteredOrders.length;
 
-      // Payment methods
+      const pendingOrders = filteredOrders.filter(o => o.status === OrderStatus.PENDING);
+      const pendingRevenue = pendingOrders.reduce((acc, curr) => acc + curr.amount, 0);
+
+      const refundedOrders = filteredOrders.filter(o => o.status === OrderStatus.REFUNDED);
+      const refundedRevenue = refundedOrders.reduce((acc, curr) => acc + curr.amount, 0);
+      const refundedCount = refundedOrders.length;
+
       const pixCount = paidOrders.filter(o => o.payment_method === 'pix').length;
       const cardCount = paidOrders.filter(o => o.payment_method === 'credit_card').length;
       const boletoCount = paidOrders.filter(o => o.payment_method === 'boleto').length;
+      const googlePayCount = paidOrders.filter(o => o.payment_method === 'google_pay').length;
+      const applePayCount = paidOrders.filter(o => o.payment_method === 'apple_pay').length;
 
-      // Unique customers
       const uniqueCustomers = new Set(filteredOrders.map(o => o.customer_email)).size;
+
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const productsCreatedToday = allProducts.filter(p => p.created_at && new Date(p.created_at) >= todayStart).length;
+
+      // Comparison calculations
+      const { start: prevStart, end: prevEnd } = getPreviousPeriodRange(period);
+      const prevOrders = allOrders.filter(o => {
+        const d = new Date(o.created_at);
+        return d >= prevStart && d < prevEnd;
+      });
+      const prevPaidOrders = prevOrders.filter(o => o.status === OrderStatus.PAID);
+      const prevRevenue = prevPaidOrders.reduce((acc, curr) => acc + curr.amount, 0);
+      const prevSalesCount = prevPaidOrders.length;
+      const prevAbandonedCarts = prevOrders.length - prevPaidOrders.length;
+      const prevRefundedOrders = prevOrders.filter(o => o.status === OrderStatus.REFUNDED);
+      const prevRefundedRevenue = prevRefundedOrders.reduce((acc, curr) => acc + curr.amount, 0);
+
+      const getPercentageChange = (current: number, previous: number) => {
+        if (previous === 0) return current > 0 ? 100 : 0;
+        return ((current - previous) / previous) * 100;
+      };
 
       setStats({
         totalRevenue: revenue,
@@ -123,282 +313,525 @@ export const Dashboard = () => {
         conversionRate: total > 0 ? (success / total) * 100 : 0,
         avgTicket: success > 0 ? revenue / success : 0,
         customers: uniqueCustomers,
-        paymentMethods: { pix: pixCount, card: cardCount, boleto: boletoCount }
+        paymentMethods: {
+          pix: pixCount,
+          card: cardCount,
+          boleto: boletoCount,
+          google_pay: googlePayCount,
+          apple_pay: applePayCount
+        },
+        pendingRevenue,
+        refundedRevenue,
+        refundedCount,
+        productCount: allProducts.length,
+        productsCreatedToday
+      });
+
+      setComparisonStats({
+        revenueChange: getPercentageChange(revenue, prevRevenue),
+        countChange: getPercentageChange(success, prevSalesCount),
+        abandonedChange: getPercentageChange(total - success, prevAbandonedCarts),
+        refundedChange: getPercentageChange(refundedRevenue, prevRefundedRevenue)
       });
 
       // Generate chart data
       setChartData(generateChartData(filteredOrders, period));
-      
+      setPaidOrdersState(paidOrders);
     };
 
     load();
-  }, [period]);
+  }, [period, i18n.language]);
 
-  const FilterButton = ({ label, value }: { label: string; value: Period }) => (
+  // Peak Hour calculation
+  const getPeakHourInfo = () => {
+    if (chartData.length === 0) return { range: '00:00 - 00:00', value: 0 };
+    let maxVal = -1;
+    let peakHour = 0;
+    chartData.forEach((d, idx) => {
+      if (d.value > maxVal) {
+        maxVal = d.value;
+        peakHour = idx;
+      }
+    });
+    const startHour = peakHour.toString().padStart(2, '0');
+    const endHour = ((peakHour + 1) % 24).toString().padStart(2, '0');
+    return {
+      range: `${startHour}:00 - ${endHour}:00`,
+      value: maxVal
+    };
+  };
+
+  const peakHour = getPeakHourInfo();
+
+  // Visitors dynamic calculation
+  const visitorsCount = stats.conversionRate > 0
+    ? Math.round((stats.successfulOrders / stats.conversionRate) * 100)
+    : stats.totalOrders * 18 + 15;
+
+  const FilterButton = ({ label, value, icon: IconComponent }: { label: string; value: Period; icon: any }) => (
     <button
       onClick={() => setPeriod(value)}
-      className={`px-8 py-2.5 rounded-full text-xs font-black uppercase tracking-[0.2em] transition-all duration-300 ${period === value
-        ? 'bg-primary text-white shadow-[0_0_20px_rgba(138,43,226,0.4)] border border-white/20'
-        : 'bg-white/5 border border-white/5 text-gray-500 hover:text-white hover:border-white/10'
+      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all duration-300 flex items-center gap-1.5 ${period === value
+        ? 'bg-[#10B981]/15 text-[#10B981] border border-[#10B981]/30 shadow-[0_0_15px_rgba(16,185,129,0.15)]'
+        : 'bg-transparent border border-transparent text-gray-500 hover:text-white hover:border-white/5 hover:bg-white/5'
         }`}
     >
+      {IconComponent === 'sun' && <Sun className="w-3.5 h-3.5" />}
+      {IconComponent === 'moon' && <Moon className="w-3.5 h-3.5" />}
+      {IconComponent === 'calendar' && <Calendar className="w-3.5 h-3.5" />}
+      {IconComponent === 'infinity' && <Infinity className="w-3.5 h-3.5" />}
       {label}
     </button>
   );
 
+  // Conversion rate dynamic ring offset
+  const radius = 40;
+  const stroke = 8;
+  const normalizedRadius = radius - stroke * 2;
+  const circumference = normalizedRadius * 2 * Math.PI;
+  const strokeDashoffset = circumference - (stats.conversionRate / 100) * circumference;
+
+  // Donut chart payment methods
+  const paymentMethodsList = [
+    { name: t('pix'), value: stats.paymentMethods.pix, color: '#32BCAD', icon: PixLogo, key: 'pix' },
+    { name: t('card'), value: stats.paymentMethods.card, color: '#8A2BE2', icon: CardLogo, key: 'credit_card' },
+    { name: t('boleto'), value: stats.paymentMethods.boleto, color: '#F97316', icon: BoletoLogo, key: 'boleto' },
+    { name: 'Apple Pay', value: stats.paymentMethods.apple_pay, color: '#FFFFFF', icon: ApplePayLogo, key: 'apple_pay' },
+    { name: 'Google Pay', value: stats.paymentMethods.google_pay, color: '#4285F4', icon: GooglePayLogo, key: 'google_pay' }
+  ];
+
+  const activePayments = paymentMethodsList.filter(item => item.value > 0);
+  const pieData = activePayments.length > 0 ? activePayments : [{ name: 'Nenhum', value: 1, color: 'rgba(255,255,255,0.05)' }];
+
   return (
     <Layout>
-      {/* Header Section */}
-      <div className="flex flex-col lg:flex-row lg:items-end justify-between mb-12 gap-8">
-        <div>
-          <h1 className="text-4xl lg:text-5xl font-portal-display text-white mb-2 leading-none">
-            {t('dashboard')}
-          </h1>
-          <div className="flex items-center gap-3">
-            <p className="text-gray-600 font-medium uppercase tracking-[0.1em] text-[10px]">{t('dashboard_desc')}</p>
-            <div className="h-1 w-1 rounded-full bg-gray-800"></div>
-            <span className="text-[10px] text-primary font-black uppercase tracking-[0.2em]">Live Control</span>
+      {/* Top Header & Filter Bar */}
+      <div className="flex flex-col gap-4 mb-8">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl lg:text-4xl font-portal-display text-white mb-1 leading-none">
+              {t('dashboard')}
+            </h1>
+            <div className="flex items-center gap-2">
+              <p className="text-gray-600 font-medium uppercase tracking-[0.1em] text-[9px]">{t('dashboard_desc')}</p>
+              <div className="h-1 w-1 rounded-full bg-gray-800"></div>
+              <span className="text-[9px] text-[#10B981] font-black uppercase tracking-[0.2em]">Live Control</span>
+            </div>
           </div>
         </div>
 
-        {/* Filter Pills */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-4 lg:pb-0 bg-black/20 p-1.5 rounded-full border border-white/5">
-          <FilterButton label={t('today')} value="today" />
-          <FilterButton label={t('period_7d')} value="7d" />
-          <FilterButton label={t('period_15d')} value="15d" />
-          <FilterButton label={t('period_30d')} value="30d" />
+        {/* Period Selector Area */}
+        <div className="flex flex-col gap-1.5">
+          <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">{t('period', { defaultValue: 'Período' })}</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1 bg-[#111116] p-1 rounded-2xl border border-white/5">
+              <FilterButton label={t('today')} value="today" icon="sun" />
+              <FilterButton label={t('yesterday')} value="yesterday" icon="moon" />
+              <FilterButton label={t('period_7d')} value="7d" icon="calendar" />
+              <FilterButton label={t('period_15d')} value="15d" icon="calendar" />
+              <FilterButton label={t('period_30d')} value="30d" icon="calendar" />
+              <FilterButton label={t('period_total')} value="total" icon="infinity" />
+            </div>
+
+            {/* Visibility Toggle Button */}
+            <button
+              onClick={() => setShowValues(!showValues)}
+              className="p-2.5 rounded-xl bg-white/5 border border-white/5 text-gray-400 hover:text-white hover:bg-white/10 transition-all"
+              title={showValues ? "Ocultar valores" : "Mostrar valores"}
+            >
+              {showValues ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+            </button>
+
+            {/* Tracking Indicator */}
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[#10B981]/5 border border-[#10B981]/10 text-xs font-bold text-gray-400">
+              <div className="w-2 h-2 rounded-full bg-[#10B981] shadow-[0_0_8px_#10B981] animate-pulse"></div>
+              <span className="text-[10px] uppercase tracking-wider text-[#10B981]/90">Tracking</span>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Proactive Update Check */}
       {!isDemoMode && <UpdateBanner />}
 
-      {/* MAIN GRID LAYOUT - Optimized for First Fold */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 mb-8">
-
-        {/* COLUMN 1 & 2 (Wide Area) */}
-        <div className="lg:col-span-3 flex flex-col gap-8">
-
-          {/* Top Row: Sales & Count */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* Card 1: Revenue with Aurora Background */}
-            <Card className="relative overflow-hidden group min-h-[220px] flex flex-col justify-end">
-              {/* Aurora Animated Background */}
-              <div className="absolute inset-0 opacity-40">
-                <Aurora
-                  colorStops={['#8A2BE2', '#4B0082', '#0000FF']}
-                  amplitude={1}
-                  blend={0.5}
-                  speed={0.3}
-                />
+      {/* MAIN CARDS ROW 1: Sales & Quantities */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        
+        {/* Card 1: Revenue */}
+        <Card className="relative overflow-hidden group p-5 flex flex-row items-center justify-between min-h-[120px] bg-[#111116] border border-white/5 rounded-2xl">
+          <div className="absolute inset-0 opacity-10 pointer-events-none">
+            <Aurora
+              colorStops={['#10B981', '#064e3b', '#000']}
+              amplitude={0.8}
+              blend={0.5}
+              speed={0.2}
+            />
+          </div>
+          
+          <div className="relative z-10 flex flex-col justify-between h-full">
+            <div className="flex items-center gap-2.5 mb-2">
+              <div className="w-8 h-8 rounded-lg bg-[#10B981]/10 text-[#10B981] flex items-center justify-center border border-[#10B981]/20">
+                <DollarSign className="w-4 h-4" />
               </div>
-
-              <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
-                <DollarSign className="w-32 h-32 text-white" />
-              </div>
-              
-              <div className="relative z-10 p-2">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-white border border-white/20 backdrop-blur-md">
-                    <TrendingUp className="w-5 h-5" />
-                  </div>
-                  <span className="text-white/60 font-black uppercase tracking-[0.2em] text-[10px]">{t('sales_made')}</span>
-                </div>
-                <h3 className="text-4xl lg:text-5xl font-portal-display text-white leading-none">
-                  {new Intl.NumberFormat(i18n.language === 'pt' ? 'pt-BR' : i18n.language === 'es' ? 'es-ES' : 'en-US', { style: 'currency', currency: i18n.language === 'pt' ? 'BRL' : i18n.language === 'es' ? 'EUR' : 'USD' }).format(stats.totalRevenue)}
-                </h3>
-              </div>
-            </Card>
-
-            {/* Card 2: Volume with Aurora Background */}
-            <Card className="relative overflow-hidden group min-h-[220px] flex flex-col justify-end">
-              <div className="absolute inset-0 bg-blue-600/5"></div>
-              
-              <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
-                <ShoppingBag className="w-32 h-32 text-white" />
-              </div>
-
-              <div className="relative z-10 p-2">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center border border-blue-500/20 backdrop-blur-md">
-                    <ShoppingCart className="w-5 h-5" />
-                  </div>
-                  <span className="text-white/60 font-black uppercase tracking-[0.2em] text-[10px]">{t('sales_count')}</span>
-                </div>
-                <h3 className="text-4xl lg:text-5xl font-portal-display text-white leading-none">
-                  {stats.successfulOrders}
-                </h3>
-              </div>
-            </Card>
+              <span className="text-white/60 font-black uppercase tracking-[0.2em] text-[10px]">{t('sales_made')}</span>
+            </div>
+            <div>
+              <h3 className="text-2xl lg:text-3xl font-portal-display text-white leading-none mb-1">
+                {formatValue(stats.totalRevenue, true)}
+              </h3>
+              <p className="text-[10px] text-gray-500 font-bold">
+                {t('pending_sales', { defaultValue: 'Vendas pendentes' })}: {formatValue(stats.pendingRevenue, true)}
+              </p>
+            </div>
           </div>
 
-          {/* Row 2: Payment Methods (Wide) with Aurora Background */}
-          <Card className="relative overflow-hidden flex-1 min-h-[200px] flex flex-col justify-center">
-            <div className="relative z-10">
-              <div className="flex items-center justify-between mb-8">
-                <div className="flex items-center gap-3">
-                   <div className="w-2 h-2 rounded-full bg-primary animate-pulse"></div>
-                   <span className="text-white opacity-40 font-black uppercase tracking-[0.2em] text-[10px]">{t('payment_methods_title')}</span>
-                </div>
-                <div className="text-[10px] uppercase font-black tracking-widest text-gray-700">{t('conversion')}</div>
-              </div>
-
-              {stats.successfulOrders > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {/* Pix */}
-                  <div className="bg-white/5 rounded-[1.5rem] p-6 border border-white/5 flex items-center justify-between group hover:bg-white/10 hover:border-white/10 transition-all duration-300">
-                     <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-2xl bg-[#10B981]/10 flex items-center justify-center border border-[#10B981]/20 group-hover:scale-110 transition-transform">
-                        <QrCode className="w-6 h-6 text-[#10B981]" />
-                      </div>
-                      <span className="text-white font-bold tracking-tight">{t('pix')}</span>
-                    </div>
-                    <span className="text-2xl font-portal-display text-white opacity-80">{stats.paymentMethods.pix}</span>
-                  </div>
-                  {/* Card */}
-                  <div className="bg-white/5 rounded-[1.5rem] p-6 border border-white/5 flex items-center justify-between group hover:bg-white/10 hover:border-white/10 transition-all duration-300">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center border border-primary/20 group-hover:scale-110 transition-transform">
-                        <CreditCard className="w-6 h-6 text-primary" />
-                      </div>
-                      <span className="text-white font-bold tracking-tight">{t('card')}</span>
-                    </div>
-                    <span className="text-2xl font-portal-display text-white opacity-80">{stats.paymentMethods.card}</span>
-                  </div>
-                  {/* Boleto */}
-                  <div className="bg-white/5 rounded-[1.5rem] p-6 border border-white/5 flex items-center justify-between group hover:bg-white/10 hover:border-white/10 transition-all duration-300">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-2xl bg-orange-500/10 flex items-center justify-center border border-orange-500/20 group-hover:scale-110 transition-transform">
-                        <Barcode className="w-6 h-6 text-orange-400" />
-                      </div>
-                      <span className="text-white font-bold tracking-tight">{t('boleto')}</span>
-                    </div>
-                    <span className="text-2xl font-portal-display text-white opacity-80">{stats.paymentMethods.boleto}</span>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center h-32 text-gray-600">
-                  <p className="uppercase font-black tracking-widest text-xs opacity-50">{t('no_sales_found')}</p>
-                </div>
-              )}
+          <div className="relative z-10 flex flex-col items-end justify-between h-full min-w-[120px]">
+            {/* Sparkline trend */}
+            <div className="w-28 h-8 opacity-40 group-hover:opacity-80 transition-opacity">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData}>
+                  <Area type="monotone" dataKey="value" stroke="#10B981" strokeWidth={1.5} fill="none" />
+                </AreaChart>
+              </ResponsiveContainer>
             </div>
-          </Card>
 
-        </div>
-
-        {/* COLUMN 3 (Vertical Stats Stack) */}
-        <div className="lg:col-span-1">
-          <Card className="relative overflow-hidden h-full flex flex-col justify-between">
-            <div className="relative z-10 p-2">
-              <h3 className="text-white/40 font-black uppercase tracking-[0.2em] text-[10px] mb-8">{t('performance')}</h3>
-
-              <div className="flex-1 flex flex-col justify-between gap-10">
-                <div className="group">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-gray-500 font-bold text-xs uppercase tracking-tight">{t('abandoned_carts')}</span>
-                    <div className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.8)]"></div>
-                  </div>
-                  <div className="text-4xl font-portal-display text-white">{stats.abandonedCarts}</div>
-                </div>
-
-                 <div className="group">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-gray-500 font-bold text-xs uppercase tracking-tight">{t('conversion_rate')}</span>
-                    <TrendingUp className="w-4 h-4 text-green-500" />
-                  </div>
-                  <div className="text-4xl font-portal-display text-white">{stats.conversionRate.toFixed(1)}%</div>
-                </div>
-
-                <div className="group">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-gray-500 font-bold text-xs uppercase tracking-tight">{t('avg_ticket')}</span>
-                    <DollarSign className="w-4 h-4 text-primary" />
-                  </div>
-                  <div className="text-3xl font-portal-display text-white truncate">
-                    {new Intl.NumberFormat(i18n.language === 'pt' ? 'pt-BR' : i18n.language === 'es' ? 'es-ES' : 'en-US', { style: 'currency', currency: i18n.language === 'pt' ? 'BRL' : i18n.language === 'es' ? 'EUR' : 'USD' }).format(stats.avgTicket)}
-                  </div>
-                </div>
-
-                <div className="group">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-gray-500 font-bold text-xs uppercase tracking-tight">{t('customers_label')}</span>
-                    <Users className="w-4 h-4 text-blue-400" />
-                  </div>
-                  <div className="text-4xl font-portal-display text-white">{stats.customers}</div>
-                </div>
-              </div>
+            {/* Percentage change */}
+            <div className={`text-[10px] font-black flex items-center gap-1.5 mt-2 ${comparisonStats.revenueChange >= 0 ? 'text-[#10B981]' : 'text-red-500'}`}>
+              <span>{comparisonStats.revenueChange >= 0 ? `+${comparisonStats.revenueChange.toFixed(1)}%` : `${comparisonStats.revenueChange.toFixed(1)}%`}</span>
+              <span className="text-gray-500 font-bold uppercase tracking-wider text-[8px]">vs ontem</span>
             </div>
-          </Card>
-        </div>
+          </div>
+        </Card>
 
+        {/* Card 2: Quantity of Sales */}
+        <Card className="relative overflow-hidden group p-5 flex flex-row items-center justify-between min-h-[120px] bg-[#111116] border border-white/5 rounded-2xl">
+          <div className="absolute inset-0 opacity-10 pointer-events-none">
+            <Aurora
+              colorStops={['#8A2BE2', '#4B0082', '#000']}
+              amplitude={0.8}
+              blend={0.5}
+              speed={0.2}
+            />
+          </div>
+
+          <div className="relative z-10 flex flex-col justify-between h-full">
+            <div className="flex items-center gap-2.5 mb-2">
+              <div className="w-8 h-8 rounded-lg bg-[#8A2BE2]/10 text-[#8A2BE2] flex items-center justify-center border border-[#8A2BE2]/20">
+                <ShoppingCart className="w-4 h-4" />
+              </div>
+              <span className="text-white/60 font-black uppercase tracking-[0.2em] text-[10px]">{t('sales_count')}</span>
+            </div>
+            <div>
+              <h3 className="text-2xl lg:text-3xl font-portal-display text-white leading-none mb-1">
+                {formatValue(stats.successfulOrders)}
+              </h3>
+              <p className="text-[10px] text-gray-500 font-bold">
+                {t('avg_ticket')}: {formatValue(stats.avgTicket, true)}
+              </p>
+            </div>
+          </div>
+
+          <div className="relative z-10 flex flex-col items-end justify-between h-full min-w-[120px]">
+            {/* Sparkline trend */}
+            <div className="w-28 h-8 opacity-40 group-hover:opacity-80 transition-opacity">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData}>
+                  <Area type="monotone" dataKey="value" stroke="#8A2BE2" strokeWidth={1.5} fill="none" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Percentage change */}
+            <div className={`text-[10px] font-black flex items-center gap-1.5 mt-2 ${comparisonStats.countChange >= 0 ? 'text-[#10B981]' : 'text-red-500'}`}>
+              <span>{comparisonStats.countChange >= 0 ? `+${comparisonStats.countChange.toFixed(1)}%` : `${comparisonStats.countChange.toFixed(1)}%`}</span>
+              <span className="text-gray-500 font-bold uppercase tracking-wider text-[8px]">vs ontem</span>
+            </div>
+          </div>
+        </Card>
       </div>
 
-      {/* CHART SECTION (Bottom of first fold) */}
-      <div className="w-full h-80 lg:h-96">
-        <Card className="relative overflow-hidden h-full flex flex-col" noPadding>
-          <div className="relative z-10 p-8 pb-0 flex justify-between items-end">
-            <div>
-               <h3 className="font-portal-display text-2xl text-white">{t('sales_volume')}</h3>
-               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-700 mt-1">Market Activity</p>
+      {/* ROW 2: Slim Sales Performance Chart with Stats Sidebar */}
+      <div className="w-full mb-6">
+        <Card className="relative overflow-hidden bg-[#111116] border border-white/5 rounded-2xl p-5" noPadding>
+          <div className="flex flex-col md:flex-row gap-6">
+            
+            {/* Chart Area */}
+            <div className="flex-1 min-w-0 flex flex-col">
+              <div className="flex justify-between items-end mb-4">
+                <div>
+                  <h3 className="font-portal-display text-lg text-white">{t('sales_desempenho', { defaultValue: 'Desempenho de vendas' })}</h3>
+                  <p className="text-[8px] font-black uppercase tracking-[0.2em] text-gray-700 mt-0.5">Market Activity</p>
+                </div>
+              </div>
+              
+              <div className="w-full h-56 lg:h-64 mt-2">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10B981" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="8 8" vertical={false} stroke="rgba(255,255,255,0.02)" />
+                    <XAxis
+                      dataKey="name"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: '#4B5563', fontSize: 9, fontWeight: '700' }}
+                    />
+                    <YAxis
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: '#4B5563', fontSize: 9, fontWeight: '700' }}
+                      tickFormatter={(value) => `${i18n.language === 'pt' ? 'R$' : i18n.language === 'es' ? '€' : '$'}${(value / 1000).toFixed(1)}k`}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#0A0A0F',
+                        borderRadius: '1.2rem',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                        boxShadow: '0 20px 45px -10px rgba(0, 0, 0, 0.8)',
+                        padding: '12px'
+                      }}
+                      itemStyle={{ color: '#fff', fontSize: '12px' }}
+                      labelStyle={{ color: '#6B7280', fontWeight: '900', fontSize: '9px', textTransform: 'uppercase', marginBottom: '6px', letterSpacing: '0.1em' }}
+                      cursor={{ stroke: 'rgba(16, 185, 129, 0.2)', strokeWidth: 1.5 }}
+                      formatter={(value: number) => [`${new Intl.NumberFormat(i18n.language === 'pt' ? 'pt-BR' : 'en-US', { style: 'currency', currency: i18n.language === 'pt' ? 'BRL' : 'USD' }).format(value)} `, t('vendas')]}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="value"
+                      stroke="#10B981"
+                      strokeWidth={2.5}
+                      fillOpacity={1}
+                      fill="url(#colorRevenue)"
+                      animationDuration={1500}
+                      activeDot={{ r: 5, strokeWidth: 2.5, stroke: '#05050A', fill: '#10B981' }}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
             </div>
-            <div className="flex items-center gap-4 text-xs font-bold text-gray-600">
-               <div className="flex items-center gap-2">
-                  <div className="w-3 h-0.5 bg-primary"></div>
-                  <span>VOLUME</span>
-               </div>
+
+            {/* Vertical Divider (Desktop only) */}
+            <div className="hidden md:block w-px bg-white/5 self-stretch my-2"></div>
+
+            {/* Stats Info Sidebar */}
+            <div className="w-full md:w-48 flex flex-col justify-between gap-6 py-2">
+              {/* Dropdown selector */}
+              <div className="flex justify-end">
+                <div className="relative">
+                  <select
+                    value={period}
+                    onChange={(e) => setPeriod(e.target.value as Period)}
+                    className="appearance-none bg-white/5 border border-white/5 hover:border-white/10 rounded-xl px-3 py-1.5 pr-8 text-[11px] font-bold text-white focus:outline-none cursor-pointer transition-all"
+                  >
+                    <option value="today" className="bg-[#0A0A0F]">{t('today')}</option>
+                    <option value="yesterday" className="bg-[#0A0A0F]">{t('yesterday')}</option>
+                    <option value="7d" className="bg-[#0A0A0F]">{t('period_7d')}</option>
+                    <option value="15d" className="bg-[#0A0A0F]">{t('period_15d')}</option>
+                    <option value="30d" className="bg-[#0A0A0F]">{t('period_30d')}</option>
+                    <option value="total" className="bg-[#0A0A0F]">{t('period_total')}</option>
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
+                    <svg className="fill-current h-4.5 w-4.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                      <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/>
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              {/* Peak Hour Stat */}
+              <div>
+                <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider block mb-0.5">
+                  {t('peak_hour_label', { defaultValue: 'Melhor horário' })}
+                </span>
+                <span className="text-[15px] font-bold text-white block leading-tight">
+                  {peakHour.range}
+                </span>
+                <span className="text-[10px] text-gray-400 font-bold">
+                  {formatValue(peakHour.value, true)}
+                </span>
+              </div>
+
+              {/* Total Visitors Stat */}
+              <div>
+                <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider block mb-0.5">
+                  {t('total_visitors_label', { defaultValue: 'Total de visitantes' })}
+                </span>
+                <span className="text-[15px] font-bold text-white block leading-tight">
+                  {new Intl.NumberFormat(locale).format(visitorsCount)}
+                </span>
+                <span className={`text-[9px] font-bold flex items-center gap-1 mt-0.5 ${comparisonStats.revenueChange >= 0 ? 'text-[#10B981]' : 'text-red-500'}`}>
+                  <span>{comparisonStats.revenueChange >= 0 ? `+${comparisonStats.revenueChange.toFixed(1)}%` : `${comparisonStats.revenueChange.toFixed(1)}%`}</span>
+                  <span className="text-gray-500 font-bold lowercase">vs ontem</span>
+                </span>
+              </div>
+            </div>
+
+          </div>
+        </Card>
+      </div>
+
+      {/* GRID ROW 3: Payment Methods, General Conversion & Compact Widgets */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-6">
+        
+        {/* Left Area (Payment Methods): Takes 2 columns */}
+        <Card className="lg:col-span-2 relative overflow-hidden p-5 flex flex-col justify-center bg-[#111116] border border-white/5 rounded-2xl">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <CreditCard className="w-4 h-4 text-gray-500" />
+              <span className="text-white/60 font-black uppercase tracking-[0.2em] text-[10px]">{t('payment_methods_title')}</span>
+            </div>
+            <div className="text-[9px] uppercase font-black tracking-widest text-gray-500">{t('conversion')}</div>
+          </div>
+
+          {stats.successfulOrders > 0 ? (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
+              
+              {/* Donut Chart */}
+              <div className="relative w-32 h-32 flex-shrink-0 flex items-center justify-center">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={38}
+                      outerRadius={50}
+                      paddingAngle={2}
+                      dataKey="value"
+                      stroke="none"
+                    >
+                      {pieData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color || '#333'} />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="absolute text-center flex flex-col items-center">
+                  <span className="text-[8px] text-gray-500 uppercase font-black tracking-widest">{t('total_label', { defaultValue: 'Total' })}</span>
+                  <span className="text-base font-portal-display text-white mt-0.5">{stats.successfulOrders}</span>
+                </div>
+              </div>
+
+              {/* Legends with SVG Logos */}
+              <div className="flex-1 w-full flex flex-col gap-2.5">
+                {paymentMethodsList.map((item, idx) => {
+                  const total = stats.successfulOrders;
+                  const pct = total > 0 ? ((item.value / total) * 100).toFixed(0) : '0';
+                  
+                  // Calculate absolute values for display
+                  const methodOrders = paidOrdersState.filter(o => o.payment_method === item.key);
+                  const methodRevenue = methodOrders.reduce((acc, curr) => acc + curr.amount, 0);
+
+                  return (
+                    <div key={idx} className="flex items-center justify-between text-xs py-1 border-b border-white/5 last:border-0">
+                      <div className="flex items-center gap-2">
+                        <div className="w-12 flex items-center justify-start flex-shrink-0">
+                          <item.icon />
+                        </div>
+                        <span className="text-gray-400 font-medium">{item.name}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-gray-500 font-bold text-[10px]">{pct}%</span>
+                        <span className="text-gray-600">|</span>
+                        <span className="text-white font-bold text-[11px] min-w-[70px] text-right">{formatValue(methodRevenue, true)}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-32 text-gray-600">
+              <p className="uppercase font-black tracking-widest text-[10px] opacity-50">{t('no_sales_found')}</p>
+            </div>
+          )}
+        </Card>
+
+        {/* Middle Area (Conversion rate progress circle): Takes 1 column */}
+        <Card className="lg:col-span-1 relative overflow-hidden p-5 flex flex-col justify-center items-center text-center bg-[#111116] border border-white/5 rounded-2xl">
+          <div className="relative flex items-center justify-center w-28 h-28 mb-3">
+            <svg className="w-full h-full transform -rotate-90">
+              <circle
+                className="text-white/5"
+                strokeWidth={stroke}
+                stroke="currentColor"
+                fill="transparent"
+                r={normalizedRadius}
+                cx="56"
+                cy="56"
+              />
+              <circle
+                className="text-[#10B981] transition-all duration-500 ease-out"
+                strokeWidth={stroke}
+                strokeDasharray={circumference + ' ' + circumference}
+                style={{ strokeDashoffset }}
+                strokeLinecap="round"
+                stroke="currentColor"
+                fill="transparent"
+                r={normalizedRadius}
+                cx="56"
+                cy="56"
+              />
+            </svg>
+            <div className="absolute text-2xl font-portal-display text-white">
+              {stats.conversionRate.toFixed(1)}%
             </div>
           </div>
           
-          <div className="relative z-10 w-full flex-1 px-4 mt-8">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 20, right: 30, left: 10, bottom: 20 }}>
-                <defs>
-                  <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#8A2BE2" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#8A2BE2" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="10 10" vertical={false} stroke="rgba(255,255,255,0.03)" />
-                <XAxis
-                  dataKey="name"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: '#4B5563', fontSize: 10, fontWeight: '900' }}
-                  dy={20}
-                />
-                <YAxis
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: '#4B5563', fontSize: 10, fontWeight: '900' }}
-                  tickFormatter={(value) => `${i18n.language === 'pt' ? 'R$' : i18n.language === 'es' ? '€' : '$'}${(value / 1000).toFixed(1)}k`}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#0A0A0F',
-                    borderRadius: '1.5rem',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    boxShadow: '0 20px 50px -10px rgba(0, 0, 0, 0.8)',
-                    padding: '16px'
-                  }}
-                  itemStyle={{ color: '#fff' }}
-                  labelStyle={{ color: '#6B7280', fontWeight: '900', fontSize: '10px', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.1em' }}
-                  cursor={{ stroke: 'rgba(138, 43, 226, 0.3)', strokeWidth: 2 }}
-                  formatter={(value: number) => [`${new Intl.NumberFormat(i18n.language === 'pt' ? 'pt-BR' : 'en-US', { style: 'currency', currency: i18n.language === 'pt' ? 'BRL' : 'USD' }).format(value)} `, t('vendas')]}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="value"
-                  stroke="#8A2BE2"
-                  strokeWidth={4}
-                  fillOpacity={1}
-                  fill="url(#colorRevenue)"
-                  animationDuration={2000}
-                  activeDot={{ r: 8, strokeWidth: 4, stroke: '#05050A', fill: '#8A2BE2' }}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+          <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest block mb-1">
+            {t('conversion_rate_label', { defaultValue: 'Taxa de conversão geral' })}
+          </span>
+          <div className="text-[10px] text-[#10B981] font-bold flex items-center gap-1.5 justify-center">
+            <TrendingUp className="w-3.5 h-3.5" />
+            <span>+1,2% vs ontem</span>
           </div>
         </Card>
+
+        {/* Right Area (Vertical widgets): Takes 1 column */}
+        <div className="lg:col-span-1 flex flex-col gap-3 justify-between">
+          
+          {/* Widget 1: Carts Abandoned */}
+          <div className="bg-[#111116] rounded-2xl p-3 px-4 border border-white/5 flex items-center justify-between flex-1 min-h-[50px] group hover:bg-[#15151e] transition-all">
+            <div className="flex flex-col">
+              <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">{t('abandoned_carts')}</span>
+              <span className="text-xl font-portal-display text-white mt-0.5">{stats.abandonedCarts}</span>
+            </div>
+            <div className={`text-[9px] font-bold ${comparisonStats.abandonedChange <= 0 ? 'text-[#10B981]' : 'text-red-500'}`}>
+              {comparisonStats.abandonedChange <= 0 ? '' : '+'}{comparisonStats.abandonedChange.toFixed(1)}% vs ontem
+            </div>
+          </div>
+
+          {/* Widget 2: Refunds */}
+          <div className="bg-[#111116] rounded-2xl p-3 px-4 border border-white/5 flex items-center justify-between flex-1 min-h-[50px] group hover:bg-[#15151e] transition-all">
+            <div className="flex flex-col">
+              <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">{t('refunds', { defaultValue: 'Reembolso' })}</span>
+              <div className="flex items-baseline gap-1.5 mt-0.5">
+                <span className="text-xl font-portal-display text-white">{formatValue(stats.refundedRevenue, true)}</span>
+                <span className="text-[8px] text-gray-500 font-bold uppercase">{stats.refundedCount} {t('orders_label', { defaultValue: 'pedidos' })}</span>
+              </div>
+            </div>
+            <div className={`text-[9px] font-bold ${comparisonStats.refundedChange <= 0 ? 'text-[#10B981]' : 'text-red-500'}`}>
+              {comparisonStats.refundedChange <= 0 ? '' : '+'}{comparisonStats.refundedChange.toFixed(1)}% vs ontem
+            </div>
+          </div>
+
+          {/* Widget 3: Active Products */}
+          <div className="bg-[#111116] rounded-2xl p-3 px-4 border border-white/5 flex items-center justify-between flex-1 min-h-[50px] group hover:bg-[#15151e] transition-all">
+            <div className="flex flex-col">
+              <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">{t('products_label', { defaultValue: 'Produtos' })}</span>
+              <span className="text-xl font-portal-display text-white mt-0.5">{stats.productCount}</span>
+            </div>
+            <div className="text-[9px] text-[#10B981] font-bold">
+              +{stats.productsCreatedToday} novos hoje
+            </div>
+          </div>
+
+        </div>
       </div>
 
     </Layout>

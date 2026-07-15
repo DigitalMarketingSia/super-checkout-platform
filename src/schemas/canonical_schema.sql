@@ -3,7 +3,7 @@
 -- ==========================================
 CREATE TABLE IF NOT EXISTS public.system_info(
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    db_version TEXT NOT NULL DEFAULT '1.0.19',
+    db_version TEXT NOT NULL DEFAULT '1.0.25',
     last_update_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
     github_installation_id TEXT,
     github_repository TEXT,
@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS public.system_info(
 );
 
 INSERT INTO public.system_info (db_version) 
-SELECT '1.0.19' WHERE NOT EXISTS (SELECT 1 FROM public.system_info);
+SELECT '1.0.25' WHERE NOT EXISTS (SELECT 1 FROM public.system_info);
 
 DO $$
 BEGIN
@@ -735,6 +735,31 @@ BEGIN
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS total DECIMAL(10, 2);
 END $$;
 
+-- 2.12.1 One-time member login tickets
+CREATE TABLE IF NOT EXISTS public.member_login_tickets(
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    token_hash TEXT NOT NULL UNIQUE,
+    email TEXT NOT NULL,
+    order_id UUID REFERENCES public.orders(id) ON DELETE SET NULL,
+    member_area_id UUID REFERENCES public.member_areas(id) ON DELETE SET NULL,
+    product_id UUID REFERENCES public.products(id) ON DELETE SET NULL,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    consumed_at TIMESTAMP WITH TIME ZONE,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    last_failed_at TIMESTAMP WITH TIME ZONE,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_member_login_tickets_expires_at ON public.member_login_tickets(expires_at);
+CREATE INDEX IF NOT EXISTS idx_member_login_tickets_email ON public.member_login_tickets(email);
+CREATE INDEX IF NOT EXISTS idx_member_login_tickets_order_id ON public.member_login_tickets(order_id);
+
+ALTER TABLE public.member_login_tickets ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.member_login_tickets FROM anon, authenticated;
+GRANT ALL ON public.member_login_tickets TO service_role;
+
 -- 2.13 Payments
 CREATE TABLE IF NOT EXISTS payments(
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -1297,14 +1322,20 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- 4.3 Check if Setup is Required
 CREATE OR REPLACE FUNCTION public.is_setup_required()
-RETURNS BOOLEAN AS $$
-DECLARE
-  admin_count INTEGER;
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 BEGIN
-  SELECT COUNT(*) INTO admin_count FROM public.profiles WHERE role = 'admin';
-  RETURN admin_count = 0;
+  RETURN NOT EXISTS (
+    SELECT 1
+    FROM public.profiles
+    WHERE role IN ('admin', 'owner', 'master_admin')
+    LIMIT 1
+  );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 GRANT EXECUTE ON FUNCTION public.is_setup_required() TO anon;
 GRANT EXECUTE ON FUNCTION public.is_setup_required() TO authenticated;
@@ -1990,12 +2021,24 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
+DECLARE
+  normalized_installation_id TEXT := NULLIF(BTRIM(target_installation_id), '');
 BEGIN
-  -- If there are no profiles (admins), setup is required
-  IF NOT EXISTS (SELECT 1 FROM public.profiles LIMIT 1) THEN
-    RETURN TRUE;
+  IF normalized_installation_id IS NULL THEN
+    RETURN public.is_setup_required();
   END IF;
-  RETURN FALSE;
+
+  RETURN NOT EXISTS (
+    SELECT 1
+    FROM public.profiles
+    WHERE role IN ('admin', 'owner', 'master_admin')
+      AND (
+        installation_id::text = normalized_installation_id
+        OR installation_id IS NULL
+        OR NULLIF(BTRIM(installation_id::text), '') IS NULL
+      )
+    LIMIT 1
+  );
 END;
 $$;
 
@@ -2614,7 +2657,7 @@ FROM (
 ON CONFLICT (account_id, document_key, content_sha256) DO NOTHING;
 
 UPDATE public.system_info
-SET db_version = '1.0.19',
+SET db_version = '1.0.25',
     last_update_at = timezone('utc'::text, now());
 
 UPDATE public.schema_migrations
@@ -2660,5 +2703,38 @@ WHERE version = '1.0.19';
 INSERT INTO public.schema_migrations(version, description, success, execution_time_ms)
 SELECT '1.0.19', 'Canonical schema includes platform legal acceptance evidence', true, 0
 WHERE NOT EXISTS (SELECT 1 FROM public.schema_migrations WHERE version = '1.0.19');
+
+UPDATE public.schema_migrations
+SET success = true,
+    description = 'Canonical schema includes setup bootstrap hardening by installation',
+    error_log = NULL,
+    executed_at = timezone('utc'::text, now())
+WHERE version = '1.0.23';
+
+INSERT INTO public.schema_migrations(version, description, success, execution_time_ms)
+SELECT '1.0.23', 'Canonical schema includes setup bootstrap hardening by installation', true, 0
+WHERE NOT EXISTS (SELECT 1 FROM public.schema_migrations WHERE version = '1.0.23');
+
+UPDATE public.schema_migrations
+SET success = true,
+    description = 'Canonical schema includes one-time member login tickets',
+    error_log = NULL,
+    executed_at = timezone('utc'::text, now())
+WHERE version = '1.0.24';
+
+INSERT INTO public.schema_migrations(version, description, success, execution_time_ms)
+SELECT '1.0.24', 'Canonical schema includes one-time member login tickets', true, 0
+WHERE NOT EXISTS (SELECT 1 FROM public.schema_migrations WHERE version = '1.0.24');
+
+UPDATE public.schema_migrations
+SET success = true,
+    description = 'Canonical schema repairs setup bootstrap check for legacy UUID installation ids',
+    error_log = NULL,
+    executed_at = timezone('utc'::text, now())
+WHERE version = '1.0.25';
+
+INSERT INTO public.schema_migrations(version, description, success, execution_time_ms)
+SELECT '1.0.25', 'Canonical schema repairs setup bootstrap check for legacy UUID installation ids', true, 0
+WHERE NOT EXISTS (SELECT 1 FROM public.schema_migrations WHERE version = '1.0.25');
 
 NOTIFY pgrst, 'reload schema';

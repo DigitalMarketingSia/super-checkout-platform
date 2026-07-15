@@ -45,22 +45,51 @@ function normalizePhone(value?: string) {
   return String(value || '').replace(/\D/g, '');
 }
 
-function buildPublicReturnUrl(baseUrl: string | undefined, orderId: string, statusSignature: string) {
-  let stableBaseUrl = String(baseUrl || '').trim();
-  if (!stableBaseUrl) {
-    stableBaseUrl = process.env.VITE_SITE_URL
-      || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://app.supercheckout.app');
+function normalizePublicBaseUrl(value: string | undefined) {
+  const rawValue = String(value || '').trim();
+  if (!rawValue) return null;
+
+  const normalizedValue = rawValue.startsWith('http') ? rawValue : `https://${rawValue}`;
+
+  try {
+    const parsed = new URL(normalizedValue);
+    const hostname = parsed.hostname.trim().toLowerCase();
+    const isLocalHost = hostname === 'localhost'
+      || hostname === '127.0.0.1'
+      || hostname === '0.0.0.0'
+      || hostname === '::1';
+    const isPrivateIpv4 = /^10\./.test(hostname)
+      || /^192\.168\./.test(hostname)
+      || /^172\.(1[6-9]|2\d|3[0-1])\./.test(hostname);
+
+    if (parsed.protocol !== 'https:' || isLocalHost || isPrivateIpv4) {
+      return null;
+    }
+
+    parsed.hash = '';
+    parsed.search = '';
+    parsed.pathname = parsed.pathname.replace(/\/+$/, '');
+    return parsed.toString().replace(/\/$/, '');
+  } catch {
+    return null;
+  }
+}
+
+function resolveAsaasCallbackUrl(baseUrl: string | undefined, orderId: string, statusSignature: string) {
+  const callbackBaseUrl = normalizePublicBaseUrl(
+    process.env.ASAAS_CALLBACK_BASE_URL
+    || baseUrl
+    || process.env.APP_URL
+    || process.env.NEXT_PUBLIC_APP_URL
+    || process.env.VITE_SITE_URL
+    || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '')
+  );
+
+  if (!callbackBaseUrl) {
+    return null;
   }
 
-  if (!stableBaseUrl.startsWith('http')) {
-    stableBaseUrl = `https://${stableBaseUrl}`;
-  }
-
-  if (stableBaseUrl.endsWith('/')) {
-    stableBaseUrl = stableBaseUrl.slice(0, -1);
-  }
-
-  return `${stableBaseUrl}/thank-you/${encodeURIComponent(orderId)}?sig=${encodeURIComponent(statusSignature)}`;
+  return `${callbackBaseUrl}/thank-you/${encodeURIComponent(orderId)}?sig=${encodeURIComponent(statusSignature)}`;
 }
 
 async function callAsaasJson(url: string, init: RequestInit, actionLabel: string) {
@@ -218,7 +247,14 @@ export async function processAsaasPayment(payload: AsaasPaymentPayload) {
     const mainProduct = getMainProductForCheckout(checkout);
     const merchantUserId = resolveCheckoutMerchantUserId(checkout, mainProduct);
     const ownedOrder = await loadOwnedOrderForCheckoutWithMerchant(supabaseAdmin, checkout, merchantUserId, orderId);
-    const gateway = await loadOwnedActiveGateway(supabaseAdmin, merchantUserId, checkout, gatewayId, 'asaas');
+    const gateway = await loadOwnedActiveGateway(
+      supabaseAdmin,
+      merchantUserId,
+      checkout,
+      gatewayId,
+      'asaas',
+      paymentMethod,
+    );
 
     const serverCurrency = getServerCurrency(checkout, mainProduct);
     if (serverCurrency !== 'BRL') {
@@ -302,7 +338,7 @@ export async function processAsaasPayment(payload: AsaasPaymentPayload) {
 
     const billingType: 'PIX' | 'CREDIT_CARD' | 'BOLETO' = 'PIX';
     const statusSignature = generateSignature(orderId);
-    const callbackUrl = buildPublicReturnUrl(baseUrl, orderId, statusSignature);
+    const callbackUrl = resolveAsaasCallbackUrl(baseUrl, orderId, statusSignature);
     const paymentPayload: Record<string, any> = {
       customer: customerId,
       billingType,
@@ -310,10 +346,19 @@ export async function processAsaasPayment(payload: AsaasPaymentPayload) {
       dueDate: new Date(Date.now() + 86400000).toISOString().slice(0, 10),
       externalReference: orderId,
       description: `Pedido ${orderId}`,
-      callback: {
-        successUrl: callbackUrl,
-      },
     };
+
+    if (callbackUrl) {
+      paymentPayload.callback = {
+        successUrl: callbackUrl,
+      };
+    } else {
+      console.warn('[Asaas] Skipping callback.successUrl because the resolved return URL is not a public HTTPS address accepted by Asaas.', {
+        orderId,
+        baseUrl: baseUrl || null,
+        callbackBaseUrlOverride: process.env.ASAAS_CALLBACK_BASE_URL || null,
+      });
+    }
 
     const paymentResponse = await callAsaasJson(
       `${apiBaseUrl}/payments`,

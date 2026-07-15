@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { getAllowedGatewayIdsForPaymentMethod } from '../src/core/config/paymentRouting.js';
 
 const DEFAULT_ALLOWED_ORIGIN = 'https://app.supercheckout.app';
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -361,7 +362,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (!verifyOrderSignature(orderId, sig)) {
-    return res.status(200).json({ authorized: false, capability: null });
+    return res.status(200).json({ authorized: false, capability: null, gatewayId: null });
   }
 
   try {
@@ -370,7 +371,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     );
 
     if (!order?.id) {
-      return res.status(200).json({ authorized: true, capability: null });
+      return res.status(200).json({ authorized: true, capability: null, gatewayId: null });
     }
 
     const [payment] = await fetchSupabaseRows(
@@ -379,11 +380,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const [checkout] = order.checkout_id
       ? await fetchSupabaseRows(
-          `checkouts?id=eq.${encodeURIComponent(order.checkout_id)}&select=gateway_id,user_id&limit=1`,
+          `checkouts?id=eq.${encodeURIComponent(order.checkout_id)}&select=gateway_id,backup_gateway_id,user_id,config&limit=1`,
         )
       : [null];
 
-    const effectiveGatewayId = String(payment?.gateway_id || checkout?.gateway_id || '').trim();
+    const allowedGatewayIds = getAllowedGatewayIdsForPaymentMethod({
+      config: checkout?.config || null,
+      gatewayId: checkout?.gateway_id || null,
+      backupGatewayId: checkout?.backup_gateway_id || null,
+      paymentMethod: String(order.payment_method || '').trim() as any,
+    });
+    const effectiveGatewayId = String(payment?.gateway_id || allowedGatewayIds[0] || checkout?.gateway_id || '').trim();
     const effectiveMerchantUserId = String(checkout?.user_id || payment?.user_id || order.user_id || '').trim();
     const normalizedCustomerEmail = String(order.customer_email || '').trim().toLowerCase();
 
@@ -454,6 +461,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({
       authorized: true,
       capability,
+      gatewayId: effectiveGatewayId || null,
     });
   } catch (err: any) {
     console.error('[UpsellEligibility] failed:', err?.message || err);

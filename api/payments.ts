@@ -20,6 +20,40 @@ const ALLOWED_ORIGINS = [
     ...(process.env.NODE_ENV !== 'production' ? ['http://localhost:3000', 'http://localhost:5173'] : [])
 ].filter(Boolean);
 
+async function readJsonBody(req: VercelRequest) {
+    if (req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body)) {
+        return req.body as Record<string, any>;
+    }
+
+    const chunks: Buffer[] = [];
+    const preload = req.body;
+
+    if (typeof preload === 'string' && preload.trim()) {
+        chunks.push(Buffer.from(preload));
+    } else if (Buffer.isBuffer(preload) && preload.length > 0) {
+        chunks.push(preload);
+    } else if (!preload && typeof (req as any)[Symbol.asyncIterator] === 'function') {
+        for await (const chunk of req as any as AsyncIterable<Buffer | string>) {
+            if (typeof chunk === 'string') {
+                if (chunk) chunks.push(Buffer.from(chunk));
+                continue;
+            }
+
+            if (chunk?.length) chunks.push(Buffer.from(chunk));
+        }
+    }
+
+    if (chunks.length === 0) return {};
+
+    try {
+        return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    } catch {
+        const invalidJsonError = new Error('Invalid JSON');
+        (invalidJsonError as any).code = 'INVALID_JSON';
+        throw invalidJsonError;
+    }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     // 1. CORS Whitelist (Fase 11F)
     const origin = req.headers.origin;
@@ -55,6 +89,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     ).trim();
 
     try {
+        const body = await readJsonBody(req);
         const { securityService } = await import('../src/core/services/securityService.js');
 
         // 1. Rate Limit Check (Pre-Action)
@@ -82,7 +117,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const baseUrl = `${protocol}://${host}`;
 
             const result = await processMercadoPagoPayment({
-                ...req.body,
+                ...body,
                 baseUrl,
                 ip
             });
@@ -104,7 +139,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const baseUrl = `${protocol}://${host}`;
 
             const result = await processPagSeguroPayment({
-                ...req.body,
+                ...body,
                 baseUrl,
                 ip
             });
@@ -126,7 +161,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const baseUrl = `${protocol}://${host}`;
 
             const result = await processAsaasPayment({
-                ...req.body,
+                ...body,
                 baseUrl,
                 ip
             });
@@ -145,6 +180,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             message: error?.message,
             code: error?.code
         });
+        if (error?.code === 'INVALID_JSON') {
+            return res.status(400).json({ error: 'Invalid JSON' });
+        }
         return res.status(500).json({ error: 'Internal Server Error' });
     }
 }

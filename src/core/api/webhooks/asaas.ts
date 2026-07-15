@@ -4,6 +4,7 @@ import { resolveLocalSupabaseServerClient } from '../_supabase-server.js';
 import { fulfillOrder } from '../../services/fulfillment.js';
 import { decrypt } from '../../utils/cryptoUtils.js';
 import { buildSafeAsaasRawResponse, mapAsaasStatusToLocal } from '../../utils/asaas.js';
+import { getAllowedGatewayIdsForPaymentMethod } from '../../config/paymentRouting.js';
 
 function getHeaderValue(value: string | string[] | undefined) {
   if (Array.isArray(value)) return value[0] || '';
@@ -36,7 +37,7 @@ async function loadOrderAndCheckout(supabaseAdmin: any, orderId?: string | null)
 
   const { data: order } = await supabaseAdmin
     .from('orders')
-    .select('id,status,checkout_id,user_id,customer_email,customer_name,payment_id')
+    .select('id,status,checkout_id,user_id,customer_email,customer_name,payment_id,payment_method')
     .eq('id', orderId)
     .maybeSingle();
 
@@ -46,7 +47,7 @@ async function loadOrderAndCheckout(supabaseAdmin: any, orderId?: string | null)
 
   const { data: checkout } = await supabaseAdmin
     .from('checkouts')
-    .select('id,user_id,gateway_id,backup_gateway_id')
+    .select('id,user_id,gateway_id,backup_gateway_id,config')
     .eq('id', order.checkout_id)
     .maybeSingle();
 
@@ -144,7 +145,23 @@ export async function handleAsaasWebhook(
       return res.status(200).json({ status: 'ORDER_NOT_FOUND' });
     }
 
-    const allowedGatewayIds = [checkout.gateway_id, checkout.backup_gateway_id].filter(Boolean).map(String);
+    const allowedGatewayIds = getAllowedGatewayIdsForPaymentMethod({
+      config: checkout.config || null,
+      gatewayId: checkout.gateway_id || null,
+      backupGatewayId: checkout.backup_gateway_id || null,
+      paymentMethod: String(order.payment_method || '').trim() as any,
+    });
+    if (allowedGatewayIds.length === 0) {
+      await logWebhook(supabaseAdmin, {
+        eventId,
+        processed: false,
+        payload: rawPayloadForLog,
+        providerPaymentId,
+        providerEvent,
+        orderId: resolvedOrderId,
+      });
+      return res.status(200).json({ status: 'GATEWAY_NOT_FOUND' });
+    }
     let gatewayId = paymentRecord?.gateway_id ? String(paymentRecord.gateway_id) : '';
     if (!gatewayId) {
       const { data: candidateGateways } = await supabaseAdmin

@@ -28,6 +28,14 @@ const generatePaymentEncryptionKey = () => {
 const safeInstallerErrorMessage = (error: any) =>
     String(error?.message || error || 'Erro inesperado').replace(/[A-Za-z0-9_\-]{32,}/g, '[redacted]');
 
+const describeInstallerActivationError = (error: any) => {
+    const message = safeInstallerErrorMessage(error);
+    if (/failed to fetch|networkerror/i.test(message)) {
+        return 'Nao foi possivel concluir a ativacao porque a comunicacao final com o deploy falhou. Confirme se o projeto na Vercel terminou o redeploy, aguarde cerca de 1 minuto e tente novamente.';
+    }
+    return message;
+};
+
 const INSTALLER_STORAGE_BUCKETS = [
     { id: 'products', public: true },
     { id: 'contents', public: true },
@@ -236,12 +244,12 @@ export default function InstallerWizard() {
                         'installer_vercel_domain',
                         'installation_domain',
                         'installer_owner_id',
+                        'installer_setup_token',
                     ].forEach((key) => localStorage.removeItem(key));
 
                     localStorage.setItem('super_checkout_install_id', freshInstallId);
                     localStorage.setItem('installation_id', freshInstallId);
                     const freshPaymentEncryptionKey = generatePaymentEncryptionKey();
-                    localStorage.setItem('installer_payment_encryption_key', freshPaymentEncryptionKey);
                     setPaymentEncryptionKey(freshPaymentEncryptionKey);
                     setInstallationId(freshInstallId);
                     setCurrentStep('check_subscription');
@@ -396,7 +404,7 @@ export default function InstallerWizard() {
             }
 
         } catch (error: any) {
-            const message = safeInstallerErrorMessage(error);
+            const message = describeInstallerActivationError(error);
             console.error('[Installer] License validation failed:', message);
             addLog(`Erro: ${message} `);
             showAlert('Erro de Licença', message, 'error');
@@ -430,7 +438,8 @@ export default function InstallerWizard() {
         // Simulate processing for better UX
         setTimeout(() => {
             localStorage.setItem('installer_supabase_anon_key', anonKey);
-            localStorage.setItem('installer_supabase_service_key', serviceKey);
+            localStorage.setItem('installer_supabase_url', supabaseUrl);
+            localStorage.removeItem('installer_supabase_service_key');
 
             addLog(t('keys.success_msg'));
             setLoading(false);
@@ -439,6 +448,47 @@ export default function InstallerWizard() {
                 setCurrentStep('deploy'); // Go to Deploy Step
             });
         }, 1500);
+    };
+
+    const prepareTargetSetupBootstrap = async (domain: string) => {
+        if (!installToken) {
+            if (import.meta.env.DEV) {
+                const devToken = crypto.randomUUID().replace(/-/g, '');
+                localStorage.setItem('installer_setup_token', devToken);
+                return {
+                    setup_token: devToken,
+                    installation_id: installationId
+                };
+            }
+            throw new Error(t('errors.invalid_token'));
+        }
+
+        const response = await fetch('/api/installer/prepare_setup_proxy', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'prepare_setup_proxy',
+                licenseKey,
+                installationId,
+                targetDomain: domain,
+                installToken
+            })
+        });
+
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload?.success || !payload?.setup_token) {
+            throw new Error(payload?.error || payload?.message || 'Falha ao preparar o bootstrap seguro no dominio final.');
+        }
+
+        localStorage.removeItem('install_token');
+        setInstallToken(null);
+        localStorage.setItem('installer_setup_token', payload.setup_token);
+        if (payload.installation_id) {
+            localStorage.setItem('installation_id', payload.installation_id);
+            setInstallationId(payload.installation_id);
+        }
+
+        return payload;
     };
 
     // --- LOGIC: Deploy (Final Activation) ---
@@ -484,7 +534,7 @@ export default function InstallerWizard() {
             setDeployProgressMessage(t('vercel_config.progress_verify'));
             await verifyDistributionBackend(cleanDomain, { licenseKey, installationId });
             setDeployProgressMessage(t('vercel_config.progress_finalize'));
-            await consumeInstallToken(cleanDomain);
+            await prepareTargetSetupBootstrap(cleanDomain);
             localStorage.setItem('installer_vercel_domain', cleanDomain);
             runSuccessAnim('Domínio Ativado!', () => {
                 setDeployProgressMessage('');
@@ -516,15 +566,12 @@ export default function InstallerWizard() {
 
         // Restore keys if available
         setAnonKey(localStorage.getItem('installer_supabase_anon_key') || '');
-        setServiceKey(localStorage.getItem('installer_supabase_service_key') || '');
         setSupabaseUrl(localStorage.getItem('installer_supabase_url') || '');
+        localStorage.removeItem('installer_supabase_service_key');
+        localStorage.removeItem('installer_owner_id');
 
-        let savedPaymentEncryptionKey = localStorage.getItem('installer_payment_encryption_key');
-        if (!savedPaymentEncryptionKey) {
-            savedPaymentEncryptionKey = generatePaymentEncryptionKey();
-            localStorage.setItem('installer_payment_encryption_key', savedPaymentEncryptionKey);
-        }
-        setPaymentEncryptionKey(savedPaymentEncryptionKey);
+        localStorage.removeItem('installer_payment_encryption_key');
+        setPaymentEncryptionKey(generatePaymentEncryptionKey());
 
         const savedStep = localStorage.getItem('installer_step') as Step;
         if (savedStep && savedStep !== 'success') {
@@ -835,7 +882,7 @@ export default function InstallerWizard() {
                                 try {
                                     // SAVE KEYS TO LOCALSTORAGE (CRITICAL FIX)
                                     localStorage.setItem('installer_supabase_anon_key', anonKey);
-                                    localStorage.setItem('installer_supabase_service_key', serviceKey);
+                                    localStorage.removeItem('installer_supabase_service_key');
                                     localStorage.setItem('installer_supabase_url', supabaseUrl); // Ensure URL is also saved
 
                                     // 1. Probe the new schema. The canonical SQL already runs NOTIFY pgrst.
@@ -920,9 +967,21 @@ export default function InstallerWizard() {
                                         }
                                     }
 
+                                    localStorage.setItem('installer_supabase_anon_key', anonKey);
+                                    localStorage.setItem('installer_supabase_url', supabaseUrl);
+                                    localStorage.setItem('installation_id', currentInstallId);
+                                    localStorage.removeItem('installer_supabase_service_key');
+                                    localStorage.removeItem('installer_owner_id');
+                                    localStorage.removeItem('installer_setup_token');
+                                     console.log('[Installer] Public config saved. Server-side bootstrap will run after deploy.');
+                                     setLoading(false);
+                                     setCurrentStep('deploy');
+                                     return;
+                                    /*
+
                                     // 2.1 Inject Validated License into Local DB
                                     console.log('💉 Injecting validated license into local database...');
-                                    const adminClient = createClient(supabaseUrl, serviceKey);
+                                    const adminClient = null as any;
 
                                     const licenseToInsert = {
                                         key: licenseKey, // The key from input
@@ -1029,7 +1088,7 @@ export default function InstallerWizard() {
                                             console.log('✅ Installation ID secured in database.');
                                             localStorage.setItem('installation_id', currentInstallId);
                                             if (validationData?.license?.owner_id) {
-                                                localStorage.setItem('installer_owner_id', validationData.license.owner_id);
+                                                console.log('[Installer] Central owner detected for server-side bootstrap.');
                                             }
                                         }
                                     } catch (configErr) {
@@ -1059,6 +1118,7 @@ export default function InstallerWizard() {
                                         console.warn('Error registering local installation:', safeInstallerErrorMessage(installationErr));
                                     }
 
+                                    */
                                 } catch (error) {
                                     console.warn('Error during setup:', safeInstallerErrorMessage(error));
                                     setLoading(false); // Reset loading state on error
@@ -1295,24 +1355,27 @@ export default function InstallerWizard() {
                                     const targetDomain = localStorage.getItem('installer_vercel_domain') || vercelDomain;
                                     const currentHost = window.location.host;
 
-                                    // SECURITY: Cross-Domain Config Injection
-                                    // Since "Closed Build" has empty env vars, we must pass the keys to the new domain.
-                                    // We use a URL Hash Fragment which is NOT sent to the server.
+                                    const setupToken = localStorage.getItem('installer_setup_token');
+                                    if (!setupToken) {
+                                        showAlert('Setup seguro indisponivel', 'O token temporario de bootstrap expirou ou nao foi emitido. Volte ao passo anterior e finalize novamente.', 'error');
+                                        return;
+                                    }
+
+                                    // Cross-domain hydration carries public config and a short-lived setup token only.
                                     const configPayload = {
                                         url: localStorage.getItem('installer_supabase_url') || supabaseUrl,
                                         anon: localStorage.getItem('installer_supabase_anon_key') || anonKey,
-                                        service: localStorage.getItem('installer_supabase_service_key') || serviceKey,
                                         license: localStorage.getItem('installer_license_key') || licenseKey,
                                         org: localStorage.getItem('installer_org_slug') || organizationSlug,
                                         install_id: localStorage.getItem('installation_id') || installationId, // Use state as fallback
-                                        central_id: localStorage.getItem('installer_owner_id') || null
+                                        setup_token: setupToken
                                     };
                                     // Encode to Base64 to keep URL clean
                                     const encodedConfig = btoa(JSON.stringify(configPayload));
                                     const injectionHash = `#installer_config=${encodedConfig}`;
 
                                     if (targetDomain && !currentHost.includes(targetDomain)) {
-                                        // Different domain (Cross-Domain): Open new tab WITH KEYS
+                                        // Different domain (Cross-Domain): Open new tab with bootstrap proof.
                                         // The destination App.tsx must attempt to hydrate from this hash.
                                         // Update: Redirect to /setup to create admin user immediately
                                         window.open(`https://${targetDomain}/setup${injectionHash}`, '_blank');
@@ -1392,7 +1455,7 @@ export default function InstallerWizard() {
                 title={alertModal.title}
                 message={alertModal.message}
                 variant={alertModal.variant}
-                buttonText={t('common.ok')}
+                buttonText={t('ok', { ns: 'common', defaultValue: 'OK' })}
             />
 
             <UpsellModal

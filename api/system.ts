@@ -11,6 +11,7 @@ import { enforceApiRateLimit } from '../src/core/api/_rate-limit.js';
 import { fulfillOrder } from '../src/core/services/fulfillment.js';
 import { sendOrderAccessEmail } from '../src/core/services/orderEmail.js';
 import { mergeOrderMetadata, normalizeOrderMetadata } from '../src/core/services/orderMetadata.js';
+import { getAllowedGatewayIdsForPaymentMethod } from '../src/core/config/paymentRouting.js';
 
 const DEFAULT_ALLOWED_ORIGIN = 'https://app.supercheckout.app';
 const OFFICIAL_CENTRAL_API_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co/functions/v1';
@@ -451,16 +452,19 @@ async function autoLoginHandler(req: VercelRequest, res: VercelResponse) {
       return res.status(429).json({ error: 'Too many requests' });
     }
 
-    const { verifyLoginToken } = await import('../src/core/utils/loginToken.js');
-    const verified = verifyLoginToken(token);
-    if (!verified) return res.status(401).json({ error: 'Invalid or expired token' });
-
     const { supabaseUrl, publicKey } = getLocalSupabasePublicConfig();
     const { supabase: supabaseAdmin } = await resolveLocalSupabaseServerClient();
     const authApiKey = publicKey || getSupabaseAnonKey();
     if (!supabaseUrl || !supabaseAdmin || !authApiKey) {
       return res.status(500).json({ error: getLocalSupabaseServerKeyErrorMessage() });
     }
+
+    const { consumeLoginToken, verifyLegacyLoginToken } = await import('../src/core/utils/loginToken.js');
+    let verified = await consumeLoginToken(supabaseAdmin, token);
+    if (!verified && process.env.ALLOW_LEGACY_MEMBER_LOGIN_TOKEN === 'true') {
+      verified = verifyLegacyLoginToken(token);
+    }
+    if (!verified) return res.status(401).json({ error: 'Invalid or expired token' });
 
     // Generate magic link token server-side
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
@@ -831,11 +835,17 @@ async function upsellEligibilityHandler(req: VercelRequest, res: VercelResponse)
 
     const { data: checkout } = await supabaseAdmin
       .from('checkouts')
-      .select('gateway_id, user_id')
+      .select('gateway_id, backup_gateway_id, user_id, config')
       .eq('id', order.checkout_id)
       .maybeSingle();
 
-    const effectiveGatewayId = String(payment?.gateway_id || checkout?.gateway_id || '').trim();
+    const allowedGatewayIds = getAllowedGatewayIdsForPaymentMethod({
+      config: checkout?.config || null,
+      gatewayId: checkout?.gateway_id || null,
+      backupGatewayId: checkout?.backup_gateway_id || null,
+      paymentMethod: String(order.payment_method || '').trim() as any,
+    });
+    const effectiveGatewayId = String(payment?.gateway_id || allowedGatewayIds[0] || checkout?.gateway_id || '').trim();
     const effectiveMerchantUserId = String(checkout?.user_id || payment?.user_id || order.user_id || '').trim();
     const normalizedCustomerEmail = String(order.customer_email || '').trim().toLowerCase();
 
@@ -1145,7 +1155,7 @@ async function finalizeStripePaymentHandler(req: VercelRequest, res: VercelRespo
 
     const { data: order } = await supabaseAdmin
       .from('orders')
-      .select('id, status, user_id, checkout_id, payment_id, customer_email, customer_name')
+      .select('id, status, user_id, checkout_id, payment_id, customer_email, customer_name, payment_method')
       .eq('id', orderId)
       .maybeSingle();
 
@@ -1163,11 +1173,17 @@ async function finalizeStripePaymentHandler(req: VercelRequest, res: VercelRespo
 
     const { data: checkout } = await supabaseAdmin
       .from('checkouts')
-      .select('id, user_id, gateway_id, backup_gateway_id')
+      .select('id, user_id, gateway_id, backup_gateway_id, config')
       .eq('id', order.checkout_id)
       .maybeSingle();
 
-    const gatewayId = String(payment?.gateway_id || checkout?.gateway_id || '').trim();
+    const allowedGatewayIds = getAllowedGatewayIdsForPaymentMethod({
+      config: checkout?.config || null,
+      gatewayId: checkout?.gateway_id || null,
+      backupGatewayId: checkout?.backup_gateway_id || null,
+      paymentMethod: String(order.payment_method || '').trim() as any,
+    });
+    const gatewayId = String(payment?.gateway_id || allowedGatewayIds[0] || checkout?.gateway_id || '').trim();
     const effectivePaymentIntentId = paymentIntentId || String(payment?.transaction_id || order.payment_id || '').trim();
     const merchantUserId = String(checkout?.user_id || payment?.user_id || order.user_id || '').trim();
 

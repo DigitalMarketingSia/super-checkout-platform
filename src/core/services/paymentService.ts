@@ -1,7 +1,7 @@
 
-import { Gateway, GatewayProvider, Order, OrderStatus, Payment, WebhookLog, OrderItem, InstallmentOption } from '../types';
+import { Checkout, Gateway, GatewayProvider, Order, OrderStatus, Payment, WebhookLog, OrderItem, InstallmentOption, PaymentMethodType } from '../types';
 import { storage } from './storageService';
-import { demoDataService } from './demoDataService';
+import { demoDataService, isDemoDataRuntime } from './demoDataService';
 import { MercadoPagoAdapter } from './adapters/MercadoPagoAdapter';
 import { StripeAdapter } from './adapters/StripeAdapter';
 import { emailService } from './emailService';
@@ -16,6 +16,13 @@ import { buildSafePagSeguroRawResponse, getPagSeguroStatus, mapPagSeguroStatusTo
 import { buildSafeMercadoPagoRawResponse, buildSafeStripeRawResponse } from '../utils/paymentRawResponse';
 import { buildSafeAsaasRawResponse, mapAsaasStatusToLocal } from '../utils/asaas';
 import { dispatchDemoWebhookEvent } from './demoWebhookService';
+import {
+  collectCheckoutRoutingGatewayIds,
+  getAllowedGatewayIdsForPaymentMethod,
+  normalizeCheckoutPaymentRouting,
+} from '../config/paymentRouting';
+import { mergeOrderMetadata, normalizeOrderMetadata } from './orderMetadata';
+import { supabase } from './supabase';
 
 // Helper for UUID generation
 const generateUUID = () => {
@@ -35,7 +42,7 @@ export interface ProcessPaymentRequest {
   customerPhone?: string;
   customerCpf?: string;
   gatewayId: string;
-  paymentMethod: 'credit_card' | 'pix' | 'boleto';
+  paymentMethod: PaymentMethodType;
   items: OrderItem[];
   currency: string; // New: Currency (BRL, USD, EUR)
   customerUserId?: string; // Added for access grants
@@ -94,6 +101,59 @@ export interface ProcessPaymentResult {
   paymentMethodId?: string;
   code?: string;
 }
+
+type GatewayAttemptPlan = {
+  orderedGatewayIds: string[];
+  primaryGatewayId: string | null;
+  backupGatewayId: string | null;
+  routeIsExplicit: boolean;
+  fallbackMode: 'disabled' | 'pix_backup';
+};
+
+type PixFailoverDecision = {
+  shouldFailover: boolean;
+  reason:
+    | 'not_pix'
+    | 'no_backup_available'
+    | 'gateway_inactive'
+    | 'gateway_temporarily_unavailable'
+    | 'provider_error'
+    | 'validation_or_payment_error';
+};
+
+const PIX_FAILOVER_RETRYABLE_PATTERNS = [
+  /timeout/i,
+  /timed out/i,
+  /network/i,
+  /failed to fetch/i,
+  /service unavailable/i,
+  /temporarily unavailable/i,
+  /gateway .*not available/i,
+  /gateway .*indisponivel/i,
+  /invalid response/i,
+  /backend is running/i,
+  /\b502\b/i,
+  /\b503\b/i,
+  /\b504\b/i,
+];
+
+const PIX_FAILOVER_NON_RETRYABLE_PATTERNS = [
+  /cpf/i,
+  /cnpj/i,
+  /document/i,
+  /currency/i,
+  /apenas para checkouts em brl/i,
+  /payment rejected/i,
+  /pagamento rejeitado/i,
+  /rejected/i,
+  /refused/i,
+  /denied/i,
+  /cart[aã]o/i,
+  /card/i,
+  /boleto/i,
+  /requires additional/i,
+  /dados obrigat[oó]rios/i,
+];
 
 /**
  * PAYMENT SERVICE LAYER
@@ -312,6 +372,294 @@ class PaymentService {
     }
   }
 
+  private async loadCheckoutRoutingGateways(checkout: Checkout | null) {
+    if (!checkout) return [];
+
+    const gatewayIds = collectCheckoutRoutingGatewayIds({
+      config: checkout.config,
+      gatewayId: checkout.gateway_id,
+      backupGatewayId: checkout.backup_gateway_id,
+    });
+
+    if (gatewayIds.length === 0) return [];
+
+    const gateways = await Promise.all(gatewayIds.map((gatewayId) => storage.getPublicGateway(gatewayId)));
+    return gateways.filter((gateway): gateway is Gateway => Boolean(gateway?.id));
+  }
+
+  private resolveGatewayAttemptPlan(params: {
+    checkout: Checkout | null;
+    paymentMethod: PaymentMethodType;
+    requestedGatewayId: string;
+    gateways: Gateway[];
+  }): GatewayAttemptPlan {
+    const emptyPlan: GatewayAttemptPlan = {
+      orderedGatewayIds: [],
+      primaryGatewayId: null,
+      backupGatewayId: null,
+      routeIsExplicit: false,
+      fallbackMode: 'disabled',
+    };
+
+    const requestedGatewayId = String(params.requestedGatewayId || '').trim() || null;
+
+    if (!params.checkout) {
+      return {
+        ...emptyPlan,
+        orderedGatewayIds: requestedGatewayId ? [requestedGatewayId] : [],
+        primaryGatewayId: requestedGatewayId,
+        backupGatewayId: null,
+      };
+    }
+
+    const normalizedRouting = normalizeCheckoutPaymentRouting({
+      config: params.checkout.config,
+      gatewayId: params.checkout.gateway_id,
+      backupGatewayId: params.checkout.backup_gateway_id,
+      gateways: params.gateways,
+    });
+    const route = normalizedRouting[params.paymentMethod];
+    const allowedGatewayIds = getAllowedGatewayIdsForPaymentMethod({
+      config: params.checkout.config,
+      gatewayId: params.checkout.gateway_id,
+      backupGatewayId: params.checkout.backup_gateway_id,
+      paymentMethod: params.paymentMethod,
+      gateways: params.gateways,
+    });
+    const routeIsExplicit = Boolean(params.checkout.config?.payment_routing?.[params.paymentMethod]);
+
+    const preferredGatewayId = [
+      route?.primary_gateway_id || null,
+      requestedGatewayId,
+      allowedGatewayIds[0] || null,
+    ].find((gatewayId): gatewayId is string => Boolean(gatewayId));
+
+    if (!preferredGatewayId) {
+      return {
+        ...emptyPlan,
+        routeIsExplicit,
+      };
+    }
+    const fallbackAllowedForMethod = params.paymentMethod === 'pix';
+    const explicitBackupGatewayId = route?.backup_gateway_id || null;
+    const derivedBackupGatewayId = allowedGatewayIds.find((gatewayId) => gatewayId !== preferredGatewayId) || null;
+    const backupGatewayId = fallbackAllowedForMethod
+      ? [explicitBackupGatewayId, derivedBackupGatewayId]
+          .find((gatewayId): gatewayId is string => Boolean(gatewayId && gatewayId !== preferredGatewayId))
+        || null
+      : null;
+    const orderedGatewayIds: string[] = [preferredGatewayId];
+
+    if (backupGatewayId) {
+      orderedGatewayIds.push(backupGatewayId);
+    }
+
+    return {
+      orderedGatewayIds,
+      primaryGatewayId: preferredGatewayId,
+      backupGatewayId,
+      routeIsExplicit,
+      fallbackMode: backupGatewayId ? 'pix_backup' : 'disabled',
+    };
+  }
+
+  private getGatewayAttemptRole(plan: GatewayAttemptPlan, gatewayId: string) {
+    if (gatewayId === plan.primaryGatewayId) return 'primary';
+    if (gatewayId === plan.backupGatewayId) return 'backup';
+    return 'candidate';
+  }
+
+  private decidePixFailover(params: {
+    paymentMethod: PaymentMethodType;
+    hasNextGateway: boolean;
+    message?: string | null;
+    gatewayInactive?: boolean;
+  }): PixFailoverDecision {
+    if (params.paymentMethod !== 'pix') {
+      return { shouldFailover: false, reason: 'not_pix' };
+    }
+
+    if (!params.hasNextGateway) {
+      return { shouldFailover: false, reason: 'no_backup_available' };
+    }
+
+    if (params.gatewayInactive) {
+      return { shouldFailover: true, reason: 'gateway_inactive' };
+    }
+
+    const normalizedMessage = String(params.message || '').trim();
+    if (!normalizedMessage) {
+      return { shouldFailover: true, reason: 'provider_error' };
+    }
+
+    if (PIX_FAILOVER_RETRYABLE_PATTERNS.some((pattern) => pattern.test(normalizedMessage))) {
+      return { shouldFailover: true, reason: 'gateway_temporarily_unavailable' };
+    }
+
+    if (PIX_FAILOVER_NON_RETRYABLE_PATTERNS.some((pattern) => pattern.test(normalizedMessage))) {
+      return { shouldFailover: false, reason: 'validation_or_payment_error' };
+    }
+
+    return { shouldFailover: true, reason: 'provider_error' };
+  }
+
+  private async updatePaymentRoutingAudit(
+    orderId: string,
+    apply: (currentRuntime: Record<string, any>, metadata: Record<string, any>) => {
+      nextRuntime: Record<string, any>;
+      nextPaymentContext?: Record<string, any> | null;
+    }
+  ) {
+    if (isDemoDataRuntime()) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('metadata')
+        .eq('id', orderId)
+        .maybeSingle();
+
+      if (error) {
+        throw error;
+      }
+
+      const metadata = normalizeOrderMetadata(data?.metadata);
+      const currentRuntime = normalizeOrderMetadata(metadata.payment_routing_runtime);
+      const currentPaymentContext = normalizeOrderMetadata(metadata.payment_context);
+      const { nextRuntime, nextPaymentContext } = apply(currentRuntime, metadata);
+
+      await mergeOrderMetadata(supabase, orderId, {
+        payment_context: nextPaymentContext
+          ? {
+              ...currentPaymentContext,
+              ...nextPaymentContext,
+            }
+          : currentPaymentContext,
+        payment_routing_runtime: nextRuntime,
+      });
+    } catch (auditError) {
+      console.warn('[PaymentService] Failed to persist payment routing audit trail:', auditError);
+    }
+  }
+
+  private async initializePaymentRoutingAudit(order: Order, plan: GatewayAttemptPlan, gateways: Gateway[]) {
+    const nowIso = new Date().toISOString();
+    const gatewayNamesById = gateways.reduce<Record<string, string>>((acc, gateway) => {
+      acc[gateway.id] = gateway.name;
+      return acc;
+    }, {});
+
+    await this.updatePaymentRoutingAudit(order.id, (currentRuntime) => ({
+      nextPaymentContext: {
+        gateway_id: plan.primaryGatewayId,
+        payment_method: order.payment_method,
+      },
+      nextRuntime: {
+        ...currentRuntime,
+        initialized_at: currentRuntime.initialized_at || nowIso,
+        updated_at: nowIso,
+        strategy: plan.fallbackMode === 'pix_backup' ? 'pix_first_with_backup' : 'single_gateway',
+        payment_method: order.payment_method,
+        primary_gateway_id: plan.primaryGatewayId,
+        backup_gateway_id: plan.backupGatewayId,
+        ordered_gateway_ids: plan.orderedGatewayIds,
+        ordered_gateways: plan.orderedGatewayIds.map((gatewayId) => ({
+          gateway_id: gatewayId,
+          gateway_name: gatewayNamesById[gatewayId] || null,
+          route_role: this.getGatewayAttemptRole(plan, gatewayId),
+        })),
+        route_is_explicit: plan.routeIsExplicit,
+        fallback_enabled: plan.fallbackMode === 'pix_backup',
+        fallback_used: false,
+        final_status: 'pending',
+        attempts: Array.isArray(currentRuntime.attempts) ? currentRuntime.attempts : [],
+      },
+    }));
+  }
+
+  private async recordPaymentRoutingAttempt(params: {
+    orderId: string;
+    plan: GatewayAttemptPlan;
+    attemptNumber: number;
+    gatewayId: string;
+    gatewayName?: string | null;
+    startedAt: string;
+    finishedAt: string;
+    outcome: 'success' | 'failed' | 'requires_payment_form';
+    message?: string | null;
+    gatewayStatus?: string | null;
+    failoverDecision?: PixFailoverDecision | null;
+    winnerGatewayId?: string | null;
+  }) {
+    await this.updatePaymentRoutingAudit(params.orderId, (currentRuntime) => {
+      const attempts = Array.isArray(currentRuntime.attempts) ? currentRuntime.attempts : [];
+      const fallbackTriggered = Boolean(
+        params.outcome === 'failed'
+          && params.failoverDecision?.shouldFailover
+          && params.plan.backupGatewayId
+          && params.gatewayId !== params.plan.backupGatewayId
+      );
+
+      const nextFinalStatus = params.outcome === 'success'
+        ? 'succeeded'
+        : params.outcome === 'requires_payment_form'
+          ? 'requires_payment_form'
+          : fallbackTriggered
+            ? 'pending'
+            : 'failed';
+
+      return {
+        nextPaymentContext: params.winnerGatewayId
+          ? { gateway_id: params.winnerGatewayId }
+          : null,
+        nextRuntime: {
+          ...currentRuntime,
+          updated_at: params.finishedAt,
+          fallback_used: Boolean(currentRuntime.fallback_used) || params.gatewayId === params.plan.backupGatewayId,
+          winner_gateway_id: params.winnerGatewayId || currentRuntime.winner_gateway_id || null,
+          final_status: nextFinalStatus,
+          final_error: nextFinalStatus === 'failed'
+            ? params.message || currentRuntime.final_error || null
+            : nextFinalStatus === 'pending'
+              ? currentRuntime.final_error || null
+              : null,
+          attempts: [
+            ...attempts,
+            {
+              attempt_number: params.attemptNumber,
+              gateway_id: params.gatewayId,
+              gateway_name: params.gatewayName || null,
+              route_role: this.getGatewayAttemptRole(params.plan, params.gatewayId),
+              started_at: params.startedAt,
+              finished_at: params.finishedAt,
+              outcome: params.outcome,
+              message: params.message || null,
+              gateway_status: params.gatewayStatus || null,
+              failover_decision: params.failoverDecision
+                ? {
+                    should_failover: params.failoverDecision.shouldFailover,
+                    reason: params.failoverDecision.reason,
+                    fallback_triggered: fallbackTriggered,
+                  }
+                : null,
+            },
+          ],
+        },
+      };
+    });
+  }
+
+  private async finalizePaymentRoutingFailure(orderId: string, message: string) {
+    await this.updatePaymentRoutingAudit(orderId, (currentRuntime) => ({
+      nextRuntime: {
+        ...currentRuntime,
+        updated_at: new Date().toISOString(),
+        final_status: 'failed',
+        final_error: message || currentRuntime.final_error || 'Payment processing failed',
+      },
+    }));
+  }
+
   /**
    * MOTOR FINANCEIRO HÍBRIDO
    * Retorna parcelas dinâmicas baseadas na Moeda, Gateway e BIN do Cartão.
@@ -429,66 +777,106 @@ class PaymentService {
       
       // 1. Carregar configuração do Checkout para verificar se tem Backup
       const checkout = await storage.getPublicCheckout(request.checkoutId);
-      const backupId = checkout?.backup_gateway_id;
-      
-      const gatewaysToTry = [request.gatewayId];
-      if (backupId) gatewaysToTry.push(backupId);
+      const routingGateways = await this.loadCheckoutRoutingGateways(checkout);
+      const attemptPlan = this.resolveGatewayAttemptPlan({
+        checkout,
+        paymentMethod: request.paymentMethod,
+        requestedGatewayId: request.gatewayId,
+        gateways: routingGateways,
+      });
+      const gatewaysToTry = attemptPlan.orderedGatewayIds;
+
+      if (gatewaysToTry.length === 0) {
+        return {
+          success: false,
+          message: 'Nenhum gateway compativel ativo foi encontrado para este metodo de pagamento.',
+        };
+      }
+
+      const resolvedRequest: ProcessPaymentRequest = {
+        ...request,
+        gatewayId: gatewaysToTry[0],
+      };
 
       let lastError = '';
-      let currentOrder: Order | null = null;
+      const currentOrder: Order = {
+        id: generateUUID(),
+        checkout_id: request.checkoutId,
+        offer_id: (request.offerId === 'direct' || request.offerId === 'upsell') ? undefined : request.offerId,
+        amount: request.amount,
+        customer_email: request.customerEmail,
+        customer_name: request.customerName,
+        customer_phone: request.customerPhone,
+        customer_cpf: request.customerCpf,
+        status: OrderStatus.PENDING,
+        payment_method: resolvedRequest.paymentMethod,
+        utm_source: resolvedRequest.trackingAttribution?.utm_source || undefined,
+        utm_medium: resolvedRequest.trackingAttribution?.utm_medium || undefined,
+        utm_campaign: resolvedRequest.trackingAttribution?.utm_campaign || undefined,
+        items: resolvedRequest.items,
+        metadata: this.buildOrderMetadata(resolvedRequest),
+        created_at: new Date().toISOString(),
+        customer_user_id: resolvedRequest.customerUserId,
+      };
 
-      for (const gatewayId of gatewaysToTry) {
+      await storage.createOrder(currentOrder);
+      await this.initializePaymentRoutingAudit(currentOrder, attemptPlan, routingGateways);
+
+      for (const [attemptIndex, gatewayId] of gatewaysToTry.entries()) {
+        const hasNextGateway = attemptIndex < gatewaysToTry.length - 1;
+        const startedAt = new Date().toISOString();
         try {
           console.log(`[PaymentService] Attempting payment with gateway: ${gatewayId}`);
           const gateway = await storage.getPublicGateway(gatewayId);
           
           if (!gateway || !gateway.active) {
-            console.warn(`[PaymentService] Gateway ${gatewayId} is not available/active`);
-            continue;
+            lastError = `Gateway ${gatewayId} is not available/active`;
+            console.warn(`[PaymentService] ${lastError}`);
+            const failoverDecision = this.decidePixFailover({
+              paymentMethod: request.paymentMethod,
+              hasNextGateway,
+              message: lastError,
+              gatewayInactive: true,
+            });
+            await this.recordPaymentRoutingAttempt({
+              orderId: currentOrder.id,
+              plan: attemptPlan,
+              attemptNumber: attemptIndex + 1,
+              gatewayId,
+              startedAt,
+              finishedAt: new Date().toISOString(),
+              outcome: 'failed',
+              message: lastError,
+              failoverDecision,
+            });
+            if (failoverDecision.shouldFailover) {
+              continue;
+            }
+            break;
           }
 
-          // Criar ou Reutilizar Order
-          if (!currentOrder) {
-            currentOrder = {
-              id: generateUUID(),
-              checkout_id: request.checkoutId,
-              offer_id: (request.offerId === 'direct' || request.offerId === 'upsell') ? undefined : request.offerId,
-              amount: request.amount,
-              customer_email: request.customerEmail,
-              customer_name: request.customerName,
-              customer_phone: request.customerPhone,
-              customer_cpf: request.customerCpf,
-              status: OrderStatus.PENDING,
-              payment_method: request.paymentMethod,
-              utm_source: request.trackingAttribution?.utm_source || undefined,
-              utm_medium: request.trackingAttribution?.utm_medium || undefined,
-              utm_campaign: request.trackingAttribution?.utm_campaign || undefined,
-              items: request.items,
-              metadata: this.buildOrderMetadata(request),
-              created_at: new Date().toISOString(),
-              customer_user_id: request.customerUserId
-            };
-            await storage.createOrder(currentOrder);
-          }
+          const attemptRequest = gatewayId === resolvedRequest.gatewayId
+            ? resolvedRequest
+            : { ...resolvedRequest, gatewayId };
 
           if (gateway.config?.demo) {
-            return await this.processDemoGateway(gateway, currentOrder, request);
+            return await this.processDemoGateway(gateway, currentOrder, attemptRequest);
           }
 
           // Executar roteamento
           let gatewayResponse: ProcessPaymentResult;
           switch (gateway.name) {
             case GatewayProvider.MERCADO_PAGO:
-              gatewayResponse = await this.processMercadoPago(gateway, currentOrder, request);
+              gatewayResponse = await this.processMercadoPago(gateway, currentOrder, attemptRequest);
               break;
             case GatewayProvider.STRIPE:
-              gatewayResponse = await this.processStripe(gateway, currentOrder, request);
+              gatewayResponse = await this.processStripe(gateway, currentOrder, attemptRequest);
               break;
             case GatewayProvider.PAGSEGURO:
-              gatewayResponse = await this.processPagSeguro(gateway, currentOrder, request);
+              gatewayResponse = await this.processPagSeguro(gateway, currentOrder, attemptRequest);
               break;
             case GatewayProvider.ASAAS:
-              gatewayResponse = await this.processAsaas(gateway, currentOrder, request);
+              gatewayResponse = await this.processAsaas(gateway, currentOrder, attemptRequest);
               break;
             default:
               gatewayResponse = { success: false, message: i18n.t('unknown_gateway') };
@@ -496,6 +884,19 @@ class PaymentService {
 
           if (gatewayResponse.success) {
             console.log(`[PaymentService] Payment SUCCESS with gateway: ${gatewayId}`);
+            await this.recordPaymentRoutingAttempt({
+              orderId: currentOrder.id,
+              plan: attemptPlan,
+              attemptNumber: attemptIndex + 1,
+              gatewayId,
+              gatewayName: gateway.name,
+              startedAt,
+              finishedAt: new Date().toISOString(),
+              outcome: 'success',
+              message: gatewayResponse.message || null,
+              gatewayStatus: gatewayResponse.gatewayStatus || null,
+              winnerGatewayId: gatewayId,
+            });
             // Post-payment side effects must stay server-side. The Vercel payment
             // handlers/webhooks fulfill the order and send the tokenized access email.
             return {
@@ -505,34 +906,85 @@ class PaymentService {
             };
           } else if (gatewayResponse.requiresPaymentForm) {
             console.warn(`[PaymentService] Payment requires additional confirmation with gateway ${gatewayId}.`);
-            if (currentOrder?.id) {
-              try {
-                await this.updateOrderStatus(currentOrder.id, OrderStatus.FAILED);
-              } catch (statusError) {
-                console.warn('[PaymentService] Failed to mark preliminary order as failed:', statusError);
-              }
+            await this.recordPaymentRoutingAttempt({
+              orderId: currentOrder.id,
+              plan: attemptPlan,
+              attemptNumber: attemptIndex + 1,
+              gatewayId,
+              gatewayName: gateway.name,
+              startedAt,
+              finishedAt: new Date().toISOString(),
+              outcome: 'requires_payment_form',
+              message: gatewayResponse.message || null,
+              gatewayStatus: gatewayResponse.gatewayStatus || null,
+              winnerGatewayId: gatewayId,
+            });
+            try {
+              await this.updateOrderStatus(currentOrder.id, OrderStatus.FAILED);
+            } catch (statusError) {
+              console.warn('[PaymentService] Failed to mark preliminary order as failed:', statusError);
             }
             return {
               ...gatewayResponse,
-              orderId: gatewayResponse.orderId || currentOrder?.id,
+              orderId: gatewayResponse.orderId || currentOrder.id,
             };
           } else {
             console.warn(`[PaymentService] Payment FAILED with gateway ${gatewayId}: ${gatewayResponse.message}`);
             lastError = gatewayResponse.message || 'Unknown error';
-            // Se falhou o principal e temos backup, continua o loop
+            const failoverDecision = this.decidePixFailover({
+              paymentMethod: request.paymentMethod,
+              hasNextGateway,
+              message: lastError,
+            });
+            await this.recordPaymentRoutingAttempt({
+              orderId: currentOrder.id,
+              plan: attemptPlan,
+              attemptNumber: attemptIndex + 1,
+              gatewayId,
+              gatewayName: gateway.name,
+              startedAt,
+              finishedAt: new Date().toISOString(),
+              outcome: 'failed',
+              message: lastError,
+              gatewayStatus: gatewayResponse.gatewayStatus || null,
+              failoverDecision,
+            });
+            if (failoverDecision.shouldFailover) {
+              continue;
+            }
+            break;
           }
         } catch (attemptError: any) {
           console.error(`[PaymentService] Exception during gateway attempt ${gatewayId}:`, attemptError);
           lastError = attemptError.message;
+          const failoverDecision = this.decidePixFailover({
+            paymentMethod: request.paymentMethod,
+            hasNextGateway,
+            message: lastError,
+          });
+          await this.recordPaymentRoutingAttempt({
+            orderId: currentOrder.id,
+            plan: attemptPlan,
+            attemptNumber: attemptIndex + 1,
+            gatewayId,
+            startedAt,
+            finishedAt: new Date().toISOString(),
+            outcome: 'failed',
+            message: lastError,
+            failoverDecision,
+          });
+          if (failoverDecision.shouldFailover) {
+            continue;
+          }
+          break;
         }
       }
 
       // Se chegou aqui, todos os gateways falharam
-      if (currentOrder) {
-         try {
-           await this.updateOrderStatus(currentOrder.id, OrderStatus.FAILED);
-         } catch (e) {}
-      }
+      await this.finalizePaymentRoutingFailure(currentOrder.id, lastError || 'Payment processing failed');
+      try {
+        await this.updateOrderStatus(currentOrder.id, OrderStatus.FAILED);
+      } catch (e) {}
       
       return { success: false, message: lastError || 'Payment processing failed' };
 
@@ -886,16 +1338,23 @@ class PaymentService {
       console.log('[PaymentService] Proceeding to handle response immediately...');
 
       if (paymentResponse.status === 'approved' || paymentResponse.status === 'in_process' || paymentResponse.status === 'pending') {
-        return {
+        const paymentResult: ProcessPaymentResult = {
           success: true,
           gatewayStatus: paymentResponse.status,
           statusSignature: result.statusSignature,
           upsellCapability: result.upsellCapability || null,
-          pixData: {
+        };
+
+        // Mercado Pago can return the same top-level statuses for card and Pix.
+        // Only attach QR data when the request itself was a Pix payment.
+        if (request.paymentMethod === 'pix') {
+          paymentResult.pixData = {
             qr_code: paymentResponse.point_of_interaction?.transaction_data?.qr_code || '',
             qr_code_base64: paymentResponse.point_of_interaction?.transaction_data?.qr_code_base64 || ''
-          }
-        };
+          };
+        }
+
+        return paymentResult;
       } else {
         return {
           success: false,
@@ -1188,6 +1647,7 @@ class PaymentService {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           paymentMethodId: request.stripePaymentMethodId,
+          paymentMethod: request.paymentMethod,
           useSavedPaymentMethod,
           originalOrderId: request.originalOrderId,
           amount: order.amount,
@@ -1498,11 +1958,22 @@ class PaymentService {
   }
 
   private async updateOrderStatus(orderId: string, status: OrderStatus) {
-    const orders = await storage.getOrders();
-    const orderToUpdate = orders.find(o => o.id === orderId);
+    if (isDemoDataRuntime()) {
+      const orders = await demoDataService.getOrders();
+      const orderToUpdate = orders.find(o => o.id === orderId);
+      if (orderToUpdate) {
+        await demoDataService.saveOrders([{ ...orderToUpdate, status }]);
+      }
+      return;
+    }
 
-    if (orderToUpdate) {
-      await storage.saveOrders([{ ...orderToUpdate, status }]);
+    const { error } = await supabase
+      .from('orders')
+      .update({ status })
+      .eq('id', orderId);
+
+    if (error) {
+      throw error;
     }
   }
 

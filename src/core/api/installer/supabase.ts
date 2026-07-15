@@ -3,11 +3,26 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { applyCors } from '../_cors.js';
 import { enforceApiRateLimit } from '../_rate-limit.js';
 import { getLocalSupabaseServerConfig } from '../_supabase-server.js';
+import {
+  clearSetupBootstrapToken,
+  issueSetupBootstrapToken,
+  normalizeBootstrapDomain,
+  persistInstallationIdConfig,
+} from './setup-bootstrap.js';
 import { Buffer } from 'node:buffer';
 import { randomBytes } from 'node:crypto';
 import pg from 'pg';
 
 const { Client } = pg;
+const CENTRAL_API_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co/functions/v1';
+const INSTALLER_STORAGE_BUCKETS = [
+  { id: 'products', public: true },
+  { id: 'contents', public: true },
+  { id: 'checkouts', public: true },
+  { id: 'member-areas', public: true },
+  { id: 'avatars', public: true },
+  { id: 'product-deliverables', public: false },
+] as const;
 
 const SENSITIVE_LOG_KEYS = new Set([
   'access_token',
@@ -57,6 +72,23 @@ function secureRandomSuffix(bytes = 2) {
   return randomBytes(bytes).toString('hex');
 }
 
+function parseInstallerBody(req: VercelRequest) {
+  if (!req.body) return {};
+  if (typeof req.body === 'string') {
+    try {
+      return JSON.parse(req.body);
+    } catch {
+      return {};
+    }
+  }
+  return req.body;
+}
+
+function getQueryValue(value: string | string[] | undefined) {
+  if (Array.isArray(value)) return value[0] || '';
+  return value || '';
+}
+
 function normalizeVercelDeploymentDomain(value: unknown) {
   const hostname = String(value || '')
     .trim()
@@ -70,6 +102,171 @@ function normalizeVercelDeploymentDomain(value: unknown) {
   }
 
   return hostname;
+}
+
+function isAlreadyExistsError(error: any) {
+  return /already exists|resource_already_exists/i.test(String(error?.message || error || ''));
+}
+
+function resolveCentralAnonKey() {
+  return String(
+    process.env.CENTRAL_SUPABASE_PUBLISHABLE_KEY
+    || process.env.VITE_CENTRAL_SUPABASE_PUBLISHABLE_KEY
+    || process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_PUBLISHABLE_KEY
+    || process.env.CENTRAL_SUPABASE_ANON_KEY
+    || process.env.VITE_CENTRAL_SUPABASE_ANON_KEY
+    || process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_ANON_KEY
+    || '',
+  ).trim();
+}
+
+async function validateCentralLicense(params: {
+  licenseKey: string;
+  installationId: string;
+  domain: string;
+}) {
+  const centralAnonKey = resolveCentralAnonKey();
+  if (!centralAnonKey) {
+    throw new Error('Missing Central anon key');
+  }
+
+  const validationRes = await fetch(`${CENTRAL_API_URL}/validate-license`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: centralAnonKey,
+      Authorization: `Bearer ${centralAnonKey}`,
+    },
+    body: JSON.stringify({
+      license_key: params.licenseKey,
+      installation_id: params.installationId,
+      current_domain: params.domain,
+      register: true,
+    }),
+  });
+
+  if (!validationRes.ok) {
+    throw new Error('Failed to validate license with central server');
+  }
+
+  const validationData = await validationRes.json();
+  if (!validationData.valid) {
+    throw new Error(validationData.message || 'Invalid or inactive license');
+  }
+
+  return validationData;
+}
+
+async function consumeCentralInstallToken(params: {
+  installToken: string;
+  installationId: string;
+  domain: string;
+}) {
+  const centralAnonKey = resolveCentralAnonKey();
+  if (!centralAnonKey) {
+    throw new Error('Missing Central anon key');
+  }
+
+  const response = await fetch(`${CENTRAL_API_URL}/validate-token`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: centralAnonKey,
+      Authorization: `Bearer ${centralAnonKey}`,
+    },
+    body: JSON.stringify({
+      action: 'consume',
+      token: params.installToken,
+      installation_id: params.installationId,
+      domain: params.domain,
+    }),
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || !payload?.valid || !payload?.consumed) {
+    throw new Error(payload?.message || 'Invalid installation token');
+  }
+}
+
+async function ensureInstallerBuckets(supabase: any) {
+  for (const bucket of INSTALLER_STORAGE_BUCKETS) {
+    const { error: bucketError } = await supabase
+      .storage
+      .createBucket(bucket.id, { public: bucket.public });
+
+    if (bucketError && !isAlreadyExistsError(bucketError)) {
+      console.warn(`[installer/supabase] Failed to create bucket ${bucket.id}:`, safeErrorMessage(bucketError));
+      continue;
+    }
+
+    const { error: updateError } = await supabase
+      .storage
+      .updateBucket(bucket.id, { public: bucket.public });
+
+    if (updateError) {
+      console.warn(`[installer/supabase] Failed to enforce bucket ${bucket.id}:`, safeErrorMessage(updateError));
+    }
+  }
+}
+
+async function bootstrapLocalInstallation(supabase: any, params: {
+  licenseKey: string;
+  installationId: string;
+  domain: string;
+  validationData: any;
+}) {
+  const license = params.validationData?.license || {};
+  const activationTimestamp = new Date().toISOString();
+
+  const { error: licenseError } = await supabase
+    .from('licenses')
+    .upsert({
+      key: params.licenseKey,
+      client_email: license.client_email || 'admin@local.com',
+      client_name: license.client_name || 'Admin User',
+      status: license.status || 'active',
+      plan: license.plan || 'commercial',
+      max_instances: license.max_instances || license.max_installations || 1,
+      owner_id: license.owner_id || null,
+      created_at: activationTimestamp,
+      activated_at: activationTimestamp,
+      allowed_domain: params.domain,
+      expires_at: license.expires_at || null,
+    }, { onConflict: 'key' });
+
+  if (licenseError) throw licenseError;
+
+  await ensureInstallerBuckets(supabase);
+
+  const { error: domainError } = await supabase
+    .from('domains')
+    .insert({
+      domain: params.domain,
+      status: 'active',
+      type: 'installation',
+      usage: 'admin',
+      verified_at: activationTimestamp,
+    });
+
+  if (domainError && !String(domainError.message || '').includes('duplicate')) {
+    console.warn('[installer/supabase] Failed to register installation domain:', safeErrorMessage(domainError));
+  }
+
+  await persistInstallationIdConfig(supabase, params.installationId);
+
+  const { error: installationError } = await supabase
+    .from('installations')
+    .upsert({
+      license_key: params.licenseKey,
+      installation_id: params.installationId,
+      domain: params.domain,
+      status: 'active',
+      name: 'Minha Loja',
+      plan_override: license.plan || 'free',
+      last_check_in: activationTimestamp,
+    }, { onConflict: 'license_key,installation_id' });
+
+  if (installationError) throw installationError;
 }
 
 async function verifyVercelBackend(domain: string) {
@@ -99,6 +296,35 @@ async function verifyVercelBackend(domain: string) {
     error: payload?.url && payload?.anon
       ? null
       : safeResponsePreview(payload?.message || payload?.error || 'Runtime config response is missing required fields.'),
+  };
+}
+
+async function proxyPrepareSetupToTarget(params: {
+  domain: string;
+  licenseKey: string;
+  installationId: string;
+  installToken: string;
+}) {
+  const response = await fetch(`https://${params.domain}/api/installer/prepare_setup`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify({
+      action: 'prepare_setup',
+      licenseKey: params.licenseKey,
+      installationId: params.installationId,
+      targetDomain: params.domain,
+      installToken: params.installToken,
+    }),
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  return {
+    ok: response.ok && Boolean(payload?.success) && Boolean(payload?.setup_token),
+    status: response.status,
+    payload,
   };
 }
 
@@ -487,6 +713,27 @@ BEGIN
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS items JSONB;
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS total DECIMAL(10,2);
 END $$;
+
+-- 2.10.1 One-time member login tickets
+CREATE TABLE IF NOT EXISTS public.member_login_tickets(
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  token_hash TEXT NOT NULL UNIQUE,
+  email TEXT NOT NULL,
+  order_id UUID REFERENCES public.orders(id) ON DELETE SET NULL,
+  member_area_id UUID REFERENCES public.member_areas(id) ON DELETE SET NULL,
+  product_id UUID REFERENCES public.products(id) ON DELETE SET NULL,
+  expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  consumed_at TIMESTAMP WITH TIME ZONE,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  last_failed_at TIMESTAMP WITH TIME ZONE,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_member_login_tickets_expires_at ON public.member_login_tickets(expires_at);
+CREATE INDEX IF NOT EXISTS idx_member_login_tickets_email ON public.member_login_tickets(email);
+CREATE INDEX IF NOT EXISTS idx_member_login_tickets_order_id ON public.member_login_tickets(order_id);
 
 -- 2.11 Payments
 CREATE TABLE IF NOT EXISTS payments (
@@ -901,6 +1148,9 @@ ALTER TABLE lessons ENABLE ROW LEVEL SECURITY;
 ALTER TABLE product_contents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE checkouts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.member_login_tickets ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.member_login_tickets FROM anon, authenticated;
+GRANT ALL ON public.member_login_tickets TO service_role;
 ALTER TABLE customer_payment_profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE access_grants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tracks ENABLE ROW LEVEL SECURITY;
@@ -1167,7 +1417,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === 'OPTIONS') return res.status(200).end();
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-    const { action, code, licenseKey, projectRef, dbPass, organizationSlug, installationId, targetDomain } = req.body;
+    const body = parseInstallerBody(req);
+    const {
+      action,
+      code,
+      licenseKey,
+      projectRef,
+      dbPass,
+      organizationSlug,
+      installationId,
+      targetDomain,
+      installToken,
+    } = body;
+    const resolvedAction = String(action || getQueryValue(req.query.action)).trim();
 
     // 0. Initialize Supabase (Admin Context)
     const { supabaseUrl, serverKey: supabaseServiceKey, serverKeySource } = getLocalSupabaseServerConfig();
@@ -1190,9 +1452,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!installationId) return res.status(400).json({ error: 'Missing installation ID' });
 
     const rateLimit = enforceApiRateLimit(req, res, {
-      scope: action === 'create_project' ? 'installer_create_project' : 'installer_action',
-      identifiers: [licenseKey, installationId, action],
-      limit: action === 'create_project' ? 4 : (action === 'verify_backend' ? 40 : 10),
+      scope: resolvedAction === 'create_project' ? 'installer_create_project' : 'installer_action',
+      identifiers: [licenseKey, installationId, resolvedAction],
+      limit: resolvedAction === 'create_project' ? 4 : (resolvedAction === 'verify_backend' ? 40 : 10),
       windowMs: 15 * 60 * 1000
     });
 
@@ -1200,44 +1462,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(429).json({ error: 'Too many installer attempts. Try again later.' });
     }
 
-    const deploymentDomain = action === 'verify_backend'
+    const deploymentDomain = resolvedAction === 'verify_backend'
       ? normalizeVercelDeploymentDomain(targetDomain)
       : '';
+    const runtimeTargetDomain = resolvedAction === 'prepare_setup' || resolvedAction === 'prepare_setup_proxy'
+      ? normalizeBootstrapDomain(targetDomain)
+      : '';
 
-    if (action === 'verify_backend' && !deploymentDomain) {
+    if (resolvedAction === 'verify_backend' && !deploymentDomain) {
       return res.status(400).json({ error: 'Invalid deployment domain' });
     }
 
-    const validationDomain = deploymentDomain || 'setup-pending';
+    if ((resolvedAction === 'prepare_setup' || resolvedAction === 'prepare_setup_proxy') && !runtimeTargetDomain) {
+      return res.status(400).json({ error: 'Invalid setup domain' });
+    }
 
-    // CENTRAL API CONFIG
-    const CENTRAL_API_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co/functions/v1';
+    const validationDomain = runtimeTargetDomain || deploymentDomain || 'setup-pending';
+    let validationData: any = null;
 
     try {
-      const validationRes = await fetch(`${CENTRAL_API_URL}/validate-license`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          license_key: licenseKey,
-          installation_id: installationId,
-          current_domain: validationDomain,
-          register: true
-        })
+      validationData = await validateCentralLicense({
+        licenseKey,
+        installationId,
+        domain: validationDomain,
       });
-
-      if (!validationRes.ok) throw new Error('Failed to validate license with central server');
-
-      const validationData = await validationRes.json();
-      if (!validationData.valid) {
-        return res.status(403).json({ error: 'Invalid or inactive license' });
-      }
     } catch (e) {
       console.error('License Validation Error:', safeErrorMessage(e));
       return res.status(403).json({ error: 'License validation failed' });
     }
 
     try {
-      if (action === 'verify_backend') {
+      if (resolvedAction === 'verify_backend') {
         const result = await verifyVercelBackend(deploymentDomain);
         if (!result.ok) {
           return res.status(409).json({
@@ -1250,7 +1505,77 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).json({ success: true, status: result.status });
       }
 
-      if (action === 'create_project') {
+      if (resolvedAction === 'prepare_setup') {
+        if (!installToken) {
+          return res.status(400).json({ error: 'Missing installation token' });
+        }
+
+        await bootstrapLocalInstallation(supabase, {
+          licenseKey,
+          installationId,
+          domain: runtimeTargetDomain,
+          validationData,
+        });
+
+        const preparedSetup = await issueSetupBootstrapToken(supabase, {
+          installationId,
+          centralUserId: validationData?.license?.owner_id || null,
+          domain: runtimeTargetDomain,
+          ttlMinutes: 60,
+        });
+
+        try {
+          await consumeCentralInstallToken({
+            installToken,
+            installationId,
+            domain: runtimeTargetDomain,
+          });
+        } catch (tokenError) {
+          await clearSetupBootstrapToken(supabase);
+          throw tokenError;
+        }
+
+        return res.status(200).json({
+          success: true,
+          installation_id: installationId,
+          setup_token: preparedSetup.token,
+          setup_expires_at: preparedSetup.expiresAt,
+          domain: runtimeTargetDomain,
+        });
+      }
+
+      if (resolvedAction === 'prepare_setup_proxy') {
+        if (!installToken) {
+          return res.status(400).json({ error: 'Missing installation token' });
+        }
+
+        const result = await proxyPrepareSetupToTarget({
+          domain: runtimeTargetDomain,
+          licenseKey,
+          installationId,
+          installToken,
+        });
+
+        if (!result.ok) {
+          const rawTargetError = safeResponsePreview(
+            result.payload?.error
+            || result.payload?.message
+            || `Target runtime returned HTTP ${result.status}`
+          );
+          const normalizedTargetError = String(rawTargetError || '').toLowerCase();
+          const targetError = normalizedTargetError.includes('invalid installer action')
+            ? 'O deploy final respondeu com codigo antigo do instalador. Publique o hotfix no repositório, aguarde a Vercel redeployar o dominio final e tente concluir novamente.'
+            : rawTargetError;
+          return res.status(result.status >= 400 ? result.status : 502).json({
+            success: false,
+            error: targetError || 'Falha ao preparar o bootstrap seguro no dominio final.',
+          });
+        }
+
+        return res.status(200).json(result.payload);
+      }
+
+      if (resolvedAction === 'create_project') {
         if (!code) return res.status(400).json({ error: 'Missing OAuth code' });
 
         const clientId = process.env.SUPABASE_CLIENT_ID;
@@ -1457,7 +1782,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
       }
 
-      if (action === 'run_migrations') {
+      if (resolvedAction === 'run_migrations') {
         if (!projectRef || !dbPass) {
           return res.status(400).json({ error: 'Missing projectRef or dbPass' });
         }

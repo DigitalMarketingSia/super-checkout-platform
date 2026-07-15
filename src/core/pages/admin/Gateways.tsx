@@ -113,6 +113,17 @@ const formatAsaasEnvironmentLabel = (value: unknown) => {
   return value === true ? 'Sandbox' : 'Producao';
 };
 
+const detectMercadoPagoCredentialEnvironment = (publicKey?: string | null, privateKey?: string | null) => {
+  const normalizedValues = [publicKey, privateKey]
+    .map(value => String(value || '').trim().toUpperCase())
+    .filter(Boolean);
+
+  if (normalizedValues.length === 0) return null;
+  if (normalizedValues.some(value => value.startsWith('TEST-'))) return 'sandbox';
+  if (normalizedValues.some(value => value.startsWith('APP_USR-'))) return 'production';
+  return null;
+};
+
 const formatPagbankRefreshSource = (value: unknown) => {
   switch (String(value || '').trim()) {
     case 'central_refresh':
@@ -654,12 +665,15 @@ export const Gateways = () => {
       ? 'PAGSEGURO_PUBLIC_KEY'
       : 'pk_live_...';
   const privateKeyPlaceholder = isMercadoPagoModal
-    ? 'APP_USR-...'
+    ? 'APP_USR-... ou TEST-...'
     : isPagSeguroModal
       ? 'PAGSEGURO_TOKEN'
       : isAsaasModal
         ? '$aact_prod_...'
       : 'sk_live_...';
+  const inferredMercadoPagoEnvironment = isMercadoPagoModal
+    ? detectMercadoPagoCredentialEnvironment(activeConfig.public_key, activeConfig.private_key)
+    : null;
   const webhookSecretPlaceholder = isStripeModal
     ? 'whsec_...'
     : isPagSeguroModal
@@ -1055,6 +1069,22 @@ export const Gateways = () => {
                     {privateKeyStatusMessage}
                   </p>
                 </div>
+              </div>
+            )}
+
+            {isMercadoPagoModal && (
+              <div className="rounded-[1.6rem] border border-amber-500/20 bg-amber-500/5 px-5 py-4 text-left">
+                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">
+                  Ambiente de testes do Mercado Pago
+                </div>
+                <p className="mt-2 text-xs leading-relaxed text-amber-100">
+                  O Mercado Pago nao usa uma aba sandbox separada neste painel. Para homologar, use credenciais `TEST-` da aplicacao correta e realize a compra com conta/cartao de teste compativeis.
+                </p>
+                {inferredMercadoPagoEnvironment && (
+                  <p className="mt-3 text-[10px] font-black uppercase tracking-[0.18em] text-amber-200">
+                    Ambiente detectado pelas chaves: {inferredMercadoPagoEnvironment === 'sandbox' ? 'Sandbox' : 'Producao'}.
+                  </p>
+                )}
               </div>
             )}
 

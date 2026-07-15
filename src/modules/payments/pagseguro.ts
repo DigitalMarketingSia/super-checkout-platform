@@ -189,7 +189,14 @@ export async function processPagSeguroPayment(payload: PagSeguroPaymentPayload) 
     const mainProduct = getMainProductForCheckout(checkout);
     const merchantUserId = resolveCheckoutMerchantUserId(checkout, mainProduct);
     const ownedOrder = await loadOwnedOrderForCheckoutWithMerchant(supabaseAdmin, checkout, merchantUserId, orderId);
-    const gateway = await loadOwnedActiveGateway(supabaseAdmin, merchantUserId, checkout, gatewayId, 'pagseguro');
+    const gateway = await loadOwnedActiveGateway(
+      supabaseAdmin,
+      merchantUserId,
+      checkout,
+      gatewayId,
+      'pagseguro',
+      paymentMethod,
+    );
 
     const serverCurrency = getServerCurrency(checkout, mainProduct);
     if (serverCurrency !== 'BRL') {

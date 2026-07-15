@@ -1,11 +1,10 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Layout } from '../../components/Layout';
 import { storage } from '../../services/storageService';
-import { Checkout, Product, Gateway, Domain, DomainStatus, CheckoutConfig, GatewayProvider, DomainUsage } from '../../types';
+import { Checkout, Product, Gateway, Domain, DomainStatus, CheckoutConfig, CheckoutPaymentRoutingConfig, GatewayProvider, DomainUsage, PaymentMethodType } from '../../types';
 import { Button } from '../../components/ui/Button';
-import { Card } from '../../components/ui/Card';
 import { Loading } from '../../components/ui/Loading';
 import {
    ArrowLeft,
@@ -31,18 +30,71 @@ import {
    Fingerprint,
    FileText,
    Smartphone,
-   Zap
+   Zap,
+   HelpCircle
 } from 'lucide-react';
 import { AlertModal } from '../../components/ui/Modal';
 import { useAuth } from '../../context/AuthContext';
 import { BusinessSetupModal } from '../../components/admin/BusinessSetupModal';
 import { useTranslation } from 'react-i18next';
+import {
+   normalizeCheckoutPaymentRouting,
+   ROUTABLE_PAYMENT_METHODS,
+   supportsGatewayPaymentMethod,
+} from '../../config/paymentRouting';
 
 const isSelectableGateway = (gateway: Gateway) => gateway.name !== GatewayProvider.PAGSEGURO;
+
+const DEFAULT_UPSELL_BENEFITS = [
+   'Acesso vitalício sem pagar nada a mais depois',
+   'Acesso imediato enviado para o seu e-mail',
+];
+
+const stripBenefitPrefix = (value?: string | null) => String(value || '').replace(/^-\s*/, '').trim();
+
+const ensureMinimumUpsellBenefits = (benefits?: string[] | null, minimum: number = 2) => {
+   const normalized = Array.isArray(benefits)
+      ? benefits.map(item => String(item || ''))
+      : [];
+
+   while (normalized.length < minimum) {
+      normalized.push(DEFAULT_UPSELL_BENEFITS[normalized.length] || '');
+   }
+
+   return normalized;
+};
+
+const resolveConfiguredUpsellBenefits = (benefits?: string[] | null, legacyDescription?: string | null) => {
+   const normalizedBenefits = Array.isArray(benefits)
+      ? benefits.map(item => stripBenefitPrefix(item)).filter(Boolean)
+      : [];
+
+   if (normalizedBenefits.length > 0) {
+      return ensureMinimumUpsellBenefits(normalizedBenefits);
+   }
+
+   const legacyBenefits = String(legacyDescription || '')
+      .split('\n')
+      .map(line => stripBenefitPrefix(line))
+      .filter(Boolean);
+
+   if (legacyBenefits.length > 0) {
+      return ensureMinimumUpsellBenefits(legacyBenefits);
+   }
+
+   return [...DEFAULT_UPSELL_BENEFITS];
+};
+
+const sanitizeUpsellBenefits = (benefits?: string[] | null) => (
+   Array.isArray(benefits)
+      ? benefits.map(item => stripBenefitPrefix(item)).filter(Boolean)
+      : []
+);
 
 const initialConfig: CheckoutConfig = {
    fields: { name: true, email: true, phone: false, cpf: false },
    payment_methods: { pix: true, credit_card: true, boleto: true, apple_pay: false, google_pay: false },
+   payment_routing: {},
    timer: { active: false, minutes: 15, bg_color: '#EF4444', text_color: '#FFFFFF' },
    header_image: '',
    upsell: {
@@ -52,6 +104,7 @@ const initialConfig: CheckoutConfig = {
       show_subtitle: true,
       show_description: true,
       show_media: true,
+      benefits: [...DEFAULT_UPSELL_BENEFITS],
       media_type: 'video',
       button_text: 'Sim, quero adicionar ao meu pedido'
    }
@@ -82,8 +135,95 @@ const hydrateCheckoutConfig = (
       ...initialConfig.upsell,
       ...value?.upsell,
       product_id: String(value?.upsell?.product_id || fallbackUpsellProductId || '').trim(),
+      benefits: resolveConfiguredUpsellBenefits(value?.upsell?.benefits, value?.upsell?.description),
    },
 });
+
+const renderPixIcon = (active: boolean) => (
+   <svg stroke="currentColor" fill="currentColor" strokeWidth="0" viewBox="0 0 24 24" className={`w-7 h-7 transition-all ${active ? 'text-[#32BCAD] scale-105' : 'text-[#4B5563]'}`} xmlns="http://www.w3.org/2000/svg">
+      <path fill="none" d="M0 0h24v24H0z"></path>
+      <path d="M15.45 16.52l-3.01-3.01c-.11-.11-.24-.13-.31-.13s-.2.02-.31.13L8.8 16.53c-.34.34-.87.89-2.64.89l3.71 3.7a3 3 0 004.24 0l3.72-3.71c-.91 0-1.67-.18-2.38-.89zM8.8 7.47l3.02 3.02c.08.08.2.13.31.13s.23-.05.31-.13l2.99-2.99c.71-.74 1.52-.91 2.43-.91l-3.72-3.71a3 3 0 00-4.24 0l-3.71 3.7c1.76 0 2.3.58 2.61.89z"></path>
+      <path d="M21.11 9.85l-2.25-2.26H17.6c-.54 0-1.08.22-1.45.61l-3 3c-.28.28-.65.42-1.02.42a1.5 1.5 0 01-1.02-.42L8.09 8.17c-.38-.38-.9-.6-1.45-.6H5.17l-2.29 2.3a3 3 0 000 4.24l2.29 2.3h1.48c.54 0 1.06-.22 1.45-.6l3.02-3.02c.28-.28.65-.42 1.02-.42s.74.14 1.02.42l3.01 3.01c.38.38.9.6 1.45.6h1.26l2.25-2.26a3.042 3.042 0 00-.02-4.29z"></path>
+   </svg>
+);
+
+const renderCardIcon = (active: boolean) => (
+   <svg stroke="currentColor" fill="currentColor" strokeWidth="0" viewBox="0 0 24 24" className={`w-7 h-7 transition-all ${active ? 'text-[#8A2BE2] scale-105' : 'text-[#4B5563]'}`} xmlns="http://www.w3.org/2000/svg">
+      <path d="M20 4H4c-1.103 0-2 .897-2 2v12c0 1.103.897 2 2 2h16c1.103 0 2-.897 2-2V6c0-1.103-.897-2-2-2zM4 18V6h16l.001 12H4z"></path>
+      <path d="M6.5 11h3a.5.5 0 0 0 .5-.5v-2a.5.5 0 0 0-.5-.5h-3a.5.5 0 0 0-.5.5v2a.5.5 0 0 0 .5.5zM6 14h6v2.001H6zm7 0h5v2.001h-5z"></path>
+   </svg>
+);
+
+const renderBoletoIcon = (active: boolean) => (
+   <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M3 5H5V19H3V5ZM6 5H8V19H6V5ZM9 5H10V19H9V5ZM11 5H13V19H11V5ZM14 5H15V19H14V5ZM16 5H18V19H16V5ZM19 5H21V19H19V5Z" fill={active ? "#D946EF" : "#4B5563"}/>
+   </svg>
+);
+
+const renderApplePayIcon = (active: boolean) => (
+   <svg viewBox="0 0 448 512" fill="currentColor" className={`w-7 h-7 transition-all ${active ? 'text-white scale-105' : 'text-[#4B5563]'}`} xmlns="http://www.w3.org/2000/svg">
+      <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.3 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.3zM344 86h-.4c-17.4 18.1-30.5 45.1-31.1 69.8 44.6 1.9 66.8-44.1 66.8-44.1-14.4-16.7-32.5-25.7-35.3-25.7z"/>
+   </svg>
+);
+
+const renderGooglePayIcon = (active: boolean) => (
+   <svg viewBox="0 0 48 48" className={`w-7 h-7 transition-all ${active ? 'scale-105' : ''}`} xmlns="http://www.w3.org/2000/svg">
+      <path fill={!active ? '#4B5563' : '#4285F4'} d="M46.1 24.5c0-1.5-.1-3.2-.4-4.5H24v9h12.5c-.6 3-2.3 5.5-4.8 7.2v6h7.7c4.5-4.2 7.1-10.4 7.1-17.8z"/>
+      <path fill={!active ? '#4B5563' : '#34A853'} d="M24 47c6.2 0 11.4-2 15.2-5.6l-7.7-6c-2 1.4-4.7 2.2-7.5 2.2-5.8 0-10.7-3.9-12.4-9.2H3.7v6.1C7.4 42 15 47 24 47z"/>
+      <path fill={!active ? '#4B5563' : '#FBBC05'} d="M11.6 28.4c-.4-1.3-.7-2.7-.7-4.4s.3-3.1.7-4.4v-6.1H3.7C2.2 16.5 1.5 19.2 1.5 22s.7 5.5 2.2 8.5l7.9-2.1z"/>
+      <path fill={!active ? '#4B5563' : '#EA4335'} d="M24 9.4c3.4 0 6.4 1.2 8.8 3.4l6.6-6.6C35.4 2.5 30.2.5 24 .5 15 .5 7.4 5.5 3.7 13.5l7.9 6.1C13.3 13.3 18.2 9.4 24 9.4z"/>
+   </svg>
+);
+
+const PAYMENT_METHOD_DEFINITIONS: Array<{
+   id: PaymentMethodType;
+   translationKey: string;
+   fallbackLabel: string;
+   icon: typeof CreditCard;
+   supportsAutomaticBackup: boolean;
+}> = [
+   { id: 'pix', translationKey: 'checkout_editor.pay_pix', fallbackLabel: 'Pix instantaneo', icon: Zap, supportsAutomaticBackup: true },
+   { id: 'credit_card', translationKey: 'checkout_editor.pay_credit_card', fallbackLabel: 'Cartao de credito', icon: CreditCard, supportsAutomaticBackup: false },
+   { id: 'boleto', translationKey: 'checkout_editor.pay_boleto', fallbackLabel: 'Boleto bancario', icon: FileText, supportsAutomaticBackup: false },
+   { id: 'apple_pay', translationKey: 'checkout_editor.pay_apple', fallbackLabel: 'Apple Pay', icon: Smartphone, supportsAutomaticBackup: false },
+   { id: 'google_pay', translationKey: 'checkout_editor.pay_google', fallbackLabel: 'Google Pay', icon: Smartphone, supportsAutomaticBackup: false },
+];
+
+const pushUniqueGatewayId = (values: string[], gatewayId?: string | null) => {
+   const normalizedGatewayId = String(gatewayId || '').trim();
+   if (!normalizedGatewayId || values.includes(normalizedGatewayId)) return;
+   values.push(normalizedGatewayId);
+};
+
+const deriveLegacyGatewaySelection = (params: {
+   paymentMethods: CheckoutConfig['payment_methods'];
+   routing: CheckoutPaymentRoutingConfig;
+   fallbackGatewayId?: string | null;
+   fallbackBackupGatewayId?: string | null;
+}) => {
+   const primaryGatewayIds: string[] = [];
+   const backupGatewayIds: string[] = [];
+
+   for (const paymentMethod of ROUTABLE_PAYMENT_METHODS) {
+      if (!params.paymentMethods[paymentMethod]) continue;
+      const route = params.routing?.[paymentMethod];
+      pushUniqueGatewayId(primaryGatewayIds, route?.primary_gateway_id);
+      if (paymentMethod === 'pix') {
+         pushUniqueGatewayId(backupGatewayIds, route?.backup_gateway_id);
+      }
+   }
+
+   const fallbackGatewayId = String(params.fallbackGatewayId || '').trim();
+   const fallbackBackupGatewayId = String(params.fallbackBackupGatewayId || '').trim();
+   const primaryGatewayId = primaryGatewayIds[0] || fallbackGatewayId || '';
+   const backupGatewayId = [
+      ...backupGatewayIds,
+      ...primaryGatewayIds.filter((gatewayId) => gatewayId !== primaryGatewayId),
+      fallbackBackupGatewayId,
+   ].find((gatewayId) => Boolean(gatewayId && gatewayId !== primaryGatewayId)) || '';
+
+   return { primaryGatewayId, backupGatewayId };
+};
 
 export const CheckoutEditor = () => {
    const { t } = useTranslation(['admin', 'common']);
@@ -125,6 +265,21 @@ export const CheckoutEditor = () => {
    const [loading, setLoading] = useState(true);
 
    const [isUploadingBanner, setIsUploadingBanner] = useState(false);
+   const [showAdvancedRouting, setShowAdvancedRouting] = useState(false);
+
+   const updateUpsellBenefits = (nextBenefits: string[]) => {
+      setConfig(current => (
+         current.upsell
+            ? {
+               ...current,
+               upsell: {
+                  ...current.upsell,
+                  benefits: ensureMinimumUpsellBenefits(nextBenefits),
+               },
+            }
+            : current
+      ));
+   };
 
    const [alertState, setAlertState] = useState<{ isOpen: boolean; title: string; message: string; variant: 'success' | 'error' | 'info' }>({
       isOpen: false,
@@ -147,13 +302,142 @@ export const CheckoutEditor = () => {
    const activeProducts = products.filter(p => p.active);
    const availableBumps = activeProducts.filter(p => p.is_order_bump && p.id !== productId);
    const availableUpsells = activeProducts.filter(p => p.is_upsell && p.id !== productId);
-   const selectedGatewayName = gateways.find(g => g.id === gatewayId)?.name;
-   const selectedBackupGatewayName = gateways.find(g => g.id === backupGatewayId)?.name;
-   const isAsaasSelected = selectedGatewayName === GatewayProvider.ASAAS;
-   const isPagSeguroSelected = selectedGatewayName === GatewayProvider.PAGSEGURO;
-   const isPagSeguroBackupSelected = selectedBackupGatewayName === GatewayProvider.PAGSEGURO;
+   const selectedGatewayName = gateways.find((gateway) => gateway.id === gatewayId)?.name;
    const selectableGateways = gateways.filter(isSelectableGateway);
    const activeSelectableGateways = selectableGateways.filter(g => g.active);
+   const paymentMethodDefinitions = useMemo(
+      () => PAYMENT_METHOD_DEFINITIONS.map((method) => ({
+         ...method,
+         label: t(method.translationKey, method.fallbackLabel),
+      })),
+      [t]
+   );
+   const currencyEligibleGateways = useMemo(
+      () => activeSelectableGateways.filter((gateway) => currency === 'BRL' || gateway.name === GatewayProvider.STRIPE),
+      [activeSelectableGateways, currency]
+   );
+   const effectivePaymentRouting = useMemo(
+      () => normalizeCheckoutPaymentRouting({
+         config,
+         gatewayId,
+         backupGatewayId,
+         gateways: activeSelectableGateways,
+      }),
+      [config, gatewayId, backupGatewayId, activeSelectableGateways]
+   );
+   const hasExplicitMethodRouting = useMemo(
+      () => ROUTABLE_PAYMENT_METHODS.some((paymentMethod) => Boolean(config.payment_routing?.[paymentMethod])),
+      [config.payment_routing]
+   );
+   const resolvedLegacyGatewaySelection = useMemo(
+      () => deriveLegacyGatewaySelection({
+         paymentMethods: config.payment_methods,
+         routing: effectivePaymentRouting,
+         fallbackGatewayId: gatewayId,
+         fallbackBackupGatewayId: backupGatewayId,
+      }),
+      [backupGatewayId, config.payment_methods, effectivePaymentRouting, gatewayId]
+   );
+   const isAsaasSelected = paymentMethodDefinitions.some((method) => {
+      if (!config.payment_methods[method.id]) return false;
+      const routeGatewayId = effectivePaymentRouting[method.id]?.primary_gateway_id;
+      return gateways.find((gateway) => gateway.id === routeGatewayId)?.name === GatewayProvider.ASAAS;
+   });
+   const isPagSeguroSelected = selectedGatewayName === GatewayProvider.PAGSEGURO;
+   const hasUnavailableLegacyGateway = gatewayId
+      ? gateways.find((gateway) => gateway.id === gatewayId)?.name === GatewayProvider.PAGSEGURO
+      : false;
+
+   const getMethodCompatibleGateways = (paymentMethod: PaymentMethodType) => {
+      return currencyEligibleGateways.filter((gateway) => supportsGatewayPaymentMethod(gateway.name, paymentMethod));
+   };
+
+   const methodHasCompatibleGateway = (paymentMethod: PaymentMethodType) => {
+      return getMethodCompatibleGateways(paymentMethod).length > 0;
+   };
+
+   const updatePaymentMethodToggle = (paymentMethod: PaymentMethodType, nextEnabled: boolean) => {
+      const compatibleGateways = getMethodCompatibleGateways(paymentMethod);
+      setConfig((prevConfig) => {
+         const normalizedRouting = normalizeCheckoutPaymentRouting({
+            config: prevConfig,
+            gatewayId,
+            backupGatewayId,
+            gateways: activeSelectableGateways,
+         });
+         const currentRoute = normalizedRouting[paymentMethod] || {
+            enabled: nextEnabled,
+            primary_gateway_id: null,
+            backup_gateway_id: null,
+         };
+         const nextPrimaryGatewayId = nextEnabled
+            ? currentRoute.primary_gateway_id || compatibleGateways[0]?.id || null
+            : currentRoute.primary_gateway_id;
+
+         return {
+            ...prevConfig,
+            payment_methods: {
+               ...prevConfig.payment_methods,
+               [paymentMethod]: nextEnabled,
+            },
+            payment_routing: {
+               ...(prevConfig.payment_routing || {}),
+               [paymentMethod]: {
+                  ...currentRoute,
+                  enabled: nextEnabled,
+                  primary_gateway_id: nextPrimaryGatewayId,
+                  backup_gateway_id: paymentMethod === 'pix' ? currentRoute.backup_gateway_id : null,
+               },
+            },
+         };
+      });
+   };
+
+   const updatePaymentMethodRoute = (
+      paymentMethod: PaymentMethodType,
+      field: 'primary_gateway_id' | 'backup_gateway_id',
+      value: string
+   ) => {
+      setConfig((prevConfig) => {
+         const normalizedRouting = normalizeCheckoutPaymentRouting({
+            config: prevConfig,
+            gatewayId,
+            backupGatewayId,
+            gateways: activeSelectableGateways,
+         });
+         const currentRoute = normalizedRouting[paymentMethod] || {
+            enabled: Boolean(prevConfig.payment_methods[paymentMethod]),
+            primary_gateway_id: null,
+            backup_gateway_id: null,
+         };
+         const normalizedValue = value || null;
+
+         const nextRoute = {
+            ...currentRoute,
+            [field]: normalizedValue,
+         };
+
+         if (field === 'primary_gateway_id' && nextRoute.backup_gateway_id === normalizedValue) {
+            nextRoute.backup_gateway_id = null;
+         }
+
+         if (field === 'backup_gateway_id' && nextRoute.primary_gateway_id === normalizedValue) {
+            nextRoute.backup_gateway_id = null;
+         }
+
+         if (paymentMethod !== 'pix') {
+            nextRoute.backup_gateway_id = null;
+         }
+
+         return {
+            ...prevConfig,
+            payment_routing: {
+               ...(prevConfig.payment_routing || {}),
+               [paymentMethod]: nextRoute,
+            },
+         };
+      });
+   };
 
    useEffect(() => {
       const load = async () => {
@@ -190,7 +474,7 @@ export const CheckoutEditor = () => {
    }, [id, isNew]);
 
    const handleSave = async () => {
-      console.log('🔍 Debug - Form state:', { name, productId, gatewayId });
+      console.log('Debug - Form state:', { name, productId, gatewayId });
 
       // Compliance Check: Block saving if business is not ready
       if (!compliance?.is_ready) {
@@ -198,13 +482,8 @@ export const CheckoutEditor = () => {
          return;
       }
 
-      if (!name || !productId || !gatewayId) {
-         showAlert(t('common.info', 'Atenção'), t('checkout_editor.fill_fields', 'Por favor, preencha o nome, selecione um produto e um gateway.'), 'info');
-         return;
-      }
-
-      if (isPagSeguroSelected) {
-         showAlert('Gateway indisponível', 'O PagBank foi removido do sistema porque a homologação foi negada. Escolha Mercado Pago ou Stripe para salvar este checkout.', 'info');
+      if (!name || !productId) {
+         showAlert(t('common.info', 'Atencao'), 'Por favor, preencha o nome e selecione um produto.', 'info');
          return;
       }
 
@@ -223,19 +502,75 @@ export const CheckoutEditor = () => {
             config.upsell?.product_id || upsellProductId || ''
          ).trim();
 
+         const sanitizedPaymentMethods = {
+            ...config.payment_methods,
+            pix: config.payment_methods.pix && methodHasCompatibleGateway('pix'),
+            credit_card: config.payment_methods.credit_card && methodHasCompatibleGateway('credit_card'),
+            boleto: config.payment_methods.boleto && methodHasCompatibleGateway('boleto'),
+            apple_pay: config.payment_methods.apple_pay && methodHasCompatibleGateway('apple_pay'),
+            google_pay: config.payment_methods.google_pay && methodHasCompatibleGateway('google_pay'),
+         };
+         const hasAnyActivePaymentMethod = ROUTABLE_PAYMENT_METHODS.some(
+            (paymentMethod) => sanitizedPaymentMethods[paymentMethod]
+         );
+         if (!hasAnyActivePaymentMethod) {
+            showAlert('Nenhum meio de pagamento ativo', 'Ative pelo menos um meio de pagamento compativel antes de salvar.', 'info');
+            return;
+         }
+
+         const normalizedPaymentRouting = normalizeCheckoutPaymentRouting({
+            config: {
+               ...config,
+               payment_methods: sanitizedPaymentMethods,
+            },
+            gatewayId,
+            backupGatewayId,
+            gateways: activeSelectableGateways,
+         });
+         const serializedPaymentRouting = ROUTABLE_PAYMENT_METHODS.reduce((acc, paymentMethod) => {
+            const route = normalizedPaymentRouting[paymentMethod];
+            if (!route) return acc;
+
+            acc[paymentMethod] = {
+               ...route,
+               enabled: Boolean(sanitizedPaymentMethods[paymentMethod]),
+               backup_gateway_id: paymentMethod === 'pix' ? route.backup_gateway_id : null,
+            };
+            return acc;
+         }, {} as NonNullable<CheckoutConfig['payment_routing']>);
+         const methodsMissingPrimaryRoute = ROUTABLE_PAYMENT_METHODS.filter(
+            (paymentMethod) => sanitizedPaymentMethods[paymentMethod] && !serializedPaymentRouting[paymentMethod]?.primary_gateway_id
+         );
+         if (methodsMissingPrimaryRoute.length > 0) {
+            showAlert('Rota de pagamento pendente', 'Defina o gateway principal de cada meio de pagamento ativo antes de salvar.', 'info');
+            return;
+         }
+         const resolvedLegacyGatewaySelectionForSave = deriveLegacyGatewaySelection({
+            paymentMethods: sanitizedPaymentMethods,
+            routing: serializedPaymentRouting,
+            fallbackGatewayId: gatewayId,
+            fallbackBackupGatewayId: backupGatewayId,
+         });
+         const resolvedLegacyGatewayName = gateways.find((gateway) => gateway.id === resolvedLegacyGatewaySelectionForSave.primaryGatewayId)?.name;
+         const resolvedLegacyBackupGatewayName = gateways.find((gateway) => gateway.id === resolvedLegacyGatewaySelectionForSave.backupGatewayId)?.name;
+         if (!resolvedLegacyGatewaySelectionForSave.primaryGatewayId) {
+            showAlert('Checkout sem rota valida', 'Ative pelo menos um meio de pagamento com gateway compativel antes de salvar.', 'info');
+            return;
+         }
+         if (resolvedLegacyGatewayName === GatewayProvider.PAGSEGURO) {
+            showAlert('Gateway indisponivel', 'O PagBank foi removido do sistema porque a homologacao foi negada. Escolha Mercado Pago, Stripe, Asaas ou Pix manual para salvar este checkout.', 'info');
+            return;
+         }
+
          const sanitizedConfig = {
             ...config,
-            payment_methods: {
-               ...config.payment_methods,
-               credit_card: isAsaasSelected ? false : config.payment_methods.credit_card,
-               boleto: isPagSeguroSelected || isAsaasSelected ? false : config.payment_methods.boleto,
-               apple_pay: selectedGatewayName === GatewayProvider.STRIPE ? config.payment_methods.apple_pay : false,
-               google_pay: selectedGatewayName === GatewayProvider.STRIPE ? config.payment_methods.google_pay : false,
-            },
+            payment_methods: sanitizedPaymentMethods,
+            payment_routing: serializedPaymentRouting,
             pixels: sanitizedPixels,
             upsell: config.upsell ? {
                ...config.upsell,
                product_id: normalizedUpsellProductId,
+               benefits: sanitizeUpsellBenefits(config.upsell.benefits),
             } : undefined,
          };
 
@@ -247,7 +582,7 @@ export const CheckoutEditor = () => {
             name,
             active,
             product_id: productId,
-            gateway_id: gatewayId,
+            gateway_id: resolvedLegacyGatewaySelectionForSave.primaryGatewayId,
             domain_id: domainId || null, // Send null to clear the field in DB
             custom_url_slug: slug || (isNew ? `chk-${Date.now()}` : id!),
             order_bump_ids: orderBumpIds,
@@ -255,7 +590,9 @@ export const CheckoutEditor = () => {
             thank_you_button_url: thankYouButtonUrl || null,
             thank_you_button_text: thankYouButtonText || null,
             currency,
-            backup_gateway_id: isPagSeguroBackupSelected ? null : backupGatewayId || null,
+            backup_gateway_id: resolvedLegacyBackupGatewayName === GatewayProvider.PAGSEGURO
+               ? null
+               : resolvedLegacyGatewaySelectionForSave.backupGatewayId || null,
             config: sanitizedConfig,
             user_id: user?.id || '', // Requisito da interface
             offer_id: undefined // Legacy field, not used in current implementation
@@ -313,12 +650,26 @@ export const CheckoutEditor = () => {
             return "/mercado-pago-logo.png";
          case GatewayProvider.STRIPE:
             return "/stripe-logo.png";
+         case GatewayProvider.ASAAS:
+            return "/Asaas-logo.png";
          case GatewayProvider.PAGSEGURO:
             return "/pag-seguro-logoo.png";
          default:
             return "";
       }
    };
+
+   const getGatewayLabel = (gatewayId?: string | null) => {
+      const gateway = gateways.find((entry) => entry.id === gatewayId);
+      return gateway ? gateway.name.replace('_', ' ') : 'Nao definido';
+   };
+
+   const legacyPrimaryGateway = gateways.find((gateway) => gateway.id === resolvedLegacyGatewaySelection.primaryGatewayId) || null;
+   const legacyBackupGateway = gateways.find((gateway) => gateway.id === resolvedLegacyGatewaySelection.backupGatewayId) || null;
+   const activePaymentMethodCount = paymentMethodDefinitions.filter((method) => config.payment_methods[method.id]).length;
+   const readyPaymentMethodCount = paymentMethodDefinitions.filter(
+      (method) => config.payment_methods[method.id] && effectivePaymentRouting[method.id]?.primary_gateway_id
+   ).length;
 
    return (
       <Layout>
@@ -516,135 +867,337 @@ export const CheckoutEditor = () => {
                            <CreditCard className="w-6 h-6" />
                         </div>
                         <div>
-                           <h2 className="text-base font-portal-display text-white uppercase tracking-tight">{t('checkout_editor.payment_title')}</h2>
-                           <p className="text-[10px] text-gray-700 font-bold uppercase tracking-[0.2em]">{t('checkout_editor.payment_desc')}</p>
+                           <h2 className="text-base font-portal-display text-white uppercase tracking-tight">
+                              {t('checkout_editor.payment_hub_title', 'Pagamentos e roteamento')}
+                           </h2>
+                           <p className="text-[10px] text-gray-700 font-bold uppercase tracking-[0.2em]">
+                              {t('checkout_editor.payment_hub_desc', 'Meios ativos e seus respectivos provedores de processamento')}
+                           </p>
                         </div>
                      </div>
 
-                     <div className="p-10 bg-[#0A0A15]/80 border border-white/5 rounded-[2.5rem] shadow-2xl space-y-10">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                           <div className="space-y-4">
-                              <label className="block text-[10px] font-black text-gray-700 uppercase tracking-[0.3em] ml-1 italic">{t('checkout_editor.currency_label')}</label>
-                              <div className="flex bg-black/40 rounded-2xl p-1.5 border border-white/5">
+                     <div className="p-10 bg-[#0A0A15]/80 border border-white/5 rounded-[2.5rem] shadow-2xl space-y-8">
+                        {/* Cabeçalho de Controle: Moeda & Status */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 pb-6 border-b border-white/5">
+                           <div className="flex items-center gap-3">
+                              <span className="text-[10px] font-black text-gray-700 uppercase tracking-[0.25em] italic">
+                                 {t('checkout_editor.currency_label', 'Moeda')}:
+                              </span>
+                              <div className="flex bg-black/40 rounded-xl p-1 border border-white/5">
                                  {[
-                                    { id: 'BRL', label: t('checkout_editor.currency_brl'), symbol: 'R$' },
-                                    { id: 'USD', label: t('checkout_editor.currency_usd'), symbol: '$' },
-                                    { id: 'EUR', label: 'Euro', symbol: '€' }
-                                 ].map(m => (
+                                    { id: 'BRL', symbol: 'R$' },
+                                    { id: 'USD', symbol: '$' },
+                                    { id: 'EUR', symbol: '€' }
+                                 ].map((option) => (
                                     <button
-                                       key={m.id}
-                                       onClick={() => {
-                                          setCurrency(m.id as any);
-                                          if (m.id !== 'BRL' && (
-                                             gateways.find(g => g.id === gatewayId)?.name === GatewayProvider.MERCADO_PAGO
-                                             || gateways.find(g => g.id === gatewayId)?.name === GatewayProvider.PAGSEGURO
-                                          )) {
-                                             setGatewayId('');
-                                             setBackupGatewayId('');
-                                          }
-                                       }}
-                                       className={`flex-1 py-3 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-500 ${currency === m.id
-                                          ? 'bg-primary text-white shadow-xl shadow-primary/20'
+                                       key={option.id}
+                                       type="button"
+                                       onClick={() => setCurrency(option.id as 'BRL' | 'USD' | 'EUR')}
+                                       className={`py-1.5 px-3 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all duration-300 ${currency === option.id
+                                          ? 'bg-primary text-white shadow-md shadow-primary/20'
                                           : 'text-gray-700 hover:text-gray-400'
                                           }`}
                                     >
-                                       {m.label} ({m.symbol})
+                                       {option.id} ({option.symbol})
                                     </button>
                                  ))}
                               </div>
                            </div>
 
-                           <div className="space-y-4">
-                              <label className="block text-[10px] font-black text-gray-700 uppercase tracking-[0.3em] ml-1 italic">{t('checkout_editor.backup_gateway')}</label>
-                              <div className="relative group/backup">
-                                 <AlertCircle className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-primary group-focus-within/backup:text-white transition-colors" />
-                                 <select
-                                    className="w-full bg-white/[0.02] border-2 border-white/5 rounded-2xl pl-14 pr-6 py-4 text-white font-bold text-sm focus:border-primary/50 focus:ring-0 outline-none appearance-none transition-all cursor-pointer"
-                                    value={backupGatewayId}
-                                    onChange={e => setBackupGatewayId(e.target.value)}
-                                 >
-                                    <option value="" className="bg-[#0A0A15] text-white">{t('checkout_editor.backup_inactive')}</option>
-                                    {activeSelectableGateways
-                                       .filter(g => g.id !== gatewayId)
-                                       .filter(g => {
-                                          if (currency !== 'BRL') return g.name === GatewayProvider.STRIPE;
-                                          return true;
-                                       })
-                                       .map(g => (
-                                          <option key={g.id} value={g.id} className="bg-[#0A0A15] text-white">
-                                             {g.name.replace('_', ' ')} ({t('checkout_editor.redundancy')})
-                                          </option>
-                                       ))}
-                                 </select>
-                                 <ChevronRight className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-800 rotate-90" />
+                           <div className="flex items-center gap-3">
+                              <span className="text-[10px] font-black text-gray-700 uppercase tracking-[0.25em] italic">
+                                 {t('checkout_editor.routing_readiness_title', 'Status')}:
+                              </span>
+                              <span className="inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-[9px] font-black uppercase tracking-[0.18em] text-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.05)]">
+                                 <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                                 {readyPaymentMethodCount}/{activePaymentMethodCount || paymentMethodDefinitions.length} {t('checkout_editor.ready_methods_badge', 'Configurados')}
+                              </span>
+                              <div className="group relative">
+                                 <HelpCircle className="w-4 h-4 text-gray-700 hover:text-cyan-400 cursor-help transition-colors" />
+                                 <div className="absolute right-0 bottom-6 hidden group-hover:block w-64 p-3 bg-black border border-white/10 rounded-xl text-[10px] text-gray-400 font-medium leading-relaxed shadow-2xl z-50">
+                                    {t('checkout_editor.routing_readiness_desc', 'O checkout publico continua unico, mas cada metodo pode seguir sua propria rota operacional.')}
+                                 </div>
                               </div>
                            </div>
                         </div>
 
-                        <div className="pt-4 space-y-6">
-                           <label className="block text-[10px] font-black text-gray-700 uppercase tracking-[0.3em] ml-1 italic">{t('checkout_editor.primary_gateway')}</label>
-                           
-                           {activeSelectableGateways.length === 0 ? (
-                              <div className="text-center py-12 bg-white/[0.01] border-2 border-dashed border-white/5 rounded-[2rem]">
-                                 <Wallet className="w-12 h-12 text-gray-800 mx-auto mb-4" />
-                                 <p className="text-sm text-gray-700 font-bold uppercase tracking-widest italic">{t('checkout_editor.no_gateway')}</p>
-                                 <Button variant="ghost" size="sm" className="mt-6 text-primary font-black uppercase tracking-widest text-[9px]" onClick={() => navigate('/admin/gateways')}>{t('checkout_editor.activate_gateways')}</Button>
-                              </div>
-                           ) : (
-                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
-                                 {activeSelectableGateways
-                                    .filter(g => {
-                                       if (currency !== 'BRL') return g.name === GatewayProvider.STRIPE;
-                                       return true;
-                                    })
-                                    .map(g => (
-                                       <button
-                                          key={g.id}
-                                          onClick={() => {
-                                             setGatewayId(g.id);
-                                             if (backupGatewayId === g.id) setBackupGatewayId('');
-                                          }}
-                                          className={`relative group/gate flex flex-col items-center justify-center p-8 rounded-[2rem] border-2 transition-all duration-500 overflow-hidden ${gatewayId === g.id
-                                             ? 'border-primary/50 bg-primary/10 shadow-[0_0_20px_rgba(138,43,226,0.1)] scale-105'
-                                             : 'border-white/5 bg-white/[0.02] hover:bg-white/[0.04] hover:border-white/10'
-                                             }`}
-                                       >
-                                          <div className="absolute top-0 right-0 w-16 h-16 bg-primary/5 blur-2xl group-hover/gate:bg-primary/10 transition-all" />
-                                          <div className="w-12 h-12 mb-4 flex items-center justify-center relative z-10">
-                                             <img src={getGatewayLogo(g.name)} alt={g.name} className="w-full h-full object-contain group-hover/gate:scale-110 transition-transform duration-500" />
-                                          </div>
-                                          <span className={`text-[10px] font-black uppercase tracking-widest z-10 transition-colors ${gatewayId === g.id ? 'text-white' : 'text-gray-700'}`}>
-                                             {g.name.replace('_', ' ')}
-                                          </span>
+                        {currency !== 'BRL' && currencyEligibleGateways.length === 0 && (
+                           <div className="p-5 rounded-2xl bg-rose-500/5 border border-rose-500/10 flex gap-4 items-center animate-in fade-in duration-300">
+                              <AlertCircle className="w-5 h-5 text-rose-500 shrink-0" />
+                              <p className="text-[10px] text-rose-200/70 font-medium uppercase tracking-widest italic leading-relaxed">
+                                 {t('checkout_editor.stripe_required_prefix')} <span className="text-rose-500 font-black">{currency}</span>, {t('checkout_editor.stripe_required_suffix')} <span className="text-white font-black">Stripe</span>.
+                              </p>
+                           </div>
+                        )}
 
-                                          {gatewayId === g.id && (
-                                             <div className="absolute top-4 right-4 w-6 h-6 rounded-full bg-primary flex items-center justify-center shadow-lg animate-in zoom-in duration-300">
-                                                <Check className="w-3 h-3 text-white font-bold" />
-                                             </div>
-                                          )}
-                                       </button>
-                                    ))}
-                              </div>
-                           )}
+                        {activeSelectableGateways.length === 0 ? (
+                           <div className="text-center py-12 bg-white/[0.01] border-2 border-dashed border-white/5 rounded-[2rem]">
+                              <Wallet className="w-12 h-12 text-gray-800 mx-auto mb-4" />
+                              <p className="text-sm text-gray-700 font-bold uppercase tracking-widest italic">{t('checkout_editor.no_gateway')}</p>
+                              <Button variant="ghost" size="sm" className="mt-6 text-primary font-black uppercase tracking-widest text-[9px]" onClick={() => navigate('/admin/gateways')}>
+                                 {t('checkout_editor.activate_gateways')}
+                              </Button>
+                           </div>
+                        ) : (
+                           <>
+                               {/* Grid de Cards Compactos dos Métodos de Pagamento */}
+                               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+                                  {paymentMethodDefinitions.map((method) => {
+                                     const methodSelected = Boolean(config.payment_methods[method.id]);
+                                     const compatibleGateways = getMethodCompatibleGateways(method.id);
+                                     const methodCanToggle = compatibleGateways.length > 0 || methodSelected;
 
-                           {isPagSeguroSelected && (
-                              <div className="p-6 rounded-[1.5rem] bg-amber-500/5 border border-amber-500/10 flex gap-4 items-center">
-                                 <AlertCircle className="w-6 h-6 text-amber-400 shrink-0" />
-                                 <p className="text-[10px] text-amber-100/70 font-medium uppercase tracking-widest italic leading-relaxed">
-                                    O PagBank foi removido do sistema porque a homologação foi negada. Troque o gateway principal para Mercado Pago ou Stripe antes de salvar.
-                                 </p>
-                              </div>
-                           )}
+                                     return (
+                                        <button
+                                           key={`method-toggle-${method.id}`}
+                                           type="button"
+                                           disabled={!methodCanToggle}
+                                           onClick={() => updatePaymentMethodToggle(method.id, !methodSelected)}
+                                           className={`flex flex-col items-center justify-between p-4 rounded-2xl border-2 transition-all duration-300 relative group text-center min-h-[110px] ${methodSelected
+                                              ? 'border-primary/40 bg-primary/5 text-white shadow-lg shadow-primary/5 scale-[1.01]'
+                                              : 'border-white/5 bg-black/25 text-gray-500 hover:border-white/10 hover:bg-black/40'
+                                              } ${!methodCanToggle ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+                                        >
+                                           {/* Switch Clássico de Bolinha Deslizante (iOS Style) no topo do card */}
+                                           <div className="w-full flex justify-end mb-1">
+                                              <div className={`relative w-8 h-4.5 rounded-full transition-colors duration-300 ${methodSelected ? 'bg-primary' : 'bg-gray-800'}`}>
+                                                 <span className={`absolute top-0.5 left-0.5 h-3.5 w-3.5 rounded-full bg-white shadow transition-transform duration-300 ${methodSelected ? 'translate-x-3.5' : 'translate-x-0'}`} />
+                                              </div>
+                                           </div>
 
-                           {currency !== 'BRL' && activeSelectableGateways.filter(g => g.name === GatewayProvider.STRIPE).length === 0 && (
-                              <div className="p-6 rounded-[1.5rem] bg-rose-500/5 border border-rose-500/10 flex gap-4 items-center">
-                                 <AlertCircle className="w-6 h-6 text-rose-500 shrink-0" />
-                                 <p className="text-[10px] text-rose-200/60 font-medium uppercase tracking-widest italic leading-relaxed">
-                                    {t('checkout_editor.stripe_required_prefix')} <span className="text-rose-500 font-black">{currency}</span>, {t('checkout_editor.stripe_required_suffix')} <span className="text-white font-black">Stripe</span>.
-                                 </p>
-                              </div>
-                           )}
-                        </div>
+                                           {/* Ícone de Alta Fidelidade do Método de Pagamento */}
+                                           <div className="flex-1 flex items-center justify-center mb-2">
+                                              {method.id === 'pix' && renderPixIcon(methodSelected)}
+                                              {method.id === 'credit_card' && renderCardIcon(methodSelected)}
+                                              {method.id === 'boleto' && renderBoletoIcon(methodSelected)}
+                                              {method.id === 'apple_pay' && renderApplePayIcon(methodSelected)}
+                                              {method.id === 'google_pay' && renderGooglePayIcon(methodSelected)}
+                                           </div>
+
+                                           {/* Título do Método */}
+                                           <span className="text-[10px] font-black uppercase tracking-widest leading-none">
+                                              {method.label}
+                                           </span>
+                                        </button>
+                                     );
+                                  })}
+                               </div>
+
+                               {/* Painéis de Configuração dos Métodos de Pagamento Ativos */}
+                               <div className="space-y-6 pt-2">
+                                  {activePaymentMethodCount === 0 && (
+                                     <div className="text-center py-10 bg-white/[0.01] border border-dashed border-white/5 rounded-3xl">
+                                        <Wallet className="w-10 h-10 text-gray-800 mx-auto mb-3" />
+                                        <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest italic">
+                                           {t('checkout_editor.no_active_methods_hint', 'Ative um ou mais meios de pagamento acima para configurar as rotas de processamento.')}
+                                        </p>
+                                     </div>
+                                  )}
+
+                                  {paymentMethodDefinitions.map((method) => {
+                                     const methodSelected = Boolean(config.payment_methods[method.id]);
+                                     if (!methodSelected) return null;
+
+                                     const route = effectivePaymentRouting[method.id];
+                                     const compatibleGateways = getMethodCompatibleGateways(method.id);
+                                     const primaryGatewayId = route?.primary_gateway_id || '';
+                                     const backupGatewayIdForMethod = method.supportsAutomaticBackup ? route?.backup_gateway_id || '' : '';
+
+                                     return (
+                                        <div
+                                           key={`method-panel-${method.id}`}
+                                           className="p-6 bg-black/20 border border-white/5 rounded-3xl space-y-4 animate-in fade-in duration-300"
+                                        >
+                                           {/* Cabeçalho do Bloco de Configurações */}
+                                           <div className="flex items-center justify-between pb-3 border-b border-white/5">
+                                              <div className="flex items-center gap-2.5">
+                                                 <div className="text-white shrink-0">
+                                                    {method.id === 'pix' && renderPixIcon(true)}
+                                                    {method.id === 'credit_card' && renderCardIcon(true)}
+                                                    {method.id === 'boleto' && renderBoletoIcon(true)}
+                                                    {method.id === 'apple_pay' && renderApplePayIcon(true)}
+                                                    {method.id === 'google_pay' && renderGooglePayIcon(true)}
+                                                 </div>
+                                                 <span className="text-[10px] font-black uppercase tracking-[0.25em] text-white italic">
+                                                    {t('checkout_editor.routing_for_short', 'Configuração -')} {method.id === 'pix' ? 'PIX' : method.id === 'credit_card' ? 'CARTÃO DE CRÉDITO' : method.label.toUpperCase()}
+                                                 </span>
+                                                 {isAsaasSelected && method.id === 'pix' && (
+                                                    <span className="text-[8px] font-black text-amber-500 uppercase tracking-[0.1em] px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/20">
+                                                       {t('checkout_editor.pix_only_notice', 'Apenas Pix')}
+                                                    </span>
+                                                 )}
+                                              </div>
+                                              <span className="text-[9px] uppercase tracking-[0.15em] text-gray-600 font-bold">
+                                                 {primaryGatewayId ? getGatewayLabel(primaryGatewayId) : t('checkout_editor.unconfigured_route', 'Sem gateway')}
+                                              </span>
+                                           </div>
+
+                                           {/* Processador Principal */}
+                                           <div className="space-y-2.5">
+                                              <span className="text-[9px] font-black text-gray-600 uppercase tracking-[0.18em] italic">
+                                                 {t('checkout_editor.primary_gateway_route', 'Processador Principal')}:
+                                              </span>
+
+                                              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                                                 {compatibleGateways.map((gateway) => {
+                                                    const isSelected = primaryGatewayId === gateway.id;
+                                                    return (
+                                                       <button
+                                                          key={`gate-select-${method.id}-${gateway.id}`}
+                                                          type="button"
+                                                          onClick={() => updatePaymentMethodRoute(method.id, 'primary_gateway_id', gateway.id)}
+                                                          className={`h-16 w-full flex items-center justify-center p-3 rounded-2xl border-2 transition-all duration-300 relative ${isSelected
+                                                             ? 'bg-primary/10 border-primary/50 text-white shadow-lg shadow-primary/20 scale-[1.02]'
+                                                             : 'bg-black/30 border-white/5 text-gray-500 hover:border-white/10 hover:bg-black/40'
+                                                             }`}
+                                                       >
+                                                          {getGatewayLogo(gateway.name) ? (
+                                                             <img
+                                                                src={getGatewayLogo(gateway.name)}
+                                                                alt={gateway.name}
+                                                                className="h-8 max-w-[85%] object-contain mx-auto filter brightness-100 transition-transform duration-300"
+                                                             />
+                                                          ) : (
+                                                             <span className="text-[10px] font-black uppercase tracking-wider text-center">
+                                                                {gateway.name.replace('_', ' ')}
+                                                             </span>
+                                                          )}
+                                                          {isSelected && (
+                                                             <div className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-primary flex items-center justify-center shadow-lg animate-in zoom-in duration-300">
+                                                                <Check className="w-3 h-3 text-white font-bold" />
+                                                             </div>
+                                                          )}
+                                                       </button>
+                                                    );
+                                                 })}
+                                              </div>
+                                           </div>
+
+                                           {/* Backup Automático para Pix */}
+                                           {method.supportsAutomaticBackup && (
+                                              <div className="pt-3 border-t border-white/5 space-y-2.5">
+                                                 <div className="flex items-center justify-between">
+                                                    <span className="text-[9px] font-black text-gray-600 uppercase tracking-[0.18em] italic">
+                                                       {t('checkout_editor.backup_gateway_route', 'Redundância / Backup')}:
+                                                    </span>
+                                                    <div className="group relative">
+                                                       <HelpCircle className="w-3.5 h-3.5 text-gray-700 hover:text-cyan-400 cursor-help transition-colors" />
+                                                       <div className="absolute right-0 bottom-5 hidden group-hover:block w-52 p-3 bg-black border border-white/10 rounded-xl text-[9px] text-gray-400 font-medium leading-relaxed shadow-2xl z-50">
+                                                          {t('checkout_editor.pix_backup_notice', 'Se o Pix principal falhar por indisponibilidade, o checkout tenta o backup sem expor a troca ao comprador.')}
+                                                       </div>
+                                                    </div>
+                                                 </div>
+
+                                                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                                                    <button
+                                                       type="button"
+                                                       onClick={() => updatePaymentMethodRoute(method.id, 'backup_gateway_id', '')}
+                                                       className={`h-16 w-full flex items-center justify-center px-4 rounded-2xl border-2 text-[10px] font-black uppercase tracking-wider transition-all duration-300 ${!backupGatewayIdForMethod
+                                                          ? 'bg-white/10 border-white/20 text-white shadow-md'
+                                                          : 'bg-black/30 border-white/5 text-gray-500 hover:border-white/10'
+                                                          }`}
+                                                    >
+                                                       {t('checkout_editor.backup_inactive_badge', 'Sem Backup')}
+                                                    </button>
+                                                    {compatibleGateways
+                                                       .filter((g) => g.id !== primaryGatewayId)
+                                                       .map((gateway) => {
+                                                          const isSelected = backupGatewayIdForMethod === gateway.id;
+                                                          return (
+                                                             <button
+                                                                key={`gate-backup-${method.id}-${gateway.id}`}
+                                                                type="button"
+                                                                onClick={() => updatePaymentMethodRoute(method.id, 'backup_gateway_id', gateway.id)}
+                                                                className={`h-16 w-full flex items-center justify-center p-3 rounded-2xl border-2 transition-all duration-300 relative ${isSelected
+                                                                   ? 'bg-primary/10 border-primary/50 text-white shadow-lg shadow-primary/20 scale-[1.02]'
+                                                                   : 'bg-black/30 border-white/5 text-gray-500 hover:border-white/10 hover:bg-black/40'
+                                                                   }`}
+                                                             >
+                                                                {getGatewayLogo(gateway.name) ? (
+                                                                   <img
+                                                                      src={getGatewayLogo(gateway.name)}
+                                                                      alt={gateway.name}
+                                                                      className="h-8 max-w-[85%] object-contain mx-auto filter brightness-100 transition-transform duration-300"
+                                                                   />
+                                                                ) : (
+                                                                   <span className="text-[10px] font-black uppercase tracking-wider text-center">
+                                                                      {gateway.name.replace('_', ' ')}
+                                                                   </span>
+                                                                )}
+                                                                {isSelected && (
+                                                                   <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary flex items-center justify-center shadow-lg">
+                                                                      <Check className="w-2.5 h-2.5 text-white font-bold" />
+                                                                   </div>
+                                                                )}
+                                                             </button>
+                                                          );
+                                                       })}
+                                                 </div>
+                                              </div>
+                                           )}
+                                        </div>
+                                     );
+                                  })}
+                               </div>
+
+                               {/* Configurações Avançadas e Sincronização Legada */}
+                               <div className="mt-8 border-t border-white/5 pt-6">
+                                  <button
+                                     type="button"
+                                     onClick={() => setShowAdvancedRouting(!showAdvancedRouting)}
+                                     className="flex items-center justify-between w-full group py-2"
+                                  >
+                                     <span className="text-[10px] font-black uppercase tracking-[0.25em] text-gray-700 group-hover:text-primary transition-colors italic">
+                                        {t('checkout_editor.advanced_settings_title', 'Configurações Avançadas & Sincronização Legada')}
+                                     </span>
+                                     <ChevronRight className={`w-4 h-4 text-gray-700 transition-transform duration-300 ${showAdvancedRouting ? 'rotate-90 text-primary' : ''}`} />
+                                  </button>
+
+                                  {showAdvancedRouting && (
+                                     <div className="mt-6 space-y-6 animate-in slide-in-from-top-2 duration-500">
+                                        <div className="p-5 bg-white/[0.01] border border-white/5 rounded-2xl">
+                                           <p className="text-[9.5px] text-gray-600 font-medium uppercase tracking-widest leading-relaxed">
+                                              {t('checkout_editor.legacy_compat_desc', 'O sistema continua preenchendo o gateway principal e o backup legado de forma automatica para manter a compatibilidade com a modelagem do banco de dados, porem a sua nova experiencia e governada pelas rotas por metodo configuradas acima.')}
+                                           </p>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                           {[
+                                              {
+                                                 key: 'legacy-primary',
+                                                 title: t('checkout_editor.primary_gateway', 'Gateway principal'),
+                                                 gateway: legacyPrimaryGateway,
+                                                 fallbackLabel: t('checkout_editor.unassigned_route_short', 'Sem base definida'),
+                                              },
+                                              {
+                                                 key: 'legacy-backup',
+                                                 title: t('checkout_editor.backup_gateway', 'Gateway backup'),
+                                                 gateway: legacyBackupGateway,
+                                                 fallbackLabel: t('checkout_editor.backup_inactive', 'Backup inativo'),
+                                              },
+                                           ].map((item) => (
+                                              <div key={item.key} className="rounded-2xl border border-white/5 bg-black/40 p-4 flex items-center gap-4">
+                                                 <div className="w-10 h-10 rounded-xl border border-white/5 bg-black/55 flex items-center justify-center overflow-hidden shrink-0">
+                                                    {item.gateway && getGatewayLogo(item.gateway.name) ? (
+                                                       <img src={getGatewayLogo(item.gateway.name)} alt={item.gateway.name} className="h-6 w-6 object-contain" />
+                                                    ) : (
+                                                       <Wallet className="w-4 h-4 text-gray-700" />
+                                                    )}
+                                                 </div>
+                                                 <div className="min-w-0">
+                                                    <p className="text-[8px] font-black uppercase tracking-[0.18em] text-gray-700 leading-none mb-1">{item.title}</p>
+                                                    <p className="text-xs font-black uppercase tracking-[0.14em] text-white truncate">
+                                                       {item.gateway ? getGatewayLabel(item.gateway.id) : item.fallbackLabel}
+                                                    </p>
+                                                 </div>
+                                              </div>
+                                           ))}
+                                        </div>
+                                     </div>
+                                  )}
+                               </div>
+                            </>
+                        )}
                      </div>
                   </section>
 
@@ -832,6 +1385,58 @@ export const CheckoutEditor = () => {
                                           onChange={e => setConfig({ ...config, upsell: { ...config.upsell!, media_url: e.target.value } })}
                                        />
                                     </div>
+
+                                    <div className="space-y-4">
+                                       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 px-1">
+                                          <div>
+                                             <label className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">
+                                                {t('checkout_editor.upsell_benefits_label', 'Benefícios com check')}
+                                             </label>
+                                             <p className="mt-2 text-[11px] text-gray-500 leading-relaxed">
+                                                {t('checkout_editor.upsell_benefits_hint', 'Os checks verdes continuam fixos no layout. Aqui você edita apenas os textos exibidos na oferta.')}
+                                             </p>
+                                          </div>
+                                          <button
+                                             type="button"
+                                             onClick={() => updateUpsellBenefits([...(config.upsell?.benefits || []), ''])}
+                                             className="inline-flex items-center justify-center gap-2 rounded-xl border border-primary/20 bg-primary/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.22em] text-primary transition-all hover:border-primary/40 hover:bg-primary/15"
+                                          >
+                                             <Plus className="w-3.5 h-3.5" />
+                                             {t('checkout_editor.upsell_add_benefit', 'Adicionar benefício')}
+                                          </button>
+                                       </div>
+
+                                       <div className="space-y-3">
+                                          {(config.upsell?.benefits || []).map((benefit, index) => (
+                                             <div key={`upsell-benefit-${index}`} className="flex items-center gap-3">
+                                                <div className="w-10 h-10 shrink-0 rounded-xl border border-emerald-500/20 bg-emerald-500/10 flex items-center justify-center">
+                                                   <Check className="w-4 h-4 text-emerald-400" />
+                                                </div>
+                                                <input
+                                                   type="text"
+                                                   className="flex-1 bg-white/[0.02] border border-white/5 rounded-xl px-4 py-3 text-white text-sm font-semibold placeholder:text-gray-700 focus:border-primary/30 outline-none transition-all"
+                                                   placeholder={DEFAULT_UPSELL_BENEFITS[index] || t('checkout_editor.upsell_benefit_placeholder', 'Digite o benefício exibido no upsell')}
+                                                   value={benefit}
+                                                   onChange={e => {
+                                                      const nextBenefits = [...(config.upsell?.benefits || [])];
+                                                      nextBenefits[index] = e.target.value;
+                                                      updateUpsellBenefits(nextBenefits);
+                                                   }}
+                                                />
+                                                {index >= 2 ? (
+                                                   <button
+                                                      type="button"
+                                                      onClick={() => updateUpsellBenefits((config.upsell?.benefits || []).filter((_, itemIndex) => itemIndex !== index))}
+                                                      className="w-10 h-10 shrink-0 rounded-xl border border-white/10 bg-white/[0.03] text-gray-500 flex items-center justify-center transition-all hover:border-red-500/30 hover:bg-red-500/10 hover:text-red-400"
+                                                      aria-label={t('checkout_editor.remove_benefit', 'Remover benefício')}
+                                                   >
+                                                      <X className="w-4 h-4" />
+                                                   </button>
+                                                ) : null}
+                                             </div>
+                                          ))}
+                                       </div>
+                                    </div>
                                  </div>
                               </div>
                            </div>
@@ -840,7 +1445,7 @@ export const CheckoutEditor = () => {
                   </section>
 
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-                     <section className="animate-in fade-in slide-in-from-bottom-4 duration-700 delay-500 lg:col-span-1 space-y-8">
+                     <section className="animate-in fade-in slide-in-from-bottom-4 duration-700 delay-500 lg:col-span-3 space-y-8">
                         <div className="flex items-center gap-4 ml-2">
                            <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shadow-lg shadow-primary/10">
                               <ShoppingBag className="w-5 h-5" />
@@ -874,7 +1479,7 @@ export const CheckoutEditor = () => {
                         </div>
                      </section>
 
-                     <section className="animate-in fade-in slide-in-from-bottom-4 duration-700 delay-[600ms] lg:col-span-2 space-y-8">
+                     {/* <section className="animate-in fade-in slide-in-from-bottom-4 duration-700 delay-[600ms] lg:col-span-2 space-y-8">
                         <div className="flex items-center gap-4 ml-2">
                            <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-500 shadow-lg shadow-purple-500/10">
                               <CreditCard className="w-5 h-5" />
@@ -891,21 +1496,17 @@ export const CheckoutEditor = () => {
                                  { id: 'apple_pay', label: t('checkout_editor.pay_apple'), icon: Smartphone },
                                  { id: 'google_pay', label: t('checkout_editor.pay_google'), icon: Smartphone }
                               ].map(method => {
-                                 const isStripeOnly = method.id === 'apple_pay' || method.id === 'google_pay';
-                                 const isPagSeguroBoleto = method.id === 'boleto' && isPagSeguroSelected;
-                                 const isAsaasPixOnlyMethod = isAsaasSelected && (method.id === 'credit_card' || method.id === 'boleto');
-                                 const isDisabled = (isStripeOnly && gatewayId && gateways.find(g => g.id === gatewayId)?.name !== GatewayProvider.STRIPE)
-                                    || isPagSeguroBoleto
-                                    || isAsaasPixOnlyMethod;
+                                 const compatibleGateways = getMethodCompatibleGateways(method.id as PaymentMethodType);
+                                 const isDisabled = compatibleGateways.length === 0;
                                  
                                  return (
                                     <button
                                        key={method.id}
                                        disabled={isDisabled}
-                                       onClick={() => setConfig({
-                                          ...config,
-                                          payment_methods: { ...config.payment_methods, [method.id]: !config.payment_methods[method.id as keyof typeof config.payment_methods] }
-                                       })}
+                                       onClick={() => updatePaymentMethodToggle(
+                                          method.id as PaymentMethodType,
+                                          !config.payment_methods[method.id as keyof typeof config.payment_methods]
+                                       )}
                                        className={`flex items-center justify-between p-4 rounded-xl border-2 transition-all duration-500 ${isDisabled ? 'opacity-20 grayscale pointer-events-none' : ''} ${config.payment_methods[method.id as keyof typeof config.payment_methods] ? 'bg-purple-500/10 border-purple-500/40 shadow-lg shadow-purple-500/5' : 'bg-white/[0.01] border-white/5 hover:border-white/10'}`}
                                     >
                                        <div className="flex items-center gap-4">
@@ -919,11 +1520,118 @@ export const CheckoutEditor = () => {
                            </div>
                            {isAsaasSelected && (
                               <div className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-amber-200">
-                                 {t('checkout_editor.asaas_pix_only_hint', 'Asaas permanece temporariamente apenas com Pix no Super Checkout.')}
+                                 {t('checkout_editor.asaas_pix_only_hint', 'Asaas permanece temporariamente apenas com Pix no Super Checkout. Para oferecer cartao neste mesmo checkout, configure Stripe ou Mercado Pago na rota do cartao abaixo.')}
                               </div>
                            )}
+                           <div className="mt-6 rounded-2xl border border-cyan-500/20 bg-cyan-500/5 px-5 py-4 text-[11px] text-cyan-100">
+                              <p className="font-black uppercase tracking-[0.18em] text-cyan-200 mb-2">
+                                 {t('checkout_editor.method_routing_title', 'Roteamento por método')}
+                              </p>
+                              <p className="text-cyan-50/90 leading-relaxed">
+                                 {t(
+                                    'checkout_editor.method_routing_notice',
+                                    'Use esta etapa para combinar gateways no mesmo checkout. Exemplo: Pix = Asaas, Cartao = Stripe e Pix backup = Mercado Pago.'
+                                 )}
+                              </p>
+                           </div>
+                           <div className="mt-6 space-y-4">
+                              {([
+                                 { id: 'pix', label: t('checkout_editor.pay_pix'), icon: Zap },
+                                 { id: 'credit_card', label: t('checkout_editor.pay_credit_card'), icon: CreditCard },
+                                 { id: 'boleto', label: t('checkout_editor.pay_boleto'), icon: FileText },
+                                 { id: 'apple_pay', label: t('checkout_editor.pay_apple'), icon: Smartphone },
+                                 { id: 'google_pay', label: t('checkout_editor.pay_google'), icon: Smartphone }
+                              ] as Array<{ id: PaymentMethodType; label: string; icon: typeof CreditCard }>).map((method) => {
+                                 const route = effectivePaymentRouting[method.id];
+                                 const methodEnabled = Boolean(config.payment_methods[method.id]);
+                                 const routeIsExplicit = Boolean(config.payment_routing?.[method.id]);
+                                 const compatibleGateways = getMethodCompatibleGateways(method.id);
+                                 const primaryGatewayId = route?.primary_gateway_id || '';
+                                 const backupGatewayIdForMethod = route?.backup_gateway_id || '';
+
+                                 return (
+                                    <div
+                                       key={`route-${method.id}`}
+                                       className={`rounded-2xl border p-5 transition-all ${methodEnabled ? 'border-white/10 bg-white/[0.02]' : 'border-white/5 bg-white/[0.01] opacity-60'}`}
+                                    >
+                                       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                                          <div className="flex items-center gap-3">
+                                             <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${methodEnabled ? 'bg-cyan-500/10 text-cyan-300 border border-cyan-500/20' : 'bg-white/[0.02] text-gray-600 border border-white/5'}`}>
+                                                <method.icon className="w-4 h-4" />
+                                             </div>
+                                             <div>
+                                                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-white">{method.label}</p>
+                                                <p className="text-[10px] uppercase tracking-[0.16em] text-gray-500">
+                                                   {routeIsExplicit
+                                                      ? t('checkout_editor.method_route_explicit', 'Rota explicita por metodo')
+                                                      : t('checkout_editor.method_route_derived', 'Derivado do gateway legado atual')}
+                                                </p>
+                                             </div>
+                                          </div>
+                                          <div className="flex items-center gap-2 flex-wrap">
+                                             {compatibleGateways.length > 0 ? (
+                                                compatibleGateways.map((gateway) => (
+                                                   <span
+                                                      key={`${method.id}-${gateway.id}`}
+                                                      className="rounded-full border border-white/10 bg-black/30 px-3 py-1 text-[9px] font-black uppercase tracking-[0.18em] text-gray-300"
+                                                   >
+                                                      {gateway.name.replace('_', ' ')}
+                                                   </span>
+                                                ))
+                                             ) : (
+                                                <span className="rounded-full border border-rose-500/20 bg-rose-500/10 px-3 py-1 text-[9px] font-black uppercase tracking-[0.18em] text-rose-200">
+                                                   {t('checkout_editor.no_compatible_gateway', 'Nenhum gateway compativel ativo')}
+                                                </span>
+                                             )}
+                                          </div>
+                                       </div>
+
+                                       <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                          <div>
+                                             <label className="block text-[9px] font-black text-gray-600 uppercase tracking-[0.18em] mb-2">
+                                                {t('checkout_editor.primary_gateway', 'Gateway principal')}
+                                             </label>
+                                             <select
+                                                disabled={!methodEnabled || compatibleGateways.length === 0}
+                                                value={primaryGatewayId}
+                                                onChange={(e) => updatePaymentMethodRoute(method.id, 'primary_gateway_id', e.target.value)}
+                                                className="w-full bg-[#05050A] border-2 border-white/5 rounded-xl px-4 py-3 text-white text-xs font-bold focus:border-cyan-500/40 outline-none disabled:opacity-50"
+                                             >
+                                                <option value="">{t('checkout_editor.gateway_route_unassigned', 'Sem rota definida')}</option>
+                                                {compatibleGateways.map((gateway) => (
+                                                   <option key={`${method.id}-primary-${gateway.id}`} value={gateway.id}>
+                                                      {gateway.name.replace('_', ' ')}
+                                                   </option>
+                                                ))}
+                                             </select>
+                                          </div>
+                                          <div>
+                                             <label className="block text-[9px] font-black text-gray-600 uppercase tracking-[0.18em] mb-2">
+                                                {t('checkout_editor.backup_gateway', 'Gateway backup')}
+                                             </label>
+                                             <select
+                                                disabled={!methodEnabled || compatibleGateways.length === 0}
+                                                value={backupGatewayIdForMethod}
+                                                onChange={(e) => updatePaymentMethodRoute(method.id, 'backup_gateway_id', e.target.value)}
+                                                className="w-full bg-[#05050A] border-2 border-white/5 rounded-xl px-4 py-3 text-white text-xs font-bold focus:border-cyan-500/40 outline-none disabled:opacity-50"
+                                             >
+                                                <option value="">{t('checkout_editor.backup_inactive', 'Backup inativo')}</option>
+                                                {compatibleGateways
+                                                   .filter((gateway) => gateway.id !== primaryGatewayId)
+                                                   .map((gateway) => (
+                                                      <option key={`${method.id}-backup-${gateway.id}`} value={gateway.id}>
+                                                         {gateway.name.replace('_', ' ')}
+                                                      </option>
+                                                   ))}
+                                             </select>
+                                          </div>
+                                       </div>
+                                    </div>
+                                 );
+                              })}
+                           </div>
                         </div>
-                     </section>
+                     </section> */}
                   </div>
 
                   <section className="animate-in fade-in slide-in-from-bottom-4 duration-700 delay-700">

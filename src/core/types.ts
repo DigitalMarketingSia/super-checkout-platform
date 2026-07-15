@@ -34,6 +34,14 @@ export type PaymentMethodType =
   | 'apple_pay'
   | 'google_pay';
 
+export interface CheckoutMethodGatewayRoute {
+  enabled: boolean;
+  primary_gateway_id: string | null;
+  backup_gateway_id?: string | null;
+}
+
+export type CheckoutPaymentRoutingConfig = Partial<Record<PaymentMethodType, CheckoutMethodGatewayRoute>>;
+
 export enum OrderStatus {
   PENDING = 'pending',
   PAID = 'paid',
@@ -88,6 +96,7 @@ export interface Product {
   currency?: string; // New: Currency support (BRL, USD, EUR)
   saas_plan_slug?: string;
   member_area_id?: string; // Links product to a specific member area
+  created_at?: string;
 }
 
 export interface Offer {
@@ -133,6 +142,7 @@ export interface CheckoutConfig {
     apple_pay?: boolean;
     google_pay?: boolean;
   };
+  payment_routing?: CheckoutPaymentRoutingConfig;
   timer: {
     active: boolean;
     minutes: number;
@@ -156,6 +166,7 @@ export interface CheckoutConfig {
     title?: string;
     subtitle?: string;
     description?: string;
+    benefits?: string[];
     media_type: 'video' | 'image';
     media_url?: string;
     button_text?: string;

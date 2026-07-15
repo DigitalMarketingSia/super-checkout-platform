@@ -13,6 +13,7 @@ import {
   createPlanLimitError,
   resolveFeatureAccess,
 } from './featureAccess';
+import { sanitizeGatewayPublicConfig } from '../utils/gatewayPublicConfig';
 import { getCachedAuthUser, setCachedAuthUser } from './authUserCache';
 import { demoDataService, isDemoDataRuntime } from './demoDataService';
 import { publicSupabase, supabase } from './supabase';
@@ -58,6 +59,7 @@ function mapProductRecord(record: any, overrides: Partial<Product> = {}): Produc
     member_area_checkout_id: record.member_area_checkout_id,
     saas_plan_slug: record.saas_plan_slug,
     member_area_id: record.member_area_id,
+    created_at: record.created_at,
     ...overrides,
   };
 }
@@ -82,9 +84,6 @@ function mapMemberAreaProductRecord(record: any): Product {
   });
 }
 
-/**
- * SERVICE LAYER - SUPABASE IMPLEMENTATION
- */
 class StorageService {
   setUser(user: User | null) {
     // console.log('StorageService: setUser called', user?.id);
@@ -1017,12 +1016,53 @@ class StorageService {
   async getPublicGateway(id: string): Promise<Gateway | null> {
     if (isDemoDataRuntime()) return demoDataService.getPublicGateway(id);
 
+    const loadPublicGatewayFromView = async () => {
+      try {
+        const { data, error } = await publicSupabase
+          .from('public_gateways')
+          .select('id,name,provider,public_key,active,is_active,config')
+          .eq('id', id)
+          .maybeSingle();
+
+        if (error) {
+          console.error('Public gateway view lookup failed:', error.message);
+          return null;
+        }
+
+        if (!data || (data.active === false && data.is_active === false)) {
+          return null;
+        }
+
+        return {
+          id: data.id,
+          name: data.name || data.provider,
+          provider: data.provider || data.name,
+          public_key: data.public_key,
+          active: data.active,
+          is_active: data.is_active,
+          config: sanitizeGatewayPublicConfig(data.config || {}),
+        } as Gateway;
+      } catch (viewLookupError) {
+        console.error('Error fetching public gateway from public view:', viewLookupError);
+        return null;
+      }
+    };
+
+    const directGateway = await loadPublicGatewayFromView();
+    if (directGateway) {
+      return directGateway;
+    }
+
     try {
       const response = await fetch(`/api/system?action=public-gateway&id=${encodeURIComponent(id)}`);
       const json = await response.json().catch(() => ({}));
 
       if (!response.ok) {
         console.error('Public gateway request failed:', json.error || response.statusText);
+        return null;
+      }
+
+      if (!json || typeof json !== 'object' || !('id' in json) || !json.id) {
         return null;
       }
 

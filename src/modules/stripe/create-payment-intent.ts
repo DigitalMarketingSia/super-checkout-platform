@@ -328,6 +328,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
         const {
             paymentMethodId,
+            paymentMethod,
             amount,
             currency,
             description,
@@ -385,7 +386,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const mainProduct = getMainProductForCheckout(checkout);
         const merchantUserId = resolveCheckoutMerchantUserId(checkout, mainProduct);
         const orderData = await loadOwnedOrderForCheckoutWithMerchant(supabaseAdmin, checkout, merchantUserId, orderId);
-        const gateway = await loadOwnedActiveGateway(supabaseAdmin, merchantUserId, checkout, gatewayId, 'stripe');
+        const gateway = await loadOwnedActiveGateway(
+            supabaseAdmin,
+            merchantUserId,
+            checkout,
+            gatewayId,
+            'stripe',
+            typeof paymentMethod === 'string' && paymentMethod.trim()
+                ? paymentMethod.trim()
+                : orderData?.payment_method,
+        );
         const serverCurrency = assertCurrencyMatchesCheckout(checkout, mainProduct, currency);
 
         // The private key is encrypted in the database (Fase 11C), so we must decrypt it

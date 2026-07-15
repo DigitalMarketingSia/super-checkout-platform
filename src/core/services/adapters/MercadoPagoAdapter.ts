@@ -202,12 +202,17 @@ export class MercadoPagoAdapter {
                 throw new Error('Mercado Pago nao retornou um token valido do cartao.');
             }
 
+            const resolvedPaymentMethodId = (tokenResponse as any).payment_method_id || identifiedMethodId || '';
+            const resolvedIssuerId = (tokenResponse as any).issuer?.id
+                ? String((tokenResponse as any).issuer.id)
+                : identifiedIssuerId || undefined;
+
             console.log('[MercadoPagoAdapter] Tokenized successfully via SDK v2:', (tokenResponse as any).id);
 
             return { 
                 token: (tokenResponse as any).id, 
-                paymentMethodId: identifiedMethodId,
-                issuerId: identifiedIssuerId // Enviamos o emissor identificado
+                paymentMethodId: resolvedPaymentMethodId,
+                issuerId: resolvedIssuerId
             };
         } catch (error: any) {
             console.error('[MercadoPagoAdapter] Tokenization error:', error);

@@ -255,15 +255,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const action = getAction(req);
     const supabaseUrl = getSupabaseUrl();
     const serviceKey = getSupabaseServiceKey();
-    if (!supabaseUrl || !serviceKey) {
-      return res.status(500).json({ error: 'Server configuration missing.' });
+    let admin: any = null;
+    if (supabaseUrl && serviceKey) {
+      admin = createClient(supabaseUrl, serviceKey, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
     }
 
-    const admin = createClient(supabaseUrl, serviceKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
+    const requireDefaultAdmin = () => {
+      if (!supabaseUrl || !serviceKey || !admin) {
+        res.status(500).json({ error: 'Server configuration missing.' });
+        return null;
+      }
+      return admin;
+    };
 
     if (action === 'setup') {
+    if (!requireDefaultAdmin()) return;
     const token = getAuthToken(req);
     if (!token) return res.status(401).json({ error: 'Missing authorization token.' });
 
@@ -335,16 +343,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (challengeToken) {
       if (isStatelessLoginChallengeToken(String(challengeToken))) {
-        const anonKey = getSupabaseAnonKey();
-        if (!anonKey) {
-          return res.status(500).json({ error: 'Server configuration missing.' });
-        }
-
         let storedPayload: ReturnType<typeof readStatelessLoginChallengeToken>;
         try {
           storedPayload = readStatelessLoginChallengeToken(String(challengeToken));
         } catch {
           return res.status(400).json({ error: 'Challenge invalido.' });
+        }
+
+        const challengeTarget = storedPayload.target === 'central' ? 'central' : 'local';
+        const challengeSupabaseUrl = getSupabaseUrl(challengeTarget);
+        const anonKey = getSupabaseAnonKey(challengeTarget);
+        if (!challengeSupabaseUrl || !anonKey) {
+          return res.status(500).json({ error: 'Server configuration missing.' });
         }
 
         const challengeId = String(storedPayload?.jti || '');
@@ -362,7 +372,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (state?.used_at || state?.status === 'verified') {
           await logSecurityEvent({
-            supabaseUrl,
+            supabaseUrl: challengeSupabaseUrl,
             serviceKey,
             eventType: 'two_factor_challenge_replay',
             severity: 'WARNING',
@@ -399,7 +409,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         const resolvedAuth = await resolveStoredLoginSessionWithPublishable(
-          supabaseUrl,
+          challengeSupabaseUrl,
           anonKey,
           storedSession,
           expectedUserId
@@ -412,7 +422,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             updated_at: new Date().toISOString(),
           });
           await logSecurityEvent({
-            supabaseUrl,
+            supabaseUrl: challengeSupabaseUrl,
             serviceKey,
             eventType: 'two_factor_session_invalid',
             severity: 'WARNING',
@@ -439,7 +449,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(401).json({ error: 'Sessao expirada. Faca login novamente.' });
         }
 
-        const userClient = createClient(supabaseUrl, anonKey, {
+        const userClient = createClient(challengeSupabaseUrl, anonKey, {
           auth: { autoRefreshToken: false, persistSession: false },
           global: {
             headers: {
@@ -491,7 +501,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             updated_at: new Date().toISOString(),
           });
           await logSecurityEvent({
-            supabaseUrl,
+            supabaseUrl: challengeSupabaseUrl,
             serviceKey,
             eventType: 'two_factor_login_failed',
             severity: 'WARNING',
@@ -519,7 +529,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
 
         await logSecurityEvent({
-          supabaseUrl,
+          supabaseUrl: challengeSupabaseUrl,
           serviceKey,
           eventType: 'two_factor_verified',
           severity: 'INFO',
@@ -540,6 +550,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           user: resolvedAuth.user,
         });
       }
+
+      if (!requireDefaultAdmin()) return;
 
       let tokenHash = '';
       try {
@@ -856,6 +868,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
+    if (!requireDefaultAdmin()) return;
+
     const token = getAuthToken(req);
     if (!token) return res.status(401).json({ error: 'Missing authorization token.' });
 
@@ -957,6 +971,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (action === 'disable') {
+    if (!requireDefaultAdmin()) return;
     const { code } = req.body || {};
     const normalizedCode = normalizeTotpCode(code);
     if (!normalizedCode || normalizedCode.length < 6) {
