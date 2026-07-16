@@ -1128,7 +1128,10 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- 4.5 Admin Members View (Fixing the error source)
-CREATE OR REPLACE VIEW public.admin_members_view AS
+DROP VIEW IF EXISTS public.admin_members_view;
+CREATE VIEW public.admin_members_view
+WITH (security_invoker = true)
+AS
 SELECT 
     p.id as user_id,
     p.email,
@@ -1138,7 +1141,101 @@ SELECT
     p.created_at as joined_at,
     (SELECT COUNT(*) FROM access_grants ag WHERE ag.user_id = p.id AND ag.status = 'active') as active_products_count,
     (SELECT COUNT(*) FROM orders o WHERE o.customer_user_id = p.id) as orders_count
-FROM public.profiles p;
+FROM public.profiles p
+WHERE EXISTS (
+    SELECT 1
+    FROM public.profiles admin_profile
+    WHERE admin_profile.id = auth.uid()
+      AND admin_profile.role IN ('admin', 'owner', 'master_admin')
+) OR auth.role() = 'service_role';
+
+REVOKE ALL ON public.admin_members_view FROM PUBLIC, anon;
+GRANT SELECT ON public.admin_members_view TO authenticated, service_role;
+
+COMMENT ON VIEW public.admin_members_view IS
+'Admin-only member projection. Uses security_invoker and an explicit admin gate to avoid leaking rows to authenticated non-admin users.';
+
+COMMENT ON VIEW public.public_gateways IS
+'Intentional sanitized gateway projection for public checkout use. SECURITY DEFINER is accepted here so anon never needs direct SELECT on public.gateways.';
+
+DO $$
+DECLARE
+  fn RECORD;
+  target_function_names TEXT[] := ARRAY[
+    'is_admin',
+    'handle_updated_at',
+    'get_member_area_members',
+    'get_area_members_enriched',
+    'is_setup_required',
+    'handle_new_order_access',
+    'handle_new_user'
+  ];
+BEGIN
+  FOR fn IN
+    SELECT
+      n.nspname,
+      p.proname,
+      pg_get_function_identity_arguments(p.oid) AS identity_args
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname = ANY(target_function_names)
+  LOOP
+    EXECUTE format(
+      'ALTER FUNCTION %I.%I(%s) SET search_path = public',
+      fn.nspname,
+      fn.proname,
+      fn.identity_args
+    );
+  END LOOP;
+END $$;
+
+DO $$
+DECLARE
+  fn RECORD;
+  internal_function_names TEXT[] := ARRAY[
+    'handle_new_user',
+    'handle_new_order_access'
+  ];
+  authenticated_rpc_names TEXT[] := ARRAY[
+    'get_member_area_members',
+    'get_area_members_enriched'
+  ];
+BEGIN
+  FOR fn IN
+    SELECT
+      n.nspname,
+      p.proname,
+      pg_get_function_identity_arguments(p.oid) AS identity_args
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname = ANY(internal_function_names || authenticated_rpc_names)
+  LOOP
+    EXECUTE format(
+      'REVOKE EXECUTE ON FUNCTION %I.%I(%s) FROM PUBLIC, anon, authenticated',
+      fn.nspname,
+      fn.proname,
+      fn.identity_args
+    );
+
+    IF fn.proname = ANY(authenticated_rpc_names) THEN
+      EXECUTE format(
+        'GRANT EXECUTE ON FUNCTION %I.%I(%s) TO authenticated, service_role',
+        fn.nspname,
+        fn.proname,
+        fn.identity_args
+      );
+    ELSE
+      EXECUTE format(
+        'GRANT EXECUTE ON FUNCTION %I.%I(%s) TO service_role',
+        fn.nspname,
+        fn.proname,
+        fn.identity_args
+      );
+    END IF;
+  END LOOP;
+END $$;
 
 -- ==========================================
 -- 5. RLS POLICIES (Re-apply safely)

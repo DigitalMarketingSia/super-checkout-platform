@@ -3,7 +3,7 @@
 // 2. the exact SHA-256 is registered here
 // 3. CURRENT_SCHEMA_VERSION/SCHEMA_VERSION include the release
 // Helper: npm run migration:hash -- src/migrations/vX.Y.Z.sql
-export const CURRENT_SCHEMA_VERSION = '1.0.28';
+export const CURRENT_SCHEMA_VERSION = '1.0.29';
 export const UNKNOWN_SCHEMA_VERSION = '0.0.0';
 
 export const APPROVED_MIGRATION_ALLOWLIST: Record<string, { file: string; sha256: string }> = {
@@ -118,6 +118,10 @@ export const APPROVED_MIGRATION_ALLOWLIST: Record<string, { file: string; sha256
   '1.0.28': {
     file: 'v1.0.28.sql',
     sha256: '3a13e901e229afcc698074ecb2df4d9346d4d013c4a7164e11833b1783ae7d6f'
+  },
+  '1.0.29': {
+    file: 'v1.0.29.sql',
+    sha256: '1fb411f7c5cf84bd4a4f37f17a29749506deebba4a0ff4f8ad9901775a35d3df'
   }
 };
 
