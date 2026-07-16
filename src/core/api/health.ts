@@ -51,7 +51,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             app_version: APP_VERSION,
             schema_version: SCHEMA_VERSION,
             fulfillment_pipeline: 'vercel',
-            hotfix: 'checkout-backup-gateway-schema-repair',
+            hotfix: 'gateway-public-access-lockdown',
             timestamp: new Date().toISOString()
         });
     } catch (error: any) {

@@ -600,6 +600,9 @@ WHERE COALESCE(active, true) = true
   AND COALESCE(is_active, true) = true;
 
 GRANT SELECT ON public.public_gateways TO anon, authenticated;
+REVOKE ALL ON public.gateways FROM anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.gateways TO authenticated;
+GRANT ALL ON public.gateways TO service_role;
 
 -- 2.8.1 Webhooks
 CREATE TABLE IF NOT EXISTS public.webhooks (
@@ -1195,7 +1198,6 @@ CREATE POLICY "Public can view active products" ON products FOR SELECT USING (ac
 
 -- Gateways
 CREATE POLICY "Users can manage their own gateways" ON gateways FOR ALL USING (auth.uid() = user_id);
-CREATE POLICY "Public can view active gateways" ON gateways FOR SELECT USING (active = true OR is_active = true);
 
 -- Checkouts
 CREATE POLICY "Users can manage their own checkouts" ON checkouts FOR ALL USING (auth.uid() = user_id);
