@@ -575,7 +575,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         const providerStatus = String(asaasData?.status || '').trim().toUpperCase();
-        const newStatus = mapAsaasStatusToLocal(providerStatus, asaasData?.billingType);
+        const newStatus = mapAsaasStatusToLocal(providerStatus, asaasData?.billingType, {
+            sandbox: gateway.config?.sandbox === true,
+        });
         const currentStatusNorm = (order.status || 'pending').toLowerCase();
         const rawResponse = buildSafeAsaasRawResponse(asaasData);
         const resolvedTransactionId = String(asaasData?.id || providerPaymentId || '');

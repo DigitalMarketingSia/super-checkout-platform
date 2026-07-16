@@ -25,16 +25,24 @@ export function getAsaasApiBaseUrl(isSandbox?: boolean) {
   return isSandbox ? 'https://api-sandbox.asaas.com/v3' : 'https://api.asaas.com/v3';
 }
 
-export function mapAsaasStatusToLocal(status: string, billingType?: string) {
+export function mapAsaasStatusToLocal(
+  status: string,
+  billingType?: string,
+  options?: { sandbox?: boolean | null },
+) {
   const normalizedStatus = String(status || '').trim().toUpperCase();
   const normalizedBillingType = String(billingType || '').trim().toUpperCase();
+  const isSandbox = options?.sandbox === true;
 
   switch (normalizedStatus) {
     case 'RECEIVED':
     case 'RECEIVED_IN_CASH':
       return 'paid';
     case 'CONFIRMED':
-      return normalizedBillingType === 'PIX' ? 'pending' : 'paid';
+      if (normalizedBillingType === 'PIX') {
+        return isSandbox ? 'paid' : 'pending';
+      }
+      return 'paid';
     case 'REFUNDED':
     case 'REFUND_REQUESTED':
     case 'REFUND_IN_PROGRESS':

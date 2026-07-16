@@ -188,7 +188,7 @@ export async function handleAsaasWebhook(
 
     const { data: gateway } = await supabaseAdmin
       .from('gateways')
-      .select('id,user_id,webhook_secret')
+      .select('id,user_id,webhook_secret,config')
       .eq('id', gatewayId)
       .maybeSingle();
 
@@ -224,7 +224,9 @@ export async function handleAsaasWebhook(
       return res.status(200).json({ status: 'ORDER_MISMATCH' });
     }
 
-    const localStatus = mapAsaasStatusToLocal(payload.payment.status, payload.payment.billingType);
+    const localStatus = mapAsaasStatusToLocal(payload.payment.status, payload.payment.billingType, {
+      sandbox: gateway.config?.sandbox === true,
+    });
     const safeRawResponse = buildSafeAsaasRawResponse(payload.payment);
 
     if (paymentRecord?.id) {
