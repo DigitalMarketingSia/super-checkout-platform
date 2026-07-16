@@ -13,7 +13,9 @@
     "typecheck:api": "tsc -p tsconfig.api.audit.json --pretty false",
     "lint:audit": "eslint . --max-warnings=0",
     "i18n:audit": "node scripts/i18n-audit.cjs",
-    "security:smoke:negative": "node scripts/security-smoke-negative.cjs"
+    "security:smoke:negative": "node scripts/security-smoke-negative.cjs",
+    "migration:hash": "node scripts/migration-helper.mjs hash",
+    "migration:scaffold": "node scripts/migration-helper.mjs scaffold"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",

@@ -37,13 +37,13 @@ export const UpdateBanner: React.FC = () => {
           </div>
           <div>
             <h4 className="text-white font-bold text-base flex items-center gap-2">
-              Banco Requer Revisao Manual
+              Banco Requer Atualizacao
               <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 text-[10px] uppercase font-black tracking-widest border border-blue-500/20">
                 v{SCHEMA_VERSION}
               </span>
             </h4>
             <p className="text-gray-400 text-xs mt-1">
-              Nenhuma migration roda sozinha. Revise e aplique manualmente em Atualizacoes.
+              Existem migrations aprovadas para este schema. Abra Atualizacoes e clique em Atualizar Banco.
             </p>
           </div>
         </div>

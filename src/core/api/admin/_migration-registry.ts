@@ -1,3 +1,8 @@
+// Migrations only become executable from /admin/updates after:
+// 1. the SQL file exists in src/migrations as vX.Y.Z.sql
+// 2. the exact SHA-256 is registered here
+// 3. CURRENT_SCHEMA_VERSION/SCHEMA_VERSION include the release
+// Helper: npm run migration:hash -- src/migrations/vX.Y.Z.sql
 export const CURRENT_SCHEMA_VERSION = '1.0.27';
 export const UNKNOWN_SCHEMA_VERSION = '0.0.0';
 

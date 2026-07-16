@@ -34,9 +34,9 @@ export const MigrationRunner: React.FC = () => {
 
         <div className="flex flex-col">
           <span className="text-xs font-bold uppercase tracking-wider">
-            Banco requer acao manual
+            Banco requer atualizacao
           </span>
-          <span className="text-[10px] opacity-70">Nada sera aplicado sem clicar em Atualizar Banco. Schema alvo v{SCHEMA_VERSION}.</span>
+          <span className="text-[10px] opacity-70">Migrations aprovadas so executam apos confirmacao no painel. Clique em Atualizar Banco. Schema alvo v{SCHEMA_VERSION}.</span>
         </div>
 
         <button
