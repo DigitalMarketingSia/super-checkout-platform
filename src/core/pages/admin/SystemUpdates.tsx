@@ -29,6 +29,9 @@ import { useFeatures } from '../../hooks/useFeatures';
 import { APP_VERSION, SCHEMA_VERSION } from '../../config/version';
 import { GITHUB_UPDATE_CONFIG } from '../../config/github';
 
+const GITHUB_INSTALLATION_DRAFT_KEY = 'sc_github_installation_id_draft';
+const GITHUB_REPOSITORY_DRAFT_KEY = 'sc_github_repository_draft';
+
 export const SystemUpdates = () => {
     const { t, i18n } = useTranslation('admin');
     const [loading, setLoading] = useState(true);
@@ -93,8 +96,15 @@ export const SystemUpdates = () => {
             setUpdateAvailable(Boolean(info?.pending_migration_count && info.pending_migration_count > 0));
             
             if (info) {
-                setInstallationId(info.github_installation_id || '');
-                setRepository(info.github_repository || '');
+                const draftInstallationId = typeof window !== 'undefined'
+                    ? window.localStorage.getItem(GITHUB_INSTALLATION_DRAFT_KEY) || ''
+                    : '';
+                const draftRepository = typeof window !== 'undefined'
+                    ? window.localStorage.getItem(GITHUB_REPOSITORY_DRAFT_KEY) || ''
+                    : '';
+
+                setInstallationId(info.github_installation_id || draftInstallationId || '');
+                setRepository(info.github_repository || draftRepository || '');
             }
         } finally {
             setLoading(false);
@@ -103,18 +113,48 @@ export const SystemUpdates = () => {
 
     const checkUrlParams = async () => {
         const params = new URLSearchParams(window.location.search);
-        const instId = params.get('installation_id');
+        const instId = String(params.get('installation_id') || '').trim();
         const setupAction = params.get('setup_action');
 
         if (instId && setupAction === 'install') {
             setInstallationId(instId);
-            toast.loading(t('system_updates.toasts.finishing_github_integration'));
-            
-            const success = await SystemManager.updateGitHubIntegration(instId, repository);
+            if (typeof window !== 'undefined') {
+                window.localStorage.setItem(GITHUB_INSTALLATION_DRAFT_KEY, instId);
+            }
+
+            const repositoryCandidate = String(
+                params.get('repository')
+                || (typeof window !== 'undefined' ? window.localStorage.getItem(GITHUB_REPOSITORY_DRAFT_KEY) : '')
+                || repository
+                || ''
+            ).trim();
+
+            if (!repositoryCandidate) {
+                toast.info(t(
+                    'system_updates.github.installation_saved_pending_repo',
+                    'GitHub App autorizado. Agora informe o repositorio no formato owner/repo e clique em Salvar.'
+                ));
+                window.history.replaceState({}, document.title, window.location.pathname);
+                return;
+            }
+
+            const loadingToastId = toast.loading(t('system_updates.toasts.finishing_github_integration'));
+            const success = await SystemManager.updateGitHubIntegration(instId, repositoryCandidate);
+            toast.dismiss(loadingToastId);
+
             if (success) {
+                if (typeof window !== 'undefined') {
+                    window.localStorage.setItem(GITHUB_REPOSITORY_DRAFT_KEY, repositoryCandidate);
+                }
+                setRepository(repositoryCandidate);
                 toast.success(t('system_updates.toasts.github_connected'));
                 window.history.replaceState({}, document.title, window.location.pathname);
                 fetchData();
+            } else {
+                toast.error(t(
+                    'system_updates.github.installation_finalize_failed',
+                    'A autorizacao do GitHub voltou, mas a integracao nao foi salva. Confira owner/repo e clique em Salvar.'
+                ));
             }
         }
     };
@@ -150,8 +190,23 @@ export const SystemUpdates = () => {
 
     const handleUpdateGithub = async (e: React.FormEvent) => {
         e.preventDefault();
+        const normalizedInstallationId = installationId.trim();
+        const normalizedRepository = repository.trim();
+
+        if (!normalizedInstallationId || !normalizedRepository) {
+            toast.error(t(
+                'system_updates.github.missing_fields',
+                'Preencha o Installation ID e o repositorio owner/repo antes de salvar.'
+            ));
+            return;
+        }
+
+        if (typeof window !== 'undefined') {
+            window.localStorage.setItem(GITHUB_INSTALLATION_DRAFT_KEY, normalizedInstallationId);
+            window.localStorage.setItem(GITHUB_REPOSITORY_DRAFT_KEY, normalizedRepository);
+        }
         setUpdatingGithub(true);
-        const success = await SystemManager.updateGitHubIntegration(installationId, repository);
+        const success = await SystemManager.updateGitHubIntegration(normalizedInstallationId, normalizedRepository);
         if (success) {
             toast.success(t('system_updates.github.success', 'Integração GitHub atualizada!'));
             fetchData();
@@ -162,14 +217,48 @@ export const SystemUpdates = () => {
     };
 
     const handleTestConnection = async () => {
-        setTestingConnection(true);
-        const result = await SystemManager.testGitHubConnection();
-        if (result.success) {
-            toast.success(result.message || t('system_updates.github.test_success'));
-        } else {
-            toast.error(result.message || t('system_updates.github.test_error'));
+        const normalizedInstallationId = installationId.trim();
+        const normalizedRepository = repository.trim();
+
+        if (!normalizedInstallationId || !normalizedRepository) {
+            toast.error(t(
+                'system_updates.github.missing_fields',
+                'Preencha o Installation ID e o repositorio owner/repo antes de salvar.'
+            ));
+            return;
         }
-        setTestingConnection(false);
+
+        setTestingConnection(true);
+        try {
+            const savedInstallationId = String(systemInfo?.github_installation_id || '').trim();
+            const savedRepository = String(systemInfo?.github_repository || '').trim();
+
+            if (savedInstallationId !== normalizedInstallationId || savedRepository !== normalizedRepository) {
+                const saveSuccess = await SystemManager.updateGitHubIntegration(normalizedInstallationId, normalizedRepository);
+                if (!saveSuccess) {
+                    toast.error(t(
+                        'system_updates.github.save_before_test_failed',
+                        'Nao foi possivel salvar a configuracao do GitHub antes do teste.'
+                    ));
+                    return;
+                }
+                await fetchData();
+            }
+
+            if (typeof window !== 'undefined') {
+                window.localStorage.setItem(GITHUB_INSTALLATION_DRAFT_KEY, normalizedInstallationId);
+                window.localStorage.setItem(GITHUB_REPOSITORY_DRAFT_KEY, normalizedRepository);
+            }
+
+            const result = await SystemManager.testGitHubConnection();
+            if (result.success) {
+                toast.success(result.message || t('system_updates.github.test_success'));
+            } else {
+                toast.error(result.message || t('system_updates.github.test_error'));
+            }
+        } finally {
+            setTestingConnection(false);
+        }
     };
 
     const handleSyncFiles = async () => {
@@ -680,6 +769,15 @@ export const SystemUpdates = () => {
                                         </p>
                                         <a
                                             href={GITHUB_UPDATE_CONFIG.INSTALL_URL}
+                                            onClick={() => {
+                                                if (typeof window === 'undefined') return;
+                                                if (installationId.trim()) {
+                                                    window.localStorage.setItem(GITHUB_INSTALLATION_DRAFT_KEY, installationId.trim());
+                                                }
+                                                if (repository.trim()) {
+                                                    window.localStorage.setItem(GITHUB_REPOSITORY_DRAFT_KEY, repository.trim());
+                                                }
+                                            }}
                                             target="_blank" 
                                             rel="noreferrer"
                                             className="w-full bg-white text-black py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 shadow-xl transition-all hover:bg-gray-100 italic"

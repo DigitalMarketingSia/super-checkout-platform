@@ -3,7 +3,11 @@ import crypto from 'crypto';
 import { resolveLocalSupabaseServerClient } from '../_supabase-server.js';
 import { fulfillOrder } from '../../services/fulfillment.js';
 import { decrypt } from '../../utils/cryptoUtils.js';
-import { buildSafeAsaasRawResponse, mapAsaasStatusToLocal } from '../../utils/asaas.js';
+import {
+  buildSafeAsaasRawResponse,
+  mapAsaasStatusToLocal,
+  resolveAsaasEnvironment,
+} from '../../utils/asaas.js';
 import { getAllowedGatewayIdsForPaymentMethod } from '../../config/paymentRouting.js';
 
 function getHeaderValue(value: string | string[] | undefined) {
@@ -188,7 +192,7 @@ export async function handleAsaasWebhook(
 
     const { data: gateway } = await supabaseAdmin
       .from('gateways')
-      .select('id,user_id,webhook_secret,config')
+      .select('id,user_id,private_key,webhook_secret,config')
       .eq('id', gatewayId)
       .maybeSingle();
 
@@ -224,8 +228,26 @@ export async function handleAsaasWebhook(
       return res.status(200).json({ status: 'ORDER_MISMATCH' });
     }
 
+    const decryptedApiKey = decrypt(gateway.private_key || '').replace(/\s/g, '').trim();
+    const {
+      configuredSandbox,
+      keyEnvironment,
+      effectiveSandbox,
+    } = resolveAsaasEnvironment({
+      configuredSandbox: gateway.config?.sandbox === true,
+      apiKey: decryptedApiKey,
+    });
+
+    if (keyEnvironment && ((keyEnvironment === 'sandbox') !== configuredSandbox)) {
+      console.warn('[Asaas Webhook] Gateway config sandbox does not match API key prefix. Using key environment.', {
+        gatewayId,
+        configuredSandbox,
+        keyEnvironment,
+      });
+    }
+
     const localStatus = mapAsaasStatusToLocal(payload.payment.status, payload.payment.billingType, {
-      sandbox: gateway.config?.sandbox === true,
+      sandbox: effectiveSandbox,
     });
     const safeRawResponse = buildSafeAsaasRawResponse(payload.payment);
 

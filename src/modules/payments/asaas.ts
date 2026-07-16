@@ -7,9 +7,9 @@ import {
 import { securityService } from '../../core/services/securityService.js';
 import {
   buildSafeAsaasRawResponse,
-  detectAsaasApiKeyEnvironment,
   getAsaasApiBaseUrl,
   mapAsaasStatusToLocal,
+  resolveAsaasEnvironment,
 } from '../../core/utils/asaas.js';
 import {
   PaymentSecurityError,
@@ -273,11 +273,14 @@ export async function processAsaasPayment(payload: AsaasPaymentPayload) {
       throw new PaymentSecurityError('GATEWAY_CREDENTIALS_MISSING', 'Credenciais do Asaas nao configuradas.');
     }
 
-    const configuredSandbox = gateway.config?.sandbox === true;
-    const keyEnvironment = detectAsaasApiKeyEnvironment(authToken);
-    const effectiveSandbox = keyEnvironment
-      ? keyEnvironment === 'sandbox'
-      : configuredSandbox;
+    const {
+      configuredSandbox,
+      keyEnvironment,
+      effectiveSandbox,
+    } = resolveAsaasEnvironment({
+      configuredSandbox: gateway.config?.sandbox === true,
+      apiKey: authToken,
+    });
 
     if (keyEnvironment && ((keyEnvironment === 'sandbox') !== configuredSandbox)) {
       console.warn('[Asaas] Gateway config sandbox does not match API key prefix. Using key environment.', {

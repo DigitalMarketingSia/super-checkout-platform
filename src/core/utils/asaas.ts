@@ -25,6 +25,23 @@ export function getAsaasApiBaseUrl(isSandbox?: boolean) {
   return isSandbox ? 'https://api-sandbox.asaas.com/v3' : 'https://api.asaas.com/v3';
 }
 
+export function resolveAsaasEnvironment(params?: {
+  configuredSandbox?: boolean | null;
+  apiKey?: string | null;
+}) {
+  const configuredSandbox = params?.configuredSandbox === true;
+  const keyEnvironment = detectAsaasApiKeyEnvironment(params?.apiKey);
+  const effectiveSandbox = keyEnvironment
+    ? keyEnvironment === 'sandbox'
+    : configuredSandbox;
+
+  return {
+    configuredSandbox,
+    keyEnvironment,
+    effectiveSandbox,
+  };
+}
+
 export function mapAsaasStatusToLocal(
   status: string,
   billingType?: string,

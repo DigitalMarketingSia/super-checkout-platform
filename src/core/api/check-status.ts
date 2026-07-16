@@ -16,6 +16,7 @@ import {
     buildSafeAsaasRawResponse,
     getAsaasApiBaseUrl,
     mapAsaasStatusToLocal,
+    resolveAsaasEnvironment,
 } from '../utils/asaas.js';
 import {
     buildSafePagSeguroRawResponse,
@@ -520,7 +521,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(200).json({ status: order.status || 'pending' });
         }
 
-        const asaasApiBaseUrl = getAsaasApiBaseUrl(gateway.config?.sandbox === true);
+        const {
+            configuredSandbox,
+            keyEnvironment,
+            effectiveSandbox,
+        } = resolveAsaasEnvironment({
+            configuredSandbox: gateway.config?.sandbox === true,
+            apiKey: accessToken,
+        });
+
+        if (keyEnvironment && ((keyEnvironment === 'sandbox') !== configuredSandbox)) {
+            console.warn('[CheckStatus] Asaas gateway config sandbox does not match API key prefix. Using key environment.', {
+                gatewayId,
+                configuredSandbox,
+                keyEnvironment,
+            });
+        }
+
+        const asaasApiBaseUrl = getAsaasApiBaseUrl(effectiveSandbox);
         const providerPaymentId = payment?.transaction_id || (order as any).payment_id;
         let asaasData: any = null;
 
@@ -576,7 +594,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         const providerStatus = String(asaasData?.status || '').trim().toUpperCase();
         const newStatus = mapAsaasStatusToLocal(providerStatus, asaasData?.billingType, {
-            sandbox: gateway.config?.sandbox === true,
+            sandbox: effectiveSandbox,
         });
         const currentStatusNorm = (order.status || 'pending').toLowerCase();
         const rawResponse = buildSafeAsaasRawResponse(asaasData);
