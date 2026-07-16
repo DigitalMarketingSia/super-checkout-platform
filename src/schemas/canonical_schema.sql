@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS public.system_info(
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     db_version TEXT NOT NULL DEFAULT '1.0.25',
     last_update_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
     github_installation_id TEXT,
     github_repository TEXT,
     testing_evolution BOOLEAN DEFAULT false
@@ -15,6 +16,7 @@ SELECT '1.0.25' WHERE NOT EXISTS (SELECT 1 FROM public.system_info);
 
 DO $$
 BEGIN
+    ALTER TABLE public.system_info ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
     ALTER TABLE public.system_info ADD COLUMN IF NOT EXISTS github_installation_id TEXT;
     ALTER TABLE public.system_info ADD COLUMN IF NOT EXISTS github_repository TEXT;
     ALTER TABLE public.system_info ADD COLUMN IF NOT EXISTS testing_evolution BOOLEAN DEFAULT false;
@@ -521,6 +523,7 @@ DO $$
 BEGIN
     ALTER TABLE checkouts ADD COLUMN IF NOT EXISTS offer_id UUID;
     ALTER TABLE checkouts ADD COLUMN IF NOT EXISTS gateway_id UUID REFERENCES gateways(id);
+    ALTER TABLE checkouts ADD COLUMN IF NOT EXISTS backup_gateway_id UUID REFERENCES gateways(id);
     ALTER TABLE checkouts ADD COLUMN IF NOT EXISTS domain_id UUID REFERENCES domains(id);
     ALTER TABLE checkouts ADD COLUMN IF NOT EXISTS order_bump_ids JSONB;
     ALTER TABLE checkouts ADD COLUMN IF NOT EXISTS upsell_product_id UUID;

@@ -674,6 +674,7 @@ DO $$
 BEGIN
     ALTER TABLE checkouts ADD COLUMN IF NOT EXISTS offer_id UUID;
     ALTER TABLE checkouts ADD COLUMN IF NOT EXISTS gateway_id UUID REFERENCES gateways(id);
+    ALTER TABLE checkouts ADD COLUMN IF NOT EXISTS backup_gateway_id UUID REFERENCES gateways(id);
     ALTER TABLE checkouts ADD COLUMN IF NOT EXISTS domain_id UUID REFERENCES domains(id);
     ALTER TABLE checkouts ADD COLUMN IF NOT EXISTS order_bump_ids JSONB;
     ALTER TABLE checkouts ADD COLUMN IF NOT EXISTS upsell_product_id UUID;

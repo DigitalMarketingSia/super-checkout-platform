@@ -15,6 +15,17 @@ function getHeaderValue(value: string | string[] | undefined) {
   return value || '';
 }
 
+function isMissingCheckoutBackupGatewayColumn(error: any) {
+  const normalized = String(
+    error?.message
+    || error?.details
+    || error?.hint
+    || ''
+  ).toLowerCase();
+
+  return error?.code === '42703' && normalized.includes('backup_gateway_id');
+}
+
 async function getRawBody(req: VercelRequest): Promise<string> {
   return await new Promise((resolve, reject) => {
     let body = '';
@@ -49,13 +60,38 @@ async function loadOrderAndCheckout(supabaseAdmin: any, orderId?: string | null)
     return { order, checkout: null };
   }
 
-  const { data: checkout } = await supabaseAdmin
+  const legacyResult = await supabaseAdmin
     .from('checkouts')
     .select('id,user_id,gateway_id,backup_gateway_id,config')
     .eq('id', order.checkout_id)
     .maybeSingle();
 
-  return { order, checkout };
+  if (!legacyResult.error) {
+    return { order, checkout: legacyResult.data || null };
+  }
+
+  if (!isMissingCheckoutBackupGatewayColumn(legacyResult.error)) {
+    throw legacyResult.error;
+  }
+
+  console.warn('[Asaas Webhook] Legacy column public.checkouts.backup_gateway_id is missing. Falling back to routing config only.');
+
+  const fallbackResult = await supabaseAdmin
+    .from('checkouts')
+    .select('id,user_id,gateway_id,config')
+    .eq('id', order.checkout_id)
+    .maybeSingle();
+
+  if (fallbackResult.error) {
+    throw fallbackResult.error;
+  }
+
+  return {
+    order,
+    checkout: fallbackResult.data
+      ? { ...fallbackResult.data, backup_gateway_id: null }
+      : null,
+  };
 }
 
 async function logWebhook(supabaseAdmin: any, params: {

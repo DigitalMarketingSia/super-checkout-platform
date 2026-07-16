@@ -60,6 +60,52 @@ function buildOrderUpdateUrl(supabaseUrl: string, safeOrderId: string, checkoutI
     return `${supabaseUrl}/rest/v1/orders?${filters.join('&')}`;
 }
 
+function isMissingCheckoutBackupGatewayColumn(error: any) {
+    const normalized = String(
+        error?.message
+        || error?.details
+        || error?.hint
+        || ''
+    ).toLowerCase();
+
+    return error?.code === '42703' && normalized.includes('backup_gateway_id');
+}
+
+async function loadCheckoutForStatus(supabaseAdmin: any, checkoutId: string) {
+    const legacySelect = 'id,user_id,gateway_id,backup_gateway_id,product_id,config';
+    const fallbackSelect = 'id,user_id,gateway_id,product_id,config';
+
+    const legacyResult = await supabaseAdmin
+        .from('checkouts')
+        .select(legacySelect)
+        .eq('id', checkoutId)
+        .maybeSingle();
+
+    if (!legacyResult.error) {
+        return legacyResult.data || null;
+    }
+
+    if (!isMissingCheckoutBackupGatewayColumn(legacyResult.error)) {
+        throw legacyResult.error;
+    }
+
+    console.warn('[CheckStatus] Legacy column public.checkouts.backup_gateway_id is missing. Falling back to routing config only.');
+
+    const fallbackResult = await supabaseAdmin
+        .from('checkouts')
+        .select(fallbackSelect)
+        .eq('id', checkoutId)
+        .maybeSingle();
+
+    if (fallbackResult.error) {
+        throw fallbackResult.error;
+    }
+
+    return fallbackResult.data
+        ? { ...fallbackResult.data, backup_gateway_id: null }
+        : null;
+}
+
 function resolveMerchantUserId(input: {
     productUserId?: string | null;
     checkoutUserId?: string | null;
@@ -288,13 +334,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         let checkout: any = null;
     
         if (order.checkout_id) {
-            const { data: checkoutData, error: checkoutError } = await supabaseAdmin
-                .from('checkouts')
-                .select('id,user_id,gateway_id,backup_gateway_id,product_id,config')
-                .eq('id', order.checkout_id)
-                .maybeSingle();
-            if (checkoutError) throw checkoutError;
-            checkout = checkoutData || null;
+            checkout = await loadCheckoutForStatus(supabaseAdmin, String(order.checkout_id));
             if (!gatewayId && checkout) {
                 const allowedGatewayIds = getAllowedGatewayIdsForPaymentMethod({
                     config: checkout.config || null,
