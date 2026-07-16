@@ -3,20 +3,24 @@
 -- ==========================================
 CREATE TABLE IF NOT EXISTS public.system_info(
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    db_version TEXT NOT NULL DEFAULT '1.0.25',
+    db_version TEXT NOT NULL DEFAULT '1.0.28',
     last_update_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
+    last_applied_migration_version TEXT,
+    last_applied_migration_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
     github_installation_id TEXT,
     github_repository TEXT,
     testing_evolution BOOLEAN DEFAULT false
 );
 
 INSERT INTO public.system_info (db_version) 
-SELECT '1.0.25' WHERE NOT EXISTS (SELECT 1 FROM public.system_info);
+SELECT '1.0.28' WHERE NOT EXISTS (SELECT 1 FROM public.system_info);
 
 DO $$
 BEGIN
     ALTER TABLE public.system_info ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
+    ALTER TABLE public.system_info ADD COLUMN IF NOT EXISTS last_applied_migration_version TEXT;
+    ALTER TABLE public.system_info ADD COLUMN IF NOT EXISTS last_applied_migration_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
     ALTER TABLE public.system_info ADD COLUMN IF NOT EXISTS github_installation_id TEXT;
     ALTER TABLE public.system_info ADD COLUMN IF NOT EXISTS github_repository TEXT;
     ALTER TABLE public.system_info ADD COLUMN IF NOT EXISTS testing_evolution BOOLEAN DEFAULT false;
@@ -2662,8 +2666,11 @@ FROM (
 ON CONFLICT (account_id, document_key, content_sha256) DO NOTHING;
 
 UPDATE public.system_info
-SET db_version = '1.0.25',
-    last_update_at = timezone('utc'::text, now());
+SET db_version = '1.0.28',
+    last_update_at = timezone('utc'::text, now()),
+    updated_at = timezone('utc'::text, now()),
+    last_applied_migration_version = '1.0.28',
+    last_applied_migration_at = timezone('utc'::text, now());
 
 UPDATE public.schema_migrations
 SET success = true,
@@ -2741,5 +2748,38 @@ WHERE version = '1.0.25';
 INSERT INTO public.schema_migrations(version, description, success, execution_time_ms)
 SELECT '1.0.25', 'Canonical schema repairs setup bootstrap check for legacy UUID installation ids', true, 0
 WHERE NOT EXISTS (SELECT 1 FROM public.schema_migrations WHERE version = '1.0.25');
+
+UPDATE public.schema_migrations
+SET success = true,
+    description = 'Canonical schema includes legacy checkout routing repair for backup gateways',
+    error_log = NULL,
+    executed_at = timezone('utc'::text, now())
+WHERE version = '1.0.26';
+
+INSERT INTO public.schema_migrations(version, description, success, execution_time_ms)
+SELECT '1.0.26', 'Canonical schema includes legacy checkout routing repair for backup gateways', true, 0
+WHERE NOT EXISTS (SELECT 1 FROM public.schema_migrations WHERE version = '1.0.26');
+
+UPDATE public.schema_migrations
+SET success = true,
+    description = 'Canonical schema removes direct public access to gateway secrets',
+    error_log = NULL,
+    executed_at = timezone('utc'::text, now())
+WHERE version = '1.0.27';
+
+INSERT INTO public.schema_migrations(version, description, success, execution_time_ms)
+SELECT '1.0.27', 'Canonical schema removes direct public access to gateway secrets', true, 0
+WHERE NOT EXISTS (SELECT 1 FROM public.schema_migrations WHERE version = '1.0.27');
+
+UPDATE public.schema_migrations
+SET success = true,
+    description = 'Canonical schema tracks last applied approved migration metadata',
+    error_log = NULL,
+    executed_at = timezone('utc'::text, now())
+WHERE version = '1.0.28';
+
+INSERT INTO public.schema_migrations(version, description, success, execution_time_ms)
+SELECT '1.0.28', 'Canonical schema tracks last applied approved migration metadata', true, 0
+WHERE NOT EXISTS (SELECT 1 FROM public.schema_migrations WHERE version = '1.0.28');
 
 NOTIFY pgrst, 'reload schema';

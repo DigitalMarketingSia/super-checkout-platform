@@ -567,6 +567,8 @@ export interface SystemInfo {
   db_version: string;
   reported_db_version?: string | null;
   latest_completed_migration?: string | null;
+  last_applied_migration_version?: string | null;
+  last_applied_migration_at?: string | null;
   pending_migrations?: string[];
   pending_migration_count?: number;
   database_status?: 'current' | 'pending' | 'unverified';

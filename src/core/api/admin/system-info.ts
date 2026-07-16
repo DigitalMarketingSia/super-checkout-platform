@@ -148,6 +148,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       db_version: schemaState.effectiveDbVersion,
       reported_db_version: info?.db_version || null,
       latest_completed_migration: schemaState.latestCompletedMigration,
+      last_applied_migration_version: info?.last_applied_migration_version || schemaState.latestCompletedMigration || null,
+      last_applied_migration_at: info?.last_applied_migration_at || null,
       pending_migrations: schemaState.pendingMigrations,
       pending_migration_count: schemaState.pendingMigrations.length,
       database_status: schemaState.databaseStatus,

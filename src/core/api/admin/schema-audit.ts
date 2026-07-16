@@ -13,7 +13,7 @@ import {
 } from './_migration-registry.js';
 
 const SCHEMA_CHECKS = [
-  { table: 'system_info', columns: ['db_version', 'github_installation_id', 'github_repository'] },
+  { table: 'system_info', columns: ['db_version', 'github_installation_id', 'github_repository', 'last_applied_migration_version', 'last_applied_migration_at'] },
   { table: 'schema_migrations', columns: ['version', 'success'] },
   { table: 'accounts', columns: ['owner_user_id', 'plan_type', 'status'] },
   { table: 'business_settings', columns: ['account_id', 'support_email', 'privacy_policy_version', 'terms_of_purchase_version', 'is_ready_to_sell'] },
