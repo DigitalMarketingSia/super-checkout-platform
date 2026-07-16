@@ -195,9 +195,15 @@ export const ActivationContentEditor = () => {
         setUploading(true);
 
         try {
+            const { data: authData } = await supabase.auth.getUser();
+            const currentUserId = String(authData.user?.id || '').trim();
+            if (!currentUserId) {
+                throw new Error('No authenticated user found for activation asset upload');
+            }
+
             const fileExt = file.name.split('.').pop();
             const fileName = `${Math.random()}.${fileExt}`;
-            const filePath = `${fileName}`;
+            const filePath = `${currentUserId}/${fileName}`;
 
             const { error: uploadError } = await supabase.storage
                 .from('activation-assets')
