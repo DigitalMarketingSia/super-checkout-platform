@@ -12,7 +12,7 @@ export interface ApprovedMigrationRecord {
   reason?: string;
 }
 
-export const CURRENT_SCHEMA_VERSION = '1.0.30';
+export const CURRENT_SCHEMA_VERSION = '1.0.31';
 export const UNKNOWN_SCHEMA_VERSION = '0.0.0';
 
 export const APPROVED_MIGRATION_ALLOWLIST: Record<string, ApprovedMigrationRecord> = {
@@ -137,6 +137,10 @@ export const APPROVED_MIGRATION_ALLOWLIST: Record<string, ApprovedMigrationRecor
     sha256: '9de07cd9e317670c0cec297bea7ebfe8216d53e1ab1b7554c11980d0edf5c316',
     execution: 'owner_manual',
     reason: 'Migration v1.0.30 altera policies em storage.objects. Em projetos Supabase hospedados, esse tipo de relacao costuma exigir execucao manual no SQL Editor como owner do banco.'
+  },
+  '1.0.31': {
+    file: 'v1.0.31.sql',
+    sha256: 'c349c0c4f39fd3afaaebfd08d8850ea98541ae745a12a55a75fc0d19a539ce2d'
   }
 };
 

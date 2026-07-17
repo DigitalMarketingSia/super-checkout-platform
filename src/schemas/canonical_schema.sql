@@ -3,7 +3,7 @@
 -- ==========================================
 CREATE TABLE IF NOT EXISTS public.system_info(
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    db_version TEXT NOT NULL DEFAULT '1.0.29',
+    db_version TEXT NOT NULL DEFAULT '1.0.31',
     last_update_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
     last_applied_migration_version TEXT,
@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS public.system_info(
 );
 
 INSERT INTO public.system_info (db_version) 
-SELECT '1.0.29' WHERE NOT EXISTS (SELECT 1 FROM public.system_info);
+SELECT '1.0.31' WHERE NOT EXISTS (SELECT 1 FROM public.system_info);
 
 DO $$
 BEGIN
@@ -1434,6 +1434,41 @@ CREATE TRIGGER on_order_paid_grant_access
   EXECUTE FUNCTION handle_new_order_access();
 
 -- 4.5 Get Member Area Members
+CREATE OR REPLACE FUNCTION public.can_access_member_area_member_data(p_area_id UUID)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF auth.role() = 'service_role' THEN
+    RETURN true;
+  END IF;
+
+  IF auth.uid() IS NULL OR p_area_id IS NULL THEN
+    RETURN false;
+  END IF;
+
+  RETURN EXISTS (
+    SELECT 1
+    FROM public.member_areas ma
+    WHERE ma.id = p_area_id
+      AND (
+        ma.owner_id = auth.uid()
+        OR EXISTS (
+          SELECT 1
+          FROM public.profiles p
+          WHERE p.id = auth.uid()
+            AND p.role IN ('admin', 'owner', 'master_admin')
+        )
+      )
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.can_access_member_area_member_data(UUID) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.can_access_member_area_member_data(UUID) TO service_role;
+
 CREATE OR REPLACE FUNCTION get_member_area_members(area_id uuid)
 RETURNS TABLE(
     user_id uuid,
@@ -1443,8 +1478,14 @@ RETURNS TABLE(
     status text
 )
 SECURITY DEFINER
+SET search_path = public, auth
 AS $$
 BEGIN
+  IF NOT public.can_access_member_area_member_data(area_id) THEN
+    RAISE EXCEPTION 'Access denied to member area members'
+      USING ERRCODE = '42501';
+  END IF;
+
   RETURN QUERY
   SELECT DISTINCT
     u.id as user_id,
@@ -1487,6 +1528,11 @@ AS $$
 DECLARE
     v_offset INTEGER := (p_page - 1) * p_limit;
 BEGIN
+    IF NOT public.can_access_member_area_member_data(p_area_id) THEN
+        RAISE EXCEPTION 'Access denied to member area member analytics'
+          USING ERRCODE = '42501';
+    END IF;
+
     RETURN QUERY
     WITH target_users AS (
         SELECT DISTINCT ag.user_id
@@ -3044,6 +3090,7 @@ DO $$
 DECLARE
     fn RECORD;
     target_function_names TEXT[] := ARRAY[
+        'can_access_member_area_member_data',
         'is_admin',
         'handle_updated_at',
         'delete_test_user_by_email',
@@ -3083,6 +3130,7 @@ DO $$
 DECLARE
     fn RECORD;
     internal_function_names TEXT[] := ARRAY[
+        'can_access_member_area_member_data',
         'check_schema_integrity',
         'cron_retry_app_events',
         'enforce_active_license',
@@ -3163,10 +3211,10 @@ COMMENT ON VIEW public.public_gateways IS
   'Intentional sanitized gateway projection for public checkout use. SECURITY DEFINER is accepted here so anon never needs direct SELECT on public.gateways.';
 
 UPDATE public.system_info
-SET db_version = '1.0.29',
+SET db_version = '1.0.31',
     last_update_at = timezone('utc'::text, now()),
     updated_at = timezone('utc'::text, now()),
-    last_applied_migration_version = '1.0.29',
+    last_applied_migration_version = '1.0.31',
     last_applied_migration_at = timezone('utc'::text, now());
 
 UPDATE public.schema_migrations
@@ -3267,6 +3315,28 @@ WHERE version = '1.0.27';
 INSERT INTO public.schema_migrations(version, description, success, execution_time_ms)
 SELECT '1.0.27', 'Canonical schema removes direct public access to gateway secrets', true, 0
 WHERE NOT EXISTS (SELECT 1 FROM public.schema_migrations WHERE version = '1.0.27');
+
+UPDATE public.schema_migrations
+SET success = true,
+    description = 'Canonical schema hardens public checkout inserts and storage ownership policies',
+    error_log = NULL,
+    executed_at = timezone('utc'::text, now())
+WHERE version = '1.0.30';
+
+INSERT INTO public.schema_migrations(version, description, success, execution_time_ms)
+SELECT '1.0.30', 'Canonical schema hardens public checkout inserts and storage ownership policies', true, 0
+WHERE NOT EXISTS (SELECT 1 FROM public.schema_migrations WHERE version = '1.0.30');
+
+UPDATE public.schema_migrations
+SET success = true,
+    description = 'Canonical schema hardens member area RPC access with owner/admin gate',
+    error_log = NULL,
+    executed_at = timezone('utc'::text, now())
+WHERE version = '1.0.31';
+
+INSERT INTO public.schema_migrations(version, description, success, execution_time_ms)
+SELECT '1.0.31', 'Canonical schema hardens member area RPC access with owner/admin gate', true, 0
+WHERE NOT EXISTS (SELECT 1 FROM public.schema_migrations WHERE version = '1.0.31');
 
 UPDATE public.schema_migrations
 SET success = true,

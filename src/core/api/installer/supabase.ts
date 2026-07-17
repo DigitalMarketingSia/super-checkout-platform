@@ -1105,6 +1105,41 @@ CREATE TRIGGER on_order_paid_grant_access
   EXECUTE FUNCTION handle_new_order_access();
 
 -- 4.4 Get Member Area Members
+CREATE OR REPLACE FUNCTION public.can_access_member_area_member_data(p_area_id UUID)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF auth.role() = 'service_role' THEN
+    RETURN true;
+  END IF;
+
+  IF auth.uid() IS NULL OR p_area_id IS NULL THEN
+    RETURN false;
+  END IF;
+
+  RETURN EXISTS (
+    SELECT 1
+    FROM public.member_areas ma
+    WHERE ma.id = p_area_id
+      AND (
+        ma.owner_id = auth.uid()
+        OR EXISTS (
+          SELECT 1
+          FROM public.profiles p
+          WHERE p.id = auth.uid()
+            AND p.role IN ('admin', 'owner', 'master_admin')
+        )
+      )
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.can_access_member_area_member_data(UUID) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.can_access_member_area_member_data(UUID) TO service_role;
+
 CREATE OR REPLACE FUNCTION get_member_area_members(area_id uuid)
 RETURNS TABLE (
   user_id uuid,
@@ -1114,8 +1149,14 @@ RETURNS TABLE (
   status text
 )
 SECURITY DEFINER
+SET search_path = public, auth
 AS $$
 BEGIN
+  IF NOT public.can_access_member_area_member_data(area_id) THEN
+    RAISE EXCEPTION 'Access denied to member area members'
+      USING ERRCODE = '42501';
+  END IF;
+
   RETURN QUERY
   SELECT DISTINCT
     u.id as user_id,
@@ -1166,6 +1207,7 @@ DO $$
 DECLARE
   fn RECORD;
   target_function_names TEXT[] := ARRAY[
+    'can_access_member_area_member_data',
     'is_admin',
     'handle_updated_at',
     'get_member_area_members',
@@ -1198,6 +1240,7 @@ DO $$
 DECLARE
   fn RECORD;
   internal_function_names TEXT[] := ARRAY[
+    'can_access_member_area_member_data',
     'handle_new_user',
     'handle_new_order_access'
   ];
