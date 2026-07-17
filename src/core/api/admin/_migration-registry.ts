@@ -3,10 +3,19 @@
 // 2. the exact SHA-256 is registered here
 // 3. CURRENT_SCHEMA_VERSION/SCHEMA_VERSION include the release
 // Helper: npm run migration:hash -- src/migrations/vX.Y.Z.sql
+export type ApprovedMigrationExecutionMode = 'runtime' | 'owner_manual';
+
+export interface ApprovedMigrationRecord {
+  file: string;
+  sha256: string;
+  execution?: ApprovedMigrationExecutionMode;
+  reason?: string;
+}
+
 export const CURRENT_SCHEMA_VERSION = '1.0.30';
 export const UNKNOWN_SCHEMA_VERSION = '0.0.0';
 
-export const APPROVED_MIGRATION_ALLOWLIST: Record<string, { file: string; sha256: string }> = {
+export const APPROVED_MIGRATION_ALLOWLIST: Record<string, ApprovedMigrationRecord> = {
   '1.0.1': {
     file: 'v1.0.1.sql',
     sha256: 'a0e7c52cac13245c6d8f68387dfffa67e180efb523696dc8989f140cf2e77896'
@@ -125,7 +134,9 @@ export const APPROVED_MIGRATION_ALLOWLIST: Record<string, { file: string; sha256
   },
   '1.0.30': {
     file: 'v1.0.30.sql',
-    sha256: '9de07cd9e317670c0cec297bea7ebfe8216d53e1ab1b7554c11980d0edf5c316'
+    sha256: '9de07cd9e317670c0cec297bea7ebfe8216d53e1ab1b7554c11980d0edf5c316',
+    execution: 'owner_manual',
+    reason: 'Migration v1.0.30 altera policies em storage.objects. Em projetos Supabase hospedados, esse tipo de relacao costuma exigir execucao manual no SQL Editor como owner do banco.'
   }
 };
 

@@ -80,7 +80,13 @@ function loadApprovedMigrationSql(version: string) {
     throw new Error(`Approved migration hash mismatch for version ${version}`);
   }
 
-  return { sql, sha256: actualHash, file: migration.file };
+  return {
+    sql,
+    sha256: actualHash,
+    file: migration.file,
+    execution: migration.execution || 'runtime',
+    reason: migration.reason || ''
+  };
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -166,8 +172,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         version,
         file: approvedMigration.file,
         sha256: approvedMigration.sha256,
-        sql: approvedMigration.sql
+        sql: approvedMigration.sql,
+        execution: approvedMigration.execution,
+        reason: approvedMigration.reason
       }
+    });
+  }
+
+  if (approvedMigration.execution === 'owner_manual') {
+    return res.status(409).json({
+      success: false,
+      error: 'Manual SQL required',
+      code: 'MANUAL_SQL_REQUIRED',
+      detail: approvedMigration.reason || `Migration v${version} requires manual execution in the Supabase SQL Editor.`
     });
   }
 

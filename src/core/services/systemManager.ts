@@ -662,9 +662,15 @@ export const SystemManager = {
       if (!response.ok || !result?.success) {
         const detail = String(result?.detail || '').trim();
         const serverError = String(result?.error || response.statusText || 'Unknown error').trim();
-        const errorMsg = detail && detail !== serverError
-          ? `${serverError}: ${detail}`
-          : serverError;
+        const requiresManualSql = String(result?.code || '').trim() === 'MANUAL_SQL_REQUIRED'
+          || /must be owner of relation/i.test(detail);
+        const errorMsg = requiresManualSql
+          ? `Migration v${version} exige execucao manual no SQL Editor do Supabase porque altera objetos controlados pelo owner do banco, como storage.objects. Clique em "Copiar SQL manual", rode o SQL neste projeto Supabase e depois volte em "Verificar banco".`
+          : (
+            detail && detail !== serverError
+              ? `${serverError}: ${detail}`
+              : serverError
+          );
         console.error(`[SystemManager] Migration ${version} failed:`, errorMsg);
         await this.logMigration(version, description, false, Date.now() - startTime, errorMsg);
         return { success: false, error: errorMsg };
