@@ -109,6 +109,21 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
   const canAccessClientAccountPages = isCommercial || canAccessSystemUpdates;
   const canAccessOwnerConsoleModules = !isDemoMode && isSystemOwner;
   const canAccessUpgradeIntents = isSystemOwner && isControlPlaneHost();
+  const canAccessAccountSettings = Boolean(user);
+
+  const currentPageLabel = navItems.find((item) => location.pathname === item.path)?.label
+    || (location.pathname === '/admin/settings' ? t('nav.account_settings', 'Configurações') : null)
+    || (location.pathname === '/admin/licenses' ? t('nav.my_license', 'Minha Licença') : null)
+    || (location.pathname === '/admin/installations' ? t('nav.installations', 'Instalações') : null)
+    || (location.pathname === '/admin/system-licenses' ? t('nav.global_management', 'Gestão Global') : null)
+    || (location.pathname === '/admin/security-events' ? t('nav.security_auditory', 'Auditoria Segurança') : null)
+    || (location.pathname === '/admin/updates' ? t('nav.updates', 'Atualizações') : null)
+    || (location.pathname === '/admin/upgrade-intents' ? t('nav.upgrade_intents', 'Upgrade Intents') : null)
+    || (location.pathname === '/admin/activation-content' ? t('nav.activation_portal', 'Conteúdo do Portal') : null)
+    || (location.pathname === '/admin/privacy' ? 'Privacidade' : null)
+    || (location.pathname === '/admin/partner-dashboard' ? t('nav.service_provider', 'Prestador de Serviços') : null)
+    || (location.pathname.startsWith('/admin/free-users') ? t('nav.leads_crm', 'Leads CRM') : null)
+    || (location.pathname === '/admin/flow' ? 'Flow Builder' : 'System');
 
   const handleFlowCtaClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
     if (!isDemoMode) return;
@@ -262,6 +277,23 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
               )}
 
               <div className="space-y-1">
+
+                {canAccessAccountSettings && (
+                  <Link
+                    to="/admin/settings"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`flex items-center rounded-xl transition-all duration-300 group relative overflow-hidden ${(!sidebarOpen && !mobileMenuOpen) ? 'justify-center px-0 py-3' : 'px-3 py-2'} text-[10px] font-black uppercase tracking-[0.2em] ${location.pathname === '/admin/settings'
+                      ? 'text-white bg-primary/10 border border-primary/20'
+                      : 'text-gray-600 hover:text-white hover:bg-white/5'
+                      }`}
+                    title={t('nav.account_settings', 'Configurações')}
+                  >
+                    <Settings className={`w-5 h-5 flex-shrink-0 ${location.pathname === '/admin/settings' ? 'text-primary' : ''}`} />
+                    <div className={`ml-3 truncate transition-all duration-300 ${(!sidebarOpen && !mobileMenuOpen) ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
+                      {t('nav.account_settings', 'Configurações')}
+                    </div>
+                  </Link>
+                )}
 
                 {/* OWNER/MASTER/ADMIN: Lead CRM */}
                 {!isWhiteLabel && canAccessOwnerConsoleModules && (
@@ -553,7 +585,7 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
               
               <div className="hidden lg:flex flex-col">
                 <h2 className="text-white font-black uppercase tracking-[0.2em] text-xs opacity-50">
-                  {navItems.find(i => location.pathname === i.path)?.label || (location.pathname === '/admin/flow' ? 'Flow Builder' : 'System')}
+                  {currentPageLabel}
                 </h2>
                 <div className="text-[9px] text-primary/60 font-black uppercase tracking-[0.3em] mt-0.5 animate-in fade-in">
                   <span className="text-[7px] lowercase opacity-40 mr-1">versão</span> v{APP_VERSION}
