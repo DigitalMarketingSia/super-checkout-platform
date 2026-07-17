@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { applyCors, emailFingerprint, getAuditClient, getIp, getPortalBaseUrl, getUserAgent, logSecurityEvent, maskEmail, normalizeEmail } from './_shared.js';
+import { applyCors, emailFingerprint, getAuditClient, getIp, getPortalBaseUrl, getUserAgent, isSupabaseAuthCaptchaEnabled, logSecurityEvent, maskEmail, normalizeEmail } from './_shared.js';
 import { isDisposableEmailDomain } from './_disposableEmailDomains.js';
 import { PLATFORM_LEGAL_CONTACT_EMAIL, PLATFORM_LEGAL_VERSION } from '../../core/config/platformLegal.js';
 
@@ -1034,6 +1034,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const flow = req.body?.flow === 'activation_setup' ? 'activation_setup' : 'register';
     const captchaToken = typeof req.body?.captchaToken === 'string' ? req.body.captchaToken : null;
     const userAgent = getUserAgent(req);
+    const authCaptchaEnabled = isSupabaseAuthCaptchaEnabled();
 
     if (!email || !isValidEmail(email)) {
         return res.status(400).json({ error: 'Informe um e-mail valido.' });
@@ -1354,6 +1355,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (!isValidPassword(password)) {
             return res.status(400).json({ error: 'A senha deve ter pelo menos 6 caracteres.' });
         }
+        if (authCaptchaEnabled && !captchaToken) {
+            return res.status(400).json({
+                error: 'Confirme que voce e humano para continuar.',
+                error_code: 'captcha_required',
+                requiresCaptcha: true,
+                captchaSiteKey: getCaptchaSiteKey(),
+            });
+        }
 
         if (!whatsapp) {
             return res.status(400).json({ error: 'Informe seu telefone ou WhatsApp.' });
@@ -1616,6 +1625,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 email,
                 password,
                 options: {
+                    ...(captchaToken ? { captchaToken } : {}),
                     data: {
                         full_name: name,
                         whatsapp: whatsapp,
@@ -1640,17 +1650,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             if (error) {
                 const message = error.message || 'Erro ao criar conta.';
+                const isCaptchaFailure = /captcha/i.test(message);
                 const isDuplicate = /already registered|already exists/i.test(message);
                 const isEmailRateLimited = /email rate limit exceeded/i.test(message);
                 const isConfirmationEmailFailure = /error sending confirmation email/i.test(message);
-                const derivedErrorCode = isDuplicate
+                const derivedErrorCode = isCaptchaFailure
+                    ? 'captcha_required'
+                    : isDuplicate
                     ? 'email_exists'
                     : isEmailRateLimited
                         ? 'auth_email_rate_limited'
                         : isConfirmationEmailFailure
                             ? 'confirmation_email_failed'
                             : 'signup_failed';
-                const statusCode = isDuplicate
+                const statusCode = isCaptchaFailure
+                    ? 400
+                    : isDuplicate
                     ? 409
                     : isEmailRateLimited
                         ? 429
@@ -1661,6 +1676,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 await logSecurityEvent({
                     eventType: isDuplicate
                         ? 'register_signup_duplicate'
+                        : isCaptchaFailure
+                            ? 'register_signup_captcha_failed'
                         : isEmailRateLimited
                             ? 'register_signup_email_rate_limited'
                             : isConfirmationEmailFailure
@@ -1678,7 +1695,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 });
 
                 return res.status(statusCode).json({
-                    error: isDuplicate
+                    error: isCaptchaFailure
+                        ? 'Confirme que voce e humano para continuar.'
+                        : isDuplicate
                         ? 'E-mail ja cadastrado. Use outro ou recupere sua senha.'
                         : isEmailRateLimited
                             ? 'O servico de e-mail do cadastro atingiu o limite temporario de envio. Aguarde alguns minutos e tente novamente.'
@@ -1686,7 +1705,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 ? 'Nao foi possivel enviar o e-mail de confirmacao agora. Tente novamente em alguns minutos.'
                                 : message,
                     error_code: derivedErrorCode,
-                    emailDeliveryIssue: isEmailRateLimited || isConfirmationEmailFailure
+                    emailDeliveryIssue: isEmailRateLimited || isConfirmationEmailFailure,
+                    ...(isCaptchaFailure
+                        ? {
+                            requiresCaptcha: true,
+                            captchaSiteKey: getCaptchaSiteKey(),
+                        }
+                        : {}),
                 });
             }
 

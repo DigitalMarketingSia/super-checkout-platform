@@ -4,6 +4,8 @@ import { storage } from '../../services/storageService';
 import { MemberArea } from '../../types';
 import { Button } from '../../components/ui/Button';
 import { Lock, ArrowRight, Mail, User } from 'lucide-react';
+import { AuthCaptchaPanel } from '../../components/auth/AuthCaptchaPanel';
+import { getSupabaseAuthCaptchaSiteKey } from '../../config/authCaptcha';
 import { getApiUrl } from '../../utils/apiUtils';
 import { supabase } from '../../services/supabase';
 import { useTranslation } from 'react-i18next';
@@ -11,7 +13,7 @@ import { getRuntimeMode } from '../../config/runtimeMode';
 import { demoDataService } from '../../services/demoDataService';
 
 export const MemberLogin = ({ forcedSlug }: { forcedSlug?: string }) => {
-    const { t } = useTranslation('member');
+    const { t } = useTranslation(['member', 'auth']);
     const { slug: paramSlug } = useParams<{ slug: string }>();
     const slug = forcedSlug || paramSlug;
     const navigate = useNavigate();
@@ -24,7 +26,15 @@ export const MemberLogin = ({ forcedSlug }: { forcedSlug?: string }) => {
     const [recovering, setRecovering] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
+    const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+    const [captchaWidgetKey, setCaptchaWidgetKey] = useState(0);
     const isDemoRuntime = getRuntimeMode() === 'demo';
+    const authCaptchaSiteKey = getSupabaseAuthCaptchaSiteKey();
+
+    const resetCaptcha = () => {
+        setCaptchaToken(null);
+        setCaptchaWidgetKey((current) => current + 1);
+    };
 
     useEffect(() => {
         if (slug) {
@@ -79,7 +89,12 @@ export const MemberLogin = ({ forcedSlug }: { forcedSlug?: string }) => {
             const loginResponse = await fetch(getApiUrl('/api/auth/login'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password, target: 'local' }),
+                body: JSON.stringify({
+                    email,
+                    password,
+                    target: 'local',
+                    captchaToken: authCaptchaSiteKey ? captchaToken : null,
+                }),
             });
 
             const contentType = loginResponse.headers.get('content-type') || '';
@@ -117,8 +132,16 @@ export const MemberLogin = ({ forcedSlug }: { forcedSlug?: string }) => {
             }
         } catch (error: any) {
             console.error('Login error:', error);
-            setError(error.message || t('login.errors.invalid_credentials'));
+            const normalizedMessage = String(error?.message || '').toLowerCase();
+            if (normalizedMessage.includes('captcha') || normalizedMessage.includes('humano')) {
+                setError(t('auth:register.captcha_error'));
+            } else {
+                setError(error.message || t('login.errors.invalid_credentials'));
+            }
         } finally {
+            if (authCaptchaSiteKey) {
+                resetCaptcha();
+            }
             setLoggingIn(false);
         }
     };
@@ -264,9 +287,19 @@ export const MemberLogin = ({ forcedSlug }: { forcedSlug?: string }) => {
                             </div>
                         </div>
 
+                        {authCaptchaSiteKey && (
+                            <AuthCaptchaPanel
+                                siteKey={authCaptchaSiteKey}
+                                onTokenChange={setCaptchaToken}
+                                title={t('auth:register.captcha_title')}
+                                description={t('auth:register.captcha_desc')}
+                                widgetKey={captchaWidgetKey}
+                            />
+                        )}
+
                         <button
                             type="submit"
-                            disabled={loggingIn || recovering}
+                            disabled={loggingIn || recovering || (authCaptchaSiteKey && !captchaToken)}
                             className="w-full py-4 rounded-xl font-bold text-white shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                             style={{ backgroundColor: primaryColor }}
                         >

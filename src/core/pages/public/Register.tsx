@@ -5,8 +5,9 @@ import { Mail, Lock, User, Loader2, ArrowRight, AlertCircle, CheckCircle, Sparkl
 import { useTranslation } from 'react-i18next';
 import { sanitizeTranslationHtml } from '../../utils/sanitize';
 import { openInboxForEmail } from '../../utils/emailInbox';
+import { AuthCaptchaPanel } from '../../components/auth/AuthCaptchaPanel';
 import { getRegistrationStatus, getWaitlistWhatsappGroupLink, joinRegistrationWaitlist, registerAccount, resendRegistrationEmail, trackRegistrationEvent, validateInviteToken as validateRegistrationInvite } from '../../services/registerFlow';
-import { RiskCaptcha } from '../../components/auth/RiskCaptcha';
+import { getSupabaseAuthCaptchaSiteKey } from '../../config/authCaptcha';
 import { PhoneInput } from '../../components/ui/PhoneInput';
 import { getPlatformPrivacyUrl, getPlatformTermsUrl } from '../../config/platformUrls';
 import {
@@ -46,6 +47,7 @@ export const Register = () => {
     const [requiresCaptcha, setRequiresCaptcha] = useState(false);
     const [captchaSiteKey, setCaptchaSiteKey] = useState<string | null>(null);
     const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+    const [captchaWidgetKey, setCaptchaWidgetKey] = useState(0);
     const [hasStartedForm, setHasStartedForm] = useState(false);
     const [registrationOpen, setRegistrationOpen] = useState(true);
     const [waitlistWhatsappGroupUrl, setWaitlistWhatsappGroupUrl] = useState<string | null>(null);
@@ -77,6 +79,14 @@ export const Register = () => {
         { code: 'en', label: t('register.language_names.en') },
         { code: 'es', label: t('register.language_names.es') }
     ];
+    const authCaptchaSiteKey = getSupabaseAuthCaptchaSiteKey();
+    const effectiveCaptchaSiteKey = authCaptchaSiteKey || captchaSiteKey;
+    const isCaptchaRequired = Boolean(authCaptchaSiteKey || requiresCaptcha);
+
+    const resetCaptcha = () => {
+        setCaptchaToken(null);
+        setCaptchaWidgetKey((current) => current + 1);
+    };
 
     const handleLanguageSelect = (language: RegisterLanguage) => {
         if (language === currentRegisterLanguage) return;
@@ -287,6 +297,9 @@ export const Register = () => {
             if (!platformLegalAccepted) {
                 throw new Error(t('register.platform_legal_required'));
             }
+            if (isCaptchaRequired && !captchaToken) {
+                throw new Error(t('register.captcha_error'));
+            }
 
             const response = await registerAccount({
                 name,
@@ -304,7 +317,7 @@ export const Register = () => {
             if (response.success) {
                 setRequiresCaptcha(false);
                 setCaptchaSiteKey(null);
-                setCaptchaToken(null);
+                resetCaptcha();
                 setApprovalPending(Boolean(response.approvalPending));
                 setSuccess(true);
             }
@@ -316,6 +329,9 @@ export const Register = () => {
             }
             setError(msg);
         } finally {
+            if (isCaptchaRequired) {
+                resetCaptcha();
+            }
             setLoading(false);
         }
     };
@@ -325,6 +341,10 @@ export const Register = () => {
         setResendMessage(null);
 
         try {
+            if (isCaptchaRequired && !captchaToken) {
+                setResendMessage(t('register.captcha_error'));
+                return;
+            }
             const response = await resendRegistrationEmail({
                 email,
                 flow: 'register',
@@ -334,12 +354,15 @@ export const Register = () => {
             if (response.success) {
                 setRequiresCaptcha(false);
                 setCaptchaSiteKey(null);
-                setCaptchaToken(null);
+                resetCaptcha();
                 setResendMessage(t('register.resend_success', { email }));
             }
         } catch (err: any) {
             setResendMessage(applyApiErrorState(err));
         } finally {
+            if (isCaptchaRequired) {
+                resetCaptcha();
+            }
             setResending(false);
         }
     };
@@ -576,7 +599,7 @@ export const Register = () => {
                             <button
                                 type="button"
                                 onClick={handleResend}
-                                disabled={resending || (requiresCaptcha && !captchaToken)}
+                                disabled={resending || (isCaptchaRequired && !captchaToken)}
                                 className="flex items-center justify-center gap-3 w-full bg-white/5 border border-white/10 text-white font-black uppercase text-sm py-5 rounded-2xl transition-all hover:bg-white/10 active:scale-95 tracking-widest italic disabled:opacity-60"
                             >
                                 {resending ? (
@@ -597,15 +620,15 @@ export const Register = () => {
                             </button>
                         </div>
 
-                        {requiresCaptcha && captchaSiteKey && (
-                            <div className="mt-6 bg-white/5 border border-white/10 rounded-3xl p-5 space-y-3 text-left">
-                                <p className="text-xs text-gray-300 font-bold uppercase tracking-[0.18em]">
-                                    {t('register.captcha_title')}
-                                </p>
-                                <p className="text-sm text-gray-400 leading-relaxed">
-                                    {t('register.captcha_desc')}
-                                </p>
-                                <RiskCaptcha siteKey={captchaSiteKey} onTokenChange={setCaptchaToken} />
+                        {effectiveCaptchaSiteKey && isCaptchaRequired && (
+                            <div className="mt-6">
+                                <AuthCaptchaPanel
+                                    siteKey={effectiveCaptchaSiteKey}
+                                    onTokenChange={setCaptchaToken}
+                                    title={t('register.captcha_title')}
+                                    description={t('register.captcha_desc')}
+                                    widgetKey={captchaWidgetKey}
+                                />
                             </div>
                         )}
 
@@ -1092,21 +1115,19 @@ export const Register = () => {
 
                             {renderPlatformLegalAcceptance()}
 
-                            {requiresCaptcha && captchaSiteKey && (
-                                <div className="bg-white/5 border border-white/10 rounded-3xl p-5 space-y-3">
-                                    <p className="text-xs text-gray-300 font-bold uppercase tracking-[0.18em]">
-                                        {t('register.captcha_title')}
-                                    </p>
-                                    <p className="text-sm text-gray-400 leading-relaxed">
-                                        {t('register.captcha_desc')}
-                                    </p>
-                                    <RiskCaptcha siteKey={captchaSiteKey} onTokenChange={setCaptchaToken} />
-                                </div>
+                            {effectiveCaptchaSiteKey && isCaptchaRequired && (
+                                <AuthCaptchaPanel
+                                    siteKey={effectiveCaptchaSiteKey}
+                                    onTokenChange={setCaptchaToken}
+                                    title={t('register.captcha_title')}
+                                    description={t('register.captcha_desc')}
+                                    widgetKey={captchaWidgetKey}
+                                />
                             )}
 
                             <button
                                 type="submit"
-                                disabled={loading || (requiresCaptcha && !captchaToken)}
+                                disabled={loading || (isCaptchaRequired && !captchaToken)}
                                 className="relative w-full bg-gradient-to-r from-emerald-400 to-emerald-600 text-[#020205] font-black uppercase text-sm py-6 rounded-[2rem] transition-all hover:scale-[1.03] active:scale-95 shadow-2xl shadow-emerald-500/20 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed group/btn italic tracking-widest mt-4 overflow-hidden"
                             >
                                 {/* Shine Effect */}

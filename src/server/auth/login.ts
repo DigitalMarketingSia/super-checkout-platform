@@ -6,6 +6,7 @@ import {
     createStatelessLoginChallengeToken,
     TWO_FACTOR_CHALLENGE_TTL_MS,
 } from './2fa/_shared.js';
+import { isSupabaseAuthCaptchaEnabled } from './_shared.js';
 
 /**
  * AUTH LOGIN PROXY — Rate Limited (Fase 15.3)
@@ -561,9 +562,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // --- Validate Body ---
     const { email, password, target } = req.body || {};
+    const captchaToken = typeof req.body?.captchaToken === 'string'
+        ? req.body.captchaToken.trim()
+        : '';
     
     if (!email || !password) {
         return res.status(400).json({ error: 'Email e senha são obrigatórios.' });
+    }
+    if (isSupabaseAuthCaptchaEnabled() && !captchaToken) {
+        return res.status(400).json({
+            error: 'Confirme que voce e humano para continuar.',
+            error_code: 'captcha_required',
+        });
     }
     const maskedEmail = maskEmail(email);
 
@@ -613,9 +623,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
         // --- Authenticate via Supabase ---
         const supabase = createClient(supabaseUrl, supabaseAnonKey);
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+            ...(captchaToken
+                ? {
+                    options: {
+                        captchaToken,
+                    },
+                }
+                : {}),
+        });
 
         if (error) {
+            if (/captcha/i.test(error.message || '')) {
+                return res.status(400).json({
+                    error: 'Confirme que voce e humano para continuar.',
+                    error_code: 'captcha_required',
+                });
+            }
             if (isLegacyApiKeyDisabledError(error)) {
                 return res.status(500).json({
                     error: 'As chaves locais do Supabase estao desatualizadas. Use SUPABASE_PUBLISHABLE_KEY/VITE_SUPABASE_PUBLISHABLE_KEY e SUPABASE_SECRET_KEY no .env.local.',

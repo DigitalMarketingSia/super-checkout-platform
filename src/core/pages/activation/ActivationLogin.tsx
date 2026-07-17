@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Mail, ArrowRight, ShieldCheck, Loader2, Lock } from 'lucide-react';
+import { AuthCaptchaPanel } from '../../components/auth/AuthCaptchaPanel';
+import { getSupabaseAuthCaptchaSiteKey } from '../../config/authCaptcha';
 import { centralSupabase, CENTRAL_SUPABASE_ANON_KEY } from '../../services/centralClient';
 import { CENTRAL_CONFIG } from '../../config/central';
 import { getApiUrl } from '../../utils/apiUtils';
@@ -25,6 +27,19 @@ export const ActivationLogin = () => {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [verifyingToken, setVerifyingToken] = useState(!!token);
+    const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+    const [captchaWidgetKey, setCaptchaWidgetKey] = useState(0);
+    const authCaptchaSiteKey = getSupabaseAuthCaptchaSiteKey();
+    const requiresPasswordCaptcha = mode === 'password' && Boolean(authCaptchaSiteKey);
+
+    const resetCaptcha = () => {
+        setCaptchaToken(null);
+        setCaptchaWidgetKey((current) => current + 1);
+    };
+
+    useEffect(() => {
+        setCaptchaToken(null);
+    }, [mode]);
 
     useEffect(() => {
         const checkCentralSession = async () => {
@@ -121,7 +136,12 @@ export const ActivationLogin = () => {
             const loginResponse = await fetch(getApiUrl('/api/auth/login'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password, target: 'central' }),
+                body: JSON.stringify({
+                    email,
+                    password,
+                    target: 'central',
+                    captchaToken: requiresPasswordCaptcha ? captchaToken : null,
+                }),
             });
 
             const contentType = loginResponse.headers.get('content-type') || '';
@@ -158,8 +178,16 @@ export const ActivationLogin = () => {
             await completeCentralLogin(loginData);
         } catch (err: any) {
             console.error(err);
-            setError(err.message === 'Invalid login credentials' ? t('activation.errors.invalid_credentials') : (err.message || t('activation.errors.login_failed')));
+            const normalizedMessage = String(err?.message || '').toLowerCase();
+            if (normalizedMessage.includes('captcha') || normalizedMessage.includes('humano')) {
+                setError(t('register.captcha_error', { ns: 'auth' }));
+            } else {
+                setError(err.message === 'Invalid login credentials' ? t('activation.errors.invalid_credentials') : (err.message || t('activation.errors.login_failed')));
+            }
         } finally {
+            if (requiresPasswordCaptcha) {
+                resetCaptcha();
+            }
             setLoading(false);
         }
     };
@@ -323,6 +351,16 @@ export const ActivationLogin = () => {
                                         />
                                     </div>
                                 </div>
+
+                                {requiresPasswordCaptcha && authCaptchaSiteKey && (
+                                    <AuthCaptchaPanel
+                                        siteKey={authCaptchaSiteKey}
+                                        onTokenChange={setCaptchaToken}
+                                        title={t('register.captcha_title', { ns: 'auth' })}
+                                        description={t('register.captcha_desc', { ns: 'auth' })}
+                                        widgetKey={captchaWidgetKey}
+                                    />
+                                )}
                             </>
                         )}
 
@@ -375,8 +413,8 @@ export const ActivationLogin = () => {
 
                         <button
                             type="submit"
-                            disabled={loading}
-                            className="w-full bg-white text-black py-4 rounded-xl font-bold hover:bg-gray-200 transition-all flex items-center justify-center gap-2 group"
+                            disabled={loading || (requiresPasswordCaptcha && !captchaToken)}
+                            className="w-full bg-white text-black py-4 rounded-xl font-bold hover:bg-gray-200 transition-all flex items-center justify-center gap-2 group disabled:opacity-60"
                         >
                             {loading ? (
                                 <div className="w-5 h-5 border-2 border-black/30 border-t-black rounded-full animate-spin" />

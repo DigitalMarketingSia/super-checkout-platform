@@ -4,11 +4,13 @@ import { storage } from '../../services/storageService';
 import { MemberArea } from '../../types';
 import { Button } from '../../components/ui/Button';
 import { Lock, ArrowRight, Mail, User } from 'lucide-react';
+import { AuthCaptchaPanel } from '../../components/auth/AuthCaptchaPanel';
+import { getSupabaseAuthCaptchaSiteKey } from '../../config/authCaptcha';
 import { supabase } from '../../services/supabase';
 import { useTranslation } from 'react-i18next';
 
 export const MemberSignup = ({ forcedSlug }: { forcedSlug?: string }) => {
-    const { t } = useTranslation('member');
+    const { t } = useTranslation(['member', 'auth']);
     const { slug: paramSlug } = useParams<{ slug: string }>();
     const slug = forcedSlug || paramSlug;
     const navigate = useNavigate();
@@ -19,6 +21,14 @@ export const MemberSignup = ({ forcedSlug }: { forcedSlug?: string }) => {
     const [password, setPassword] = useState('');
     const [signingUp, setSigningUp] = useState(false);
     const [error, setError] = useState('');
+    const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+    const [captchaWidgetKey, setCaptchaWidgetKey] = useState(0);
+    const authCaptchaSiteKey = getSupabaseAuthCaptchaSiteKey();
+
+    const resetCaptcha = () => {
+        setCaptchaToken(null);
+        setCaptchaWidgetKey((current) => current + 1);
+    };
 
     useEffect(() => {
         if (slug) {
@@ -54,6 +64,7 @@ export const MemberSignup = ({ forcedSlug }: { forcedSlug?: string }) => {
                 email,
                 password,
                 options: {
+                    ...(captchaToken ? { captchaToken } : {}),
                     data: {
                         full_name: name
                     }
@@ -68,8 +79,16 @@ export const MemberSignup = ({ forcedSlug }: { forcedSlug?: string }) => {
             }
         } catch (error: any) {
             console.error('Signup error:', error);
-            setError(error.message || t('signup.errors.create_account'));
+            const normalizedMessage = String(error?.message || '').toLowerCase();
+            if (normalizedMessage.includes('captcha') || normalizedMessage.includes('humano')) {
+                setError(t('auth:register.captcha_error'));
+            } else {
+                setError(error.message || t('signup.errors.create_account'));
+            }
         } finally {
+            if (authCaptchaSiteKey) {
+                resetCaptcha();
+            }
             setSigningUp(false);
         }
     };
@@ -178,9 +197,19 @@ export const MemberSignup = ({ forcedSlug }: { forcedSlug?: string }) => {
                             </div>
                         </div>
 
+                        {authCaptchaSiteKey && (
+                            <AuthCaptchaPanel
+                                siteKey={authCaptchaSiteKey}
+                                onTokenChange={setCaptchaToken}
+                                title={t('auth:register.captcha_title')}
+                                description={t('auth:register.captcha_desc')}
+                                widgetKey={captchaWidgetKey}
+                            />
+                        )}
+
                         <button
                             type="submit"
-                            disabled={signingUp}
+                            disabled={signingUp || (authCaptchaSiteKey && !captchaToken)}
                             className="w-full py-4 rounded-xl font-bold text-white shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                             style={{ backgroundColor: primaryColor }}
                         >

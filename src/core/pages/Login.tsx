@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
 import { useNavigate } from 'react-router-dom';
 import { Lock, Mail, Loader2, AlertCircle, User, ArrowRight, CheckCircle, ShieldCheck, Coins, Check } from 'lucide-react';
+import { AuthCaptchaPanel } from '../components/auth/AuthCaptchaPanel';
+import { getSupabaseAuthCaptchaSiteKey } from '../config/authCaptcha';
 import { memberService } from '../services/memberService';
 import { useInstallation } from '../context/InstallationContext';
 import { useTranslation } from 'react-i18next';
@@ -17,6 +19,8 @@ export const Login = () => {
   const [success, setSuccess] = useState<string | null>(null);
   const [twoFactorToken, setTwoFactorToken] = useState('');
   const [twoFactorCode, setTwoFactorCode] = useState('');
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaWidgetKey, setCaptchaWidgetKey] = useState(0);
 
   // Manual Setup State
   const [showSetupModal, setShowSetupModal] = useState(false);
@@ -27,6 +31,17 @@ export const Login = () => {
 
   // Use Context
   const { installationId, loading: instLoading, setInstallationId } = useInstallation();
+  const authCaptchaSiteKey = getSupabaseAuthCaptchaSiteKey();
+  const requiresLoginCaptcha = mode === 'login' && Boolean(authCaptchaSiteKey);
+
+  const resetCaptcha = () => {
+    setCaptchaToken(null);
+    setCaptchaWidgetKey((current) => current + 1);
+  };
+
+  useEffect(() => {
+    setCaptchaToken(null);
+  }, [mode]);
 
   const resolveSessionAuthz = async (accessToken?: string | null) => {
     if (!accessToken) return null;
@@ -267,7 +282,12 @@ export const Login = () => {
         const loginResponse = await fetch(getApiUrl('/api/auth/login'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password, target: 'local' }),
+          body: JSON.stringify({
+            email,
+            password,
+            target: 'local',
+            captchaToken: requiresLoginCaptcha ? captchaToken : null,
+          }),
         });
 
         const contentType = loginResponse.headers.get('content-type') || '';
@@ -436,6 +456,9 @@ export const Login = () => {
       console.error(err);
       setError(translateAuthError(err.message));
     } finally {
+      if (requiresLoginCaptcha) {
+        resetCaptcha();
+      }
       setLoading(false);
     }
   };
@@ -450,6 +473,7 @@ export const Login = () => {
     if (m.includes('supabase_legacy_api_keys_disabled') || m.includes('chaves locais do supabase') || m.includes('legacy api keys')) return msg;
     if (m.includes('payment_encryption_key') || m.includes('totp_secret_decryption_failed') || m.includes('configuração local de 2fa')) return msg;
     if (m.includes('two-factor') || m.includes('totp')) return 'O código informado não é válido.';
+    if (m.includes('captcha') || m.includes('humano')) return t('register.captcha_error');
     return t('login.generic_error', { error: msg });
   };
 
@@ -684,9 +708,19 @@ export const Login = () => {
               </div>
             )}
 
+            {requiresLoginCaptcha && authCaptchaSiteKey && (
+              <AuthCaptchaPanel
+                siteKey={authCaptchaSiteKey}
+                onTokenChange={setCaptchaToken}
+                title={t('register.captcha_title')}
+                description={t('register.captcha_desc')}
+                widgetKey={captchaWidgetKey}
+              />
+            )}
+
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || (requiresLoginCaptcha && !captchaToken)}
               className="w-full bg-gradient-to-r from-primary to-purple-600 hover:from-primary-hover hover:to-purple-700 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-primary/25 hover:shadow-primary/40 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed mt-4 group"
             >
               {loading ? (

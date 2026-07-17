@@ -115,6 +115,16 @@ export function getAuditClient() {
     });
 }
 
+export function isSupabaseAuthCaptchaEnabled(): boolean {
+    const value =
+        process.env.ENABLE_SUPABASE_AUTH_CAPTCHA
+        || process.env.VITE_ENABLE_SUPABASE_AUTH_CAPTCHA
+        || process.env.NEXT_PUBLIC_ENABLE_SUPABASE_AUTH_CAPTCHA
+        || '';
+
+    return ['1', 'true', 'yes', 'on'].includes(String(value).trim().toLowerCase());
+}
+
 export async function logSecurityEvent(params: {
     eventType: string;
     severity: SecuritySeverity;
