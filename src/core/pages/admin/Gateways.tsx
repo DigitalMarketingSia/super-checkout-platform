@@ -995,7 +995,7 @@ export const Gateways = () => {
         })}
 
         {renderGatewayCard({
-          logoSrc: '/asaas-logo.svg',
+          logoSrc: '/Asaas-logo.png',
           logoAlt: 'Asaas',
           subtitle: 'Cashflow Automation',
           isActive: asaasConfig.active,

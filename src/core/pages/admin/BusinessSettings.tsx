@@ -3,14 +3,14 @@ import { supabase } from '../../services/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { Layout } from '../../components/Layout';
 import { demoDataService, isDemoDataRuntime } from '../../services/demoDataService';
-import { 
-  Building2, 
-  Mail, 
-  ShieldCheck, 
-  AlertCircle, 
-  FileText, 
-  Shield, 
-  CheckCircle, 
+import {
+  Building2,
+  Mail,
+  ShieldCheck,
+  AlertCircle,
+  FileText,
+  Shield,
+  CheckCircle,
   FileSignature,
   Check,
   ChevronRight,
@@ -33,19 +33,19 @@ import {
 } from '../../utils/legalDocuments';
 
 const formatDocumentPublication = (value?: string | null) => {
-    if (!value) return 'nao publicado';
+    if (!value) return 'nÃ£o publicado';
 
     const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return 'nao publicado';
+    if (Number.isNaN(date.getTime())) return 'nÃ£o publicado';
 
     return date.toLocaleDateString('pt-BR');
 };
 
 const formatHistoryTimestamp = (value?: string | null) => {
-    if (!value) return 'nao registrado';
+    if (!value) return 'nÃ£o registrado';
 
     const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return 'nao registrado';
+    if (Number.isNaN(date.getTime())) return 'nÃ£o registrado';
 
     return date.toLocaleString('pt-BR');
 };
@@ -99,6 +99,7 @@ export const BusinessSettings = () => {
         terms_of_purchase_published_at: ''
     });
     const [editingDoc, setEditingDoc] = useState<'privacy' | 'terms' | null>(null);
+    const [expandedDoc, setExpandedDoc] = useState<'privacy' | 'terms' | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
     const [historyLoading, setHistoryLoading] = useState(false);
@@ -112,12 +113,6 @@ export const BusinessSettings = () => {
         && formData.business_name.trim()
         && formData.support_email.trim()
     );
-    const complianceStatusLabel = hasLegalDocuments
-        ? t('business_settings.header.docs_published', 'Documentos publicados')
-        : t('business_settings.header.docs_pending', 'Documentos pendentes');
-    const readinessStatusLabel = isBusinessIdentityComplete
-        ? t('business_settings.header.basic_setup_complete', 'Estrutura basica concluida')
-        : t('business_settings.header.basic_setup_incomplete', 'Estrutura basica incompleta');
     const privacyHistory = documentHistory.filter((entry) => entry.document_key === 'privacy_policy').slice(0, 3);
     const termsHistory = documentHistory.filter((entry) => entry.document_key === 'terms_of_purchase').slice(0, 3);
 
@@ -175,7 +170,7 @@ export const BusinessSettings = () => {
 
         if (historyError) {
             if (!isMissingLegalHistoryTableError(historyError)) {
-                console.warn('[BusinessSettings] Falha ao carregar historico legal:', historyError);
+                console.warn('[BusinessSettings] Falha ao carregar histÃ³rico legal:', historyError);
             }
             setDocumentHistory([]);
             setHistoryLoading(false);
@@ -230,7 +225,7 @@ export const BusinessSettings = () => {
         try {
             if (demoRuntime) {
                 if (!formData.agree_terms) {
-                    throw new Error(t('business_settings.form.agree_error', 'Voce precisa concordar com os termos.'));
+                    throw new Error(t('business_settings.form.agree_error', 'VocÃª precisa concordar com os termos.'));
                 }
 
                 const now = new Date();
@@ -360,7 +355,7 @@ export const BusinessSettings = () => {
             }
 
             if (!formData.agree_terms) {
-                throw new Error(t('business_settings.form.agree_error', 'Você precisa concordar com os termos.'));
+                throw new Error(t('business_settings.form.agree_error', 'VocÃª precisa concordar com os termos.'));
             }
 
             const now = new Date();
@@ -513,7 +508,7 @@ export const BusinessSettings = () => {
 
         } catch (err: any) {
             console.error(err);
-            setError(err.message || t('business_settings.error', 'Erro ao salvar configurações.'));
+            setError(err.message || t('business_settings.error', 'Erro ao salvar configuraÃ§Ãµes.'));
         } finally {
             setLoading(false);
         }
@@ -521,433 +516,558 @@ export const BusinessSettings = () => {
 
     return (
         <Layout>
-            <div className="space-y-12 pb-24 max-w-6xl mx-auto px-4 md:px-0">
-                
-                {/* Compact Premium Header */}
-                <div className="relative p-8 lg:p-12 rounded-[2.5rem] bg-[#0A0A15] border border-white/5 overflow-hidden shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-1000">
-                    <div className="absolute top-0 right-0 w-80 h-80 bg-primary/10 blur-[120px] -translate-y-1/2 translate-x-1/2 opacity-50" />
-                    <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500/5 blur-[100px] translate-y-1/2 -translate-x-1/2 opacity-30" />
-                    
-                    <div className="relative z-20 flex flex-col lg:flex-row lg:items-end justify-between gap-10">
-                        <div className="space-y-6">
-                            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-[10px] font-black uppercase tracking-[0.3em] animate-pulse">
-                                <Building2 className="w-3.5 h-3.5" /> {t('business_settings.header.badge')}
-                            </div>
-                            <div>
-                                <h1 className="text-4xl lg:text-6xl font-portal-display text-white tracking-tighter italic leading-none mb-6 uppercase">
-                                    {t('business_settings.header.title_prefix')} <span className="text-primary font-black">{t('business_settings.header.title_highlight')}</span>
-                                </h1>
-                                <p className="text-sm text-gray-500 font-medium max-w-2xl leading-relaxed italic border-l-2 border-primary/20 pl-6">
-                                    Configure as bases estratégicas do seu ecossistema. Estas informações definem a autoridade da sua marca no checkout e comunicações automáticas.
+            <div className="space-y-8 pb-24 max-w-6xl mx-auto px-4 md:px-0 animate-in fade-in duration-500 relative">
+
+                {/* Premium Design Glows */}
+                <div className="absolute top-10 left-1/4 w-[500px] h-[500px] bg-primary/10 blur-[150px] rounded-full pointer-events-none -z-10 animate-pulse-slow" />
+                <div className="absolute top-40 right-1/4 w-[400px] h-[400px] bg-purple-500/5 blur-[120px] rounded-full pointer-events-none -z-10" />
+
+                {/* Dashboard-Style Title & Info Bar */}
+                <div className="flex flex-col gap-4">
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                        <div>
+                            <h1 className="text-3xl lg:text-4xl font-portal-display text-white mb-1 leading-none uppercase italic tracking-tight">
+                                {t('business_settings.header.title_prefix')} <span className="text-primary font-black">{t('business_settings.header.title_highlight')}</span>
+                            </h1>
+                            <div className="flex items-center gap-2 mt-1">
+                                <p className="text-gray-400 font-medium uppercase tracking-[0.15em] text-[9px] font-mono">
+                                    {t('business_settings.header.badge')}
                                 </p>
+                                <div className="h-1.5 w-1.5 rounded-full bg-primary/45"></div>
+                                <span className="text-[9px] text-[#10B981] font-black uppercase tracking-[0.2em] font-mono">Live Control</span>
                             </div>
                         </div>
 
-                        {/* Tactical Status Cards */}
-                        <div className="flex flex-col sm:flex-row items-center gap-4">
-                           <div className={`flex items-center gap-4 px-6 py-4 rounded-[1.5rem] bg-white/[0.02] border border-white/5 group/item transition-all duration-500 ${hasLegalDocuments ? 'hover:border-emerald-400/30' : 'hover:border-amber-400/30'}`}>
-                              <div className={`p-2 rounded-xl ${hasLegalDocuments ? 'bg-emerald-500/10' : 'bg-amber-500/10'}`}>
-                                <ShieldCheck className={`w-5 h-5 ${hasLegalDocuments ? 'text-emerald-400' : 'text-amber-400'}`} />
-                              </div>
-                              <div className="flex flex-col">
-                                 <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest">{t('business_settings.header.legal_docs', 'Documentacao legal')}</span>
-                                 <span className={`text-[11px] font-black uppercase tracking-tighter italic ${hasLegalDocuments ? 'text-emerald-400' : 'text-amber-400'}`}>{complianceStatusLabel}</span>
-                              </div>
-                           </div>
+                        {/* Tactical Status Tags */}
+                        <div className="flex flex-row flex-wrap items-center gap-2.5 font-mono">
+                            <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.12em] border ${hasLegalDocuments ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25 shadow-[0_2px_10px_rgba(16,185,129,0.05)]' : 'bg-rose-500/10 text-rose-400 border-rose-500/25 shadow-[0_2px_10px_rgba(244,63,94,0.05)]'}`}>
+                                <ShieldCheck className="w-3.5 h-3.5" />
+                                {hasLegalDocuments ? 'Documentos Publicados' : 'Documentos Pendentes'}
+                            </span>
 
-                           <div className="flex items-center gap-4 px-6 py-4 rounded-[1.5rem] bg-white/[0.02] border border-white/5 group/item hover:border-primary/30 transition-all duration-500">
-                              <div className={`p-2 rounded-xl ${isBusinessIdentityComplete ? 'bg-primary/10' : 'bg-white/5'}`}>
-                                <CheckCircle className={`w-5 h-5 ${isBusinessIdentityComplete ? 'text-primary' : 'text-gray-500'}`} />
-                              </div>
-                              <div className="flex flex-col">
-                                 <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest">{t('business_settings.header.readiness')}</span>
-                                 <div className="flex items-center gap-2 mt-0.5">
-                                    <span className={`text-[11px] font-black uppercase tracking-tighter italic ${isBusinessIdentityComplete ? 'text-white' : 'text-gray-500'}`}>{readinessStatusLabel}</span>
-                                    <div className={`w-2 h-2 rounded-full ${isBusinessIdentityComplete ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.4)]'} animate-pulse`} />
-                                 </div>
-                              </div>
-                           </div>
+                            <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.12em] border ${isBusinessIdentityComplete ? 'bg-[#8A2BE2]/10 text-[#C77DFF] border-[#8A2BE2]/30 shadow-[0_2px_10px_rgba(138,43,226,0.05)]' : 'bg-white/5 text-gray-500 border-white/10'}`}>
+                                <Building2 className="w-3.5 h-3.5" />
+                                {isBusinessIdentityComplete ? 'Identidade Completa' : 'Identidade Incompleta'}
+                            </span>
                         </div>
                     </div>
+                    <p className="text-xs text-gray-300 max-w-2xl leading-relaxed italic border-l border-primary/30 pl-4 font-medium">
+                        Configure as bases estratÃ©gicas do seu ecossistema. Estas informaÃ§Ãµes definem a autoridade da sua marca no checkout e comunicaÃ§Ãµes automÃ¡ticas.
+                    </p>
                 </div>
 
-                <div className="max-w-5xl mx-auto">
+                <div className="max-w-6xl mx-auto">
                     {/* Feedback Messages */}
                     {error && (
-                        <div className="bg-rose-500/10 border border-rose-500/20 p-6 rounded-[2rem] mb-8 flex items-center gap-4 animate-in zoom-in-95 duration-500">
-                            <div className="p-3 bg-rose-500/20 rounded-2xl">
-                                <AlertCircle className="w-6 h-6 text-rose-500" />
+                        <div className="bg-rose-500/10 border border-rose-500/25 p-4 rounded-xl mb-6 flex items-center gap-3.5 animate-in zoom-in-95 duration-350 shadow-lg">
+                            <div className="p-2 bg-rose-500/20 rounded-lg text-rose-500">
+                                <AlertCircle className="w-5 h-5" />
                             </div>
                             <div>
-                                <p className="text-[10px] font-black text-rose-500/50 uppercase tracking-widest mb-1">System Alert</p>
-                                <p className="font-bold text-rose-500 tracking-tight">{error}</p>
+                                <p className="text-[8px] font-black text-rose-400 uppercase tracking-widest font-mono">Alerta do Sistema</p>
+                                <p className="text-xs font-bold text-rose-500 tracking-tight">{error}</p>
                             </div>
                         </div>
                     )}
 
                     {success && (
-                        <div className="bg-emerald-500/10 border border-emerald-500/20 p-6 rounded-[2rem] mb-8 flex items-center gap-4 animate-in zoom-in-95 duration-500">
-                            <div className="p-3 bg-emerald-500/20 rounded-2xl text-emerald-400">
-                                <CheckCircle className="w-6 h-6" />
+                        <div className="bg-emerald-500/10 border border-emerald-500/25 p-4 rounded-xl mb-6 flex items-center gap-3.5 animate-in zoom-in-95 duration-350 shadow-lg">
+                            <div className="p-2 bg-emerald-500/20 rounded-lg text-emerald-400">
+                                <CheckCircle className="w-5 h-5" />
                             </div>
                             <div>
-                                <p className="text-[10px] font-black text-emerald-500/50 uppercase tracking-widest mb-1">Execution Sync</p>
-                                <p className="font-bold text-emerald-400 tracking-tight">{t('business_settings.success', 'Processamento concluído com sucesso. A identidade do seu negócio foi propagada.')}</p>
+                                <p className="text-[8px] font-black text-emerald-500/50 uppercase tracking-widest font-mono">SincronizaÃ§Ã£o Efetuada</p>
+                                <p className="text-xs font-bold text-emerald-400 tracking-tight">{t('business_settings.success', 'Processamento concluÃ­do com sucesso. A identidade do seu negÃ³cio foi propagada.')}</p>
                             </div>
                         </div>
                     )}
 
-                    <div className="relative group/main">
-                        <div className="absolute -inset-1 bg-gradient-to-r from-primary/10 to-purple-500/10 rounded-[2.5rem] blur opacity-25 group-hover/main:opacity-50 transition duration-1000" />
-                        
-                        <Card className="relative border border-white/5 backdrop-blur-3xl bg-[#0A0A15]/80 shadow-2xl p-0 overflow-hidden rounded-[2.5rem]">
-                            <div className="p-10 lg:p-12 border-b border-white/5 flex flex-col sm:flex-row items-center justify-between gap-6 bg-white/[0.01]">
-                                <div className="flex items-center gap-5">
-                                    <div className="p-4 bg-primary/10 border border-primary/20 rounded-[1.5rem] text-primary shadow-inner">
-                                        <FileSignature className="w-6 h-6" />
-                                    </div>
-                                    <div>
-                                        <h2 className="text-2xl font-portal-display text-white italic uppercase tracking-tighter">
-                                            Identidade de <span className="font-black">Negócio</span>
-                                        </h2>
-                                        <p className="text-[10px] text-gray-700 font-bold uppercase tracking-[0.2em] mt-1.5">Commerce Authority Configuration</p>
-                                    </div>
+                    <form onSubmit={handleSubmit} className="lg:grid lg:grid-cols-12 lg:gap-8 space-y-8 lg:space-y-0 animate-in fade-in duration-500">
 
+                        {/* Left Column: Configuration Zone (col-span-5) */}
+                        <div className="lg:col-span-5">
+                            <div className="relative overflow-hidden rounded-[2.5rem] border border-white/10 bg-[#0C0C14] p-8 shadow-2xl space-y-6">
+                                {/* Glass light reflection ray */}
+                                <div className="absolute -top-16 -left-16 w-44 h-44 bg-white/5 rounded-full blur-3xl pointer-events-none" />
+
+                                {/* Dash Indicators at the top */}
+                                <div className="flex justify-center gap-1.5 mb-8">
+                                    <div className="w-8 h-1 rounded-full bg-primary" />
+                                    <div className="w-8 h-1 rounded-full bg-white/10" />
+                                    <div className="w-8 h-1 rounded-full bg-white/10" />
+                                    <div className="w-8 h-1 rounded-full bg-white/10" />
+                                    <div className="w-8 h-1 rounded-full bg-white/10" />
                                 </div>
-                                <Building2 className="w-10 h-10 text-gray-800/30" />
-                            </div>
 
-                            <form onSubmit={handleSubmit} className="p-10 lg:p-12 space-y-12">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                                    <div className="space-y-4">
-                                        <label className="flex items-center gap-2 text-[10px] font-black text-gray-600 uppercase tracking-widest ml-1">
-                                            <div className="w-1 h-1 rounded-full bg-primary" />
+                                {/* Central Illustration Header */}
+                                <div className="flex flex-col items-center text-center mb-6">
+                                    <div className="w-20 h-20 rounded-3xl bg-gradient-to-b from-white/10 to-white/5 border border-white/10 flex items-center justify-center shadow-xl mb-4 group hover:scale-105 transition-transform duration-300">
+                                        <Building2 className="w-9 h-9 text-white animate-pulse-slow" />
+                                    </div>
+                                    <h3 className="text-xl font-portal-display text-white uppercase italic tracking-tight mb-1">
+                                        Identidade Comercial
+                                    </h3>
+                                    <p className="text-xs text-gray-400 max-w-sm font-medium">
+                                        Cadastre as informaÃ§Ãµes da sua empresa para faturas e compliance.
+                                    </p>
+                                </div>
+
+                                <div className="space-y-5 border-t border-white/5 pt-6">
+                                    <div className="space-y-2">
+                                        <label className="flex items-center gap-2 text-[9px] font-black text-gray-300 uppercase tracking-widest ml-1 font-mono">
                                             {t('business_settings.form.business_name', 'Nome Comercial')}
                                         </label>
                                         <div className="relative group/input">
-                                            <div className="absolute inset-0 bg-primary/5 rounded-2xl blur-sm opacity-0 group-focus-within/input:opacity-100 transition-opacity" />
-                                            <Building2 className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-800 group-focus-within/input:text-primary transition-all duration-300" size={20} />
+                                            <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within/input:text-primary transition-colors duration-300" size={16} />
                                             <input
                                                 type="text"
                                                 required
                                                 value={formData.business_name}
                                                 onChange={e => setFormData({ ...formData, business_name: e.target.value })}
-                                                className="relative w-full bg-white/[0.02] border border-white/5 rounded-2xl pl-16 pr-6 py-5 text-white focus:ring-2 focus:ring-primary/50 outline-none transition-all font-bold placeholder:text-gray-900 shadow-inner"
+                                                className="w-full bg-[#07070F] border border-white/[0.12] rounded-xl pl-12 pr-4 py-3.5 text-sm text-white focus:border-primary focus:ring-1 focus:ring-primary/30 outline-none transition-all duration-300 placeholder:text-gray-600 font-semibold shadow-inner"
                                                 placeholder={t('business_settings.form.business_name_placeholder', 'Nome da sua MARCA')}
                                             />
                                         </div>
-                                        <p className="text-[10px] text-gray-700 font-medium mt-2 italic px-2 flex items-center gap-2">
-                                            <AlertCircle className="w-3 h-3" /> {t('business_settings.form.business_name_hint', 'Exibido em faturas, checkout e remetente.')}
+                                        <p className="text-[10px] text-gray-400 mt-1.5 italic px-1 flex items-center gap-1.5 font-medium leading-none">
+                                            <AlertCircle className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" /> {t('business_settings.form.business_name_hint', 'Exibido em faturas, checkout e remetente.')}
                                         </p>
                                     </div>
 
-                                    <div className="space-y-4">
-                                        <label className="flex items-center gap-2 text-[10px] font-black text-gray-600 uppercase tracking-widest ml-1">
-                                            <div className="w-1 h-1 rounded-full bg-primary" />
-                                            {t('business_settings.form.support_email', 'Suporte Técnico')}
+                                    <div className="space-y-2">
+                                        <label className="flex items-center gap-2 text-[9px] font-black text-gray-300 uppercase tracking-widest ml-1 font-mono">
+                                            {t('business_settings.form.support_email', 'Suporte TÃ©cnico')}
                                         </label>
                                         <div className="relative group/input">
-                                            <div className="absolute inset-0 bg-primary/5 rounded-2xl blur-sm opacity-0 group-focus-within/input:opacity-100 transition-opacity" />
-                                            <Mail className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-800 group-focus-within/input:text-primary transition-all duration-300" size={20} />
+                                            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within/input:text-primary transition-colors duration-300" size={16} />
                                             <input
                                                 type="email"
                                                 required
                                                 value={formData.support_email}
                                                 onChange={e => setFormData({ ...formData, support_email: e.target.value })}
-                                                className="relative w-full bg-white/[0.02] border border-white/5 rounded-2xl pl-16 pr-6 py-5 text-white focus:ring-2 focus:ring-primary/50 outline-none transition-all font-bold placeholder:text-gray-900 shadow-inner"
+                                                className="w-full bg-[#07070F] border border-white/[0.12] rounded-xl pl-12 pr-4 py-3.5 text-sm text-white focus:border-primary focus:ring-1 focus:ring-primary/30 outline-none transition-all duration-300 placeholder:text-gray-600 font-semibold shadow-inner"
                                                 placeholder={t('business_settings.form.support_email_placeholder', 'suporte@empresa.com')}
                                             />
                                         </div>
-                                        <p className="text-[10px] text-gray-700 font-medium mt-2 italic px-2 flex items-center gap-2">
-                                            <AlertCircle className="w-3 h-3" /> {t('business_settings.form.support_email_hint', 'Usado em e-mails, suporte e rodapé legal do checkout.')}
+                                        <p className="text-[10px] text-gray-400 mt-1.5 italic px-1 flex items-center gap-1.5 font-medium leading-none">
+                                            <AlertCircle className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" /> {t('business_settings.form.support_email_hint', 'Usado em e-mails, suporte e rodapÃ© legal.')}
                                         </p>
                                     </div>
 
-                                    <div className="space-y-4 md:col-span-2">
-                                        <label className="flex items-center gap-2 text-[10px] font-black text-gray-600 uppercase tracking-widest ml-1">
-                                            <div className="w-1 h-1 rounded-full bg-primary" />
+                                    <div className="space-y-2">
+                                        <label className="flex items-center gap-2 text-[9px] font-black text-gray-300 uppercase tracking-widest ml-1 font-mono">
                                             Contato Legal / Privacidade
                                         </label>
                                         <div className="relative group/input">
-                                            <div className="absolute inset-0 bg-primary/5 rounded-2xl blur-sm opacity-0 group-focus-within/input:opacity-100 transition-opacity" />
-                                            <Mail className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-800 group-focus-within/input:text-primary transition-all duration-300" size={20} />
+                                            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within/input:text-primary transition-colors duration-300" size={16} />
                                             <input
                                                 type="email"
                                                 value={formData.legal_responsible_email}
                                                 onChange={e => setFormData({ ...formData, legal_responsible_email: e.target.value })}
-                                                className="relative w-full bg-white/[0.02] border border-white/5 rounded-2xl pl-16 pr-6 py-5 text-white focus:ring-2 focus:ring-primary/50 outline-none transition-all font-bold placeholder:text-gray-900 shadow-inner"
+                                                className="w-full bg-[#07070F] border border-white/[0.12] rounded-xl pl-12 pr-4 py-3.5 text-sm text-white focus:border-primary focus:ring-1 focus:ring-primary/30 outline-none transition-all duration-300 placeholder:text-gray-600 font-semibold shadow-inner"
                                                 placeholder="privacidade@empresa.com"
                                             />
                                         </div>
-                                        <p className="text-[10px] text-gray-700 font-medium mt-2 italic px-2 flex items-center gap-2">
-                                            <AlertCircle className="w-3 h-3" /> Exibido como canal legal nos documentos quando preenchido. Se ficar vazio, o sistema usa o e-mail de suporte como fallback.
+                                        <p className="text-[10px] text-gray-400 mt-1.5 italic px-1 flex items-center gap-1.5 font-medium leading-none">
+                                            <AlertCircle className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" /> Exibido como canal legal. Se vazio, usa o e-mail de suporte.
                                         </p>
                                     </div>
                                 </div>
 
-                            <div className="p-8 lg:p-10 bg-white/[0.01] rounded-[2rem] border border-white/5 flex flex-col sm:flex-row items-center justify-between gap-8 group/toggle hover:border-primary/20 transition-all duration-700">
-                                <div className="flex items-center gap-6">
-                                    <div className="p-4 bg-white/5 rounded-2xl text-primary group-hover/toggle:bg-primary group-hover/toggle:text-white transition-all duration-500 shadow-lg">
-                                        <Globe className="w-6 h-6" />
+                                <div className="p-4 bg-black/20 rounded-xl border border-white/10 flex items-center justify-between gap-4 transition-all duration-300 shadow-inner">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-[#8A2BE2]/15 border border-[#8A2BE2]/30 rounded-lg text-primary">
+                                            <Globe className="w-4 h-4" />
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-bold text-white leading-none">RodapÃ© de Checkout</p>
+                                            <p className="text-[8px] text-gray-400 uppercase tracking-wider mt-1.5 font-mono">ExibiÃ§Ã£o de Compliance e Termos</p>
+                                        </div>
                                     </div>
-                                    <div className="space-y-1">
-                                        <p className="text-base font-bold text-white tracking-tight">Rodapé Estratégico de Checkout</p>
-                                        <p className="text-[10px] text-gray-700 font-bold uppercase tracking-[0.2em]">Exibir compliance, termos e políticas em destaque</p>
+                                    <label className="relative inline-flex items-center cursor-pointer scale-90 font-semibold">
+                                        <input
+                                            type="checkbox"
+                                            className="sr-only peer"
+                                            checked
+                                            disabled
+                                        />
+                                        <div className="w-12 h-6 bg-white/5 border border-white/10 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-gray-800 after:rounded-full after:h-5 after:w-5 after:transition-all duration-500 peer-checked:after:bg-white peer-checked:bg-primary shadow-inner"></div>
+                                    </label>
+                                </div>
+
+                                <div className="p-4 bg-[#8A2BE2]/5 rounded-xl border border-[#8A2BE2]/20 cursor-pointer hover:bg-[#8A2BE2]/10 transition-all duration-300 relative group/agree shadow-sm" onClick={() => setFormData({ ...formData, agree_terms: !formData.agree_terms })}>
+                                    <div className="flex items-start gap-3">
+                                        <div className={`mt-0.5 w-5 h-5 rounded-md border flex items-center justify-center transition-all duration-300 ${formData.agree_terms ? 'bg-primary border-primary shadow-md shadow-primary/20 scale-105' : 'bg-[#07070F] border-white/15'}`}>
+                                            {formData.agree_terms && <Check className="w-3.5 h-3.5 text-white" />}
+                                        </div>
+                                        <span className="text-[11px] text-gray-300 font-medium leading-relaxed italic select-none">
+                                            Declaro que as informaÃ§Ãµes e documentos cadastrados sÃ£o verÃ­dicos e representam a realidade comercial da operaÃ§Ã£o.
+                                        </span>
                                     </div>
                                 </div>
-                                <label className="relative inline-flex items-center cursor-pointer scale-110">
-                                    <input 
-                                        type="checkbox" 
-                                        className="sr-only peer"
-                                        checked
-                                        disabled
-                                    />
-                                    <div className="w-16 h-8 bg-white/5 border border-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-gray-800 after:rounded-full after:h-6 after:w-6 after:transition-all duration-500 peer-checked:after:bg-white peer-checked:bg-primary shadow-inner"></div>
-                                </label>
-                            </div>
 
-                            <div className="space-y-8 pt-6">
-                                <div className="flex items-center gap-3 ml-2">
-                                    <div className="w-6 h-0.5 bg-primary/30 rounded-full" />
-                                    <h3 className="text-[10px] font-black text-gray-700 uppercase tracking-[0.3em] flex items-center gap-3">
-                                        <FileText className="w-4 h-4 text-primary" /> Ativos Legais (Protocolos)
+                                <div className="pt-2">
+                                    <Button
+                                        type="submit"
+                                        disabled={loading}
+                                        className="group/save w-full h-11 rounded-xl bg-primary hover:bg-primary-hover text-white font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-all duration-300 shadow-[0_4px_16px_rgba(138,43,226,0.35)]"
+                                    >
+                                        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                                        <span className="text-xs font-black uppercase tracking-wider">
+                                            {loading ? 'Salvando...' : 'Salvar AlteraÃ§Ãµes'}
+                                        </span>
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Right Column: Legal Documents and History Zone (col-span-7) */}
+                        <div className="lg:col-span-7">
+
+                            {/* Main Glass Card inspired by the mockup style */}
+                            <div className="relative overflow-hidden rounded-[2.5rem] border border-white/10 bg-[#0C0C14] p-8 shadow-2xl">
+                                {/* Glass light reflection ray */}
+                                <div className="absolute -top-16 -left-16 w-44 h-44 bg-white/5 rounded-full blur-3xl pointer-events-none" />
+
+                                {/* Dash Indicators at the top */}
+                                <div className="flex justify-center gap-1.5 mb-8">
+                                    <div className="w-8 h-1 rounded-full bg-primary" />
+                                    <div className="w-8 h-1 rounded-full bg-white/10" />
+                                    <div className="w-8 h-1 rounded-full bg-white/10" />
+                                    <div className="w-8 h-1 rounded-full bg-white/10" />
+                                    <div className="w-8 h-1 rounded-full bg-white/10" />
+                                </div>
+
+                                {/* Central Illustration Header */}
+                                <div className="flex flex-col items-center text-center mb-6">
+                                    <div className="w-20 h-20 rounded-3xl bg-gradient-to-b from-white/10 to-white/5 border border-white/10 flex items-center justify-center shadow-xl mb-4 group hover:scale-105 transition-transform duration-300">
+                                        <ShieldCheck className="w-9 h-9 text-white animate-pulse-slow" />
+                                    </div>
+                                    <h3 className="text-xl font-portal-display text-white uppercase italic tracking-tight mb-1">
+                                        Documentos Legais
                                     </h3>
+                                    <p className="text-xs text-gray-400 max-w-sm font-medium">
+                                        Publique as regras de compliance e pÃ³s-venda que aparecem no checkout.
+                                    </p>
                                 </div>
 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
-                                    <button
-                                        type="button"
-                                        onClick={() => setEditingDoc('privacy')}
-                                        className="relative overflow-hidden flex flex-col items-start gap-6 p-8 bg-white/[0.02] border border-white/5 rounded-[2rem] hover:border-primary/50 hover:bg-white/[0.04] transition-all duration-500 group/doc"
-                                    >
-                                        <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 blur-3xl -translate-y-1/2 translate-x-1/2 group-hover/doc:bg-primary/10 transition-colors" />
-                                        
-                                        <div className="w-full flex items-center justify-between">
-                                            <div className="p-3 bg-white/5 rounded-xl text-gray-700 group-hover/doc:text-primary transition-colors">
-                                                <Shield className="w-5 h-5" />
-                                            </div>
-                                            <ChevronRight size={20} className="text-gray-900 group-hover/doc:text-primary transform group-hover/doc:translate-x-1 transition-all" />
-                                        </div>
+                                {/* List of Documents as Rows */}
+                                <div className="space-y-4 border-t border-white/5 pt-6">
 
-                                        <div className="text-left w-full">
-                                            <p className="text-sm font-black text-white uppercase tracking-tighter italic">Política de Privacidade</p>
-                                            <div className="flex items-center justify-between mt-4 p-4 bg-black/20 rounded-2xl border border-white/5">
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`w-2 h-2 rounded-full ${formData.privacy_policy ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-rose-500 animate-pulse'}`} />
-                                                    <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest leading-none mt-0.5">
-                                                       {formData.privacy_policy ? 'Configurada' : 'Pendente'}
-                                                    </p>
-                                                </div>
-                                                <div className="text-right">
-                                                    <span className="block text-[8px] font-bold text-gray-800 uppercase tracking-widest">
-                                                        {privacyDocumentInfo.version}
-                                                    </span>
-                                                    <span className="block text-[8px] text-gray-600">
-                                                        Publicado em {formatDocumentPublication(privacyDocumentInfo.publishedAt)}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        onClick={() => setEditingDoc('terms')}
-                                        className="relative overflow-hidden flex flex-col items-start gap-6 p-8 bg-white/[0.02] border border-white/5 rounded-[2rem] hover:border-primary/50 hover:bg-white/[0.04] transition-all duration-500 group/doc"
-                                    >
-                                        <div className="absolute top-0 right-0 w-24 h-24 bg-purple-500/5 blur-3xl -translate-y-1/2 translate-x-1/2 group-hover/doc:bg-purple-500/10 transition-colors" />
-                                        
-                                        <div className="w-full flex items-center justify-between">
-                                            <div className="p-3 bg-white/5 rounded-xl text-gray-700 group-hover/doc:text-purple-500 transition-colors">
-                                                <FileText className="w-5 h-5" />
-                                            </div>
-                                            <ChevronRight size={20} className="text-gray-900 group-hover/doc:text-purple-500 transform group-hover/doc:translate-x-1 transition-all" />
-                                        </div>
-
-                                        <div className="text-left w-full">
-                                            <p className="text-sm font-black text-white uppercase tracking-tighter italic">Termos de Compra</p>
-                                            <div className="flex items-center justify-between mt-4 p-4 bg-black/20 rounded-2xl border border-white/5">
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`w-2 h-2 rounded-full ${formData.terms_of_purchase ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-rose-500 animate-pulse'}`} />
-                                                    <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest leading-none mt-0.5">
-                                                       {formData.terms_of_purchase ? 'Configurado' : 'Pendente'}
-                                                    </p>
-                                                </div>
-                                                <div className="text-right">
-                                                    <span className="block text-[8px] font-bold text-gray-800 uppercase tracking-widest">
-                                                        {termsDocumentInfo.version}
-                                                    </span>
-                                                    <span className="block text-[8px] text-gray-600">
-                                                        Publicado em {formatDocumentPublication(termsDocumentInfo.publishedAt)}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </button>
-                                </div>
-
-                                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 pt-2">
-                                    {[
-                                        {
-                                            key: 'privacy_policy' as const,
-                                            label: 'Historico - Politica de Privacidade',
-                                            entries: privacyHistory,
-                                            accent: 'emerald',
-                                            Icon: Shield,
-                                        },
-                                        {
-                                            key: 'terms_of_purchase' as const,
-                                            label: 'Historico - Termos de Compra',
-                                            entries: termsHistory,
-                                            accent: 'primary',
-                                            Icon: FileText,
-                                        },
-                                    ].map(({ key, label, entries, accent, Icon }) => (
+                                    {/* Row 1: Privacy Policy */}
+                                    <div className="space-y-4">
                                         <div
-                                            key={key}
-                                            className={`rounded-[2rem] border p-6 bg-black/20 ${accent === 'emerald' ? 'border-emerald-500/15' : 'border-primary/15'}`}
+                                            onClick={() => setExpandedDoc(expandedDoc === 'privacy' ? null : 'privacy')}
+                                            className="group flex items-center justify-between p-4 hover:bg-white/[0.02] rounded-2xl transition-all duration-300 cursor-pointer border border-transparent hover:border-white/5"
                                         >
-                                            <div className="flex items-center justify-between gap-4 mb-5">
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`p-3 rounded-2xl ${accent === 'emerald' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-primary/10 text-primary'}`}>
-                                                        <Icon className="w-5 h-5" />
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-sm font-black text-white tracking-tight">{label}</p>
-                                                        <p className="text-[9px] text-gray-700 font-bold uppercase tracking-[0.2em]">Ultimos snapshots por conta</p>
-                                                    </div>
+                                            <div className="flex items-center gap-4">
+                                                {/* Left Icon Container */}
+                                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border transition-all duration-300 ${
+                                                    formData.privacy_policy
+                                                        ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.1)]'
+                                                        : 'bg-rose-500/10 border-rose-500/20 text-rose-400'
+                                                }`}>
+                                                    <Shield className="w-5.5 h-5.5" />
                                                 </div>
-                                                <span className="text-[9px] text-gray-600 font-black uppercase tracking-widest">
-                                                    {historyLoading ? 'Sincronizando' : `${entries.length} itens`}
-                                                </span>
+
+                                                {/* Text Info */}
+                                                <div className="text-left">
+                                                    <span className={`block text-[8px] font-black uppercase tracking-widest font-mono leading-none mb-1 ${
+                                                        formData.privacy_policy ? 'text-emerald-400' : 'text-rose-400'
+                                                    }`}>
+                                                        {formData.privacy_policy ? 'Publicado' : 'Pendente'}
+                                                    </span>
+                                                    <h4 className="text-sm font-bold text-white transition-colors group-hover:text-primary leading-tight">
+                                                        PolÃ­tica de Privacidade
+                                                    </h4>
+                                                    <p className="text-[11px] text-gray-400 mt-1 leading-normal font-mono uppercase tracking-wider text-[8px]">
+                                                        Compliance e RelaÃ§Ã£o de Dados
+                                                    </p>
+                                                </div>
                                             </div>
 
-                                            <div className="space-y-3">
-                                                {historyLoading && (
-                                                    <div className="rounded-2xl border border-white/5 bg-white/[0.02] px-4 py-5 text-[11px] text-gray-500 font-medium">
-                                                        Carregando historico legal...
-                                                    </div>
-                                                )}
-
-                                                {!historyLoading && entries.length === 0 && (
-                                                    <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] px-4 py-5 text-[11px] text-gray-500 font-medium leading-relaxed">
-                                                        Nenhum snapshot registrado ainda para este documento nesta conta. O primeiro registro formal e criado no proximo salvamento.
-                                                    </div>
-                                                )}
-
-                                                {!historyLoading && entries.map((entry) => (
-                                                    <div key={entry.id} className="rounded-2xl border border-white/5 bg-white/[0.02] px-4 py-4">
-                                                        <div className="flex items-start justify-between gap-4">
-                                                            <div>
-                                                                <p className="text-sm font-black text-white tracking-tight">{entry.version}</p>
-                                                                <p className="text-[10px] text-gray-600 font-bold uppercase tracking-[0.2em] mt-1">
-                                                                    {entry.source === 'custom' ? 'Documento personalizado' : 'Modelo padrao versionado'}
-                                                                </p>
-                                                            </div>
-                                                            <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-[0.2em] ${entry.source === 'custom' ? 'bg-amber-500/10 text-amber-300' : 'bg-sky-500/10 text-sky-300'}`}>
-                                                                {entry.source}
-                                                            </span>
-                                                        </div>
-                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4 text-[11px] text-gray-500">
-                                                            <div>
-                                                                <span className="block text-[9px] font-black uppercase tracking-[0.2em] text-gray-700">Publicado em</span>
-                                                                <span>{formatHistoryTimestamp(entry.published_at)}</span>
-                                                            </div>
-                                                            <div>
-                                                                <span className="block text-[9px] font-black uppercase tracking-[0.2em] text-gray-700">Registrado em</span>
-                                                                <span>{formatHistoryTimestamp(entry.created_at)}</span>
-                                                            </div>
-                                                            <div>
-                                                                <span className="block text-[9px] font-black uppercase tracking-[0.2em] text-gray-700">Titular legal</span>
-                                                                <span>{entry.legal_name || 'nao informado'}</span>
-                                                            </div>
-                                                            <div>
-                                                                <span className="block text-[9px] font-black uppercase tracking-[0.2em] text-gray-700">Canal do documento</span>
-                                                                <span>{entry.legal_contact || entry.support_email || 'nao informado'}</span>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                ))}
+                                            {/* Right controls */}
+                                            <div className="flex items-center gap-3">
+                                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-[0.1em] border font-mono ${formData.privacy_policy ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25' : 'bg-rose-500/10 text-rose-400 border-rose-500/25'}`}>
+                                                    <span className={`w-1.5 h-1.5 rounded-full ${formData.privacy_policy ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                                                    {formData.privacy_policy ? 'Configurada' : 'Pendente'}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center text-gray-400 group-hover:text-white group-hover:border-white/20 transition-all duration-300 hover:bg-white/5"
+                                                >
+                                                    <ChevronRight className={`w-4 h-4 transition-transform duration-300 ${expandedDoc === 'privacy' ? 'rotate-90 text-white' : ''}`} />
+                                                </button>
                                             </div>
                                         </div>
-                                    ))}
-                                </div>
-                            </div>
 
-                            <div className="relative p-8 lg:p-10 bg-primary/5 rounded-[2rem] border border-primary/20 group cursor-pointer hover:bg-primary/10 transition-all duration-700 overflow-hidden" onClick={() => setFormData({ ...formData, agree_terms: !formData.agree_terms })}>
-                                <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 blur-[60px] -translate-y-1/2 translate-x-1/2" />
-                                <label className="relative z-10 flex items-start gap-6 cursor-pointer">
-                                    <div className={`mt-0.5 w-7 h-7 rounded-xl border flex items-center justify-center transition-all duration-500 ${formData.agree_terms ? 'bg-primary border-primary shadow-lg shadow-primary/30 rotate-0 scale-110' : 'bg-white/5 border-white/10 rotate-12'}`}>
-                                        {formData.agree_terms && <Check className="w-4 h-4 text-white font-black" />}
+                                        {/* Expanded Privacy Area */}
+                                        {expandedDoc === 'privacy' && (
+                                            <div className="mx-4 p-5 bg-[#07070F]/50 border border-white/5 rounded-3xl space-y-5 animate-in slide-in-from-top-3 duration-300">
+                                                {/* Status Banner */}
+                                                <div className="flex items-center justify-between p-3.5 bg-[#07070F] border border-white/[0.12] rounded-xl hover:border-indigo-500/30 transition-all duration-300">
+                                                    <div className="flex items-center gap-2.5">
+                                                        <div className="relative flex h-2 w-2">
+                                                            {formData.privacy_policy && (
+                                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                                            )}
+                                                            <span className={`relative inline-flex rounded-full h-2 w-2 ${formData.privacy_policy ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-rose-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]'}`}></span>
+                                                        </div>
+                                                        <span className="text-xs font-semibold text-white leading-none">
+                                                            {formData.privacy_policy ? 'Configurada & Ativa' : 'Pendente de ConfiguraÃ§Ã£o'}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-right font-mono">
+                                                        <span className="block text-[9px] font-black text-gray-400 uppercase tracking-widest leading-none">
+                                                            VersÃ£o {privacyDocumentInfo.version || '1.0.0'}
+                                                        </span>
+                                                        <span className="block text-[8px] text-gray-500 mt-1.5 leading-none">
+                                                            Publicado: {formatDocumentPublication(privacyDocumentInfo.publishedAt)}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Actions Bar */}
+                                                <div className="flex justify-end pt-1">
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => { e.stopPropagation(); setEditingDoc('privacy'); }}
+                                                        className="px-4 py-2 rounded-xl bg-primary/10 hover:bg-primary/20 border border-primary/25 text-xs font-bold text-primary transition-all duration-300 flex items-center gap-1.5"
+                                                    >
+                                                        <FileSignature className="w-3.5 h-3.5 text-primary" />
+                                                        Editar ConteÃºdo
+                                                    </button>
+                                                </div>
+
+                                                {/* History Section */}
+                                                <div className="space-y-3">
+                                                    <div className="flex items-center justify-between px-1">
+                                                        <h4 className="text-[9px] font-black text-gray-500 uppercase tracking-widest font-mono">HistÃ³rico de Snapshots</h4>
+                                                        <span className="text-[9px] text-gray-500 font-bold uppercase tracking-widest font-mono">
+                                                            {historyLoading ? 'Carregando' : `${privacyHistory.length} registros`}
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="space-y-2 max-h-[160px] overflow-y-auto scrollbar-thin scrollbar-thumb-white/5 pr-1.5 text-left">
+                                                        {historyLoading && (
+                                                            <div className="rounded-xl border border-white/10 bg-[#07070F] px-4 py-3 text-[11px] text-gray-400 font-medium">
+                                                                Sincronizando histÃ³rico legal...
+                                                            </div>
+                                                        )}
+
+                                                        {!historyLoading && privacyHistory.length === 0 && (
+                                                            <div className="rounded-xl border border-dashed border-white/5 bg-[#07070F] px-4 py-4 text-[11px] text-gray-500 text-center leading-relaxed italic">
+                                                                Nenhum snapshot registrado ainda para este documento.
+                                                            </div>
+                                                        )}
+
+                                                        {!historyLoading && privacyHistory.map((entry) => (
+                                                            <div key={entry.id} className="rounded-xl border border-white/10 bg-[#07070F] p-3 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-white/[0.02] hover:border-white/20 transition-all duration-300 shadow-sm">
+                                                                <div className="space-y-1">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="font-bold text-white font-mono">{entry.version}</span>
+                                                                        <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${entry.source === 'custom' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/25' : 'bg-sky-500/10 text-sky-400 border border-sky-500/25'}`}>
+                                                                            {entry.source}
+                                                                        </span>
+                                                                    </div>
+                                                                    <span className="block text-[10px] text-gray-400 font-medium font-sans">
+                                                                        Titular: {entry.legal_name || 'nÃ£o informado'} | Contato: {entry.legal_contact || entry.support_email || 'nÃ£o informado'}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="text-left sm:text-right text-[10px] text-gray-500 whitespace-nowrap leading-relaxed font-mono">
+                                                                    <span className="block">Publicado: {formatHistoryTimestamp(entry.published_at)}</span>
+                                                                    <span className="block text-[9px] text-gray-600 font-bold">Registrado: {formatHistoryTimestamp(entry.created_at)}</span>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
-                                    <span className="text-xs text-gray-400 font-medium leading-relaxed italic pr-12">
-                                        O aceite abaixo registra uma autodeclaracao comercial e operacional. Ele nao substitui revisao juridica, fiscal ou de LGPD, e o status de conformidade permanece pendente ate validacao propria da operacao.
-                                    </span>
-                                </label>
+
+                                    {/* Row 2: Terms of Purchase */}
+                                    <div className="space-y-4 border-t border-white/5 pt-4">
+                                        <div
+                                            onClick={() => setExpandedDoc(expandedDoc === 'terms' ? null : 'terms')}
+                                            className="group flex items-center justify-between p-4 hover:bg-white/[0.02] rounded-2xl transition-all duration-300 cursor-pointer border border-transparent hover:border-white/5"
+                                        >
+                                            <div className="flex items-center gap-4">
+                                                {/* Left Icon Container */}
+                                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border transition-all duration-300 ${
+                                                    formData.terms_of_purchase
+                                                        ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.1)]'
+                                                        : 'bg-rose-500/10 border-rose-500/20 text-rose-400'
+                                                }`}>
+                                                    <FileText className="w-5.5 h-5.5" />
+                                                </div>
+
+                                                {/* Text Info */}
+                                                <div className="text-left">
+                                                    <span className={`block text-[8px] font-black uppercase tracking-widest font-mono leading-none mb-1 ${
+                                                        formData.terms_of_purchase ? 'text-emerald-400' : 'text-rose-400'
+                                                    }`}>
+                                                        {formData.terms_of_purchase ? 'Publicado' : 'Pendente'}
+                                                    </span>
+                                                    <h4 className="text-sm font-bold text-white transition-colors group-hover:text-primary leading-tight">
+                                                        Termos de Compra
+                                                    </h4>
+                                                    <p className="text-[11px] text-gray-400 mt-1 leading-normal font-mono uppercase tracking-wider text-[8px]">
+                                                        Regras Comerciais e PÃ³s-Venda
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            {/* Right controls */}
+                                            <div className="flex items-center gap-3">
+                                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-[0.1em] border font-mono ${formData.terms_of_purchase ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25' : 'bg-rose-500/10 text-rose-400 border-rose-500/25'}`}>
+                                                    <span className={`w-1.5 h-1.5 rounded-full ${formData.terms_of_purchase ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                                                    {formData.terms_of_purchase ? 'Configurado' : 'Pendente'}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center text-gray-400 group-hover:text-white group-hover:border-white/20 transition-all duration-300 hover:bg-white/5"
+                                                >
+                                                    <ChevronRight className={`w-4 h-4 transition-transform duration-300 ${expandedDoc === 'terms' ? 'rotate-90 text-white' : ''}`} />
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Expanded Terms Area */}
+                                        {expandedDoc === 'terms' && (
+                                            <div className="mx-4 p-5 bg-[#07070F]/50 border border-white/5 rounded-3xl space-y-5 animate-in slide-in-from-top-3 duration-300">
+                                                {/* Status Banner */}
+                                                <div className="flex items-center justify-between p-3.5 bg-[#07070F] border border-white/[0.12] rounded-xl hover:border-primary/30 transition-all duration-300">
+                                                    <div className="flex items-center gap-2.5">
+                                                        <div className="relative flex h-2 w-2">
+                                                            {formData.terms_of_purchase && (
+                                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                                            )}
+                                                            <span className={`relative inline-flex rounded-full h-2 w-2 ${formData.terms_of_purchase ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-rose-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]'}`}></span>
+                                                        </div>
+                                                        <span className="text-xs font-semibold text-white leading-none">
+                                                            {formData.terms_of_purchase ? 'Configurado & Ativo' : 'Pendente de ConfiguraÃ§Ã£o'}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-right font-mono">
+                                                        <span className="block text-[9px] font-black text-gray-400 uppercase tracking-widest leading-none">
+                                                            VersÃ£o {termsDocumentInfo.version || '1.0.0'}
+                                                        </span>
+                                                        <span className="block text-[8px] text-gray-500 mt-1.5 leading-none">
+                                                            Publicado: {formatDocumentPublication(termsDocumentInfo.publishedAt)}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Actions Bar */}
+                                                <div className="flex justify-end pt-1">
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => { e.stopPropagation(); setEditingDoc('terms'); }}
+                                                        className="px-4 py-2 rounded-xl bg-primary/10 hover:bg-primary/20 border border-primary/25 text-xs font-bold text-primary transition-all duration-300 flex items-center gap-1.5"
+                                                    >
+                                                        <FileSignature className="w-3.5 h-3.5 text-primary" />
+                                                        Editar ConteÃºdo
+                                                    </button>
+                                                </div>
+
+                                                {/* History Section */}
+                                                <div className="space-y-3">
+                                                    <div className="flex items-center justify-between px-1">
+                                                        <h4 className="text-[9px] font-black text-gray-500 uppercase tracking-widest font-mono">HistÃ³rico de Snapshots</h4>
+                                                        <span className="text-[9px] text-gray-500 font-bold uppercase tracking-widest font-mono">
+                                                            {historyLoading ? 'Carregando' : `${termsHistory.length} registros`}
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="space-y-2 max-h-[160px] overflow-y-auto scrollbar-thin scrollbar-thumb-white/5 pr-1.5 text-left">
+                                                        {historyLoading && (
+                                                            <div className="rounded-xl border border-white/10 bg-[#07070F] px-4 py-3 text-[11px] text-gray-400 font-medium">
+                                                                Sincronizando histÃ³rico legal...
+                                                            </div>
+                                                        )}
+
+                                                        {!historyLoading && termsHistory.length === 0 && (
+                                                            <div className="rounded-xl border border-dashed border-white/5 bg-[#07070F] px-4 py-4 text-[11px] text-gray-500 text-center leading-relaxed italic">
+                                                                Nenhum snapshot registrado ainda para este documento.
+                                                            </div>
+                                                        )}
+
+                                                        {!historyLoading && termsHistory.map((entry) => (
+                                                            <div key={entry.id} className="rounded-xl border border-white/10 bg-[#07070F] p-3 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-white/[0.02] hover:border-white/20 transition-all duration-300 shadow-sm">
+                                                                <div className="space-y-1">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="font-bold text-white font-mono">{entry.version}</span>
+                                                                        <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${entry.source === 'custom' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/25' : 'bg-sky-500/10 text-sky-400 border border-sky-500/25'}`}>
+                                                                            {entry.source}
+                                                                        </span>
+                                                                    </div>
+                                                                    <span className="block text-[10px] text-gray-400 font-medium font-sans">
+                                                                        Titular: {entry.legal_name || 'nÃ£o informado'} | Contato: {entry.legal_contact || entry.support_email || 'nÃ£o informado'}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="text-left sm:text-right text-[10px] text-gray-500 whitespace-nowrap leading-relaxed font-mono">
+                                                                    <span className="block">Publicado: {formatHistoryTimestamp(entry.published_at)}</span>
+                                                                    <span className="block text-[9px] text-gray-600 font-bold">Registrado: {formatHistoryTimestamp(entry.created_at)}</span>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                </div>
+
                             </div>
 
-                            <div className="pt-8">
-                               <Button
-                                   type="submit"
-                                   disabled={loading}
-                                   className="group/save w-full h-20 rounded-[2rem] bg-primary hover:bg-rose-600 text-white font-black uppercase italic tracking-tighter shadow-2xl shadow-primary/40 flex items-center justify-center gap-4 active:scale-[0.98] transition-all duration-500"
-                               >
-                                   {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Save className="w-6 h-6 group-hover/save:rotate-12 transition-transform" />}
-                                   <div className="flex flex-col items-start leading-none gap-1">
-                                      <span className="text-sm font-black uppercase tracking-widest">
-                                         {loading ? 'Sincronizando...' : 'Efetivar Alterações'}
-                                      </span>
-                                      {!loading && <span className="text-[8px] opacity-60 font-medium uppercase tracking-[0.2em]">Deploy para infraestrutura live</span>}
-                                   </div>
-                               </Button>
-                            </div>
-                        </form>
-                    </Card>
+                        </div>
+                    </form>
                 </div>
-            </div>
 
+                {/* Modal do Editor de Documento */}
                 <Modal
                     isOpen={!!editingDoc}
                     onClose={() => setEditingDoc(null)}
-                    title={editingDoc === 'privacy' ? 'POLITICA DE PRIVACIDADE' : 'TERMOS DE COMPRA'}
+                    title={editingDoc === 'privacy' ? 'EDITAR POLÃTICA DE PRIVACIDADE' : 'EDITAR TERMOS DE COMPRA'}
                     className="max-w-4xl"
                 >
-                    <div className="space-y-8 p-2">
-                        <div className="relative bg-[#0A0A15] border border-white/5 p-8 lg:p-10 rounded-[2.5rem] flex items-start gap-6 group overflow-hidden shadow-2xl">
+                    <div className="space-y-6 p-1">
+                        <div className="relative bg-[#07070F] border border-white/10 p-5 rounded-2xl flex items-start gap-4 overflow-hidden shadow-xl">
                             <div className="absolute top-0 left-0 w-32 h-32 bg-primary/5 blur-[50px] -translate-y-1/2 -translate-x-1/2" />
-                            <div className="p-4 bg-primary/10 border border-primary/20 rounded-2xl text-primary shadow-inner">
-                               <Settings className="w-6 h-6 animate-pulse" />
+                            <div className="p-2.5 bg-primary/15 border border-primary/30 rounded-xl text-primary">
+                                <Settings className="w-5 h-5" />
                             </div>
-                            <div className="relative z-10">
-                               <p className="text-[10px] text-primary font-black uppercase tracking-[0.3em] mb-3 italic">Vault Automation System</p>
-                               <p className="text-xs text-gray-500 leading-relaxed font-medium max-w-xl">
-                                  O sistema suporta tags dinamicas. Utilize <code className="bg-white/5 px-2.5 py-1 rounded-lg text-primary font-black italic">{"{{business_name}}"}</code>, <code className="bg-white/5 px-2.5 py-1 rounded-lg text-primary font-black italic">{"{{legal_name}}"}</code>, <code className="bg-white/5 px-2.5 py-1 rounded-lg text-primary font-black italic">{"{{support_email}}"}</code> e <code className="bg-white/5 px-2.5 py-1 rounded-lg text-primary font-black italic">{"{{legal_contact}}"}</code> para sincronizar o texto com seu perfil.
-                               </p>
+                            <div className="relative z-10 space-y-1.5">
+                                <p className="text-[9px] text-primary font-black uppercase tracking-widest italic">SincronizaÃ§Ã£o de ConteÃºdo DinÃ¢mico</p>
+                                <p className="text-xs text-gray-400 leading-relaxed font-medium">
+                                    Este documento aceita variÃ¡veis. Use <code className="bg-white/5 px-1.5 py-0.5 rounded text-primary font-mono text-[10px]">{"{{business_name}}"}</code>, <code className="bg-white/5 px-1.5 py-0.5 rounded text-primary font-mono text-[10px]">{"{{legal_name}}"}</code>, <code className="bg-white/5 px-1.5 py-0.5 rounded text-primary font-mono text-[10px]">{"{{support_email}}"}</code> ou <code className="bg-white/5 px-1.5 py-0.5 rounded text-primary font-mono text-[10px]">{"{{legal_contact}}"}</code> para exibir os dados correspondentes de forma automÃ¡tica.
+                                </p>
                             </div>
                         </div>
-                        
+
                         <div className="relative">
                             <textarea
-                                className="w-full h-[550px] bg-[#05050A] border-2 border-white/5 rounded-[2.5rem] p-10 text-white focus:border-primary/50 focus:ring-0 outline-none transition-all font-mono text-sm leading-relaxed scrollbar-hide shadow-inner"
-                                placeholder="Redija aqui o conteudo legal do seu negocio com base real na sua operacao..."
+                                className="w-full h-[400px] bg-[#05050A] border border-white/[0.12] rounded-2xl p-6 text-white focus:border-primary focus:ring-0 outline-none transition-all font-mono text-xs leading-relaxed shadow-inner scrollbar-thin scrollbar-thumb-white/5"
+                                placeholder="Redija o documento legal do seu negÃ³cio de acordo com a sua operaÃ§Ã£o real..."
                                 value={editingDoc === 'privacy' ? formData.privacy_policy : formData.terms_of_purchase}
                                 onChange={(e) => setFormData({
                                     ...formData,
                                     [editingDoc === 'privacy' ? 'privacy_policy' : 'terms_of_purchase']: e.target.value
                                 })}
                             />
-                            <div className="absolute top-6 right-6 px-4 py-1.5 rounded-full bg-white/5 border border-white/5 text-[9px] font-black text-gray-700 uppercase tracking-widest">
-                                Live Editor
+                            <div className="absolute top-4 right-4 px-3 py-1 rounded-full bg-[#0C0C14] border border-white/10 text-[9px] font-black text-gray-500 uppercase tracking-widest">
+                                Editor Live
                             </div>
                         </div>
 
-                        <div className="flex justify-end pt-4">
+                        <div className="flex justify-end pt-2">
                             <Button
                                 type="button"
                                 onClick={() => setEditingDoc(null)}
-                                className="px-12 h-16 rounded-2xl bg-primary hover:bg-rose-600 text-white font-black uppercase italic tracking-tighter shadow-xl shadow-primary/20 active:scale-95 transition-all"
+                                className="px-8 h-12 rounded-xl bg-primary hover:bg-primary-hover text-white font-bold text-xs uppercase tracking-wider shadow-[0_4px_16px_rgba(138,43,226,0.35)] active:scale-95 transition-all duration-300"
                             >
-                                Validar e Fechar
+                                Salvar e Fechar
                             </Button>
                         </div>
                     </div>

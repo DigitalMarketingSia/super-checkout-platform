@@ -14,6 +14,9 @@ import {
     Shield,
     ShieldCheck,
     User,
+    ChevronRight,
+    Check,
+    Activity,
 } from 'lucide-react';
 import { Layout } from '../../components/Layout';
 import { Card } from '../../components/ui/Card';
@@ -45,46 +48,21 @@ async function readApiPayload(response: Response, fallbackMessage: string): Prom
     };
 }
 
-type SettingsTab = 'profile' | 'system';
+type SettingsTab = 'profile' | 'security' | 'regional' | 'captcha';
 
-interface SettingsShellCardProps {
-    icon: React.ReactNode;
-    title: string;
-    accent?: React.ReactNode;
-    className?: string;
-    children: React.ReactNode;
+function getPasswordStrength(pwd: string): { score: number; label: string; color: string } {
+    if (!pwd) return { score: 0, label: '', color: 'bg-white/10' };
+    let score = 0;
+    if (pwd.length >= 6) score += 1;
+    if (pwd.length >= 10) score += 1;
+    if (/[A-Z]/.test(pwd)) score += 1;
+    if (/[0-9]/.test(pwd)) score += 1;
+    if (/[^A-Za-z0-9]/.test(pwd)) score += 1;
+
+    if (score <= 2) return { score, label: 'Fraca', color: 'bg-rose-500 shadow-[0_0_10px_rgba(239,68,68,0.6)]' };
+    if (score <= 4) return { score, label: 'MÃ©dia', color: 'bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.6)]' };
+    return { score, label: 'Forte', color: 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.6)]' };
 }
-
-const SettingsShellCard: React.FC<SettingsShellCardProps> = ({ icon, title, accent, className = '', children }) => (
-    <Card className={`border border-white/5 backdrop-blur-3xl bg-black/40 hover:border-primary/20 transition-all duration-700 ${className}`.trim()}>
-        <div className="p-8 border-b border-white/5 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-                <div className="p-3 bg-white/5 rounded-2xl">
-                    {icon}
-                </div>
-                <h2 className="text-xl font-portal-display text-white italic uppercase tracking-tighter">
-                    {title}
-                </h2>
-            </div>
-            {accent}
-        </div>
-        {children}
-    </Card>
-);
-
-const StatusBadge: React.FC<{ active: boolean; activeLabel: string; inactiveLabel: string }> = ({
-    active,
-    activeLabel,
-    inactiveLabel,
-}) => (
-    <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border ${active
-        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-        : 'bg-white/5 text-gray-500 border-white/10'
-        }`}>
-        <span className={`w-2 h-2 rounded-full ${active ? 'bg-emerald-500' : 'bg-gray-600'}`} />
-        {active ? activeLabel : inactiveLabel}
-    </span>
-);
 
 export const Settings = () => {
     const { user, profile, refreshProfile } = useAuth();
@@ -111,10 +89,14 @@ export const Settings = () => {
     const [defaultCurrency, setDefaultCurrency] = useState('USD');
     const [systemConfigId, setSystemConfigId] = useState<number | null>(null);
 
+    const [showCaptchaDocs, setShowCaptchaDocs] = useState(false);
+
     const authCaptchaEnabled = isSupabaseAuthCaptchaEnabled();
     const authCaptchaSiteKey = getSupabaseAuthCaptchaSiteKey();
     const authCaptchaReady = Boolean(authCaptchaEnabled && authCaptchaSiteKey);
     const runtimeHostname = typeof window !== 'undefined' ? window.location.hostname : null;
+
+    const pwdStrength = getPasswordStrength(password);
 
     useEffect(() => {
         setTwoFactorEnabled(Boolean((profile as any)?.totp_enabled));
@@ -185,11 +167,11 @@ export const Settings = () => {
                     type: 'success',
                     text: t(
                         'account_settings.profile.email_change_success',
-                        'Perfil atualizado. Confira o e-mail para confirmar a alteração.'
+                        'Confira o e-mail para confirmar a alteraÃ§Ã£o.'
                     )
                 });
             } else {
-                setMessage({ type: 'success', text: t('account_settings.profile.success', 'Perfil atualizado com sucesso!') });
+                setMessage({ type: 'success', text: t('account_settings.profile.success', 'Perfil atualizado!') });
             }
         } catch (error: any) {
             setMessage({ type: 'error', text: error.message || t('account_settings.profile.error', 'Erro ao atualizar perfil') });
@@ -216,10 +198,10 @@ export const Settings = () => {
             i18n.changeLanguage(defaultLocale);
             localStorage.setItem('i18nextLng', defaultLocale);
 
-            setMessage({ type: 'success', text: t('account_settings.system.success', 'Preferências do sistema atualizadas!') });
+            setMessage({ type: 'success', text: t('account_settings.system.success', 'PreferÃªncias atualizadas!') });
             setSystemConfigId(payload.id);
         } catch (error: any) {
-            setMessage({ type: 'error', text: error.message || t('account_settings.system.error', 'Erro ao atualizar preferências') });
+            setMessage({ type: 'error', text: error.message || t('account_settings.system.error', 'Erro ao salvar preferÃªncias') });
         } finally {
             setLoading(false);
         }
@@ -228,7 +210,7 @@ export const Settings = () => {
     const handleChangePassword = async (e: React.FormEvent) => {
         e.preventDefault();
         if (password !== confirmPassword) {
-            setMessage({ type: 'error', text: t('account_settings.security.mismatch_error', 'As senhas não coincidem') });
+            setMessage({ type: 'error', text: t('account_settings.security.mismatch_error', 'As senhas nÃ£o coincidem') });
             return;
         }
 
@@ -265,7 +247,7 @@ export const Settings = () => {
 
         try {
             const token = await getSessionToken();
-            if (!token) throw new Error('Sessão expirada. Faça login novamente.');
+            if (!token) throw new Error('SessÃ£o expirada. FaÃ§a login novamente.');
 
             const response = await fetch(getApiUrl('/api/auth?route=2fa&action=setup'), {
                 method: 'POST',
@@ -276,8 +258,8 @@ export const Settings = () => {
                 body: JSON.stringify({ action: 'setup' }),
             });
 
-            const payload = await readApiPayload(response, 'Não foi possível preparar a 2FA.');
-            if (!response.ok) throw new Error(payload.error || 'Não foi possível preparar a 2FA.');
+            const payload = await readApiPayload(response, 'NÃ£o foi possÃ­vel preparar a 2FA.');
+            if (!response.ok) throw new Error(payload.error || 'NÃ£o foi possÃ­vel preparar a 2FA.');
 
             setTwoFactorSecret(payload.secret || '');
             setTwoFactorQrDataUrl(payload.qr_code_data_url || '');
@@ -285,7 +267,7 @@ export const Settings = () => {
 
             const successMessage = {
                 type: 'success' as const,
-                text: 'Escaneie o QR Code com seu app autenticador e confirme o código de 6 dígitos.'
+                text: 'Escaneie o QR Code no app e digite o cÃ³digo de 6 dÃ­gitos.'
             };
             setMessage(successMessage);
             setTwoFactorMessage(successMessage);
@@ -301,7 +283,7 @@ export const Settings = () => {
     const handleSubmitTwoFactor = async (disable = false) => {
         const normalizedCode = twoFactorCode.replace(/[^\d]/g, '').trim();
         if (!normalizedCode || normalizedCode.length < 6) {
-            const errorMessage = { type: 'error' as const, text: 'Digite o código TOTP de 6 dígitos.' };
+            const errorMessage = { type: 'error' as const, text: 'Digite o cÃ³digo TOTP de 6 dÃ­gitos.' };
             setMessage(errorMessage);
             setTwoFactorMessage(errorMessage);
             return;
@@ -313,7 +295,7 @@ export const Settings = () => {
 
         try {
             const token = await getSessionToken();
-            if (!token) throw new Error('Sessão expirada. Faça login novamente.');
+            if (!token) throw new Error('SessÃ£o expirada. FaÃ§a login novamente.');
 
             const action = disable ? 'disable' : 'verify';
             const endpoint = `/api/auth?route=2fa&action=${action}`;
@@ -326,8 +308,8 @@ export const Settings = () => {
                 body: JSON.stringify({ action, code: normalizedCode }),
             });
 
-            const payload = await readApiPayload(response, 'Não foi possível validar a 2FA.');
-            if (!response.ok) throw new Error(payload.error || 'Não foi possível validar a 2FA.');
+            const payload = await readApiPayload(response, 'NÃ£o foi possÃ­vel validar a 2FA.');
+            if (!response.ok) throw new Error(payload.error || 'NÃ£o foi possÃ­vel validar a 2FA.');
 
             setTwoFactorEnabled(!disable);
             setTwoFactorCode('');
@@ -337,7 +319,7 @@ export const Settings = () => {
 
             const successMessage = {
                 type: 'success' as const,
-                text: disable ? '2FA desativada com sucesso.' : '2FA ativada com sucesso.'
+                text: disable ? '2FA desativada.' : '2FA ativada.'
             };
             setMessage(successMessage);
             setTwoFactorMessage(successMessage);
@@ -350,466 +332,710 @@ export const Settings = () => {
         }
     };
 
-    const tabs: Array<{
-        id: SettingsTab;
-        icon: typeof User;
-        label: string;
-        description: string;
-    }> = [
-        {
-            id: 'profile',
-            icon: User,
-            label: t('account_settings.tabs.profile', 'Perfil'),
-            description: t('account_settings.tabs.profile_desc', 'Conta, e-mail e senha do operador'),
-        },
-        {
-            id: 'system',
-            icon: SettingsIcon,
-            label: t('account_settings.tabs.system', 'Sistema'),
-            description: t('account_settings.tabs.system_desc', 'Regional, 2FA e CAPTCHA de autenticação'),
-        },
+    const navItems = [
+        { id: 'profile' as const, label: t('account_settings.tabs.profile', 'Perfil & Acesso'), icon: User, desc: 'Nome, e-mail e senha' },
+        { id: 'security' as const, label: 'AutenticaÃ§Ã£o 2FA', icon: Fingerprint, desc: 'CÃ³digo temporÃ¡rio MFA' },
+        { id: 'regional' as const, label: t('account_settings.system.title', 'Regional'), icon: Globe, desc: 'Idioma e moeda padrÃ£o' },
+        { id: 'captcha' as const, label: 'Auth CAPTCHA', icon: Shield, desc: 'Filtro contra forÃ§a bruta' },
     ];
+
+    // Calculated dynamic security score
+    const hasName = Boolean(name.trim());
+    const hasEmail = Boolean(email.trim());
+    const isMfaActive = twoFactorEnabled;
+    const isCaptchaActive = authCaptchaReady;
+
+    let securityScore = 0;
+    if (hasName) securityScore += 25;
+    if (hasEmail) securityScore += 25;
+    if (isMfaActive) securityScore += 25;
+    if (isCaptchaActive) securityScore += 25;
+
+    // SVG circular indicator dimensions
+    const radius = 46;
+    const circumference = 2 * Math.PI * radius;
+    const offset = circumference - (securityScore / 100) * circumference;
+
 
     return (
         <Layout>
-            <div className="space-y-8 pb-24 max-w-6xl mx-auto">
-                <div className="relative p-8 lg:p-10 rounded-[2rem] bg-[#0A0A15] border border-white/5 overflow-hidden shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-700">
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 blur-[100px] -translate-y-1/2 translate-x-1/2" />
+            <div className="space-y-6 pb-24 max-w-6xl mx-auto px-4 md:px-0 relative animate-in fade-in duration-500">
+                {/* Premium Design Glows */}
+                <div className="absolute top-10 left-1/4 w-[500px] h-[500px] bg-primary/10 blur-[150px] rounded-full pointer-events-none -z-10 animate-pulse-slow" />
+                <div className="absolute top-40 right-1/4 w-[400px] h-[400px] bg-purple-500/5 blur-[120px] rounded-full pointer-events-none -z-10" />
 
-                    <div className="relative z-20 flex flex-col gap-8">
+                {/* Dashboard-Style Title & Info Bar */}
+                <div className="flex flex-col gap-4">
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                         <div>
-                            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-xl bg-primary/10 border border-primary/20 text-primary text-[9px] font-black uppercase tracking-[0.2em] mb-4">
-                                <Shield className="w-3.5 h-3.5" /> Security Center
-                            </div>
-                            <h1 className="text-3xl lg:text-5xl font-portal-display text-white tracking-tighter italic leading-none mb-4">
-                                CENTRAL DE <span className="text-primary font-black">CONFIGURAÇÕES</span>
+                            <h1 className="text-3xl lg:text-4xl font-portal-display text-white mb-1 leading-none uppercase italic tracking-tight">
+                                {t('account_settings.header.title_prefix', 'Central de')} <span className="text-primary font-black">{t('account_settings.header.title_highlight', 'ConfiguraÃ§Ãµes')}</span>
                             </h1>
-                            <p className="text-sm text-gray-500 font-medium max-w-3xl">
-                                Use esta página como o centro oficial da conta e do sistema. As abas deixam pronto o caminho para crescer
-                                com novas configurações operacionais sem espalhar controles pelo painel.
-                            </p>
+                            <div className="flex items-center gap-2 mt-1">
+                                <p className="text-gray-400 font-medium uppercase tracking-[0.15em] text-[9px] font-mono">
+                                    Security Center
+                                </p>
+                                <div className="h-1.5 w-1.5 rounded-full bg-primary/45" />
+                                <span className="text-[9px] text-[#10B981] font-black uppercase tracking-[0.2em] font-mono">Active Control</span>
+                            </div>
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-4 pt-6 border-t border-white/5">
-                            <div className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-white/[0.02] border border-white/5 h-10">
-                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
-                                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Account: Verified</span>
-                            </div>
+                        {/* Tactical Status Tags */}
+                        <div className="flex flex-row flex-wrap items-center gap-2.5">
+                            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.12em] border bg-emerald-500/10 text-emerald-400 border-emerald-500/25 font-mono shadow-[0_2px_10px_rgba(16,185,129,0.05)]">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)] animate-pulse" />
+                                Verified Operator
+                            </span>
 
-                            <div className="flex items-center gap-3 px-4 py-2 rounded-2xl bg-white/[0.02] border border-white/5 h-10 group/item hover:border-emerald-500/30 transition-all">
-                                <Fingerprint className="w-4 h-4 text-primary" />
-                                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest group-hover/item:text-white transition-colors">2FA Security:</span>
-                                <span className={`text-[9px] font-black uppercase tracking-widest ${twoFactorEnabled ? 'text-emerald-400' : 'text-rose-500'}`}>
-                                    {twoFactorEnabled ? 'Enabled' : 'Disabled'}
-                                </span>
-                            </div>
-
-                            <div className="flex items-center gap-3 px-4 py-2 rounded-2xl bg-white/[0.02] border border-white/5 h-10 group/item hover:border-primary/30 transition-all">
-                                <ShieldCheck className={`w-4 h-4 ${authCaptchaReady ? 'text-emerald-400' : 'text-amber-400'}`} />
-                                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest group-hover/item:text-white transition-colors">
-                                    Auth CAPTCHA:
-                                </span>
-                                <span className={`text-[9px] font-black uppercase tracking-widest ${authCaptchaReady ? 'text-emerald-400' : 'text-amber-400'}`}>
-                                    {authCaptchaReady ? 'Ready' : 'Review'}
-                                </span>
-                            </div>
+                            <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.12em] border font-mono ${twoFactorEnabled ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25 shadow-[0_2px_10px_rgba(16,185,129,0.05)]' : 'bg-rose-500/10 text-rose-400 border-rose-500/25 shadow-[0_2px_10px_rgba(244,63,94,0.05)]'}`}>
+                                <Fingerprint className="w-3.5 h-3.5" />
+                                MFA: {twoFactorEnabled ? 'Active' : 'Inactive'}
+                            </span>
                         </div>
                     </div>
+                    <p className="text-xs text-gray-300 max-w-2xl leading-relaxed italic border-l border-primary/30 pl-4 font-medium">
+                        {t('account_settings.header.description', 'Gerencie as configuraÃ§Ãµes de seguranÃ§a, preferÃªncias regionais e parÃ¢metros globais.')}
+                    </p>
                 </div>
 
+                {/* Feedback Messages */}
                 {message && (
-                    <div className={`p-6 rounded-[1.8rem] border flex items-center gap-4 animate-in fade-in slide-in-from-top-4 duration-500 mx-auto ${message.type === 'success'
-                        ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-                        : 'bg-rose-500/10 border-rose-500/20 text-rose-400'
+                    <div className={`p-4 rounded-xl border flex items-center gap-3 animate-in fade-in slide-in-from-top-3 duration-300 mx-auto ${message.type === 'success'
+                        ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400'
+                        : 'bg-rose-500/10 border-rose-500/25 text-rose-400'
                         }`}>
-                        <div className={`p-2 rounded-xl ${message.type === 'success' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
-                            {message.type === 'success' ? <CheckCircle className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+                        <div className={`p-1.5 rounded-lg ${message.type === 'success' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
+                            {message.type === 'success' ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
                         </div>
-                        <span className="font-bold tracking-tight">{message.text}</span>
+                        <span className="text-xs font-semibold tracking-tight">{message.text}</span>
                     </div>
                 )}
 
-                <div className="rounded-[1.8rem] border border-white/5 bg-[#090912] p-3">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {tabs.map((tab) => {
-                            const Icon = tab.icon;
-                            const isActive = activeTab === tab.id;
+                {/* Mobile Navigation Selector */}
+                <div className="lg:hidden flex overflow-x-auto gap-2 pb-4 scrollbar-none -mx-4 px-4">
+                    {navItems.map((item) => {
+                        const isActive = activeTab === item.id;
+                        const Icon = item.icon;
+                        return (
+                            <button
+                                key={item.id}
+                                type="button"
+                                onClick={() => setActiveTab(item.id)}
+                                className={`flex-shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all duration-300 ${
+                                    isActive
+                                        ? 'bg-primary border-primary text-white shadow-lg'
+                                        : 'bg-white/[0.02] border-white/10 text-gray-400 hover:text-white hover:border-white/20'
+                                }`}
+                            >
+                                <Icon className="w-3.5 h-3.5" />
+                                {item.label}
+                            </button>
+                        );
+                    })}
+                </div>
 
+                {/* Main Asymmetric Grid Layout */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+
+                    {/* Left Inner Sidebar (Desktop Navigation) */}
+                    <div className="hidden lg:flex lg:col-span-3 flex-col gap-2.5">
+                        {navItems.map((item) => {
+                            const isActive = activeTab === item.id;
+                            const Icon = item.icon;
                             return (
                                 <button
-                                    key={tab.id}
+                                    key={item.id}
                                     type="button"
-                                    onClick={() => setActiveTab(tab.id)}
-                                    className={`text-left rounded-[1.4rem] border px-5 py-4 transition-all duration-300 ${isActive
-                                        ? 'border-primary/30 bg-primary/10 shadow-[0_0_24px_rgba(138,43,226,0.14)]'
-                                        : 'border-white/5 bg-white/[0.02] hover:bg-white/[0.04] hover:border-white/10'
-                                        }`}
+                                    onClick={() => setActiveTab(item.id)}
+                                    className={`w-full text-left flex items-start gap-4 p-4 rounded-2xl border transition-all duration-500 ${
+                                        isActive
+                                            ? 'bg-primary border-primary text-white shadow-[0_4px_20px_rgba(138,43,226,0.25)]'
+                                            : 'bg-white/[0.01] border-white/5 text-gray-400 hover:text-white hover:border-white/15 hover:bg-white/[0.03] group'
+                                    }`}
                                 >
-                                    <div className="flex items-start gap-4">
-                                        <div className={`mt-0.5 p-3 rounded-2xl ${isActive ? 'bg-primary/15 text-primary' : 'bg-white/5 text-gray-500'}`}>
-                                            <Icon className="w-5 h-5" />
-                                        </div>
-                                        <div className="min-w-0">
-                                            <p className={`text-[11px] font-black uppercase tracking-[0.24em] ${isActive ? 'text-primary' : 'text-gray-500'}`}>
-                                                {tab.label}
-                                            </p>
-                                            <p className={`mt-2 text-sm font-medium ${isActive ? 'text-white' : 'text-gray-400'}`}>
-                                                {tab.description}
-                                            </p>
-                                        </div>
+                                    <div className={`p-2.5 rounded-xl transition-all duration-500 ${isActive ? 'bg-white/15 text-white' : 'bg-white/5 text-gray-500 group-hover:text-white group-hover:bg-white/10'}`}>
+                                        <Icon className="w-4 h-4" />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <p className={`text-xs font-black uppercase tracking-wider leading-none transition-colors ${isActive ? 'text-white font-black' : 'text-gray-300 group-hover:text-white'}`}>
+                                            {item.label}
+                                        </p>
+                                        <p className={`text-[10px] font-semibold mt-1.5 truncate ${isActive ? 'text-purple-200' : 'text-gray-500'}`}>
+                                            {item.desc}
+                                        </p>
                                     </div>
                                 </button>
                             );
                         })}
                     </div>
-                </div>
 
-                {activeTab === 'profile' && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
-                        <SettingsShellCard
-                            icon={<User className="w-5 h-5 text-primary" />}
-                            title={t('account_settings.profile.title', 'Perfil')}
-                            accent={<Fingerprint className="w-5 h-5 text-gray-800" />}
-                        >
-                            <form onSubmit={handleUpdateProfile} className="p-8 space-y-8">
-                                <div className="space-y-6">
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest ml-1">
-                                            {t('account_settings.profile.full_name', 'Nome Completo')}
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={name}
-                                            onChange={(e) => setName(e.target.value)}
-                                            className="w-full bg-white/[0.01] border border-white/5 rounded-2xl px-6 py-4 text-white focus:ring-2 focus:ring-primary/50 outline-none transition-all font-bold placeholder:text-gray-800"
-                                            placeholder={t('account_settings.profile.full_name_placeholder', 'Seu nome')}
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest ml-1">
-                                            {t('account_settings.profile.email', 'E-mail')}
-                                        </label>
-                                        <input
-                                            type="email"
-                                            value={email}
-                                            onChange={(e) => setEmail(e.target.value)}
-                                            className="w-full bg-white/[0.01] border border-white/5 rounded-2xl px-6 py-4 text-white focus:ring-2 focus:ring-primary/50 outline-none transition-all font-bold placeholder:text-gray-800"
-                                            placeholder={t('account_settings.profile.email_placeholder', 'seu@email.com')}
-                                        />
-                                        <p className="text-[10px] text-gray-600 font-medium mt-2 italic px-1">
-                                            {t('account_settings.profile.email_hint', 'Alterações exigem confirmação via e-mail.')}
-                                        </p>
-                                    </div>
-                                </div>
-                                <div className="flex justify-end pt-4">
-                                    <Button type="submit" disabled={loading} className="w-full h-14 rounded-2xl bg-white/[0.05] hover:bg-primary text-white font-black uppercase tracking-tighter">
-                                        {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5 mr-2" />}
-                                        {t('account_settings.profile.save', 'Salvar Alterações')}
-                                    </Button>
-                                </div>
-                            </form>
-                        </SettingsShellCard>
 
-                        <SettingsShellCard
-                            icon={<Lock className="w-5 h-5 text-primary" />}
-                            title={t('account_settings.security.title', 'Senha')}
-                            accent={<ShieldCheck className="w-5 h-5 text-gray-800" />}
-                        >
-                            <form onSubmit={handleChangePassword} className="p-8 space-y-8">
-                                <div className="space-y-6">
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest ml-1">
-                                            {t('account_settings.security.new_password', 'Nova Senha')}
-                                        </label>
-                                        <input
-                                            type="password"
-                                            value={password}
-                                            onChange={(e) => setPassword(e.target.value)}
-                                            className="w-full bg-white/[0.01] border border-white/5 rounded-2xl px-6 py-4 text-white focus:ring-2 focus:ring-primary/50 outline-none transition-all font-bold placeholder:text-gray-800"
-                                            placeholder="••••••••"
-                                            minLength={6}
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest ml-1">
-                                            {t('account_settings.security.confirm_password', 'Confirmar Senha')}
-                                        </label>
-                                        <input
-                                            type="password"
-                                            value={confirmPassword}
-                                            onChange={(e) => setConfirmPassword(e.target.value)}
-                                            className="w-full bg-white/[0.01] border border-white/5 rounded-2xl px-6 py-4 text-white focus:ring-2 focus:ring-primary/50 outline-none transition-all font-bold placeholder:text-gray-800"
-                                            placeholder="••••••••"
-                                            minLength={6}
-                                        />
-                                    </div>
-                                </div>
-                                <div className="flex justify-end pt-4">
-                                    <Button type="submit" variant="outline" disabled={loading || !password} className="w-full h-14 rounded-2xl border-white/5 hover:border-primary/50 hover:bg-primary text-white font-black uppercase tracking-tighter">
-                                        {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5 mr-3" />}
-                                        {t('account_settings.security.change_password', 'Redefinir Senha')}
-                                    </Button>
-                                </div>
-                            </form>
-                        </SettingsShellCard>
-                    </div>
-                )}
+                    {/* Center Workspace (Form Area) */}
+                    <div className="lg:col-span-6 space-y-6">
 
-                {activeTab === 'system' && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
-                        <SettingsShellCard
-                            icon={<Globe className="w-5 h-5 text-primary" />}
-                            title={t('account_settings.system.title', 'Regional')}
-                            accent={<Globe className="w-5 h-5 text-gray-800" />}
-                        >
-                            <form onSubmit={handleUpdateSystemPreferences} className="p-8 space-y-8">
-                                <div className="space-y-6">
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest ml-1">
-                                            {t('account_settings.system.language', 'Idioma Padrão')}
-                                        </label>
-                                        <select
-                                            value={defaultLocale}
-                                            onChange={(e) => setDefaultLocale(e.target.value)}
-                                            className="w-full bg-white/[0.01] border border-white/5 rounded-2xl px-6 py-4 text-white focus:ring-2 focus:ring-primary/50 outline-none transition-all appearance-none font-bold"
-                                        >
-                                            <option value="en">English (US)</option>
-                                            <option value="pt">Português (BR)</option>
-                                            <option value="es">Español</option>
-                                        </select>
+                        {activeTab === 'profile' && (
+                            <div className="space-y-6 animate-in fade-in duration-500">
+                                {/* Profile form */}
+                                <div className="relative overflow-hidden rounded-[2.5rem] border border-white/10 bg-[#0C0C14] p-8 shadow-2xl space-y-6">
+                                    {/* Glass light reflection ray */}
+                                    <div className="absolute -top-16 -left-16 w-44 h-44 bg-white/5 rounded-full blur-3xl pointer-events-none" />
+
+                                    {/* Dash Indicators at the top */}
+                                    <div className="flex justify-center gap-1.5 mb-8">
+                                        <div className="w-8 h-1 rounded-full bg-primary" />
+                                        <div className="w-8 h-1 rounded-full bg-white/10" />
+                                        <div className="w-8 h-1 rounded-full bg-white/10" />
+                                        <div className="w-8 h-1 rounded-full bg-white/10" />
+                                        <div className="w-8 h-1 rounded-full bg-white/10" />
                                     </div>
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest ml-1">
-                                            {t('account_settings.system.currency', 'Moeda Padrão')}
-                                        </label>
-                                        <select
-                                            value={defaultCurrency}
-                                            onChange={(e) => setDefaultCurrency(e.target.value)}
-                                            className="w-full bg-white/[0.01] border border-white/5 rounded-2xl px-6 py-4 text-white focus:ring-2 focus:ring-primary/50 outline-none transition-all appearance-none font-bold"
-                                        >
-                                            <option value="USD">USD ($)</option>
-                                            <option value="BRL">BRL (R$)</option>
-                                            <option value="EUR">EUR (€)</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div className="flex justify-end pt-4">
-                                    <Button type="submit" disabled={loading} className="w-full h-14 rounded-2xl bg-white/[0.05] hover:bg-primary text-white font-black uppercase tracking-tighter">
-                                        {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5 mr-3" />}
-                                        {t('account_settings.system.save', 'Atualizar Regional')}
-                                    </Button>
-                                </div>
-                            </form>
-                        </SettingsShellCard>
 
-                        <SettingsShellCard
-                            icon={<Shield className="w-5 h-5 text-primary" />}
-                            title={t('account_settings.system.auth_captcha_title', 'Auth CAPTCHA')}
-                            accent={<StatusBadge active={authCaptchaReady} activeLabel="Pronto" inactiveLabel="Revisar" />}
-                        >
-                            <div className="p-8 space-y-6">
-                                <p className="text-sm text-gray-400 font-medium leading-relaxed">
-                                    Centralize aqui a governança do CAPTCHA global do Supabase Auth. O fluxo oficial usa
-                                    Cloudflare Turnstile, Vercel para os envs e o painel do Supabase em
-                                    <span className="text-white font-semibold"> Authentication &gt; Attack Protection</span>.
-                                </p>
-
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-4">
-                                        <p className="text-[10px] font-black uppercase tracking-[0.22em] text-gray-600">Flag Frontend</p>
-                                        <p className={`mt-2 text-sm font-black uppercase ${authCaptchaEnabled ? 'text-emerald-400' : 'text-amber-400'}`}>
-                                            {authCaptchaEnabled ? 'Ativada' : 'Pendente'}
-                                        </p>
-                                    </div>
-                                    <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-4">
-                                        <p className="text-[10px] font-black uppercase tracking-[0.22em] text-gray-600">Site Key</p>
-                                        <p className={`mt-2 text-sm font-black uppercase ${authCaptchaSiteKey ? 'text-emerald-400' : 'text-amber-400'}`}>
-                                            {authCaptchaSiteKey ? 'Configurada' : 'Pendente'}
-                                        </p>
-                                    </div>
-                                    <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-4">
-                                        <p className="text-[10px] font-black uppercase tracking-[0.22em] text-gray-600">Hostname Atual</p>
-                                        <p className="mt-2 text-sm font-semibold text-white break-all">
-                                            {runtimeHostname || 'Indisponível'}
-                                        </p>
-                                    </div>
-                                    <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-4">
-                                        <p className="text-[10px] font-black uppercase tracking-[0.22em] text-gray-600">Ownership</p>
-                                        <p className="mt-2 text-sm font-semibold text-white">
-                                            Cada cliente deve usar o próprio widget e as próprias chaves.
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <div className="rounded-[1.6rem] border border-white/5 bg-[#0B0B12] p-5">
-                                    <p className="text-[10px] font-black uppercase tracking-[0.24em] text-gray-600 mb-3">Env mínimo na Vercel</p>
-                                    <div className="space-y-2 text-sm text-gray-300 font-mono">
-                                        <div><span className="text-primary">VITE_ENABLE_SUPABASE_AUTH_CAPTCHA</span>=true</div>
-                                        <div><span className="text-primary">VITE_TURNSTILE_SITE_KEY</span>=...site key pública...</div>
-                                        <div><span className="text-primary">TURNSTILE_SECRET_KEY</span>=...secret key privada...</div>
-                                    </div>
-                                </div>
-
-                                <div className="space-y-3">
-                                    <p className="text-[10px] font-black uppercase tracking-[0.24em] text-gray-600">Ordem oficial de rollout</p>
-                                    <ol className="space-y-3 text-sm text-gray-300 list-decimal list-inside">
-                                        <li>Crie o widget Turnstile no Cloudflare usando o domínio do projeto ou do cliente.</li>
-                                        <li>Salve os três envs acima na Vercel e publique o deploy com este código.</li>
-                                        <li>No Supabase, ative o CAPTCHA global em <span className="text-white font-semibold">Authentication &gt; Attack Protection</span>.</li>
-                                        <li>Execute smoke de login, cadastro e recuperação antes de considerar o rollout concluído.</li>
-                                    </ol>
-                                </div>
-
-                                <div className="rounded-2xl border border-amber-400/15 bg-amber-400/5 p-5 space-y-3">
-                                    <p className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-300">Modelo para instalações de cliente</p>
-                                    <ul className="space-y-2 text-sm text-amber-100/90 list-disc list-inside">
-                                        <li>O cliente pode começar com um hostname temporário como <span className="font-mono">cliente.vercel.app</span>.</li>
-                                        <li>Depois ele mesmo pode adicionar o domínio final, como <span className="font-mono">checkout.cliente.com</span>, no próprio widget dele.</li>
-                                        <li>Não centralize domínios de clientes no Cloudflare master do Super Checkout.</li>
-                                        <li>Quando o plano Supabase permitir, ative também a proteção contra senhas vazadas.</li>
-                                    </ul>
-                                </div>
-                            </div>
-                        </SettingsShellCard>
-
-                        <SettingsShellCard
-                            icon={<Fingerprint className="w-5 h-5 text-primary" />}
-                            title="2FA (TOTP)"
-                            accent={<StatusBadge active={twoFactorEnabled} activeLabel="Ativa" inactiveLabel="Inativa" />}
-                            className="md:col-span-2"
-                        >
-                            <div className="p-8 space-y-8">
-                                <div>
-                                    <p className="text-sm text-gray-400 font-medium leading-relaxed mb-6">
-                                        Adicione uma camada extra de proteção ao acesso administrativo. Além da senha,
-                                        será solicitado um código temporário gerado no seu dispositivo.
-                                    </p>
-
-                                    <div className="p-4 bg-white/[0.02] rounded-2xl border border-white/5 flex items-center justify-between mb-8">
-                                        <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest italic">Status Atual</span>
-                                        <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${twoFactorEnabled ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-white/5 text-gray-700 border-white/5'}`}>
-                                            {twoFactorEnabled ? 'Segurança Ativa' : 'Não Ativado'}
-                                        </span>
-                                    </div>
-                                </div>
-
-                                {twoFactorMessage && (
-                                    <div className={`p-4 rounded-2xl border flex items-center gap-3 text-sm animate-in fade-in duration-500 ${twoFactorMessage.type === 'success'
-                                        ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-                                        : 'bg-rose-500/10 border-rose-500/20 text-rose-400'
-                                        }`}>
-                                        {twoFactorMessage.type === 'success' ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-                                        <span className="font-bold">{twoFactorMessage.text}</span>
-                                    </div>
-                                )}
-
-                                {!twoFactorEnabled && !twoFactorQrDataUrl && (
-                                    <Button
-                                        type="button"
-                                        onClick={handleStartTwoFactorSetup}
-                                        disabled={twoFactorSetupLoading}
-                                        className="w-full h-16 rounded-2xl bg-primary hover:bg-primary/90 text-white font-black uppercase italic tracking-tighter shadow-xl shadow-primary/20"
-                                    >
-                                        {twoFactorSetupLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <QrCode className="w-5 h-5 mr-3" />}
-                                        Configurar Duas Etapas
-                                    </Button>
-                                )}
-
-                                {!twoFactorEnabled && twoFactorQrDataUrl && (
-                                    <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-700">
-                                        <div className="flex flex-col items-center">
-                                            <div className="p-4 bg-white rounded-3xl mb-6 shadow-2xl shadow-black/40">
-                                                <img
-                                                    src={twoFactorQrDataUrl}
-                                                    alt="QR Code"
-                                                    className="w-40 h-40"
-                                                />
-                                            </div>
-                                            <p className="text-[10px] font-black text-gray-600 uppercase text-center max-w-[200px]">
-                                                Escaneie com Google Authenticator ou Authy
-                                            </p>
+                                    {/* Central Illustration Header */}
+                                    <div className="flex flex-col items-center text-center mb-6">
+                                        <div className="w-20 h-20 rounded-3xl bg-gradient-to-b from-white/10 to-white/5 border border-white/10 flex items-center justify-center shadow-xl mb-4 group hover:scale-105 transition-transform duration-300">
+                                            <User className="w-9 h-9 text-white animate-pulse-slow" />
                                         </div>
+                                        <h3 className="text-xl font-portal-display text-white uppercase italic tracking-tight mb-1">
+                                            Dados Operacionais
+                                        </h3>
+                                        <p className="text-xs text-gray-400 max-w-sm font-medium">
+                                            Gerencie o seu nome comercial e e-mail administrativo principal.
+                                        </p>
+                                    </div>
 
-                                        <div className="space-y-4">
+                                    <div className="space-y-4 border-t border-white/5 pt-6">
+                                        <form onSubmit={handleUpdateProfile} className="space-y-4">
                                             <div className="space-y-2">
-                                                <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest ml-1 italic">
-                                                    Código de Verificação
+                                                <label className="block text-[9px] font-black text-gray-300 uppercase tracking-widest ml-1 font-mono">
+                                                    {t('account_settings.profile.full_name', 'Nome Completo')}
                                                 </label>
                                                 <input
                                                     type="text"
-                                                    inputMode="numeric"
-                                                    maxLength={6}
-                                                    value={twoFactorCode}
-                                                    onChange={(e) => setTwoFactorCode(e.target.value)}
-                                                    className="w-full bg-white/[0.01] border border-white/10 rounded-2xl px-6 py-5 text-white text-3xl font-black text-center focus:ring-2 focus:ring-primary/50 outline-none transition-all tracking-[0.5em]"
-                                                    placeholder="000000"
+                                                    value={name}
+                                                    onChange={(e) => setName(e.target.value)}
+                                                    className="w-full bg-[#07070F] border border-white/[0.12] rounded-xl px-4 py-3 text-sm text-white focus:border-primary focus:ring-1 focus:ring-primary/30 outline-none transition-all duration-300 placeholder:text-gray-600 font-semibold shadow-inner"
+                                                    placeholder={t('account_settings.profile.full_name_placeholder', 'Seu nome')}
                                                 />
                                             </div>
-
-                                            <div className="flex flex-col gap-3">
-                                                <Button
-                                                    type="button"
-                                                    onClick={() => handleSubmitTwoFactor(false)}
-                                                    disabled={twoFactorSubmitLoading}
-                                                    className="w-full h-14 bg-emerald-500 hover:bg-emerald-600 text-white font-black rounded-2xl shadow-xl shadow-emerald-500/10"
-                                                >
-                                                    {twoFactorSubmitLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle className="w-5 h-5 mr-3" />}
-                                                    Confirmar Ativação
+                                            <div className="space-y-2">
+                                                <label className="block text-[9px] font-black text-gray-300 uppercase tracking-widest ml-1 font-mono">
+                                                    {t('account_settings.profile.email', 'E-mail')}
+                                                </label>
+                                                <input
+                                                    type="email"
+                                                    value={email}
+                                                    onChange={(e) => setEmail(e.target.value)}
+                                                    className="w-full bg-[#07070F] border border-white/[0.12] rounded-xl px-4 py-3 text-sm text-white focus:border-primary focus:ring-1 focus:ring-primary/30 outline-none transition-all duration-300 placeholder:text-gray-600 font-semibold shadow-inner"
+                                                    placeholder={t('account_settings.profile.email_placeholder', 'seu@email.com')}
+                                                />
+                                                <p className="text-[10px] text-gray-400 mt-1.5 italic px-1 font-medium leading-normal flex items-center gap-1.5">
+                                                    <AlertCircle className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
+                                                    {t('account_settings.profile.email_hint', 'AlteraÃ§Ãµes exigem confirmaÃ§Ã£o por e-mail.')}
+                                                </p>
+                                            </div>
+                                            <div className="pt-2">
+                                                <Button type="submit" disabled={loading} className="w-full h-11 rounded-xl bg-primary hover:bg-primary-hover text-white font-bold uppercase tracking-wider text-xs flex items-center justify-center gap-2 active:scale-[0.98] transition-all duration-300 shadow-[0_4px_16px_rgba(138,43,226,0.35)]">
+                                                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                                                    {t('account_settings.profile.save', 'Salvar Perfil')}
                                                 </Button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+
+                                {/* Password form */}
+                                <div className="relative overflow-hidden rounded-[2.5rem] border border-white/10 bg-[#0C0C14] p-8 shadow-2xl space-y-6 mt-6">
+                                    {/* Glass light reflection ray */}
+                                    <div className="absolute -top-16 -left-16 w-44 h-44 bg-white/5 rounded-full blur-3xl pointer-events-none" />
+
+                                    {/* Dash Indicators at the top */}
+                                    <div className="flex justify-center gap-1.5 mb-8">
+                                        <div className="w-8 h-1 rounded-full bg-primary" />
+                                        <div className="w-8 h-1 rounded-full bg-white/10" />
+                                        <div className="w-8 h-1 rounded-full bg-white/10" />
+                                        <div className="w-8 h-1 rounded-full bg-white/10" />
+                                        <div className="w-8 h-1 rounded-full bg-white/10" />
+                                    </div>
+
+                                    {/* Central Illustration Header */}
+                                    <div className="flex flex-col items-center text-center mb-6">
+                                        <div className="w-20 h-20 rounded-3xl bg-gradient-to-b from-white/10 to-white/5 border border-white/10 flex items-center justify-center shadow-xl mb-4 group hover:scale-105 transition-transform duration-300">
+                                            <Lock className="w-9 h-9 text-white animate-pulse-slow" />
+                                        </div>
+                                        <h3 className="text-xl font-portal-display text-white uppercase italic tracking-tight mb-1">
+                                            Credenciais de Acesso
+                                        </h3>
+                                        <p className="text-xs text-gray-400 max-w-sm font-medium">
+                                            Defina ou atualize a sua senha secreta de acesso ao painel.
+                                        </p>
+                                    </div>
+
+                                    <div className="space-y-4 border-t border-white/5 pt-6">
+                                        <form onSubmit={handleChangePassword} className="space-y-4">
+                                            <div className="space-y-2">
+                                                <label className="block text-[9px] font-black text-gray-300 uppercase tracking-widest ml-1 font-mono">
+                                                    {t('account_settings.security.new_password', 'Nova Senha')}
+                                                </label>
+                                                <input
+                                                    type="password"
+                                                    value={password}
+                                                    onChange={(e) => setPassword(e.target.value)}
+                                                    className="w-full bg-[#07070F] border border-white/[0.12] rounded-xl px-4 py-3 text-sm text-white focus:border-primary focus:ring-1 focus:ring-primary/30 outline-none transition-all duration-300 placeholder:text-gray-600 font-semibold shadow-inner"
+                                                    placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                                                    minLength={6}
+                                                />
+                                                {password && (
+                                                    <div className="mt-2 space-y-1.5 px-1 animate-in fade-in duration-300">
+                                                        <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-widest font-mono">
+                                                            <span className="text-gray-400">ForÃ§a da Senha</span>
+                                                            <span className="text-white font-bold">{pwdStrength.label}</span>
+                                                        </div>
+                                                        <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden flex gap-1">
+                                                            <div className={`h-full rounded-full transition-all duration-500 ${pwdStrength.color}`} style={{ width: `${(pwdStrength.score / 5) * 100}%` }} />
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="block text-[9px] font-black text-gray-300 uppercase tracking-widest ml-1 font-mono">
+                                                    {t('account_settings.security.confirm_password', 'Confirmar Senha')}
+                                                </label>
+                                                <input
+                                                    type="password"
+                                                    value={confirmPassword}
+                                                    onChange={(e) => setConfirmPassword(e.target.value)}
+                                                    className="w-full bg-[#07070F] border border-white/[0.12] rounded-xl px-4 py-3 text-sm text-white focus:border-primary focus:ring-1 focus:ring-primary/30 outline-none transition-all duration-300 placeholder:text-gray-600 font-semibold shadow-inner"
+                                                    placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                                                    minLength={6}
+                                                />
+                                            </div>
+                                            <div className="pt-2">
+                                                <Button type="submit" variant="outline" disabled={loading || !password} className="w-full h-11 rounded-xl border-white/10 hover:border-primary/50 hover:bg-primary/10 text-white font-bold uppercase tracking-wider text-xs flex items-center justify-center gap-2 active:scale-[0.98] transition-all duration-300 shadow-md">
+                                                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                                                    {t('account_settings.security.change_password', 'Redefinir Senha')}
+                                                </Button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'regional' && (
+                            <div className="relative overflow-hidden rounded-[2.5rem] border border-white/10 bg-[#0C0C14] p-8 shadow-2xl space-y-6 animate-in fade-in duration-500">
+                                {/* Glass light reflection ray */}
+                                <div className="absolute -top-16 -left-16 w-44 h-44 bg-white/5 rounded-full blur-3xl pointer-events-none" />
+
+                                {/* Dash Indicators at the top */}
+                                <div className="flex justify-center gap-1.5 mb-8">
+                                    <div className="w-8 h-1 rounded-full bg-primary" />
+                                    <div className="w-8 h-1 rounded-full bg-white/10" />
+                                    <div className="w-8 h-1 rounded-full bg-white/10" />
+                                    <div className="w-8 h-1 rounded-full bg-white/10" />
+                                    <div className="w-8 h-1 rounded-full bg-white/10" />
+                                </div>
+
+                                {/* Central Illustration Header */}
+                                <div className="flex flex-col items-center text-center mb-6">
+                                    <div className="w-20 h-20 rounded-3xl bg-gradient-to-b from-white/10 to-white/5 border border-white/10 flex items-center justify-center shadow-xl mb-4 group hover:scale-105 transition-transform duration-300">
+                                        <Globe className="w-9 h-9 text-white animate-pulse-slow" />
+                                    </div>
+                                    <h3 className="text-xl font-portal-display text-white uppercase italic tracking-tight mb-1">
+                                        DefiniÃ§Ãµes Regionais
+                                    </h3>
+                                    <p className="text-xs text-gray-400 max-w-sm font-medium">
+                                        Configure o idioma e a moeda padrÃ£o do seu painel e faturas.
+                                    </p>
+                                </div>
+
+                                <div className="space-y-4 border-t border-white/5 pt-6">
+                                    <form onSubmit={handleUpdateSystemPreferences} className="space-y-4">
+                                        <div className="space-y-2">
+                                            <label className="block text-[9px] font-black text-gray-300 uppercase tracking-widest ml-1 font-mono">
+                                                {t('account_settings.system.language', 'Idioma PadrÃ£o')}
+                                            </label>
+                                            <select
+                                                value={defaultLocale}
+                                                onChange={(e) => setDefaultLocale(e.target.value)}
+                                                className="w-full bg-[#07070F] border border-white/[0.12] rounded-xl px-4 py-3 text-sm text-white focus:border-primary focus:ring-1 focus:ring-primary/30 outline-none transition-all duration-300 font-semibold shadow-inner appearance-none cursor-pointer"
+                                            >
+                                                <option value="en">English (US)</option>
+                                                <option value="pt">PortuguÃªs (BR)</option>
+                                                <option value="es">EspaÃ±ol</option>
+                                            </select>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="block text-[9px] font-black text-gray-300 uppercase tracking-widest ml-1 font-mono">
+                                                {t('account_settings.system.currency', 'Moeda PadrÃ£o')}
+                                            </label>
+                                            <select
+                                                value={defaultCurrency}
+                                                onChange={(e) => setDefaultCurrency(e.target.value)}
+                                                className="w-full bg-[#07070F] border border-white/[0.12] rounded-xl px-4 py-3 text-sm text-white focus:border-primary focus:ring-1 focus:ring-primary/30 outline-none transition-all duration-300 font-semibold shadow-inner appearance-none cursor-pointer"
+                                            >
+                                                <option value="USD">USD ($)</option>
+                                                <option value="BRL">BRL (R$)</option>
+                                                <option value="EUR">EUR (â‚¬)</option>
+                                            </select>
+                                        </div>
+                                        <div className="pt-2">
+                                            <Button type="submit" disabled={loading} className="w-full h-11 rounded-xl bg-primary hover:bg-primary-hover text-white font-bold uppercase tracking-wider text-xs flex items-center justify-center gap-2 active:scale-[0.98] transition-all duration-300 shadow-[0_4px_16px_rgba(138,43,226,0.35)]">
+                                                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                                                {t('account_settings.system.save', 'Atualizar Regional')}
+                                            </Button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'security' && (
+                            <div className="relative overflow-hidden rounded-[2.5rem] border border-white/10 bg-[#0C0C14] p-8 shadow-2xl space-y-6 animate-in fade-in duration-500">
+                                {/* Glass light reflection ray */}
+                                <div className="absolute -top-16 -left-16 w-44 h-44 bg-white/5 rounded-full blur-3xl pointer-events-none" />
+
+                                {/* Dash Indicators at the top */}
+                                <div className="flex justify-center gap-1.5 mb-8">
+                                    <div className="w-8 h-1 rounded-full bg-primary" />
+                                    <div className="w-8 h-1 rounded-full bg-white/10" />
+                                    <div className="w-8 h-1 rounded-full bg-white/10" />
+                                    <div className="w-8 h-1 rounded-full bg-white/10" />
+                                    <div className="w-8 h-1 rounded-full bg-white/10" />
+                                </div>
+
+                                {/* Central Illustration Header */}
+                                <div className="flex flex-col items-center text-center mb-6">
+                                    <div className="relative w-20 h-20 rounded-3xl bg-gradient-to-b from-white/10 to-white/5 border border-white/10 flex items-center justify-center shadow-xl mb-4 group hover:scale-105 transition-transform duration-300">
+                                        <Fingerprint className="w-9 h-9 text-white animate-pulse-slow" />
+                                        <span className={`absolute -top-1 -right-1 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[7px] font-black uppercase tracking-widest border ${twoFactorEnabled ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-white/5 text-gray-500 border-white/10'}`}>
+                                            {twoFactorEnabled ? 'Ativa' : 'Inativa'}
+                                        </span>
+                                    </div>
+                                    <h3 className="text-xl font-portal-display text-white uppercase italic tracking-tight mb-1">
+                                        Duas Etapas (MFA)
+                                    </h3>
+                                    <p className="text-xs text-gray-400 max-w-sm font-medium">
+                                        ProteÃ§Ã£o extra exigindo cÃ³digo temporÃ¡rio no seu dispositivo autenticador.
+                                    </p>
+                                </div>
+
+                                <div className="space-y-6 border-t border-white/5 pt-6">
+                                    <p className="text-xs text-gray-400 font-medium leading-relaxed italic border-l border-primary/30 pl-3">
+                                        ProteÃ§Ã£o extra exigindo cÃ³digo temporÃ¡rio no seu dispositivo.
+                                    </p>
+
+                                    {twoFactorMessage && (
+                                        <div className={`p-4 rounded-xl border flex items-center gap-3 text-xs animate-in fade-in duration-500 ${twoFactorMessage.type === 'success'
+                                            ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400'
+                                            : 'bg-rose-500/10 border-rose-500/25 text-rose-400'
+                                            }`}>
+                                            {twoFactorMessage.type === 'success' ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                                            <span className="font-bold">{twoFactorMessage.text}</span>
+                                        </div>
+                                    )}
+
+                                    {!twoFactorEnabled && !twoFactorQrDataUrl && (
+                                        <Button
+                                            type="button"
+                                            onClick={handleStartTwoFactorSetup}
+                                            disabled={twoFactorSetupLoading}
+                                            className="w-full h-11 rounded-xl bg-primary hover:bg-primary-hover text-white font-bold uppercase italic tracking-wider text-xs flex items-center justify-center gap-2 shadow-[0_4px_16px_rgba(138,43,226,0.35)]"
+                                        >
+                                            {twoFactorSetupLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <QrCode className="w-4 h-4" />}
+                                            Configurar Duas Etapas
+                                        </Button>
+                                    )}
+
+                                    {!twoFactorEnabled && twoFactorQrDataUrl && (
+                                        <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-700">
+                                            <div className="flex flex-col items-center">
+                                                <div className="p-3 bg-white rounded-2xl mb-4 shadow-xl shadow-black/40">
+                                                    <img
+                                                        src={twoFactorQrDataUrl}
+                                                        alt="QR Code"
+                                                        className="w-36 h-36"
+                                                    />
+                                                </div>
+                                                <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest text-center max-w-[200px] font-mono leading-none">
+                                                    Escaneie no app autenticador.
+                                                </p>
+                                            </div>
+
+                                            <div className="space-y-4">
+                                                <div className="space-y-2">
+                                                    <label className="block text-[9px] font-black text-gray-300 uppercase tracking-widest ml-1 font-mono">
+                                                        CÃ³digo de VerificaÃ§Ã£o
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        inputMode="numeric"
+                                                        maxLength={6}
+                                                        value={twoFactorCode}
+                                                        onChange={(e) => setTwoFactorCode(e.target.value)}
+                                                        className="w-full bg-[#07070F] border border-white/[0.12] rounded-xl px-4 py-3 text-white text-2xl font-black text-center focus:border-primary focus:ring-1 focus:ring-primary/20 outline-none transition-all tracking-[0.3em] font-mono shadow-inner"
+                                                        placeholder="000000"
+                                                    />
+                                                </div>
+
+                                                <div className="flex flex-col gap-3">
+                                                    <Button
+                                                        type="button"
+                                                        onClick={() => handleSubmitTwoFactor(false)}
+                                                        disabled={twoFactorSubmitLoading}
+                                                        className="w-full h-11 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl shadow-lg shadow-emerald-500/10 text-xs uppercase"
+                                                    >
+                                                        {twoFactorSubmitLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4 mr-1.5" />}
+                                                        Confirmar AtivaÃ§Ã£o
+                                                    </Button>
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        onClick={handleStartTwoFactorSetup}
+                                                        disabled={twoFactorSetupLoading}
+                                                        className="text-gray-400 hover:text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5"
+                                                    >
+                                                        <RefreshCw className="w-3.5 h-3.5" /> Gerar Novo Par
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {twoFactorEnabled && (
+                                        <div className="space-y-4 animate-in fade-in duration-1000">
+                                            <div className="p-4 bg-emerald-500/5 border border-emerald-500/10 rounded-xl shadow-inner">
+                                                <p className="text-xs text-emerald-400 font-semibold leading-relaxed italic">
+                                                    Sua conta estÃ¡ protegida com autenticaÃ§Ã£o em duas etapas. Mantenha seu app autenticador seguro.
+                                                </p>
+                                            </div>
+
+                                            <div className="space-y-4 pt-4 border-t border-white/5">
+                                                <div className="space-y-2">
+                                                    <label className="block text-[9px] font-black text-gray-300 uppercase tracking-widest ml-1 font-mono">
+                                                        CÃ³digo p/ Desativar
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        inputMode="numeric"
+                                                        maxLength={6}
+                                                        value={twoFactorCode}
+                                                        onChange={(e) => setTwoFactorCode(e.target.value)}
+                                                        className="w-full bg-[#07070F] border border-white/[0.12] rounded-xl px-4 py-3 text-white text-center text-xl font-black tracking-[0.3em] font-mono shadow-inner"
+                                                        placeholder="000000"
+                                                    />
+                                                </div>
                                                 <Button
                                                     type="button"
                                                     variant="ghost"
-                                                    onClick={handleStartTwoFactorSetup}
-                                                    disabled={twoFactorSetupLoading}
-                                                    className="text-gray-600 hover:text-white"
+                                                    onClick={() => handleSubmitTwoFactor(true)}
+                                                    disabled={twoFactorSubmitLoading}
+                                                    className="text-rose-500 hover:bg-rose-500/10 font-bold text-xs uppercase tracking-wider h-11 w-full rounded-xl flex items-center justify-center gap-1.5 border border-rose-500/15 transition-all duration-300"
                                                 >
-                                                    <RefreshCw className="w-4 h-4 mr-2" /> Gerar Novo Par
+                                                    {twoFactorSubmitLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <AlertCircle className="w-4 h-4" />}
+                                                    Interromper SeguranÃ§a (2FA)
                                                 </Button>
                                             </div>
                                         </div>
-                                    </div>
-                                )}
+                                    )}
+                                </div>
+                            </div>
+                        )}
 
-                                {twoFactorEnabled && (
-                                    <div className="space-y-6 animate-in fade-in duration-1000">
-                                        <div className="p-6 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl">
-                                            <p className="text-sm text-emerald-400 font-bold leading-relaxed italic">
-                                                Sua conta está protegida com autenticação em duas etapas. Mantenha seu app autenticador seguro.
+                        {activeTab === 'captcha' && (
+                            <div className="relative overflow-hidden rounded-[2.5rem] border border-white/10 bg-[#0C0C14] p-8 shadow-2xl space-y-6 animate-in fade-in duration-500">
+                                {/* Glass light reflection ray */}
+                                <div className="absolute -top-16 -left-16 w-44 h-44 bg-white/5 rounded-full blur-3xl pointer-events-none" />
+
+                                {/* Dash Indicators at the top */}
+                                <div className="flex justify-center gap-1.5 mb-8">
+                                    <div className="w-8 h-1 rounded-full bg-primary" />
+                                    <div className="w-8 h-1 rounded-full bg-white/10" />
+                                    <div className="w-8 h-1 rounded-full bg-white/10" />
+                                    <div className="w-8 h-1 rounded-full bg-white/10" />
+                                    <div className="w-8 h-1 rounded-full bg-white/10" />
+                                </div>
+
+                                {/* Central Illustration Header */}
+                                <div className="flex flex-col items-center text-center mb-6">
+                                    <div className="relative w-20 h-20 rounded-3xl bg-gradient-to-b from-white/10 to-white/5 border border-white/10 flex items-center justify-center shadow-xl mb-4 group hover:scale-105 transition-transform duration-300">
+                                        <Shield className="w-9 h-9 text-white animate-pulse-slow" />
+                                        <span className={`absolute -top-1 -right-1 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[7px] font-black uppercase tracking-widest border ${authCaptchaReady ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-white/5 text-gray-500 border-white/10'}`}>
+                                            {authCaptchaReady ? 'Ativo' : 'Revisar'}
+                                        </span>
+                                    </div>
+                                    <h3 className="text-xl font-portal-display text-white uppercase italic tracking-tight mb-1">
+                                        Auth CAPTCHA
+                                    </h3>
+                                    <p className="text-xs text-gray-400 max-w-sm font-medium">
+                                        GovernanÃ§a do CAPTCHA global do Supabase Auth (Cloudflare Turnstile).
+                                    </p>
+                                </div>
+
+                                <div className="space-y-5 border-t border-white/5 pt-6">
+                                    <p className="text-xs text-gray-400 font-medium leading-relaxed italic border-l border-primary/20 pl-3">
+                                        GovernanÃ§a do CAPTCHA global do Supabase Auth (Cloudflare Turnstile).
+                                    </p>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                                        <div className="rounded-xl border border-white/5 bg-black/20 p-3.5 shadow-inner">
+                                            <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-gray-500 font-mono">Flag Frontend</p>
+                                            <p className={`mt-1 text-xs font-black uppercase tracking-tight ${authCaptchaEnabled ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                                {authCaptchaEnabled ? 'Ativada' : 'Pendente'}
                                             </p>
                                         </div>
-
-                                        <div className="space-y-4 pt-4 border-t border-white/5">
-                                            <div className="space-y-2">
-                                                <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest ml-1">
-                                                    Código p/ Desativar
-                                                </label>
-                                                <input
-                                                    type="text"
-                                                    inputMode="numeric"
-                                                    maxLength={6}
-                                                    value={twoFactorCode}
-                                                    onChange={(e) => setTwoFactorCode(e.target.value)}
-                                                    className="w-full bg-white/[0.01] border border-white/5 rounded-2xl px-6 py-4 text-white text-center text-xl font-black tracking-[0.3em] font-mono"
-                                                    placeholder="000000"
-                                                />
-                                            </div>
-                                            <Button
-                                                type="button"
-                                                variant="ghost"
-                                                onClick={() => handleSubmitTwoFactor(true)}
-                                                disabled={twoFactorSubmitLoading}
-                                                className="text-rose-500 hover:bg-rose-500/10 font-bold"
-                                            >
-                                                {twoFactorSubmitLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <AlertCircle className="w-4 h-4 mr-2" />}
-                                                Interromper Segurança (2FA)
-                                            </Button>
+                                        <div className="rounded-xl border border-white/5 bg-black/20 p-3.5 shadow-inner">
+                                            <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-gray-500 font-mono">Site Key</p>
+                                            <p className={`mt-1 text-xs font-black uppercase tracking-tight ${authCaptchaSiteKey ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                                {authCaptchaSiteKey ? 'Configurada' : 'Pendente'}
+                                            </p>
+                                        </div>
+                                        <div className="rounded-xl border border-white/5 bg-black/20 p-3.5 shadow-inner">
+                                            <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-gray-500 font-mono">Hostname Atual</p>
+                                            <p className="mt-1 text-xs font-semibold text-white break-all font-mono leading-none">
+                                                {runtimeHostname || 'IndisponÃ­vel'}
+                                            </p>
+                                        </div>
+                                        <div className="rounded-xl border border-white/5 bg-black/20 p-3.5 shadow-inner">
+                                            <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-gray-500 font-mono">Ownership</p>
+                                            <p className="mt-1 text-xs font-semibold text-white leading-normal">
+                                                Chaves individuais por cliente.
+                                            </p>
                                         </div>
                                     </div>
-                                )}
+
+                                    <div className="pt-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowCaptchaDocs(!showCaptchaDocs)}
+                                            className="w-full flex items-center justify-between p-3.5 bg-black/20 rounded-xl border border-white/5 hover:border-white/10 transition-all duration-300"
+                                        >
+                                            <span className="text-xs font-bold text-white uppercase tracking-wider font-mono">DocumentaÃ§Ã£o e InstruÃ§Ãµes</span>
+                                            <ChevronRight className={`w-4 h-4 text-gray-500 transition-transform duration-300 ${showCaptchaDocs ? 'rotate-90 text-white' : ''}`} />
+                                        </button>
+
+                                        {showCaptchaDocs && (
+                                            <div className="mt-4 space-y-4 border-t border-white/5 pt-4 animate-in slide-in-from-top-3 duration-300">
+                                                <div className="rounded-xl border border-white/5 bg-[#0B0B12] p-4">
+                                                    <p className="text-[8px] font-black uppercase tracking-[0.24em] text-gray-500 font-mono mb-2">Env mÃ­nimo na Vercel</p>
+                                                    <div className="space-y-1.5 text-[11px] text-gray-300 font-mono">
+                                                        <div><span className="text-primary">VITE_ENABLE_SUPABASE_AUTH_CAPTCHA</span>=true</div>
+                                                        <div><span className="text-primary">VITE_TURNSTILE_SITE_KEY</span>=...site key pÃºblica...</div>
+                                                        <div><span className="text-primary">TURNSTILE_SECRET_KEY</span>=...secret key privada...</div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="space-y-2">
+                                                    <p className="text-[8px] font-black uppercase tracking-[0.24em] text-gray-500 font-mono">Ordem oficial de rollout</p>
+                                                    <ol className="space-y-2 text-xs text-gray-300 list-decimal list-inside leading-relaxed">
+                                                        <li>Crie o Turnstile no Cloudflare usando o domÃ­nio do projeto.</li>
+                                                        <li>Salve as ENVs na Vercel e publique o deploy.</li>
+                                                        <li>No Supabase, ative o CAPTCHA em Attack Protection.</li>
+                                                        <li>Execute o smoke de login, cadastro e recuperaÃ§Ã£o.</li>
+                                                    </ol>
+                                                </div>
+
+                                                <div className="rounded-xl border border-amber-400/15 bg-amber-400/5 p-4 space-y-2">
+                                                    <p className="text-[8px] font-black uppercase tracking-[0.22em] text-amber-300 font-mono">Modelo para instalaÃ§Ãµes de cliente</p>
+                                                    <ul className="space-y-1.5 text-xs text-amber-100/90 list-disc list-inside leading-relaxed">
+                                                        <li>O cliente pode comeÃ§ar com hostname temporÃ¡rio vercel.app.</li>
+                                                        <li>Depois adiciona o domÃ­nio final no widget dele.</li>
+                                                        <li>NÃ£o centralize domÃ­nios de clientes no Cloudflare master da plataforma.</li>
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
-                        </SettingsShellCard>
+                        )}
                     </div>
-                )}
+
+                    {/* Right Sidebar (Security Health & Checklist) */}
+                    <div className="lg:col-span-3">
+                        <div className="relative overflow-hidden rounded-[2.5rem] border border-white/10 bg-[#0C0C14] p-8 shadow-2xl space-y-6">
+                            {/* Glass light reflection ray */}
+                            <div className="absolute -top-16 -left-16 w-44 h-44 bg-white/5 rounded-full blur-3xl pointer-events-none" />
+
+                            {/* Dash Indicators at the top */}
+                            <div className="flex justify-center gap-1.5 mb-8">
+                                <div className="w-8 h-1 rounded-full bg-primary" />
+                                <div className="w-8 h-1 rounded-full bg-white/10" />
+                                <div className="w-8 h-1 rounded-full bg-white/10" />
+                            </div>
+
+                            {/* Central Illustration Header */}
+                            <div className="flex flex-col items-center text-center mb-6">
+                                <div className="relative flex items-center justify-center w-28 h-28 mx-auto mb-4">
+                                    <svg className="w-full h-full transform -rotate-90">
+                                        <defs>
+                                            <filter id="glow-mfa" x="-20%" y="-20%" width="140%" height="140%">
+                                                <feGaussianBlur stdDeviation="3" result="blur" />
+                                                <feMerge>
+                                                    <feMergeNode in="blur" />
+                                                    <feMergeNode in="SourceGraphic" />
+                                                </feMerge>
+                                            </filter>
+                                        </defs>
+                                        <circle
+                                            cx="56"
+                                            cy="56"
+                                            r={radius}
+                                            className="text-white/5"
+                                            strokeWidth="5"
+                                            stroke="currentColor"
+                                            fill="transparent"
+                                        />
+                                        <circle
+                                            cx="56"
+                                            cy="56"
+                                            r={radius}
+                                            className="text-primary transition-all duration-1000"
+                                            strokeWidth="5"
+                                            strokeDasharray={circumference}
+                                            strokeDashoffset={offset}
+                                            strokeLinecap="round"
+                                            stroke="currentColor"
+                                            fill="transparent"
+                                            filter={securityScore > 0 ? "url(#glow-mfa)" : undefined}
+                                        />
+                                    </svg>
+                                    <div className="absolute text-center">
+                                        <span className="text-xl font-black text-white">{securityScore}%</span>
+                                    </div>
+                                </div>
+                                <h3 className="text-sm font-portal-display text-white uppercase italic tracking-tight mb-1">
+                                    SaÃºde da Conta
+                                </h3>
+                            </div>
+
+                            <div className="space-y-4 border-t border-white/5 pt-6">
+                                <div className="flex items-center justify-between text-[10px] font-semibold font-mono">
+                                    <span className="text-gray-500">Checklist Operacional</span>
+                                    <span className="text-primary font-bold">{(hasName?1:0) + (hasEmail?1:0) + (isMfaActive?1:0) + (isCaptchaActive?1:0)} / 4</span>
+                                </div>
+
+                                <div className="space-y-2.5 pt-2 border-t border-white/5 text-left">
+                                    <div className="flex items-center gap-2 text-xs">
+                                        {hasName ? <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" /> : <div className="w-4 h-4 rounded-full border border-white/15 flex-shrink-0" />}
+                                        <span className={hasName ? 'text-gray-200 font-semibold font-sans' : 'text-gray-500 font-sans'}>Nome Cadastrado</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-xs">
+                                        {hasEmail ? <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" /> : <div className="w-4 h-4 rounded-full border border-white/15 flex-shrink-0" />}
+                                        <span className={hasEmail ? 'text-gray-200 font-semibold font-sans' : 'text-gray-500 font-sans'}>E-mail Configurado</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-xs">
+                                        {isMfaActive ? <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" /> : <div className="w-4 h-4 rounded-full border border-white/15 flex-shrink-0" />}
+                                        <span className={isMfaActive ? 'text-gray-200 font-semibold font-sans' : 'text-gray-500 font-sans'}>2FA TOTP Ativado</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-xs">
+                                        {isCaptchaActive ? <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" /> : <div className="w-4 h-4 rounded-full border border-white/15 flex-shrink-0" />}
+                                        <span className={isCaptchaActive ? 'text-gray-200 font-semibold font-sans' : 'text-gray-500 font-sans'}>Blindagem CAPTCHA</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
             </div>
         </Layout>
     );

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Bell, CheckCircle, Edit2, Info, Layers, Mail, XCircle, Zap } from 'lucide-react';
+import { Bell, CheckCircle, Edit2, Info, Layers, Mail, XCircle, Zap, ChevronRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Layout } from '../../components/Layout';
 import { Button } from '../../components/ui/Button';
@@ -256,24 +256,13 @@ export const Notifications = () => {
   );
   const [systemTemplates, setSystemTemplates] = useState<EmailTemplate[]>([]);
 
+  // Accordion help states
+  const [showHelpCompleted, setShowHelpCompleted] = useState(false);
+  const [showHelpManual, setShowHelpManual] = useState(false);
+
   useEffect(() => {
     void loadTemplates();
   }, [isOwner, preferredLanguage, businessTemplateDefinitions]);
-
-  const postPurchaseTemplates = useMemo(
-    () =>
-      businessTemplates.filter((template) =>
-        POST_PURCHASE_TEMPLATE_EVENT_TYPES.includes(
-          template.event_type as (typeof POST_PURCHASE_TEMPLATE_EVENT_TYPES)[number],
-        ),
-      ),
-    [businessTemplates],
-  );
-
-  const manualAccessTemplates = useMemo(
-    () => businessTemplates.filter((template) => template.event_type === 'ACCESS_GRANTED'),
-    [businessTemplates],
-  );
 
   async function loadTemplates() {
     setLoading(true);
@@ -406,12 +395,27 @@ export const Notifications = () => {
       return;
     }
 
+    const table = isSystemContext ? 'system_email_templates' : 'email_templates';
+
     if (template.isVirtual) {
-      handleEdit(template);
+      try {
+        const payload = {
+          event_type: template.event_type,
+          name: template.name,
+          subject: template.subject,
+          html_body: template.html_body,
+          active: !template.active,
+          ...(isSystemContext ? {} : { language: preferredLanguage }),
+        };
+
+        const { error } = await supabase.from(table).insert(payload);
+        if (error) throw error;
+        await loadTemplates();
+      } catch (error) {
+        console.error('Error toggling virtual template:', error);
+      }
       return;
     }
-
-    const table = isSystemContext ? 'system_email_templates' : 'email_templates';
 
     try {
       const { error } = await supabase
@@ -426,198 +430,191 @@ export const Notifications = () => {
     }
   }
 
-  function renderStatusBadge(template: EmailTemplate) {
-    if (template.isVirtual) return t('notifications.status.default');
-    return template.active ? t('common.active') : t('notifications.status.fallback');
-  }
+  function renderTemplateRow(template: EmailTemplate, isSystem: boolean) {
+    const definition = !isSystem ? businessTemplateDefinitionByEvent.get(template.event_type) : null;
+    const isActive = template.active;
 
-  function renderSystemTemplateGrid(items: EmailTemplate[]) {
     return (
-      <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
-        {items.map((template) => (
-          <div
-            key={template.id}
-            className="group relative overflow-hidden rounded-[2rem] border border-white/5 bg-black/40 p-8 backdrop-blur-xl transition-all duration-500 hover:border-primary/30 hover:shadow-2xl hover:shadow-primary/10"
-          >
-            <div className="absolute -right-12 -top-12 h-32 w-32 rounded-full bg-primary/10 blur-[60px] opacity-0 transition-opacity duration-700 group-hover:opacity-100" />
-
-            <div className="relative z-10 mb-8 flex items-start justify-between">
-              <div
-                className={`flex h-14 w-14 items-center justify-center rounded-2xl shadow-2xl transition-all duration-500 group-hover:rotate-3 group-hover:scale-110 ${
-                  template.active
-                    ? 'border border-emerald-500/20 bg-emerald-500/10 text-emerald-400 shadow-emerald-500/5'
-                    : 'border border-rose-500/20 bg-rose-500/10 text-rose-400 shadow-rose-500/5'
-                }`}
-              >
-                <Mail className="h-7 w-7" />
-              </div>
-              <div className="flex flex-col items-end">
-                <span
-                  className={`rounded-full border px-3 py-1 text-[9px] font-black uppercase tracking-[0.2em] ${
-                    template.active
-                      ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400'
-                      : 'border-rose-500/20 bg-rose-500/10 text-rose-400'
-                  }`}
-                >
-                  {template.active ? t('common.active') : t('common.inactive')}
-                </span>
-                <p className="mt-2 text-[10px] font-black uppercase tracking-widest text-gray-700">
-                  {t('notifications.system.template_label')}
-                </p>
-              </div>
-            </div>
-
-            <div className="relative z-10 mb-8">
-              <h3 className="mb-2 text-xl font-portal-display tracking-tight text-white transition-colors group-hover:text-primary">
-                {template.name}
-              </h3>
-              <p className="line-clamp-2 h-[32px] text-xs font-medium leading-relaxed text-gray-500" title={template.subject}>
-                {template.subject}
-              </p>
-            </div>
-
-            <div className="relative z-10 flex items-center gap-3">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleEdit(template)}
-                className="h-12 flex-1 rounded-xl border border-white/5 bg-white/5 text-[10px] font-black uppercase tracking-widest text-white hover:bg-white/10"
-              >
-                <Edit2 className="mr-2 h-3.5 w-3.5" /> {t('notifications.actions.edit_content')}
-              </Button>
-              <button
-                onClick={() => toggleStatus(template, true)}
-                className={`flex h-12 w-12 items-center justify-center rounded-xl border transition-all ${
-                  template.active
-                    ? 'border-white/5 bg-rose-500/5 text-gray-700 hover:border-rose-500/20 hover:bg-rose-500/10 hover:text-rose-500'
-                    : 'border-white/5 bg-emerald-500/5 text-gray-700 hover:border-emerald-500/20 hover:bg-emerald-500/10 hover:text-emerald-500'
-                }`}
-              >
-                {template.active ? <XCircle className="h-5 w-5" /> : <CheckCircle className="h-5 w-5" />}
-              </button>
-            </div>
+      <div
+        key={template.id}
+        onClick={() => handleEdit(template)}
+        className="group flex items-center justify-between p-4 hover:bg-white/[0.02] rounded-2xl transition-all duration-300 cursor-pointer border border-transparent hover:border-white/5"
+      >
+        <div className="flex items-center gap-4">
+          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border transition-all duration-300 ${
+            isActive
+              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.1)]'
+              : 'bg-white/5 border-white/10 text-gray-500'
+          }`}>
+            <Mail className="w-5.5 h-5.5" />
           </div>
-        ))}
-        {items.length === 0 && (
-          <div className="col-span-full rounded-[2.5rem] border border-dashed border-white/5 bg-white/[0.02] py-20 text-center">
-            <p className="text-xs font-bold uppercase tracking-widest text-gray-600">
-              {t('notifications.system.empty')}
+
+          <div className="text-left">
+            <span className={`block text-[8px] font-black uppercase tracking-widest font-mono leading-none mb-1 ${
+              isActive ? 'text-emerald-400' : 'text-gray-500'
+            }`}>
+              {isSystem ? 'Sistema' : (template.event_type === 'ACCESS_GRANTED' ? 'Acesso Manual' : 'PÃ³s-Compra')}
+            </span>
+            <h4 className="text-sm font-bold text-white transition-colors group-hover:text-primary leading-tight">
+              {template.name}
+            </h4>
+            <p className="text-[11px] text-gray-400 mt-1 leading-normal max-w-[200px] sm:max-w-xs lg:max-w-md line-clamp-1 font-medium">
+              {isSystem ? template.subject : (definition?.purpose || t('notifications.business.default_purpose'))}
             </p>
           </div>
-        )}
-      </div>
-    );
-  }
+        </div>
 
-  function renderBusinessCards(items: EmailTemplate[]) {
-    return (
-      <div className={`grid gap-6 ${items.length > 1 ? 'grid-cols-1 xl:grid-cols-3' : 'grid-cols-1'}`}>
-        {items.map((template) => {
-          const definition = businessTemplateDefinitionByEvent.get(template.event_type);
-          const variables = definition?.variables || [];
+        <div className="flex items-center gap-4" onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={() => toggleStatus(template, isSystem)}
+            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+              isActive ? 'bg-emerald-500' : 'bg-gray-800'
+            }`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                isActive ? 'translate-x-4' : 'translate-x-0'
+              }`}
+            />
+          </button>
 
-          return (
-            <div
-              key={template.id}
-              className="relative flex min-h-[340px] flex-col overflow-hidden rounded-[2rem] border border-white/5 bg-black/40 p-7 backdrop-blur-xl transition-all hover:border-primary/25"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div
-                  className={`flex h-14 w-14 items-center justify-center rounded-2xl border ${
-                    template.active
-                      ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400'
-                      : 'border-rose-500/20 bg-rose-500/10 text-rose-400'
-                  }`}
-                >
-                  <Mail className="h-7 w-7" />
-                </div>
-                <span
-                  className={`rounded-full border px-3 py-1 text-[9px] font-black uppercase tracking-[0.2em] ${
-                    template.active
-                      ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400'
-                      : 'border-rose-500/20 bg-rose-500/10 text-rose-400'
-                  }`}
-                >
-                  {renderStatusBadge(template)}
-                </span>
-              </div>
-
-              <div className="mt-7 space-y-3">
-                <h3 className="text-xl font-portal-display tracking-tight text-white">{template.name}</h3>
-                <p className="min-h-[44px] text-sm leading-relaxed text-gray-400">
-                  {definition?.purpose || t('notifications.business.default_purpose')}
-                </p>
-                <div className="rounded-xl border border-white/5 bg-white/[0.03] p-4 text-sm font-semibold text-white">
-                  {template.subject}
-                </div>
-              </div>
-
-              <div className="mt-5 flex flex-wrap gap-2">
-                {variables.map((variable) => (
-                  <code
-                    key={variable}
-                    className="rounded-lg border border-white/5 bg-white/5 px-2.5 py-1.5 text-[10px] font-bold text-gray-400"
-                  >
-                    {variable}
-                  </code>
-                ))}
-              </div>
-
-              <div className="mt-auto flex gap-3 pt-7">
-                <Button
-                  onClick={() => handleEdit(template)}
-                  className="h-12 flex-1 rounded-xl bg-primary text-[10px] font-black uppercase tracking-widest text-white hover:bg-primary-hover"
-                >
-                  <Edit2 className="mr-2 h-4 w-4" />
-                  {t('notifications.actions.edit')}
-                </Button>
-                <button
-                  onClick={() => toggleStatus(template, false)}
-                  className={`flex h-12 w-12 items-center justify-center rounded-xl border transition-all ${
-                    template.active
-                      ? 'border-rose-500/20 bg-rose-500/5 text-rose-400 hover:bg-rose-500/10'
-                      : 'border-emerald-500/20 bg-emerald-500/5 text-emerald-400 hover:bg-emerald-500/10'
-                  }`}
-                  title={
-                    template.active
-                      ? t('notifications.actions.use_system_fallback')
-                      : t('notifications.actions.activate_template')
-                  }
-                >
-                  {template.active ? <XCircle className="h-5 w-5" /> : <CheckCircle className="h-5 w-5" />}
-                </button>
-              </div>
-            </div>
-          );
-        })}
+          <button
+            onClick={() => handleEdit(template)}
+            className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center text-gray-400 group-hover:text-white group-hover:border-white/20 transition-all duration-300 hover:bg-white/5"
+          >
+            <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+          </button>
+        </div>
       </div>
     );
   }
 
   function renderBusinessView() {
     return (
-      <div className="animate-in space-y-8 fade-in slide-in-from-bottom-8 duration-700">
-        <div className="flex max-w-4xl items-start gap-3 rounded-2xl border border-primary/10 bg-primary/5 px-6 py-4">
-          <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-          <p className="text-sm leading-relaxed text-gray-300">{t('notifications.business.fallback_notice')}</p>
-        </div>
+      <div className="space-y-8 animate-in fade-in duration-500 max-w-2xl mx-auto">
 
-        <div className="space-y-4">
-          <div>
-            <h2 className="text-lg font-black uppercase tracking-widest text-white">
-              {t('notifications.business.post_purchase_title')}
-            </h2>
-            <p className="mt-2 text-sm text-gray-400">{t('notifications.business.post_purchase_subtitle')}</p>
-          </div>
-          {renderBusinessCards(postPurchaseTemplates)}
-        </div>
+        {/* Main Glass Card inspired by mockup */}
+        <div className="relative overflow-hidden rounded-[2.5rem] border border-white/10 bg-[#0C0C14] p-8 shadow-2xl">
+          {/* Glass light reflection ray */}
+          <div className="absolute -top-16 -left-16 w-44 h-44 bg-white/5 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="space-y-4">
-          <div className="flex max-w-4xl items-start gap-3 rounded-2xl border border-white/10 bg-white/5 px-6 py-4">
-            <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-300" />
-            <p className="text-sm leading-relaxed text-gray-300">{t('notifications.business.manual_access_notice')}</p>
+          {/* Dash Indicators at the top */}
+          <div className="flex justify-center gap-1.5 mb-8">
+            <div className="w-8 h-1 rounded-full bg-primary" />
+            <div className="w-8 h-1 rounded-full bg-white/10" />
+            <div className="w-8 h-1 rounded-full bg-white/10" />
+            <div className="w-8 h-1 rounded-full bg-white/10" />
+            <div className="w-8 h-1 rounded-full bg-white/10" />
           </div>
-          {renderBusinessCards(manualAccessTemplates)}
+
+          {/* Central Illustration Header */}
+          <div className="flex flex-col items-center text-center mb-6">
+            <div className="w-20 h-20 rounded-3xl bg-gradient-to-b from-white/10 to-white/5 border border-white/10 flex items-center justify-center shadow-xl mb-4 group hover:scale-105 transition-transform duration-300">
+              <Layers className="w-9 h-9 text-white animate-pulse-slow" />
+            </div>
+            <h3 className="text-xl font-portal-display text-white uppercase italic tracking-tight mb-1">
+              Escolha o Template
+            </h3>
+            <p className="text-xs text-gray-400 max-w-xs font-medium">
+              Selecione o fluxo pÃ³s-venda ou controle de acesso que deseja gerenciar.
+            </p>
+
+            {/* Discreet inline help toggles */}
+            <div className="flex flex-wrap justify-center gap-2.5 mt-4">
+              <button
+                onClick={() => {
+                  setShowHelpCompleted(!showHelpCompleted);
+                  setShowHelpManual(false);
+                }}
+                className={`px-3 py-1.5 rounded-full text-[10px] font-bold transition-all flex items-center gap-1.5 ${
+                  showHelpCompleted
+                    ? 'bg-primary/15 border border-primary/30 text-primary shadow-[0_0_10px_rgba(138,43,226,0.1)]'
+                    : 'bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:border-white/20'
+                }`}
+              >
+                <Info className="w-3.5 h-3.5" />
+                Como Funciona: Compra Aprovada
+              </button>
+              <button
+                onClick={() => {
+                  setShowHelpManual(!showHelpManual);
+                  setShowHelpCompleted(false);
+                }}
+                className={`px-3 py-1.5 rounded-full text-[10px] font-bold transition-all flex items-center gap-1.5 ${
+                  showHelpManual
+                    ? 'bg-blue-500/15 border border-blue-500/30 text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.1)]'
+                    : 'bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:border-white/20'
+                }`}
+              >
+                <Info className="w-3.5 h-3.5" />
+                Como Funciona: Acesso Manual
+              </button>
+            </div>
+
+            {/* Explanation Boxes */}
+            {showHelpCompleted && (
+              <div className="mt-4 p-4 rounded-2xl bg-primary/5 border border-primary/20 text-xs text-gray-300 text-left leading-relaxed animate-in slide-in-from-top-2 duration-200">
+                Compra aprovada funciona como fallback quando nÃ£o existe um e-mail especÃ­fico de entrega. Entrega direta e Ã¡rea de membros substituem a confirmaÃ§Ã£o genÃ©rica e enviam apenas os acessos reais gerados no servidor.
+              </div>
+            )}
+
+            {showHelpManual && (
+              <div className="mt-4 p-4 rounded-2xl bg-blue-500/5 border border-blue-500/20 text-xs text-gray-300 text-left leading-relaxed animate-in slide-in-from-top-2 duration-200">
+                Acesso manual de aluno Ã© um fluxo separado do pÃ³s-compra. Ele sÃ³ entra quando vocÃª reenvia manualmente o acesso de um membro.
+              </div>
+            )}
+          </div>
+
+          {/* Rows List */}
+          <div className="space-y-2 border-t border-white/5 pt-6">
+            {businessTemplates.map((template) => renderTemplateRow(template, false))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function renderSystemTemplateGrid(items: EmailTemplate[]) {
+    return (
+      <div className="space-y-8 animate-in fade-in duration-500 max-w-2xl mx-auto">
+        {/* Main Glass Card */}
+        <div className="relative overflow-hidden rounded-[2.5rem] border border-white/10 bg-[#0C0C14] p-8 shadow-2xl">
+          {/* Glass light reflection ray */}
+          <div className="absolute -top-16 -left-16 w-44 h-44 bg-white/5 rounded-full blur-3xl pointer-events-none" />
+
+          {/* Dash Indicators at the top */}
+          <div className="flex justify-center gap-1.5 mb-8">
+            <div className="w-8 h-1 rounded-full bg-primary" />
+            <div className="w-8 h-1 rounded-full bg-white/10" />
+            <div className="w-8 h-1 rounded-full bg-white/10" />
+            <div className="w-8 h-1 rounded-full bg-white/10" />
+            <div className="w-8 h-1 rounded-full bg-white/10" />
+          </div>
+
+          {/* Central Folder Icon */}
+          <div className="flex flex-col items-center text-center mb-8">
+            <div className="w-20 h-20 rounded-3xl bg-gradient-to-b from-white/10 to-white/5 border border-white/10 flex items-center justify-center shadow-xl mb-4 group hover:scale-105 transition-transform duration-300">
+              <Zap className="w-9 h-9 text-white animate-pulse-slow" />
+            </div>
+            <h3 className="text-xl font-portal-display text-white uppercase italic tracking-tight mb-1">
+              Templates do Sistema
+            </h3>
+            <p className="text-xs text-gray-400 max-w-sm font-medium">
+              Templates de e-mail de disparos internos e seguranÃ§a da infraestrutura SAAS.
+            </p>
+          </div>
+
+          {/* Rows List */}
+          <div className="space-y-2 border-t border-white/5 pt-6">
+            {items.map((template) => renderTemplateRow(template, true))}
+            {items.length === 0 && (
+              <div className="py-12 text-center">
+                <p className="text-xs font-bold uppercase tracking-widest text-gray-500 font-mono">
+                  {t('notifications.system.empty')}
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -625,111 +622,90 @@ export const Notifications = () => {
 
   return (
     <Layout>
-      <div className="relative -mx-6 -mt-6 min-h-[60vh] overflow-hidden rounded-b-[3rem] px-6 pb-24 pt-12">
-        <div className="absolute inset-0 z-0 bg-gradient-to-b from-[#05050A]/0 via-[#05050A]/40 to-[#05050A]" />
+      <div className="space-y-8 pb-24 max-w-6xl mx-auto px-4 md:px-0 relative animate-in fade-in duration-500">
+        {/* Premium Design Glows */}
+        <div className="absolute top-10 left-1/4 w-[500px] h-[500px] bg-primary/10 blur-[150px] rounded-full pointer-events-none -z-10 animate-pulse-slow" />
+        <div className="absolute top-40 right-1/4 w-[400px] h-[400px] bg-purple-500/5 blur-[120px] rounded-full pointer-events-none -z-10" />
 
-        <div className="relative z-10 mb-12 flex w-full flex-col justify-between gap-6 md:flex-row md:items-end">
-          <div>
-            <div className="animate-in mb-4 flex items-center gap-3 fade-in slide-in-from-left-4 duration-500">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 shadow-lg shadow-primary/5">
-                <Bell className="h-6 w-6 text-primary" />
-              </div>
-              <span className="text-[10px] font-black uppercase tracking-[0.3em] text-primary">
-                {t('notifications.hero.badge')}
-              </span>
-            </div>
-            <h1 className="animate-in mb-4 font-portal-display text-5xl italic leading-none tracking-tighter text-white fade-in slide-in-from-left-6 duration-700 md:text-7xl">
-              {t('notifications.hero.title_prefix')} <br />
-              <span className="text-primary drop-shadow-[0_0_30px_rgba(var(--primary-rgb),0.3)]">
-                {t('notifications.hero.title_highlight')}
-              </span>
-            </h1>
-            <p className="animate-in max-w-xl text-sm font-medium text-gray-400 fade-in slide-in-from-left-8 duration-1000 md:text-base">
-              {isOwner ? t('notifications.hero.subtitle_owner') : t('notifications.hero.subtitle_user')}
-            </p>
-          </div>
-
-          <div className="animate-in flex items-center gap-4 fade-in slide-in-from-right-4 duration-700">
-            <div className="min-w-[180px] rounded-3xl border border-white/5 bg-white/5 p-6 backdrop-blur-xl">
-              <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-gray-700">
-                {t('notifications.hero.status_label')}
-              </p>
-              <div className="flex items-center gap-3">
-                <div className="h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.5)]" />
-                <span className="text-sm font-black uppercase tracking-tight text-white">
-                  {t('notifications.hero.status_online')}
-                </span>
+        {/* Dashboard-Style Title & Info Bar */}
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-3xl lg:text-4xl font-portal-display text-white mb-1 leading-none uppercase italic tracking-tight">
+                {t('notifications.hero.title_prefix')} <span className="text-primary font-black">{t('notifications.hero.title_highlight')}</span>
+              </h1>
+              <div className="flex items-center gap-2 mt-1">
+                <p className="text-gray-400 font-medium uppercase tracking-[0.15em] text-[9px] font-mono">
+                  {t('notifications.hero.badge')}
+                </p>
+                <div className="h-1.5 w-1.5 rounded-full bg-primary/45"></div>
+                <span className="text-[9px] text-[#10B981] font-black uppercase tracking-[0.2em] font-mono">System Online</span>
               </div>
             </div>
+
+            {/* Segmented Control Tab Selector */}
+            <div className="flex flex-row flex-wrap items-center gap-2.5">
+              {isOwner && (
+                <div className="flex gap-1.5 p-1 bg-black/25 border border-white/15 rounded-[1.25rem] w-fit">
+                  {[
+                    { id: 'system' as const, label: t('notifications.tabs.system'), icon: Zap },
+                    { id: 'business' as const, label: t('notifications.tabs.business'), icon: Layers },
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`flex items-center gap-2 rounded-xl px-5 py-2 text-[10px] font-black uppercase tracking-wider transition-all duration-300 ${
+                        activeTab === tab.id
+                          ? 'bg-primary border-primary text-white shadow-lg shadow-primary/15'
+                          : 'text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      <tab.icon className="h-3.5 w-3.5" />
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
+          <p className="text-xs text-gray-300 max-w-2xl leading-relaxed italic border-l border-primary/30 pl-4 font-medium">
+            {isOwner ? t('notifications.hero.subtitle_owner') : t('notifications.hero.subtitle_user')}
+          </p>
         </div>
 
-        {isOwner && (
-          <div className="animate-in relative z-10 flex w-fit gap-1 rounded-2xl border border-white/5 bg-white/5 p-1.5 backdrop-blur-md fade-in slide-in-from-bottom-4 duration-500">
-            {[
-              { id: 'system' as const, label: t('notifications.tabs.system'), icon: Zap },
-              { id: 'business' as const, label: t('notifications.tabs.business'), icon: Layers },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 rounded-xl px-6 py-3 text-[10px] font-black tracking-widest transition-all duration-300 ${
-                  activeTab === tab.id
-                    ? 'translate-y-[-1px] bg-primary text-white shadow-lg shadow-primary/20'
-                    : 'text-gray-500 hover:bg-white/5 hover:text-white'
-                }`}
-              >
-                <tab.icon className="h-3.5 w-3.5" />
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="relative z-10 -mt-12">
-        {loading ? (
-          <div className="flex justify-center py-20">
-            <p className="animate-pulse text-gray-400">{t('notifications.loading')}</p>
-          </div>
-        ) : isOwner ? (
-          <div className="space-y-6">
-            {activeTab === 'system' ? (
-              <div>
-                <div className="animate-in mb-8 flex w-fit items-center gap-3 rounded-2xl border border-primary/10 bg-primary/5 px-6 py-3 fade-in duration-1000">
-                  <Info className="h-4 w-4 text-primary" />
-                  <p className="text-[10px] font-black uppercase tracking-[0.1em] text-primary">
-                    {t('notifications.system.flow_banner')}
-                  </p>
+        {/* Main Content Area */}
+        <div className="relative z-10">
+          {loading ? (
+            <div className="flex justify-center py-20">
+              <p className="animate-pulse text-gray-400">{t('notifications.loading')}</p>
+            </div>
+          ) : isOwner ? (
+            <div className="space-y-8">
+              {activeTab === 'system' ? (
+                <div className="space-y-6">
+                  {renderSystemTemplateGrid(systemTemplates)}
                 </div>
-                {renderSystemTemplateGrid(systemTemplates)}
-              </div>
-            ) : (
-              <div>
-                <div className="animate-in mb-8 flex w-fit items-center gap-3 rounded-2xl border border-blue-500/10 bg-blue-500/5 px-6 py-3 fade-in duration-1000">
-                  <Info className="h-4 w-4 text-blue-400" />
-                  <p className="text-[10px] font-black uppercase tracking-[0.1em] text-blue-400">
-                    {t('notifications.business.flow_banner')}
-                  </p>
+              ) : (
+                <div className="space-y-6">
+                  {renderBusinessView()}
                 </div>
-                {renderBusinessView()}
-              </div>
-            )}
-          </div>
-        ) : (
-          renderBusinessView()
-        )}
-      </div>
+              )}
+            </div>
+          ) : (
+            renderBusinessView()
+          )}
+        </div>
 
-      <EmailTemplateModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        template={selectedTemplate}
-        onSave={handleSave}
-        isSystem={activeTab === 'system' && isOwner}
-        onPersist={isDemoMode ? persistDemoTemplate : undefined}
-        language={preferredLanguage}
-      />
+        <EmailTemplateModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          template={selectedTemplate}
+          onSave={handleSave}
+          isSystem={activeTab === 'system' && isOwner}
+          onPersist={isDemoMode ? persistDemoTemplate : undefined}
+          language={preferredLanguage}
+        />
+      </div>
     </Layout>
   );
 };

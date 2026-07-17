@@ -134,12 +134,12 @@ export const Products = () => {
   }, [searchQuery]);
 
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  
+
   const formatCurrency = (val: number | undefined) => {
     if (val === undefined || isNaN(val)) return i18n.language === 'pt' ? 'R$ 0,00' : '$ 0.00';
-    return new Intl.NumberFormat(i18n.language === 'pt' ? 'pt-BR' : 'en-US', { 
-      style: 'currency', 
-      currency: i18n.language === 'pt' ? 'BRL' : 'USD' 
+    return new Intl.NumberFormat(i18n.language === 'pt' ? 'pt-BR' : 'en-US', {
+      style: 'currency',
+      currency: i18n.language === 'pt' ? 'BRL' : 'USD'
     }).format(val);
   };
 
@@ -435,7 +435,7 @@ export const Products = () => {
                   <>
                     <div className="h-1 w-1 rounded-full bg-gray-800"></div>
                     <span className="text-[10px] text-primary font-black uppercase tracking-[0.2em]">
-                       {products.length} / {productLimit === 'unlimited' ? '∞' : productLimit} {t('products.limit_label')}
+                       {products.length} / {productLimit === 'unlimited' ? 'âˆž' : productLimit} {t('products.limit_label')}
                     </span>
                   </>
                )}
@@ -473,46 +473,93 @@ export const Products = () => {
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
               {paginatedProducts.map(product => (
-                <div key={product.id} className="group relative flex flex-col bg-[#0F0F15]/40 hover:bg-[#151520]/60 border border-white/5 hover:border-primary/30 rounded-[2.5rem] overflow-hidden transition-all duration-300">
-                  <div className="p-8 flex flex-col h-full">
+                <div
+                  key={product.id}
+                  className={`group relative flex flex-col rounded-[2.5rem] border overflow-hidden transition-all duration-500 shadow-2xl ${
+                    product.active
+                      ? 'bg-[#0C0C14] hover:bg-[#0E0E18] border-white/10 hover:border-primary/45'
+                      : 'bg-[#0C0C14]/40 hover:bg-[#0C0C14]/60 border-white/5 opacity-65 hover:opacity-90'
+                  }`}
+                >
+                  {/* Glass light reflection ray */}
+                  <div className="absolute -top-16 -left-16 w-32 h-32 bg-white/5 rounded-full blur-2xl pointer-events-none group-hover:scale-110 transition-transform duration-500" />
+
+                  {/* Dash Indicators at the top */}
+                  <div className="flex justify-center gap-1.5 pt-6 pb-2">
+                      <div className={`w-8 h-1 rounded-full ${product.active ? 'bg-primary' : 'bg-gray-800'}`} />
+                      <div className="w-8 h-1 rounded-full bg-white/5" />
+                      <div className="w-8 h-1 rounded-full bg-white/5" />
+                  </div>
+
+                  <div className="p-8 flex flex-col h-full relative z-10">
                     <div className="flex justify-between items-start mb-6">
                       <div className="min-w-0">
-                        <h3 className="text-xl font-portal-display text-white group-hover:text-primary transition-colors truncate mb-1">{product.name}</h3>
+                        <h3 className="text-xl font-portal-display text-white group-hover:text-primary transition-colors truncate mb-1.5">{product.name}</h3>
                         <div className="flex items-center gap-2">
-                           <span className="text-[10px] text-gray-700 font-black uppercase tracking-widest">{product.category || 'General'}</span>
-                           <div className="w-1 h-1 rounded-full bg-gray-800"></div>
-                           <span className={`text-[10px] font-black uppercase tracking-widest ${product.active ? 'text-emerald-500' : 'text-gray-600'}`}>{product.active ? t('common.active') : t('common.inactive')}</span>
+                           <span className="text-[10px] text-gray-500 font-black uppercase tracking-widest font-mono">{product.category || 'General'}</span>
+                           <div className="w-1 h-1 rounded-full bg-gray-800" />
+                           <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[7px] font-black uppercase tracking-widest border transition-all ${
+                             product.active
+                               ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                               : 'bg-white/5 text-gray-500 border-white/10'
+                           }`}>
+                             {product.active ? t('common.active') : t('common.inactive')}
+                           </span>
                         </div>
                       </div>
-                      <button onClick={() => handleCopyId(product.id)} className="p-2 rounded-xl bg-white/5 border border-white/10 text-gray-600 hover:text-white transition-colors">
+                      <button onClick={() => handleCopyId(product.id)} className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-gray-500 hover:text-white transition-colors active:scale-95">
                         {copiedId === product.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                       </button>
                     </div>
 
-                    <div className="relative w-full aspect-video rounded-[1.8rem] overflow-hidden bg-black/40 border border-white/5 mb-6">
-                      {product.imageUrl ? <img src={product.imageUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" /> : <div className="w-full h-full flex items-center justify-center"><ImageIcon className="w-10 h-10 text-gray-800" /></div>}
-                      
+                    <div className="relative w-full aspect-video rounded-[1.8rem] overflow-hidden bg-black/40 border border-white/5 mb-6 shadow-inner">
+                      {product.imageUrl ? (
+                        <img src={product.imageUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-b from-white/5 to-transparent">
+                          <ImageIcon className="w-10 h-10 text-gray-800" />
+                        </div>
+                      )}
+
                       {/* Price Badge Over Image */}
-                      <div className="absolute bottom-4 right-4 bg-black/60 backdrop-blur-md px-4 py-2 rounded-xl border border-white/10 text-white font-portal-display text-lg">
+                      <div className="absolute bottom-4 right-4 bg-[#0C0C14]/90 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/10 text-white font-portal-display font-black text-lg shadow-lg">
                          {new Intl.NumberFormat(i18n.language === 'pt' ? 'pt-BR' : 'en-US', { style: 'currency', currency: i18n.language === 'pt' ? 'BRL' : 'USD' }).format(product.price_real || 0)}
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2 flex-wrap mb-8">
-                       {product.is_order_bump && <span className="text-[8px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-500 border border-emerald-500/10 px-2 py-1 rounded-md">Order Bump</span>}
-                       {product.is_upsell && <span className="text-[8px] font-black uppercase tracking-widest bg-blue-500/10 text-blue-500 border border-blue-500/10 px-2 py-1 rounded-md">Upsell</span>}
+                       {product.is_order_bump && (
+                         <span className="text-[8px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-400 border border-emerald-500/15 px-2.5 py-1 rounded-lg">
+                           Order Bump
+                         </span>
+                       )}
+                       {product.is_upsell && (
+                         <span className="text-[8px] font-black uppercase tracking-widest bg-blue-500/10 text-blue-400 border border-blue-500/15 px-2.5 py-1 rounded-lg">
+                           Upsell
+                         </span>
+                       )}
+                       {product.member_area_action === 'checkout' && (
+                         <span className="text-[8px] font-black uppercase tracking-widest bg-purple-500/10 text-purple-400 border border-purple-500/15 px-2.5 py-1 rounded-lg">
+                           Ãrea de Membros
+                         </span>
+                       )}
+                       {product.member_area_action === 'file' && (
+                         <span className="text-[8px] font-black uppercase tracking-widest bg-amber-500/10 text-amber-400 border border-amber-500/15 px-2.5 py-1 rounded-lg">
+                           Download PDF/ZIP
+                         </span>
+                       )}
                     </div>
 
                     <div className="flex gap-3 mt-auto">
-                       <button 
-                        onClick={() => openEdit(product)} 
-                        className="flex-1 bg-white/5 hover:bg-white/10 text-white py-4 rounded-2xl text-xs font-black uppercase tracking-widest border border-white/5 transition-all flex items-center justify-center gap-2"
+                       <button
+                         onClick={() => openEdit(product)}
+                         className="flex-1 bg-primary hover:bg-primary-hover text-white py-3.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-[0_4px_16px_rgba(138,43,226,0.35)] active:scale-[0.98]"
                        >
                          <Edit2 className="w-4 h-4" /> {t('products.edit_btn')}
                        </button>
-                       <button 
-                        onClick={() => handleDeleteClick(product.id)} 
-                        className="w-14 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-2xl flex items-center justify-center border border-red-500/10 transition-all"
+                       <button
+                         onClick={() => handleDeleteClick(product.id)}
+                         className="w-14 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-2xl flex items-center justify-center border border-red-500/15 transition-all hover:text-red-300"
                        >
                          <Trash2 className="w-5 h-5" />
                        </button>
@@ -550,7 +597,7 @@ export const Products = () => {
           </button>
           <div>
             <h1 className="text-4xl font-portal-display text-white uppercase leading-none">{editingId ? t('products.edit_title') : t('products.new_title')}</h1>
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-600 mt-2">Configuração de Produto</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-600 mt-2">ConfiguraÃ§Ã£o de Produto</p>
           </div>
         </div>
         <Button onClick={handleSave} isLoading={loading} variant="primary" className="px-10 py-5 font-black uppercase text-xs tracking-widest rounded-3xl border-none shadow-2xl transition-all active:scale-95 flex items-center gap-3">
@@ -585,7 +632,7 @@ export const Products = () => {
               accept={PRODUCT_DELIVERABLE_INPUT_ACCEPT}
               onChange={handleDeliverableUpload}
             />
-            
+
             <div className="space-y-4">
                <div>
                   <label className="text-[10px] text-gray-600 font-black uppercase tracking-widest mb-2 block">{t('products.external_url_label')}</label>
@@ -603,12 +650,12 @@ export const Products = () => {
                 <h3 className="text-[10px] font-black text-gray-600 uppercase tracking-widest mb-6 px-1">Resumo Financeiro</h3>
                 <div className="space-y-6">
                    <div>
-                      <p className="text-[10px] font-black uppercase tracking-widest text-primary mb-1">Preço Final</p>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-primary mb-1">PreÃ§o Final</p>
                       <p className="text-4xl font-portal-display text-white">{formatCurrency(formData.price_real)}</p>
                    </div>
                    {formData.price_fake > 0 && (
                      <div>
-                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-700 mb-1">Preço Comparativo</p>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-700 mb-1">PreÃ§o Comparativo</p>
                         <p className="text-2xl font-portal-display text-gray-800 line-through decoration-red-500/50">{formatCurrency(formData.price_fake)}</p>
                      </div>
                    )}
@@ -618,13 +665,13 @@ export const Products = () => {
         </div>
 
         <div className="lg:col-span-2 space-y-10">
-          {/* Informações Básicas */}
+          {/* InformaÃ§Ãµes BÃ¡sicas */}
           <section className="space-y-6">
              <div className="flex items-center gap-3 mb-6">
                 <div className="w-10 h-10 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
                    <Layers className="w-5 h-5" />
                 </div>
-                <h2 className="text-2xl font-portal-display text-white uppercase tracking-tight">Informações Básicas</h2>
+                <h2 className="text-2xl font-portal-display text-white uppercase tracking-tight">InformaÃ§Ãµes BÃ¡sicas</h2>
              </div>
 
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -689,13 +736,13 @@ export const Products = () => {
              </div>
           </section>
 
-          {/* Configurações de Fluxo */}
+          {/* ConfiguraÃ§Ãµes de Fluxo */}
           <section className="space-y-8 pt-10 border-t border-white/5">
               <div className="flex items-center gap-3 mb-6">
                 <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
                    <Zap className="w-5 h-5" />
                 </div>
-                <h2 className="text-2xl font-portal-display text-white uppercase tracking-tight">Fluxo & Estratégia</h2>
+                <h2 className="text-2xl font-portal-display text-white uppercase tracking-tight">Fluxo & EstratÃ©gia</h2>
              </div>
 
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -703,7 +750,7 @@ export const Products = () => {
                 {[
                   { id: 'active', label: t('products.active_label'), desc: t('products.active_desc'), icon: Check, color: 'text-emerald-500' },
                   { id: 'is_order_bump', label: 'Order Bump', desc: 'Permitir que este produto seja ofertado no checkout', icon: Layers, color: 'text-blue-400' },
-                  { id: 'is_upsell', label: 'Upsell pós-compra', desc: 'Permitir que este produto seja ofertado após a compra principal', icon: ArrowRight, color: 'text-primary' }
+                  { id: 'is_upsell', label: 'Upsell pÃ³s-compra', desc: 'Permitir que este produto seja ofertado apÃ³s a compra principal', icon: ArrowRight, color: 'text-primary' }
                 ].map(sw => (
                   <div key={sw.id} onClick={() => setFormData({ ...formData, [sw.id]: !(formData as any)[sw.id] })} className={`p-6 rounded-[2rem] border transition-all cursor-pointer flex items-center justify-between group ${ (formData as any)[sw.id] ? 'bg-white/5 border-white/20' : 'bg-black/20 border-white/5 opacity-50 hover:opacity-80'}`}>
                      <div className="flex items-center gap-4">
@@ -723,13 +770,13 @@ export const Products = () => {
              </div>
           </section>
 
-          {/* Entrega Automática */}
+          {/* Entrega AutomÃ¡tica */}
           <section className="pt-10 border-t border-white/5">
               <div className="flex items-center gap-3 mb-8">
                 <div className="w-10 h-10 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
                    <Users className="w-5 h-5" />
                 </div>
-                <h2 className="text-2xl font-portal-display text-white uppercase tracking-tight">Entrega Automática</h2>
+                <h2 className="text-2xl font-portal-display text-white uppercase tracking-tight">Entrega AutomÃ¡tica</h2>
              </div>
 
              <div className="space-y-6">
@@ -769,7 +816,7 @@ export const Products = () => {
                    {formData.member_area_action === 'checkout' && (
                      <div className="space-y-6">
                         <div>
-                           <label className="text-[10px] text-gray-600 font-black uppercase tracking-widest mb-3 block">Conteúdos Oferecidos (Multi-seleção)</label>
+                           <label className="text-[10px] text-gray-600 font-black uppercase tracking-widest mb-3 block">ConteÃºdos Oferecidos (Multi-seleÃ§Ã£o)</label>
                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-80 overflow-y-auto pr-2 custom-scrollbar">
                               {availableContents.map(cnt => (
                                 <div key={cnt.id} onClick={() => {

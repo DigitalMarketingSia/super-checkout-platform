@@ -125,6 +125,17 @@ export function isSupabaseAuthCaptchaEnabled(): boolean {
     return ['1', 'true', 'yes', 'on'].includes(String(value).trim().toLowerCase());
 }
 
+export function getSupabaseAuthCaptchaSiteKey(): string | null {
+    const value =
+        process.env.VITE_TURNSTILE_SITE_KEY
+        || process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
+        || process.env.TURNSTILE_SITE_KEY
+        || '';
+
+    const normalized = String(value).trim();
+    return normalized || null;
+}
+
 export async function logSecurityEvent(params: {
     eventType: string;
     severity: SecuritySeverity;

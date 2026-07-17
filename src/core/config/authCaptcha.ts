@@ -12,10 +12,6 @@ export function isSupabaseAuthCaptchaEnabled() {
 }
 
 export function getSupabaseAuthCaptchaSiteKey() {
-    if (!isSupabaseAuthCaptchaEnabled()) {
-        return null;
-    }
-
     const siteKey = String(getEnv('VITE_TURNSTILE_SITE_KEY') || '').trim();
     return siteKey || null;
 }

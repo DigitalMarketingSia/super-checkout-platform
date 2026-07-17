@@ -29,8 +29,10 @@ export const ActivationLogin = () => {
     const [verifyingToken, setVerifyingToken] = useState(!!token);
     const [captchaToken, setCaptchaToken] = useState<string | null>(null);
     const [captchaWidgetKey, setCaptchaWidgetKey] = useState(0);
+    const [serverCaptchaSiteKey, setServerCaptchaSiteKey] = useState<string | null>(null);
     const authCaptchaSiteKey = getSupabaseAuthCaptchaSiteKey();
-    const requiresPasswordCaptcha = mode === 'password' && Boolean(authCaptchaSiteKey);
+    const effectiveAuthCaptchaSiteKey = authCaptchaSiteKey || serverCaptchaSiteKey;
+    const requiresPasswordCaptcha = mode === 'password' && Boolean(effectiveAuthCaptchaSiteKey);
 
     const resetCaptcha = () => {
         setCaptchaToken(null);
@@ -159,6 +161,18 @@ export const ActivationLogin = () => {
             }
 
             if (!loginResponse.ok) {
+                const nextCaptchaSiteKey = typeof loginData.captchaSiteKey === 'string'
+                    ? loginData.captchaSiteKey.trim()
+                    : '';
+
+                if (loginData.error_code === 'captcha_required') {
+                    if (nextCaptchaSiteKey) {
+                        setServerCaptchaSiteKey(nextCaptchaSiteKey);
+                    } else if (!effectiveAuthCaptchaSiteKey) {
+                        throw new Error('O Supabase exigiu CAPTCHA, mas a VITE_TURNSTILE_SITE_KEY nao esta configurada no ambiente local.');
+                    }
+                }
+
                 if (loginResponse.status === 429) {
                     const mins = Math.ceil((loginData.retryAfterSec || 900) / 60);
                     throw new Error(t('activation.errors.too_many_attempts_retry', { minutes: mins }));
@@ -352,9 +366,9 @@ export const ActivationLogin = () => {
                                     </div>
                                 </div>
 
-                                {requiresPasswordCaptcha && authCaptchaSiteKey && (
+                                {requiresPasswordCaptcha && effectiveAuthCaptchaSiteKey && (
                                     <AuthCaptchaPanel
-                                        siteKey={authCaptchaSiteKey}
+                                        siteKey={effectiveAuthCaptchaSiteKey}
                                         onTokenChange={setCaptchaToken}
                                         title={t('register.captcha_title', { ns: 'auth' })}
                                         description={t('register.captcha_desc', { ns: 'auth' })}

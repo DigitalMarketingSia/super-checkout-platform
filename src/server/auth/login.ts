@@ -6,7 +6,7 @@ import {
     createStatelessLoginChallengeToken,
     TWO_FACTOR_CHALLENGE_TTL_MS,
 } from './2fa/_shared.js';
-import { isSupabaseAuthCaptchaEnabled } from './_shared.js';
+import { getSupabaseAuthCaptchaSiteKey, isSupabaseAuthCaptchaEnabled } from './_shared.js';
 
 /**
  * AUTH LOGIN PROXY — Rate Limited (Fase 15.3)
@@ -573,6 +573,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({
             error: 'Confirme que voce e humano para continuar.',
             error_code: 'captcha_required',
+            requiresCaptcha: true,
+            captchaSiteKey: getSupabaseAuthCaptchaSiteKey(),
         });
     }
     const maskedEmail = maskEmail(email);
@@ -640,6 +642,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return res.status(400).json({
                     error: 'Confirme que voce e humano para continuar.',
                     error_code: 'captcha_required',
+                    requiresCaptcha: true,
+                    captchaSiteKey: getSupabaseAuthCaptchaSiteKey(),
                 });
             }
             if (isLegacyApiKeyDisabledError(error)) {

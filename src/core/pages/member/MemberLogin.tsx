@@ -28,8 +28,10 @@ export const MemberLogin = ({ forcedSlug }: { forcedSlug?: string }) => {
     const [success, setSuccess] = useState('');
     const [captchaToken, setCaptchaToken] = useState<string | null>(null);
     const [captchaWidgetKey, setCaptchaWidgetKey] = useState(0);
+    const [serverCaptchaSiteKey, setServerCaptchaSiteKey] = useState<string | null>(null);
     const isDemoRuntime = getRuntimeMode() === 'demo';
     const authCaptchaSiteKey = getSupabaseAuthCaptchaSiteKey();
+    const effectiveAuthCaptchaSiteKey = authCaptchaSiteKey || serverCaptchaSiteKey;
 
     const resetCaptcha = () => {
         setCaptchaToken(null);
@@ -93,7 +95,7 @@ export const MemberLogin = ({ forcedSlug }: { forcedSlug?: string }) => {
                     email,
                     password,
                     target: 'local',
-                    captchaToken: authCaptchaSiteKey ? captchaToken : null,
+                    captchaToken: effectiveAuthCaptchaSiteKey ? captchaToken : null,
                 }),
             });
 
@@ -112,6 +114,18 @@ export const MemberLogin = ({ forcedSlug }: { forcedSlug?: string }) => {
             }
 
             if (!loginResponse.ok) {
+                const nextCaptchaSiteKey = typeof loginData.captchaSiteKey === 'string'
+                    ? loginData.captchaSiteKey.trim()
+                    : '';
+
+                if (loginData.error_code === 'captcha_required') {
+                    if (nextCaptchaSiteKey) {
+                        setServerCaptchaSiteKey(nextCaptchaSiteKey);
+                    } else if (!effectiveAuthCaptchaSiteKey) {
+                        throw new Error('O Supabase exigiu CAPTCHA, mas a VITE_TURNSTILE_SITE_KEY nao esta configurada no ambiente local.');
+                    }
+                }
+
                 if (loginResponse.status === 429) {
                     const mins = Math.ceil((loginData.retryAfterSec || 900) / 60);
                     throw new Error(t('login.errors.rate_limited', { count: mins }));
@@ -139,7 +153,7 @@ export const MemberLogin = ({ forcedSlug }: { forcedSlug?: string }) => {
                 setError(error.message || t('login.errors.invalid_credentials'));
             }
         } finally {
-            if (authCaptchaSiteKey) {
+            if (effectiveAuthCaptchaSiteKey) {
                 resetCaptcha();
             }
             setLoggingIn(false);
@@ -287,9 +301,9 @@ export const MemberLogin = ({ forcedSlug }: { forcedSlug?: string }) => {
                             </div>
                         </div>
 
-                        {authCaptchaSiteKey && (
+                        {effectiveAuthCaptchaSiteKey && (
                             <AuthCaptchaPanel
-                                siteKey={authCaptchaSiteKey}
+                                siteKey={effectiveAuthCaptchaSiteKey}
                                 onTokenChange={setCaptchaToken}
                                 title={t('auth:register.captcha_title')}
                                 description={t('auth:register.captcha_desc')}
@@ -299,7 +313,7 @@ export const MemberLogin = ({ forcedSlug }: { forcedSlug?: string }) => {
 
                         <button
                             type="submit"
-                            disabled={loggingIn || recovering || (authCaptchaSiteKey && !captchaToken)}
+                            disabled={loggingIn || recovering || (effectiveAuthCaptchaSiteKey && !captchaToken)}
                             className="w-full py-4 rounded-xl font-bold text-white shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                             style={{ backgroundColor: primaryColor }}
                         >
