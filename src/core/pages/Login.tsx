@@ -580,25 +580,62 @@ export const Login = () => {
       )}
 
       {/* Left Side - Visual & Branding */}
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-[#0A0A12] items-center justify-center p-12">
-        {/* Abstract Background Elements */}
-        <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0">
-          <div className="absolute top-[-20%] left-[-10%] w-[70%] h-[70%] bg-primary/20 rounded-full blur-[120px] animate-pulse-slow"></div>
-          <div className="absolute bottom-[-20%] right-[-10%] w-[60%] h-[60%] bg-purple-900/20 rounded-full blur-[100px] animate-pulse-slow delay-1000"></div>
-        </div>
+      <div className="hidden lg:flex lg:w-1/2 p-4 lg:p-6 select-none shrink-0">
+        <div className="w-full h-full relative overflow-hidden bg-[#050505] rounded-[2.5rem] flex items-center justify-center p-12 shadow-2xl">
+          
+          {/* Giant Blurred Atmospheric Lights (Outside the canvas) */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+            {/* 1. Giant Vibrant Purple Circle (#8A2BE2) */}
+            <div 
+              className="absolute rounded-full opacity-70"
+              style={{
+                width: '600px',
+                height: '600px',
+                top: '-260px',
+                left: 'calc(50% - 300px)',
+                background: '#8A2BE2',
+                filter: 'blur(120px)'
+              }}
+            />
+            {/* 2. Even Larger Lavender Circle (#E5D6FF) behind the white glow */}
+            <div 
+              className="absolute rounded-full opacity-40"
+              style={{
+                width: '750px',
+                height: '750px',
+                top: '-420px',
+                left: 'calc(50% - 375px)',
+                background: '#E5D6FF',
+                filter: 'blur(160px)'
+              }}
+            />
+            {/* 3. Giant White Circle (#FFFFFF) above the top edge */}
+            <div 
+              className="absolute rounded-full opacity-30"
+              style={{
+                width: '450px',
+                height: '450px',
+                top: '-350px',
+                left: 'calc(50% - 225px)',
+                background: '#FFFFFF',
+                filter: 'blur(90px)'
+              }}
+            />
+          </div>
 
-        <div className="relative z-10 max-w-2xl px-8 text-center lg:text-left">
-          <h1 className="text-[6rem] leading-[0.85] font-black italic tracking-tighter uppercase relative select-none">
-            <span className="block text-white transform -skew-x-6 drop-shadow-2xl">
-              Super
-            </span>
-            <span className="block text-white transform -skew-x-6 drop-shadow-2xl pl-2">
-              Checkout
-            </span>
-            <span className="block text-transparent bg-clip-text bg-gradient-to-r from-[#8257E5] to-purple-400 transform -skew-x-6 drop-shadow-2xl pl-1">
-              .App
-            </span>
-          </h1>
+          <div className="relative z-10 max-w-2xl px-8 text-left">
+            <h1 className="text-[4.5rem] lg:text-[5rem] leading-[0.85] font-black italic tracking-tighter uppercase relative select-none">
+              <span className="block text-white transform -skew-x-6 drop-shadow-2xl pl-6">
+                Super
+              </span>
+              <span className="block text-white transform -skew-x-6 drop-shadow-2xl pl-2">
+                Checkout
+              </span>
+              <span className="block text-[#8A2BE2] transform -skew-x-6 drop-shadow-2xl pl-1">
+                .App
+              </span>
+            </h1>
+          </div>
         </div>
       </div>
 
@@ -643,11 +680,11 @@ export const Login = () => {
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-gray-300 ml-1">{t('auth:login.email')}</label>
               <div className="relative group">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-primary transition-colors" />
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-black transition-colors" />
                 <input
                   type="email"
                   required
-                  className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3.5 text-white outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all placeholder:text-gray-600"
+                  className="w-full bg-[#16161F] border border-white/10 rounded-xl pl-12 pr-4 py-3.5 text-white outline-none focus:bg-white focus:text-black focus:border-white focus:ring-0 transition-all placeholder:text-gray-600"
                   placeholder="seu@email.com"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
@@ -670,12 +707,12 @@ export const Login = () => {
                   )}
                 </div>
                 <div className="relative group">
-                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-primary transition-colors" />
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-black transition-colors" />
                   <input
                     type="password"
                     required
                     minLength={6}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3.5 text-white outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all placeholder:text-gray-600"
+                    className="w-full bg-[#16161F] border border-white/10 rounded-xl pl-12 pr-4 py-3.5 text-white outline-none focus:bg-white focus:text-black focus:border-white focus:ring-0 transition-all placeholder:text-gray-600"
                     placeholder="••••••••"
                     value={password}
                     onChange={e => setPassword(e.target.value)}
@@ -707,13 +744,13 @@ export const Login = () => {
                   </button>
                 </div>
                 <div className="relative group">
-                  <ShieldCheck className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-primary transition-colors" />
+                  <ShieldCheck className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-black transition-colors" />
                   <input
                     type="text"
                     inputMode="numeric"
                     maxLength={6}
                     required
-                    className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3.5 text-white outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all placeholder:text-gray-600 tracking-[0.2em]"
+                    className="w-full bg-[#16161F] border border-white/10 rounded-xl pl-12 pr-4 py-3.5 text-white outline-none focus:bg-white focus:text-black focus:border-white focus:ring-0 transition-all placeholder:text-gray-600 tracking-[0.2em]"
                     placeholder="123456"
                     value={twoFactorCode}
                     onChange={e => setTwoFactorCode(e.target.value)}
@@ -735,16 +772,16 @@ export const Login = () => {
             <button
               type="submit"
               disabled={loading || (requiresLoginCaptcha && !captchaToken)}
-              className="w-full bg-gradient-to-r from-primary to-purple-600 hover:from-primary-hover hover:to-purple-700 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-primary/25 hover:shadow-primary/40 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed mt-4 group"
+              className="w-full bg-white hover:bg-gray-100 text-black font-bold py-4 rounded-xl transition-all shadow-lg hover:shadow-white/10 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed mt-4 group"
             >
               {loading ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
+                <Loader2 className="w-5 h-5 animate-spin text-black" />
               ) : (
                 <>
                   {mode === 'login' && t('auth:login.sign_in_button')}
                   {mode === 'recovery' && t('auth:login.send_recovery_button')}
                   {mode === 'two_factor' && 'Verificar Código'}
-                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                  <ArrowRight className="w-5 h-5 text-black group-hover:translate-x-1 transition-transform" />
                 </>
               )}
             </button>

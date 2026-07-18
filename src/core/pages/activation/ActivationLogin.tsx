@@ -338,14 +338,14 @@ export const ActivationLogin = () => {
                             <>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-400 mb-2">{t('login.email')}</label>
-                                    <div className="relative">
-                                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 w-5 h-5" />
+                                    <div className="relative group">
+                                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-black transition-colors w-5 h-5" />
                                         <input
                                             type="email"
                                             required
                                             value={email}
                                             onChange={e => setEmail(e.target.value)}
-                                            className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl py-3 pl-12 pr-4 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+                                            className="w-full bg-[#16161F] border border-white/10 rounded-xl py-3.5 pl-12 pr-4 text-white outline-none focus:bg-white focus:text-black focus:border-white focus:ring-0 transition-all placeholder:text-gray-600"
                                             placeholder={t('activation.email_placeholder')}
                                         />
                                     </div>
@@ -353,14 +353,14 @@ export const ActivationLogin = () => {
 
                                 <div>
                                     <label className="block text-sm font-medium text-gray-400 mb-2">{t('login.password')}</label>
-                                    <div className="relative">
-                                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 w-5 h-5" />
+                                    <div className="relative group">
+                                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-black transition-colors w-5 h-5" />
                                         <input
                                             type="password"
                                             required
                                             value={password}
                                             onChange={e => setPassword(e.target.value)}
-                                            className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl py-3 pl-12 pr-4 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+                                            className="w-full bg-[#16161F] border border-white/10 rounded-xl py-3.5 pl-12 pr-4 text-white outline-none focus:bg-white focus:text-black focus:border-white focus:ring-0 transition-all placeholder:text-gray-600"
                                             placeholder="********"
                                         />
                                     </div>
@@ -408,8 +408,8 @@ export const ActivationLogin = () => {
                                             Voltar
                                         </button>
                                     </div>
-                                    <div className="relative">
-                                        <ShieldCheck className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 w-5 h-5" />
+                                    <div className="relative group">
+                                        <ShieldCheck className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-black transition-colors w-5 h-5" />
                                         <input
                                             type="text"
                                             inputMode="numeric"
@@ -417,7 +417,7 @@ export const ActivationLogin = () => {
                                             required
                                             value={twoFactorCode}
                                             onChange={e => setTwoFactorCode(e.target.value)}
-                                            className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl py-3 pl-12 pr-4 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all tracking-[0.2em]"
+                                            className="w-full bg-[#16161F] border border-white/10 rounded-xl py-3.5 pl-12 pr-4 text-white outline-none focus:bg-white focus:text-black focus:border-white focus:ring-0 transition-all placeholder:text-gray-600 tracking-[0.2em]"
                                             placeholder="123456"
                                         />
                                     </div>

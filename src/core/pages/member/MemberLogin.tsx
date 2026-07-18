@@ -206,28 +206,30 @@ export const MemberLogin = ({ forcedSlug }: { forcedSlug?: string }) => {
     const primaryColor = memberArea.primary_color || '#E50914';
 
     return (
-        <div className="min-h-screen flex bg-[#141414] text-white">
+        <div className="min-h-screen flex bg-[#05050A] text-white font-sans">
             {/* Left Side - Image */}
-            <div className="hidden lg:block w-1/2 relative overflow-hidden">
-                {memberArea.login_image_url ? (
-                    <img
-                        src={memberArea.login_image_url}
-                        alt={t('login.background_alt')}
-                        className="absolute inset-0 w-full h-full object-cover"
-                    />
-                ) : (
-                    <div className="absolute inset-0 bg-gradient-to-br from-gray-900 to-black" />
-                )}
-                <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
-
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-12">
-                    {memberArea.logo_url && (
-                        <img src={memberArea.logo_url} alt={memberArea.name} className="h-24 object-contain mb-8 drop-shadow-2xl" />
+            <div className="hidden lg:block w-1/2 p-4 lg:p-6 select-none shrink-0">
+                <div className="w-full h-full relative overflow-hidden rounded-[2.5rem] border border-white/5 shadow-2xl">
+                    {memberArea.login_image_url ? (
+                        <img
+                            src={memberArea.login_image_url}
+                            alt={t('login.background_alt')}
+                            className="absolute inset-0 w-full h-full object-cover"
+                        />
+                    ) : (
+                        <div className="absolute inset-0 bg-gradient-to-br from-gray-900 to-black" />
                     )}
-                    <h1 className="text-4xl font-bold mb-4 drop-shadow-lg">{memberArea.name}</h1>
-                    <p className="text-xl text-gray-200 max-w-md drop-shadow-md">
-                        {t('login.hero_subtitle')}
-                    </p>
+                    <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
+
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-12 text-white">
+                        {memberArea.logo_url && (
+                            <img src={memberArea.logo_url} alt={memberArea.name} className="h-24 object-contain mb-8 drop-shadow-2xl" />
+                        )}
+                        <h1 className="text-4xl font-bold mb-4 drop-shadow-lg">{memberArea.name}</h1>
+                        <p className="text-xl text-gray-200 max-w-md drop-shadow-md">
+                            {t('login.hero_subtitle')}
+                        </p>
+                    </div>
                 </div>
             </div>
 
@@ -261,16 +263,15 @@ export const MemberLogin = ({ forcedSlug }: { forcedSlug?: string }) => {
                     <form onSubmit={handleLogin} className="space-y-6">
                         <div>
                             <label className="block text-sm font-medium text-gray-400 mb-2">{t('profile.email')}</label>
-                            <div className="relative">
-                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 w-5 h-5" />
+                            <div className="relative group">
+                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-black transition-colors w-5 h-5" />
                                 <input
                                     type="email"
                                     required
                                     value={email}
                                     onChange={e => setEmail(e.target.value)}
-                                    className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl py-3 pl-12 pr-4 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+                                    className="w-full bg-[#16161F] border border-white/10 rounded-xl py-3.5 pl-12 pr-4 text-white outline-none focus:bg-white focus:text-black focus:border-white focus:ring-0 transition-all placeholder:text-gray-600"
                                     placeholder="seu@email.com"
-                                    style={{ '--tw-ring-color': primaryColor } as any}
                                 />
                             </div>
                         </div>
@@ -287,16 +288,15 @@ export const MemberLogin = ({ forcedSlug }: { forcedSlug?: string }) => {
                                     {recovering ? t('profile.sending') : t('login.recover_password')}
                                 </button>
                             </div>
-                            <div className="relative">
-                                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 w-5 h-5" />
+                            <div className="relative group">
+                                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-black transition-colors w-5 h-5" />
                                 <input
                                     type="password"
                                     required
                                     value={password}
                                     onChange={e => setPassword(e.target.value)}
-                                    className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl py-3 pl-12 pr-4 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+                                    className="w-full bg-[#16161F] border border-white/10 rounded-xl py-3.5 pl-12 pr-4 text-white outline-none focus:bg-white focus:text-black focus:border-white focus:ring-0 transition-all placeholder:text-gray-600"
                                     placeholder="••••••••"
-                                    style={{ '--tw-ring-color': primaryColor } as any}
                                 />
                             </div>
                         </div>
@@ -314,33 +314,17 @@ export const MemberLogin = ({ forcedSlug }: { forcedSlug?: string }) => {
                         <button
                             type="submit"
                             disabled={loggingIn || recovering || (effectiveAuthCaptchaSiteKey && !captchaToken)}
-                            className="w-full py-4 rounded-xl font-bold text-white shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
-                            style={{ backgroundColor: primaryColor }}
+                            className="w-full bg-white hover:bg-gray-100 text-black font-bold py-4 rounded-xl transition-all shadow-lg hover:shadow-white/10 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed mt-4 group"
                         >
                             {loggingIn ? (
-                                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                <div className="w-5 h-5 border-2 border-black/30 border-t-black rounded-full animate-spin text-black" />
                             ) : (
                                 <>
-                                    {t('nav.login')} <ArrowRight className="w-5 h-5" />
+                                    {t('nav.login')} <ArrowRight className="w-5 h-5 text-black group-hover:translate-x-1 transition-transform" />
                                 </>
                             )}
                         </button>
                     </form>
-
-                    {/* Public Signup Disabled by strict architecture rules
-                    {memberArea.allow_free_signup !== false && (
-                        <div className="text-center pt-4 border-t border-white/10">
-                            <p className="text-gray-400 mb-4">Ainda não tem uma conta?</p>
-                            <Link
-                                to={`/app/${slug}/signup`}
-                                className="inline-flex items-center gap-2 text-white hover:underline transition-all"
-                                style={{ color: primaryColor }}
-                            >
-                                Criar conta gratuita
-                            </Link>
-                        </div>
-                    )}
-                    */}
                 </div>
             </div>
         </div>

@@ -67,6 +67,7 @@ export const RiskCaptcha: React.FC<RiskCaptchaProps> = ({ siteKey, onTokenChange
                 widgetIdRef.current = window.turnstile.render(containerRef.current, {
                     sitekey: siteKey,
                     theme: 'dark',
+                    size: 'flexible',
                     callback: (token: string) => onTokenChange(token),
                     'expired-callback': () => onTokenChange(null),
                     'error-callback': () => onTokenChange(null)
@@ -85,5 +86,5 @@ export const RiskCaptcha: React.FC<RiskCaptchaProps> = ({ siteKey, onTokenChange
         };
     }, [onTokenChange, siteKey]);
 
-    return <div ref={containerRef} className="min-h-[65px]" />;
+    return <div ref={containerRef} className="min-h-[65px] w-full flex justify-center items-center" />;
 };
