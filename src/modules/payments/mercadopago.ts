@@ -499,11 +499,8 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
       : {
           email: customerEmail,
           first_name: isSandboxTestName ? firstName.toUpperCase() : firstName,
+          last_name: isSandboxTestName ? firstName.toUpperCase() : (nameParts.slice(1).join(' ') || 'Super'),
         };
-
-    if (!useSavedPaymentMethod && !isSandboxTestName) {
-      payer.last_name = nameParts.slice(1).join(' ') || 'Super';
-    }
 
     const payerDocument = String(customerCpf || '').replace(/\D/g, '');
     if (!useSavedPaymentMethod && (payerDocument.length === 11 || payerDocument.length === 14)) {
