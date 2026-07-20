@@ -143,12 +143,6 @@ interface MPPaymentPayload {
   baseUrl?: string; 
 }
 
-function shouldExposeMercadoPagoDetail(gateway: any) {
-  const publicKey = String(gateway?.public_key || '').trim().toUpperCase();
-  const privateKey = String(gateway?.private_key || '').trim().toUpperCase();
-  return publicKey.startsWith('TEST-') || privateKey.startsWith('TEST-');
-}
-
 function mapMercadoPagoApiErrorMessage(message: string) {
   const normalized = String(message || '').toLowerCase();
 
@@ -180,7 +174,7 @@ function mapMercadoPagoApiErrorMessage(message: string) {
     return 'A quantidade de parcelas informada nao foi aceita pelo Mercado Pago.';
   }
 
-  return message || 'Erro na API do Mercado Pago';
+  return 'Nao foi possivel processar o pagamento agora. Revise os dados e tente novamente.';
 }
 
 function isMercadoPagoPaymentInferenceError(payload: any) {
@@ -420,7 +414,6 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
       'mercado_pago',
       paymentMethod,
     );
-    const exposeGatewayDetail = shouldExposeMercadoPagoDetail(gateway);
     const serverCurrency = getServerCurrency(checkout, mainProduct);
     if (serverCurrency !== 'BRL') {
       throw new PaymentSecurityError('PAYMENT_CURRENCY_GATEWAY_FORBIDDEN', 'Invalid checkout configuration.');
@@ -602,18 +595,23 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
     const { response, mpResult, requestId } = submission;
 
     if (!response.ok) {
-      console.error(`[MP-FETCH] Erro API (Request-ID: ${requestId}):`, mpResult);
       const detailedError = Array.isArray(mpResult?.cause) && mpResult.cause[0]?.description
         ? mpResult.cause[0].description
         : mpResult.message || 'Erro na API do Mercado Pago';
 
-      const isInternal = mpResult?.message === 'internal_error' || detailedError === 'internal_error';
-      const debugPayload = ` | RESULT: ${JSON.stringify(mpResult)} | PAYLOAD: ${JSON.stringify(effectiveBody)}`;
+      console.error('[MP-FETCH] Mercado Pago API rejected payment', {
+        orderId,
+        requestId: requestId || null,
+        status: response.status,
+        causeCode: Array.isArray(mpResult?.cause) ? mpResult.cause[0]?.code || null : null,
+        paymentMethod: String(effectiveBody.payment_method_id || paymentMethod),
+        usedIssuerId: Boolean(effectiveBody.issuer_id),
+      });
 
       throw { 
-        api_response: { content: mpResult }, 
-        message: mapMercadoPagoApiErrorMessage(detailedError) + debugPayload,
-        publicMessage: exposeGatewayDetail ? (mapMercadoPagoApiErrorMessage(detailedError) + debugPayload) : 'Nao foi possivel processar o pagamento agora.',
+        code: 'MERCADOPAGO_API_REJECTED',
+        message: detailedError,
+        publicMessage: mapMercadoPagoApiErrorMessage(detailedError),
         requestId 
       };
     }
@@ -808,15 +806,14 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
     console.error('[MP-FETCH] Payment failed:', {
       code,
       orderId,
-      message: error?.message,
-      requestId: error?.requestId
+      requestId: error?.requestId || null,
+      hasProviderFailure: Boolean(error?.requestId),
     });
 
     return {
       success: false,
-      error: `${publicMessage} | FETCH_RELIABILITY_V6`,
+      error: publicMessage,
       code,
-      details: typeof error?.message === 'string' ? error.message : null,
     };
   }
 }

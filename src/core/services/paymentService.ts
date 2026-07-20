@@ -5,7 +5,7 @@ import { demoDataService, isDemoDataRuntime } from './demoDataService';
 import { MercadoPagoAdapter } from './adapters/MercadoPagoAdapter';
 import { StripeAdapter } from './adapters/StripeAdapter';
 import { emailService } from './emailService';
-import { getApiUrl, getBaseUrl } from '../utils/apiUtils';
+import { getApiUrl } from '../utils/apiUtils';
 import { translatePaymentError } from '../utils/errorTranslator';
 import i18n from '../i18n/config';
 import type { UpgradeIntentContext } from './licenseService';
@@ -31,6 +31,41 @@ const generateUUID = () => {
     const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
     return v.toString(16);
   });
+};
+
+const debugPayment = (...args: unknown[]) => {
+  if (import.meta.env.DEV) {
+    console.debug(...args);
+  }
+};
+
+const getSafeMercadoPagoErrorMessage = (error: unknown) => {
+  const message = String((error as any)?.message || error || '').trim();
+
+  if (message.includes('valid CPF or CNPJ')) {
+    return 'Informe um CPF ou CNPJ valido para pagar com cartao no Mercado Pago.';
+  }
+
+  const customerSafePrefixes = [
+    'Nao foi possivel',
+    'Pagamento recusado',
+    'O cartao',
+    'O codigo',
+    'A data',
+    'Informe um CPF',
+    'No sandbox legado',
+    'O Mercado Pago',
+    'O token do cartao',
+    'O emissor do cartao',
+    'O documento do pagador',
+    'A quantidade de parcelas',
+  ];
+
+  if (customerSafePrefixes.some((prefix) => message.startsWith(prefix))) {
+    return message;
+  }
+
+  return 'Nao foi possivel processar o pagamento agora. Revise os dados e tente novamente.';
 };
 
 export interface ProcessPaymentRequest {
@@ -1190,17 +1225,14 @@ class PaymentService {
     // In Zero-Trust v4, private_key is NEVER sent to the frontend.
     // We only require public_key for card tokenization if applicable.
     if (!gateway.public_key) {
-      return { success: false, message: 'Mercado Pago Public Key missing in settings' };
+      return { success: false, message: 'O pagamento por cartao esta indisponivel no momento. Tente novamente mais tarde.' };
     }
-
-    // Prioritize explicit API_URL, then Vercel System URL, then fallback to window origin
-    const publicUrl = getBaseUrl();
 
     // Force the adapter to use the stable Vercel URL for the proxy to avoid custom domain issues
     // We use ?endpoint= so the adapter appends    // Use relative path to avoid CORS (Same-Origin)
     // In development, this requires a Vite proxy or will fail (but user is testing prod)
     const proxyBaseUrl = '/mp-api';
-    console.log('[PaymentService] Initializing Adapter with Base URL:', proxyBaseUrl);
+    debugPayment('[PaymentService] Initializing Mercado Pago adapter.');
 
     // Initializing MP Adapter ONLY for tokenization (uses public_key)
     const mpAdapter = new MercadoPagoAdapter('', {
@@ -1257,11 +1289,11 @@ class PaymentService {
               const vaultTokenResponse = await mpAdapter.createCardToken(tokenizationPayload, gateway.public_key);
               saveCardToken = vaultTokenResponse.token;
             } catch (vaultTokenError) {
-              console.warn('[PaymentService] Failed to generate Mercado Pago vault token for upsell reuse:', vaultTokenError);
+              debugPayment('[PaymentService] Failed to generate Mercado Pago vault token for upsell reuse.', vaultTokenError);
             }
           }
 
-          console.log('[PaymentService] Card tokenized. Brand:', mpPaymentMethodId, 'Issuer:', mpIssuer);
+          debugPayment('[PaymentService] Mercado Pago card tokenized.');
         } else if (!request.useSavedPaymentMethod && request.cardData) {
           mpPaymentMethodId = this.detectCardBrand(request.cardData.number);
         }
@@ -1269,7 +1301,7 @@ class PaymentService {
 
       // 2. Delegate Payment Creation to Backend Hub (v4 Protection)
       // Prices are recalculated server-side using checkoutId and selectedBumps.
-      console.log('[PaymentService] Calling Backend Payment Hub...');
+      debugPayment('[PaymentService] Calling Mercado Pago payment hub.');
       
       const response = await fetch('/api/payments?action=mercadopago', {
           method: 'POST',
@@ -1309,11 +1341,11 @@ class PaymentService {
       }
 
       if (!response.ok || !result.success) {
-        console.error('[PaymentService] Backend result failed:', result);
-        let errorMsg = result.error || 'Erro ao processar pagamento no Mercado Pago (Backend)';
-        // Keep technical details only in console, not in the UI
-        console.error('[PaymentService] Error details:', result.details);
-        throw new Error(errorMsg);
+        debugPayment('[PaymentService] Mercado Pago payment hub rejected the request.', {
+          status: response.status,
+          code: result?.code || null,
+        });
+        throw new Error(getSafeMercadoPagoErrorMessage(result?.error));
       }
 
       const paymentResponse = result.data;
@@ -1332,10 +1364,10 @@ class PaymentService {
       try {
         await this.savePayment(newPayment);
       } catch (err) {
-        console.warn('[PaymentService] Local payment save failed (Backend usually handles it but we log it):', err);
+        debugPayment('[PaymentService] Local Mercado Pago payment persistence failed.', err);
       }
 
-      console.log('[PaymentService] Proceeding to handle response immediately...');
+      debugPayment('[PaymentService] Mercado Pago payment response received.');
 
       const normalizedGatewayStatus = String(paymentResponse.status || '').toLowerCase();
 
@@ -1371,10 +1403,10 @@ class PaymentService {
       }
 
     } catch (error: any) {
-      console.error('[PaymentService] Mercado Pago error:', error);
+      debugPayment('[PaymentService] Mercado Pago payment failed.', error);
       return {
         success: false,
-        message: translatePaymentError(undefined, undefined, error.message || 'Failed to process with Mercado Pago')
+        message: getSafeMercadoPagoErrorMessage(error)
       };
     }
   }

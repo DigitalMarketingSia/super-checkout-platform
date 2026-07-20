@@ -47,6 +47,12 @@ const defaultPublicCheckoutConfig: CheckoutConfig = {
    timer: { active: false, minutes: 0, bg_color: '', text_color: '' },
 };
 
+const debugCheckoutPayment = (...args: unknown[]) => {
+   if (import.meta.env.DEV) {
+      console.debug(...args);
+   }
+};
+
 const normalizePublicCheckoutConfig = (value?: Partial<CheckoutConfig> | null): CheckoutConfig => ({
    fields: {
       name: value?.fields?.name ?? defaultPublicCheckoutConfig.fields.name,
@@ -1518,7 +1524,10 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
             } : undefined
          });
 
-         console.log('[PublicCheckout] processPayment returned:', result);
+         debugCheckoutPayment('[PublicCheckout] Payment processing completed.', {
+            success: result.success,
+            gatewayStatus: result.gatewayStatus || null,
+         });
 
          if (result.success) {
             if (result.requiresAction) {
@@ -1538,7 +1547,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                }
             }
 
-            console.log('[PublicCheckout] Payment success. Method:', paymentMethod);
+            debugCheckoutPayment('[PublicCheckout] Payment succeeded.', { paymentMethod });
             persistUpsellOrderContext(result.orderId, {
                id: result.orderId,
                checkout_id: data.checkout.id,
@@ -1563,7 +1572,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                if (result.redirectUrl) {
                   window.location.href = result.redirectUrl;
                } else if (paymentMethod === 'pix' && result.pixData) {
-                  console.log('[PublicCheckout] Navigating to Pix page...');
+                  debugCheckoutPayment('[PublicCheckout] Navigating to Pix payment page.');
                   const pixUrl = result.statusSignature
                      ? `/pagamento/pix/${result.orderId}?sig=${encodeURIComponent(result.statusSignature)}`
                      : `/pagamento/pix/${result.orderId}`;
@@ -1622,16 +1631,11 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
          }
 
       } catch (error: any) {
-         console.error('Payment error:', error);
-         console.error('Payment Error Details:', {
-            message: error.message,
-            stack: error.stack,
-            name: error.name
-         });
-         setProcessState('error');
-         setProcessGatewayStatus('');
-         setProcessError(error.message || t('checkout.payment_error_retry', 'Erro ao processar pagamento. Verifique seus dados e tente novamente.'));
-         setIsProcessing(false);
+          debugCheckoutPayment('[PublicCheckout] Payment processing failed.', error);
+          setProcessState('error');
+          setProcessGatewayStatus('');
+          setProcessError(t('checkout.payment_error_retry', 'Erro ao processar pagamento. Verifique seus dados e tente novamente.'));
+          setIsProcessing(false);
       }
    };
 

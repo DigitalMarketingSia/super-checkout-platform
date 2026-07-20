@@ -18,6 +18,12 @@ import { translatePaymentError } from '../../utils/errorTranslator';
 import { getRuntimeMode } from '../../config/runtimeMode';
 import { demoDataService } from '../../services/demoDataService';
 
+const debugUpsellPayment = (...args: unknown[]) => {
+    if (import.meta.env.DEV) {
+        console.debug(...args);
+    }
+};
+
 const getUpsellOrderSessionKey = (orderId?: string) => `upsell-original-order:${orderId || 'unknown'}`;
 const getUpsellPixSessionKey = (orderId?: string) => `upsell-pix-context:${orderId || 'unknown'}`;
 const toPixQrImageSrc = (value?: string | null) => {
@@ -440,7 +446,7 @@ function MercadoPagoSavedCardUpsellForm(props: {
             securityFieldRef.current = securityField;
             setReady(true);
         } catch (sdkError) {
-            console.error('[UpsellPage] Failed to initialize Mercado Pago saved card field:', sdkError);
+            debugUpsellPayment('[UpsellPage] Failed to initialize Mercado Pago saved card field.', sdkError);
             props.onError(t('upsell.gateway_init_error', 'O gateway ainda está carregando. Tente novamente em alguns segundos.'));
         }
 
@@ -449,7 +455,7 @@ function MercadoPagoSavedCardUpsellForm(props: {
                 securityFieldRef.current?.unmount?.();
                 securityFieldRef.current?.destroy?.();
             } catch (cleanupError) {
-                console.warn('[UpsellPage] Failed to cleanup Mercado Pago security field:', cleanupError);
+                debugUpsellPayment('[UpsellPage] Failed to cleanup Mercado Pago security field.', cleanupError);
             } finally {
                 securityFieldRef.current = null;
                 mpRef.current = null;
@@ -470,15 +476,14 @@ function MercadoPagoSavedCardUpsellForm(props: {
             });
 
             if (!tokenResponse?.id) {
-                const sdkError = tokenResponse?.error?.message || tokenResponse?.message || t('upsell.payment_error', 'Erro ao processar pagamento.');
-                props.onError(sdkError);
+                props.onError(t('upsell.payment_error', 'Erro ao processar pagamento.'));
                 return;
             }
 
             await props.onSubmit(tokenResponse.id);
         } catch (sdkError: any) {
-            console.error('[UpsellPage] Failed to tokenize Mercado Pago saved card:', sdkError);
-            props.onError(sdkError?.message || t('upsell.payment_error', 'Erro ao processar pagamento.'));
+            debugUpsellPayment('[UpsellPage] Failed to tokenize Mercado Pago saved card.', sdkError);
+            props.onError(t('upsell.payment_error', 'Erro ao processar pagamento.'));
         }
     };
 

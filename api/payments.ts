@@ -123,8 +123,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             });
 
             if (!result.success) {
-                const { details, data, ...safeResult } = result as any;
-                return res.status(400).json(safeResult);
+                return res.status(400).json({
+                    success: false,
+                    error: typeof result.error === 'string' && result.error.trim()
+                        ? result.error.trim()
+                        : 'Nao foi possivel processar o pagamento agora. Tente novamente.',
+                    code: typeof result.code === 'string' ? result.code : 'PAYMENT_PROCESSING_FAILED',
+                });
             }
 
             return res.status(200).json(result);
