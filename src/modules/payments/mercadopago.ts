@@ -580,9 +580,9 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
       && paymentMethod === 'credit_card'
       && !useSavedPaymentMethod
       && effectiveBody.issuer_id
-      && isMercadoPagoPaymentInferenceError(submission.mpResult)
+      && (isMercadoPagoPaymentInferenceError(submission.mpResult) || submission.mpResult?.message === 'internal_error')
     ) {
-      console.warn('[MP-FETCH] Retrying payment without issuer_id after inference error.', {
+      console.warn('[MP-FETCH] Retrying payment without issuer_id after inference/internal error.', {
         orderId,
         issuerId: effectiveBody.issuer_id,
         paymentMethodId: effectiveBody.payment_method_id,
