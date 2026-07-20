@@ -602,10 +602,13 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
         ? mpResult.cause[0].description
         : mpResult.message || 'Erro na API do Mercado Pago';
 
+      const isInternal = mpResult?.message === 'internal_error' || detailedError === 'internal_error';
+      const debugPayload = isInternal ? ` | PAYLOAD: ${JSON.stringify(effectiveBody)}` : '';
+
       throw { 
         api_response: { content: mpResult }, 
-        message: mapMercadoPagoApiErrorMessage(detailedError),
-        publicMessage: exposeGatewayDetail ? mapMercadoPagoApiErrorMessage(detailedError) : 'Nao foi possivel processar o pagamento agora.',
+        message: mapMercadoPagoApiErrorMessage(detailedError) + debugPayload,
+        publicMessage: exposeGatewayDetail ? (mapMercadoPagoApiErrorMessage(detailedError) + debugPayload) : 'Nao foi possivel processar o pagamento agora.',
         requestId 
       };
     }
