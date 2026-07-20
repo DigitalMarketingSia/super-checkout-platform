@@ -546,7 +546,7 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
       body.token = cardToken;
     }
 
-    if (paymentMethod === 'credit_card' && issuerId && !useSavedPaymentMethod) {
+    if (paymentMethod === 'credit_card' && issuerId && !useSavedPaymentMethod && !isSandboxTestName) {
       body.issuer_id = Number(issuerId);
     }
 
@@ -596,6 +596,7 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
       });
 
       const { issuer_id: _issuerId, ...bodyWithoutIssuer } = effectiveBody;
+      effectiveBody = bodyWithoutIssuer; // Restore this line!
       const retryKey = isSandboxTestName ? `${orderId}-noissuer-${Date.now()}` : `${orderId}-noissuer`;
       submission = await submitMercadoPagoPayment(effectiveBody, retryKey);
     }
