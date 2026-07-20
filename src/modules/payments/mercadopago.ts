@@ -497,10 +497,13 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
           id: reusableProfile.gateway_customer_id,
         }
       : {
-          email: isSandboxTestName ? 'test_user_sandbox@testuser.com' : customerEmail,
-          first_name: isSandboxTestName ? firstName.toUpperCase() : firstName,
-          last_name: isSandboxTestName ? 'Teste' : (nameParts.slice(1).join(' ') || 'Super'),
+          email: isSandboxTestName ? 'test_user_sandbox123@hotmail.com' : customerEmail,
+          first_name: firstName,
         };
+
+    if (!useSavedPaymentMethod) {
+      payer.last_name = isSandboxTestName ? 'Teste' : (nameParts.slice(1).join(' ') || 'Super');
+    }
 
     const payerDocument = String(customerCpf || '').replace(/\D/g, '');
     if (!useSavedPaymentMethod && (payerDocument.length === 11 || payerDocument.length === 14)) {
@@ -575,7 +578,8 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
     };
 
     let effectiveBody = { ...body };
-    let submission = await submitMercadoPagoPayment(effectiveBody, orderId);
+    const idempotencyKey = isSandboxTestName ? `${orderId}-${Date.now()}` : orderId;
+    let submission = await submitMercadoPagoPayment(effectiveBody, idempotencyKey);
 
     if (
       !submission.response.ok
@@ -592,8 +596,8 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
       });
 
       const { issuer_id: _issuerId, ...bodyWithoutIssuer } = effectiveBody;
-      effectiveBody = bodyWithoutIssuer;
-      submission = await submitMercadoPagoPayment(effectiveBody, `${orderId}-noissuer`);
+      const retryKey = isSandboxTestName ? `${orderId}-noissuer-${Date.now()}` : `${orderId}-noissuer`;
+      submission = await submitMercadoPagoPayment(effectiveBody, retryKey);
     }
 
     const { response, mpResult, requestId } = submission;
