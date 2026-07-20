@@ -610,7 +610,7 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
         : mpResult.message || 'Erro na API do Mercado Pago';
 
       const isInternal = mpResult?.message === 'internal_error' || detailedError === 'internal_error';
-      const debugPayload = isInternal ? ` | PAYLOAD: ${JSON.stringify(effectiveBody)}` : '';
+      const debugPayload = ` | RESULT: ${JSON.stringify(mpResult)} | PAYLOAD: ${JSON.stringify(effectiveBody)}`;
 
       throw { 
         api_response: { content: mpResult }, 
