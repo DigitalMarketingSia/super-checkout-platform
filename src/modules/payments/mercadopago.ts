@@ -499,7 +499,7 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
       : {
           email: isSandboxTestName ? 'test_user_sandbox@testuser.com' : customerEmail,
           first_name: isSandboxTestName ? firstName.toUpperCase() : firstName,
-          last_name: isSandboxTestName ? firstName.toUpperCase() : (nameParts.slice(1).join(' ') || 'Super'),
+          last_name: isSandboxTestName ? 'Teste' : (nameParts.slice(1).join(' ') || 'Super'),
         };
 
     const payerDocument = String(customerCpf || '').replace(/\D/g, '');
@@ -526,7 +526,9 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
       if (!useSavedPaymentMethod) {
         body.payment_method_id = paymentMethodId;
       }
-      body.binary_mode = true;
+      if (!isSandboxTestName) {
+        body.binary_mode = true;
+      }
     } else {
       body.payment_method_id = paymentMethod;
     }

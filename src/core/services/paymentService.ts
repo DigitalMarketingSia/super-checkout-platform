@@ -1234,7 +1234,7 @@ class PaymentService {
             expiration_year: expiration_year,
             security_code: request.cardData.cvc,
             cardholder: {
-              name: request.cardData.holderName,
+              name: request.cardData.holderName.toUpperCase().startsWith('APRO') ? 'APRO' : request.cardData.holderName.toUpperCase().startsWith('REJE') ? 'REJE' : request.cardData.holderName,
               identification: {
                 type: payerDocument.length === 14 ? 'CNPJ' : 'CPF',
                 number: payerDocument,
