@@ -474,7 +474,7 @@ export const MemberAreaLayout: React.FC<MemberAreaLayoutProps> = ({ children, me
                 {!memberArea?.custom_branding && (
                     <div className="flex items-center gap-2 opacity-50 text-xs mt-2">
                         <span>{t('layout.powered_by')}</span>
-                        <img src="/logo.png" alt={t('layout.logo_alt')} className="w-3 h-3 object-contain" />
+                        <img src="/logo-light.png" alt={t('layout.logo_alt')} className="w-3 h-3 object-contain" />
                         <span className="font-bold">Super Checkout</span>
                     </div>
                 )}

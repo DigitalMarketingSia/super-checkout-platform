@@ -105,7 +105,7 @@ export const ContentModules = () => {
                         'rounded-xl overflow-hidden shadow-2xl ' + (isVertical ? 'aspect-[2/3]' : 'aspect-video')
                     }>
                         <img
-                            src={(isVertical ? content.image_vertical_url : content.image_horizontal_url) || content.thumbnail_url || '/logo.png'}
+                            src={(isVertical ? content.image_vertical_url : content.image_horizontal_url) || content.thumbnail_url || '/logo-light.png'}
                             alt={content.title}
                             className="w-full h-full object-cover"
                         />

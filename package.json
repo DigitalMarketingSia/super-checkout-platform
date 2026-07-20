@@ -9,6 +9,8 @@
     "vercel:raw": "vercel dev",
     "build": "vite build",
     "preview": "vite preview",
+    "pwa:build:smoke": "node scripts/pwa-smoke-runner.cjs build",
+    "pwa:preview:smoke": "node scripts/pwa-smoke-runner.cjs preview",
     "typecheck:audit": "tsc -p tsconfig.audit.json --pretty false",
     "typecheck:api": "tsc -p tsconfig.api.audit.json --pretty false",
     "lint:audit": "eslint . --max-warnings=0",
@@ -53,6 +55,7 @@
     "rollup": "^4.60.4",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.5.0",
+    "web-push": "^3.6.7",
     "zustand": "^5.0.13"
   },
   "devDependencies": {

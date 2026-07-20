@@ -21,7 +21,9 @@ import { getPlatformPrivacyUrl, getPlatformTermsUrl } from '../../config/platfor
 import { useTranslation } from 'react-i18next';
 import { LanguageSelector } from '../../components/ui/LanguageSelector';
 import { Loading } from '../../components/ui/Loading';
+import { PwaInstallBanner } from '../../components/ui/PwaInstallBanner';
 import { LogOut, LayoutDashboard, Key, Download, PlayCircle, Shield, Menu, X, User, Crown, BarChart3, ArrowRight, ShieldCheck, TrendingUp, Eye } from 'lucide-react';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import './ActivationPortal.css';
 
 const SidebarItem = ({ icon: Icon, label, active, onClick, collapsed, highlighted }: any) => (
@@ -102,6 +104,8 @@ export const ActivationPortal: React.FC = () => {
     const [demoError, setDemoError] = useState<string | null>(null);
     const resolvedLanguage = i18n.language.toLowerCase();
     const htmlLanguage = resolvedLanguage.startsWith('en') ? 'en-US' : resolvedLanguage.startsWith('es') ? 'es-ES' : 'pt-BR';
+
+    useBodyScrollLock(sidebarOpen);
 
     const handleOpenDemo = async () => {
         setDemoLoading(true);
@@ -747,6 +751,7 @@ export const ActivationPortal: React.FC = () => {
                 </div>
 
                 <div className="p-6 lg:p-12 max-w-[1400px] mx-auto pb-32 relative">
+                    <PwaInstallBanner />
                     {renderContent()}
                 </div>
             </main>

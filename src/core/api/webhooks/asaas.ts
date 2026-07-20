@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import crypto from 'crypto';
 import { resolveLocalSupabaseServerClient } from '../_supabase-server.js';
 import { fulfillOrder } from '../../services/fulfillment.js';
+import { dispatchPaymentFailedPush } from '../../services/pushAutomation.js';
 import { decrypt } from '../../utils/cryptoUtils.js';
 import {
   buildSafeAsaasRawResponse,
@@ -52,7 +53,7 @@ async function loadOrderAndCheckout(supabaseAdmin: any, orderId?: string | null)
 
   const { data: order } = await supabaseAdmin
     .from('orders')
-    .select('id,status,checkout_id,user_id,customer_email,customer_name,payment_id,payment_method')
+    .select('*')
     .eq('id', orderId)
     .maybeSingle();
 
@@ -324,7 +325,9 @@ export async function handleAsaasWebhook(
         .eq('checkout_id', order.checkout_id);
     }
 
-    if (localStatus === 'paid' && String(order.status || '').toLowerCase() !== 'paid') {
+    const previousOrderStatus = String(order.status || '').toLowerCase();
+
+    if (localStatus === 'paid' && previousOrderStatus !== 'paid') {
       try {
         await fulfillOrder(supabaseAdmin, {
           orderId: order.id,
@@ -333,6 +336,24 @@ export async function handleAsaasWebhook(
         });
       } catch (fulfillmentError) {
         console.error('[Asaas Webhook] Fulfillment error:', fulfillmentError);
+      }
+    } else if (localStatus === 'failed' && previousOrderStatus !== 'failed') {
+      try {
+        const pushResult = await dispatchPaymentFailedPush({
+          supabaseAdmin,
+          merchantUserId: order.user_id || null,
+          orderId: order.id,
+          customerName: order.customer_name || null,
+          amount: Number(order.total ?? order.amount ?? 0) || 0,
+          paymentMethod: order.payment_method || null,
+          productNames: Array.isArray(order.items)
+            ? order.items.map((item: any) => String(item?.name || '').trim()).filter(Boolean)
+            : [],
+          failureReason: providerEvent || payload.payment.status || null,
+        });
+        console.log('[Asaas Webhook] Payment failed push result:', pushResult);
+      } catch (pushError) {
+        console.error('[Asaas Webhook] Payment failed push error:', pushError);
       }
     }
 

@@ -560,7 +560,7 @@ export const Register = () => {
 
                     <div className="relative z-20">
                         <div className="inline-flex items-center gap-3 bg-white/5 border border-white/10 px-3 py-1.5 rounded-full mb-8">
-                            <img src="/logo.png" alt={t('register.logo_alt')} className="w-3.5 h-3.5 object-contain grayscale brightness-200" />
+                            <img src="/logo-light.png" alt={t('register.logo_alt')} className="w-3.5 h-3.5 object-contain grayscale brightness-200" />
                             <span className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] italic">
                                 {t('register.success_badge')}
                             </span>
@@ -812,7 +812,7 @@ export const Register = () => {
                     <div className="relative z-20">
                         <div className="text-center mb-10">
                             <div className="inline-flex items-center gap-3 bg-white/5 border border-white/10 px-3 py-1.5 rounded-full mb-6">
-                                <img src="/logo.png" alt={t('register.logo_alt')} className="w-3.5 h-3.5 object-contain grayscale brightness-200" />
+                                <img src="/logo-light.png" alt={t('register.logo_alt')} className="w-3.5 h-3.5 object-contain grayscale brightness-200" />
                                 <span className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] italic">
                                     {t('register.waitlist_badge')}
                                 </span>
@@ -943,7 +943,7 @@ export const Register = () => {
             <div className="relative z-10 w-full max-w-6xl grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
                 <div className="hidden lg:block animate-in fade-in slide-in-from-left-8 duration-1000">
                     <div className="inline-flex items-center gap-3 bg-white/5 border border-white/10 px-4 py-2 rounded-full mb-8 backdrop-blur-xl">
-                        <img src="/logo.png" alt={t('register.logo_alt')} className="w-4 h-4 object-contain grayscale brightness-200" />
+                        <img src="/logo-light.png" alt={t('register.logo_alt')} className="w-4 h-4 object-contain grayscale brightness-200" />
                         <span className="text-[10px] font-black text-gray-300 uppercase tracking-[0.2em] italic">
                             {t('register.hero_subtitle')}
                         </span>

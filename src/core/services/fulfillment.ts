@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { buildOrderDeliverables, stripSensitiveDeliverableFields } from './orderDeliverables.js';
 import { mergeOrderMetadata, normalizeOrderMetadata } from './orderMetadata.js';
+import { dispatchSaleApprovedPush } from './pushAutomation.js';
 
 type SupabaseAdmin = any;
 
@@ -499,6 +500,21 @@ export async function fulfillOrder(
     fulfilled_at: new Date().toISOString(),
     fulfillment_access_granted_count: accessGrantedCount,
   });
+
+  try {
+    const pushResult = await dispatchSaleApprovedPush({
+      supabaseAdmin,
+      merchantUserId: order.user_id || null,
+      orderId,
+      customerName: payerName,
+      amount: Number(order.total ?? order.amount ?? 0) || 0,
+      paymentMethod: order.payment_method || null,
+      productNames: items.map((item: any) => String(item?.name || '').trim()).filter(Boolean),
+    });
+    console.log('[FulfillmentService] Sale approved push result:', pushResult);
+  } catch (pushError: any) {
+    console.warn('[FulfillmentService] Sale approved push failed:', pushError?.message || pushError);
+  }
 
   return {
     success: true,

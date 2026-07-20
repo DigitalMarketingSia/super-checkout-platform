@@ -496,7 +496,7 @@ export const PixPayment = () => {
 
 
   if (loading) {
-    return <Loading label={t('pix.loading', 'Carregando pagamento')} />;
+    return <Loading label={t('pix.loading', 'Carregando pagamento')} light />;
   }
 
   return (

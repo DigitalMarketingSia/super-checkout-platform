@@ -290,10 +290,10 @@ export const Webhooks = () => {
     >
       <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/2 pointer-events-none" />
 
-      <div className="relative z-10 flex flex-col gap-6 mb-12">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <div className="relative z-10 mb-8 flex flex-col gap-6 sm:mb-12">
+        <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-5xl font-portal-display text-white italic tracking-tighter mb-4">
+            <h1 className="mb-3 text-4xl font-portal-display italic tracking-tighter text-white sm:mb-4 sm:text-5xl">
               {t('webhooks.title', 'Central de webhooks')}
             </h1>
             <p className="text-gray-500 font-medium max-w-xl">
@@ -302,45 +302,47 @@ export const Webhooks = () => {
           </div>
           <Button
             onClick={openNew}
-            className="h-16 px-10 rounded-[2rem] bg-primary hover:bg-primary-hover text-white font-black text-xs uppercase tracking-widest shadow-2xl shadow-primary/20 flex items-center gap-3 transition-all active:scale-95"
+            className="flex h-14 w-full items-center justify-center gap-3 rounded-[1.5rem] bg-primary px-6 text-xs font-black uppercase tracking-widest text-white shadow-2xl shadow-primary/20 transition-all active:scale-95 hover:bg-primary-hover sm:h-16 sm:w-auto sm:rounded-[2rem] sm:px-10"
           >
             <Plus className="w-5 h-5" /> {t('webhooks.new_integration', 'Nova integracao')}
           </Button>
         </div>
 
         {demoWebhookMode && (
-          <div className="rounded-[2rem] border border-primary/20 bg-primary/10 px-6 py-5 text-sm text-primary-light">
+          <div className="rounded-[1.5rem] border border-primary/20 bg-primary/10 px-4 py-4 text-sm text-primary-light sm:rounded-[2rem] sm:px-6 sm:py-5">
             {t('webhooks.demo_banner', 'Os webhooks do demo disparam de verdade a partir desta sessao e deste navegador. Todos os payloads saem marcados com')} <code className="font-mono">demo: true</code>.
           </div>
         )}
       </div>
 
-      <div className="relative z-10 flex p-1.5 bg-white/5 backdrop-blur-xl rounded-[1.5rem] border border-white/5 mb-10 w-fit">
-        <button
-          onClick={() => setActiveTab('outgoing')}
-          className={`px-8 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all duration-300 ${activeTab === 'outgoing' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-gray-500 hover:text-white'}`}
-        >
-          {t('webhooks.tabs.outgoing', 'Saida')}
-        </button>
-        <button
-          onClick={() => setActiveTab('incoming')}
-          className={`px-8 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all duration-300 ${activeTab === 'incoming' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-gray-500 hover:text-white'}`}
-        >
-          {t('webhooks.tabs.incoming', 'Entrada')}
-        </button>
-        <button
-          onClick={() => setActiveTab('history')}
-          className={`px-8 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all duration-300 ${activeTab === 'history' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-gray-500 hover:text-white'}`}
-        >
-          {t('webhooks.tabs.history', 'Historico')}
-        </button>
+      <div className="relative z-10 mb-8 w-full overflow-x-auto pb-1 sm:mb-10">
+        <div className="flex min-w-full gap-1.5 rounded-[1.5rem] border border-white/5 bg-white/5 p-1.5 backdrop-blur-xl sm:w-fit sm:min-w-0">
+          <button
+            onClick={() => setActiveTab('outgoing')}
+            className={`flex-1 rounded-2xl px-4 py-3 text-xs font-black uppercase tracking-widest transition-all duration-300 sm:flex-none sm:px-8 ${activeTab === 'outgoing' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-gray-500 hover:text-white'}`}
+          >
+            {t('webhooks.tabs.outgoing', 'Saida')}
+          </button>
+          <button
+            onClick={() => setActiveTab('incoming')}
+            className={`flex-1 rounded-2xl px-4 py-3 text-xs font-black uppercase tracking-widest transition-all duration-300 sm:flex-none sm:px-8 ${activeTab === 'incoming' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-gray-500 hover:text-white'}`}
+          >
+            {t('webhooks.tabs.incoming', 'Entrada')}
+          </button>
+          <button
+            onClick={() => setActiveTab('history')}
+            className={`flex-1 rounded-2xl px-4 py-3 text-xs font-black uppercase tracking-widest transition-all duration-300 sm:flex-none sm:px-8 ${activeTab === 'history' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-gray-500 hover:text-white'}`}
+          >
+            {t('webhooks.tabs.history', 'Historico')}
+          </button>
+        </div>
       </div>
 
       <div className="relative z-10">
         {activeTab === 'outgoing' && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {!loading && webhooks.length === 0 ? (
-              <div className="text-center py-24 bg-white/5 rounded-[2.5rem] border border-dashed border-white/10">
+              <div className="rounded-[2rem] border border-dashed border-white/10 bg-white/5 py-20 text-center sm:rounded-[2.5rem] sm:py-24">
                 <Globe className="w-16 h-16 text-gray-700 mx-auto mb-6" />
                 <h3 className="text-xl font-bold text-white mb-2">{t('webhooks.empty_title', 'Sem conexoes ativas')}</h3>
                 <p className="text-gray-500 mb-10 max-w-sm mx-auto">
@@ -349,7 +351,7 @@ export const Webhooks = () => {
                 <div className="flex justify-center">
                   <Button
                     onClick={openNew}
-                    className="min-w-[240px] justify-center rounded-2xl bg-white/5 hover:bg-white/10 text-white font-bold border border-white/10 px-8 py-4"
+                    className="w-full max-w-sm justify-center rounded-2xl border border-white/10 bg-white/5 px-8 py-4 font-bold text-white hover:bg-white/10 sm:min-w-[240px] sm:w-auto"
                   >
                     {t('webhooks.start_integration', 'Iniciar integracao')}
                   </Button>
@@ -358,14 +360,14 @@ export const Webhooks = () => {
             ) : (
               <div className="grid grid-cols-1 gap-6">
                 {webhooks.map((webhook) => (
-                  <Card key={webhook.id} noPadding className="group overflow-hidden bg-black/40 border-white/5 hover:border-primary/40 transition-all rounded-[2.5rem]">
-                    <div className="p-8 flex flex-col gap-6">
-                      <div className="flex flex-col lg:flex-row lg:items-center gap-6">
-                        <div className="flex flex-col items-center">
+                  <Card key={webhook.id} noPadding className="group overflow-hidden rounded-[2rem] border-white/5 bg-black/40 transition-all hover:border-primary/40 sm:rounded-[2.5rem]">
+                    <div className="flex flex-col gap-5 p-4 sm:gap-6 sm:p-8">
+                      <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:gap-6">
+                        <div className="flex items-center gap-3 sm:flex-col sm:items-center">
                           <div className={`w-4 h-4 rounded-full relative ${webhook.active ? 'bg-primary' : 'bg-gray-800'}`}>
                             {webhook.active && <div className="absolute inset-0 rounded-full bg-primary animate-ping opacity-40 scale-150" />}
                           </div>
-                          <span className="text-[9px] font-black tracking-widest text-gray-700 mt-2 uppercase">
+                          <span className="text-[9px] font-black tracking-widest text-gray-700 uppercase sm:mt-2">
                             {webhook.active ? t('webhooks.status.active', 'Ativo') : t('webhooks.status.paused', 'Pausado')}
                           </span>
                         </div>
@@ -382,12 +384,25 @@ export const Webhooks = () => {
                           {webhook.description && (
                             <p className="text-sm text-gray-500 mb-3">{webhook.description}</p>
                           )}
-                          <div className="flex items-center gap-3 bg-white/5 p-3 rounded-xl border border-white/5 w-fit group-hover:bg-white/10 transition-all">
+                          <div className="flex w-full min-w-0 items-center gap-3 rounded-xl border border-white/5 bg-white/5 p-3 transition-all group-hover:bg-white/10 lg:w-fit">
                             <Globe className="w-3.5 h-3.5 text-gray-500" />
-                            <span className="text-xs font-mono text-gray-400 truncate max-w-[320px]">{webhook.url}</span>
-                            <button onClick={() => copyToClipboard(webhook.url)} className="text-gray-600 hover:text-white transition-colors">
+                            <span className="min-w-0 flex-1 truncate text-xs font-mono text-gray-400 lg:max-w-[320px]">{webhook.url}</span>
+                            <button onClick={() => copyToClipboard(webhook.url)} className="shrink-0 text-gray-600 transition-colors hover:text-white">
                               <Copy className="w-3.5 h-3.5" />
                             </button>
+                          </div>
+
+                          <div className="mt-3 flex lg:hidden">
+                            <div className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1 font-mono text-[11px] font-bold ${webhook.last_fired_at
+                              ? webhook.last_status && webhook.last_status >= 200 && webhook.last_status < 300
+                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                : 'bg-red-500/10 text-red-400 border-red-500/20'
+                              : 'border-white/10 bg-white/5 text-gray-500'
+                              }`}>
+                              {webhook.last_fired_at
+                                ? `${webhook.last_status} ${webhook.last_status === 200 ? t('webhooks.status.ok_short', 'OK') : t('webhooks.status.error_short', 'ERR')}`
+                                : t('webhooks.no_data', 'Sem dados')}
+                            </div>
                           </div>
                         </div>
 
@@ -406,21 +421,21 @@ export const Webhooks = () => {
                           )}
                         </div>
 
-                        <div className="flex items-center gap-3">
+                        <div className="flex w-full items-center gap-2 sm:w-auto sm:gap-3">
                           <Button
                             size="sm"
                             onClick={() => void handleTest(webhook)}
                             variant="ghost"
-                            className="bg-white/5 hover:bg-white/10 rounded-xl h-12 px-6 font-bold border border-white/5"
+                            className="h-12 flex-1 rounded-xl border border-white/5 bg-white/5 px-4 font-bold hover:bg-white/10 sm:flex-none sm:px-6"
                             disabled={testingId === webhook.id}
                           >
                             <Play className="w-4 h-4 text-primary mr-2" />
                             {testingId === webhook.id ? t('webhooks.testing', 'Testando...') : t('common.test', 'Testar')}
                           </Button>
-                          <button onClick={() => openEdit(webhook)} className="w-12 h-12 flex items-center justify-center bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 border border-white/5 transition-all">
+                          <button onClick={() => openEdit(webhook)} className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-white/5 bg-white/5 text-gray-400 transition-all hover:bg-white/10">
                             <Settings className="w-5 h-5" />
                           </button>
-                          <button onClick={() => void handleDeleteClick(webhook.id)} className="w-12 h-12 flex items-center justify-center bg-red-500/5 hover:bg-red-500/10 rounded-xl text-gray-700 hover:text-red-500 border border-white/5 transition-all">
+                          <button onClick={() => void handleDeleteClick(webhook.id)} className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-white/5 bg-red-500/5 text-gray-700 transition-all hover:bg-red-500/10 hover:text-red-500">
                             <Trash2 className="w-5 h-5" />
                           </button>
                         </div>
@@ -443,12 +458,12 @@ export const Webhooks = () => {
 
         {activeTab === 'history' && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="bg-black/40 border border-white/5 rounded-[2rem] overflow-hidden backdrop-blur-xl">
-              <div className="p-6 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
+            <div className="overflow-hidden rounded-[2rem] border border-white/5 bg-black/40 backdrop-blur-xl">
+              <div className="flex flex-col gap-3 border-b border-white/5 bg-white/[0.02] p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6">
                 <h3 className="text-sm font-black uppercase tracking-widest text-white flex items-center gap-3">
                   <Terminal className="w-4 h-4 text-primary" /> {t('webhooks.recent_log', 'Log recente')}
                 </h3>
-                <Button variant="ghost" size="sm" onClick={exportCSV} className="text-[10px] font-bold text-gray-500 uppercase">
+                <Button variant="ghost" size="sm" onClick={exportCSV} className="w-full text-[10px] font-bold uppercase text-gray-500 sm:w-auto">
                   {t('webhooks.export_csv', 'Exportar CSV')}
                 </Button>
               </div>
@@ -459,8 +474,8 @@ export const Webhooks = () => {
                   logs
                     .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
                     .map((log) => (
-                      <div key={log.id} className="p-4 flex items-center justify-between hover:bg-white/[0.02] transition-colors">
-                        <div className="flex items-center gap-4">
+                      <div key={log.id} className="flex flex-col gap-3 p-4 transition-colors hover:bg-white/[0.02] sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex items-start gap-4 sm:items-center">
                           <span className={`px-2 py-1 rounded text-[10px] font-black border ${(log.response_status || 0) < 400
                             ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
                             : 'bg-red-500/10 text-red-400 border-red-500/20'
@@ -473,7 +488,7 @@ export const Webhooks = () => {
                             <p className="text-[10px] text-gray-500">{new Date(log.created_at).toLocaleString()}</p>
                           </div>
                         </div>
-                        <button onClick={() => setViewLog(log)} className="px-4 py-2 bg-white/5 hover:bg-primary rounded-lg text-xs font-black uppercase text-gray-400 hover:text-white transition-all">
+                        <button onClick={() => setViewLog(log)} className="w-full rounded-lg bg-white/5 px-4 py-2 text-xs font-black uppercase text-gray-400 transition-all hover:bg-primary hover:text-white sm:w-auto">
                           {t('webhooks.payload', 'Payload')}
                         </button>
                       </div>
@@ -485,29 +500,29 @@ export const Webhooks = () => {
         )}
 
         {activeTab === 'incoming' && (
-          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-5xl space-y-10">
-            <div className="bg-gradient-to-br from-primary/10 via-purple-500/5 to-transparent rounded-[2.5rem] p-10 border border-white/5 mb-10 overflow-hidden relative">
+          <div className="max-w-5xl space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 sm:space-y-10">
+            <div className="relative mb-8 overflow-hidden rounded-[2rem] border border-white/5 bg-gradient-to-br from-primary/10 via-purple-500/5 to-transparent p-5 sm:mb-10 sm:rounded-[2.5rem] sm:p-10">
               <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2" />
               <div className="relative z-10">
-                <h2 className="text-3xl font-portal-display text-white italic tracking-tight mb-4">
+                <h2 className="mb-4 text-2xl font-portal-display italic tracking-tight text-white sm:text-3xl">
                   {t('webhooks.incoming_title', 'Webhooks de entrada')}
                 </h2>
-                <p className="text-gray-400 font-medium mb-8 max-w-2xl leading-relaxed">
+                <p className="mb-6 max-w-2xl text-gray-400 font-medium leading-relaxed sm:mb-8">
                   {t('webhooks.incoming_desc', 'Orquestre seu ecossistema. Utilize nossa API de borda para atualizar status e sincronizar dados.')}
                 </p>
-                <div className="bg-black/60 backdrop-blur-3xl rounded-[1.5rem] p-6 border border-primary/20 flex flex-col md:flex-row items-center justify-between gap-6">
-                  <code className="text-primary-light font-mono text-sm break-all font-bold">
+                <div className="flex flex-col gap-4 rounded-[1.5rem] border border-primary/20 bg-black/60 p-4 backdrop-blur-3xl sm:p-6 md:flex-row md:items-center md:justify-between md:gap-6">
+                  <code className="text-sm font-bold text-primary-light font-mono break-all">
                     {typeof window !== 'undefined' ? window.location.origin : 'https://api.supercheckout.app'}/api/v1/webhooks/incoming/{'{integration_id}'}
                   </code>
-                  <Button onClick={() => copyToClipboard(`${window.location.origin}/api/v1/webhooks/incoming/{integration_id}`)} size="sm" className="rounded-xl bg-primary text-white font-black px-6 h-12 shrink-0 shadow-lg">
+                  <Button onClick={() => copyToClipboard(`${window.location.origin}/api/v1/webhooks/incoming/{integration_id}`)} size="sm" className="h-12 w-full shrink-0 rounded-xl bg-primary px-6 font-black text-white shadow-lg sm:w-auto">
                     {t('webhooks.copy_endpoint', 'Copiar endpoint')}
                   </Button>
                 </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <Card className="bg-black/40 border-white/5 rounded-[2rem] p-8">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-8">
+              <Card className="rounded-[2rem] border-white/5 bg-black/40 p-5 sm:p-8">
                 <h3 className="text-xs font-black text-gray-500 uppercase tracking-[0.2em] mb-6">{t('webhooks.run_curl', 'Executar CURL')}</h3>
                 <pre className="bg-[#050505] p-6 rounded-2xl text-[11px] text-gray-400 font-mono overflow-x-auto border border-white/5">
                   {`curl -X POST /api/v1/inbound \\
@@ -515,7 +530,7 @@ export const Webhooks = () => {
 -d '{"event": "test"}'`}
                 </pre>
               </Card>
-              <Card className="bg-black/40 border-white/5 rounded-[2rem] p-8">
+              <Card className="rounded-[2rem] border-white/5 bg-black/40 p-5 sm:p-8">
                 <h3 className="text-xs font-black text-gray-500 uppercase tracking-[0.2em] mb-6">{t('webhooks.events', 'Eventos')}</h3>
                 <div className="space-y-2">
                   {eventOptions.map((option) => (
@@ -532,7 +547,7 @@ export const Webhooks = () => {
       </div>
 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
-        <div className="p-8">
+        <div className="p-4 sm:p-8">
           <h2 className="text-2xl font-portal-display text-white italic mb-6">
             {editingWebhook ? t('webhooks.configure_webhook', 'Configurar webhook') : t('webhooks.new_integration', 'Nova integracao')}
           </h2>
@@ -629,11 +644,11 @@ export const Webhooks = () => {
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 mt-8">
-              <Button variant="ghost" onClick={() => setIsModalOpen(false)} type="button">
+            <div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <Button variant="ghost" onClick={() => setIsModalOpen(false)} type="button" className="w-full sm:w-auto">
                 {t('common.cancel', 'Cancelar')}
               </Button>
-              <Button type="submit" disabled={saving}>
+              <Button type="submit" disabled={saving} className="w-full sm:w-auto">
                 {saving ? t('webhooks.form.saving', 'Salvando...') : t('webhooks.form.save', 'Salvar webhook')}
               </Button>
             </div>
@@ -643,15 +658,15 @@ export const Webhooks = () => {
 
       <Modal isOpen={!!viewLog} onClose={() => setViewLog(null)}>
         {viewLog && (
-          <div className="p-8">
+          <div className="p-4 sm:p-8">
             <h2 className="text-2xl font-portal-display text-white italic mb-6">{t('webhooks.inspect_trace', 'Inspecionar rastro')}</h2>
-            <div className="bg-black/40 p-6 rounded-2xl border border-white/5">
+            <div className="rounded-2xl border border-white/5 bg-black/40 p-4 sm:p-6">
               <pre className="text-xs font-mono text-primary-light overflow-x-auto">
                 {tryFormatJson(viewLog.payload)}
               </pre>
             </div>
             <div className="mt-8 flex justify-end">
-              <Button onClick={() => setViewLog(null)}>{t('common.close', 'Fechar')}</Button>
+              <Button onClick={() => setViewLog(null)} className="w-full sm:w-auto">{t('common.close', 'Fechar')}</Button>
             </div>
           </div>
         )}

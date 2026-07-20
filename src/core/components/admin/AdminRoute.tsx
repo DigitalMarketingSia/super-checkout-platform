@@ -15,7 +15,7 @@ export const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }
     }
 
     if (!user) {
-        return <Navigate to={isDemoMode ? '/demo' : '/login'} replace />;
+        return <Navigate to={isDemoMode ? '/demo' : '/admin/login'} replace />;
     }
 
     const effectiveRole = profile?.effective_role || profile?.role;

@@ -61,7 +61,7 @@ export const Sidebar = () => {
             className="relative w-10 h-10 group bg-black/20 rounded-xl flex items-center justify-center mb-4 border border-white/5 hover:border-cyan-500/50 hover:bg-cyan-500/10 transition-all hover:shadow-[0_0_15px_rgba(6,182,212,0.3)]"
             title={t('flow.sidebar.back_admin')}
           >
-            <img src="/logo.png" alt="Super Checkout" className="w-6 h-6 object-contain relative z-10 group-hover:scale-110 transition-transform" />
+            <img src="/logo-light.png" alt="Super Checkout" className="w-6 h-6 object-contain relative z-10 group-hover:scale-110 transition-transform" />
           </button>
 
           <button

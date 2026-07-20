@@ -1399,7 +1399,7 @@ export const UpsellPage = () => {
         window.setTimeout(() => setPixCopied(false), 2000);
     };
 
-    if (loading) return <Loading label={t('upsell.loading', 'Carregando oferta')} />;
+    if (loading) return <Loading label={t('upsell.loading', 'Carregando oferta')} light />;
     if (error) return <div className="min-h-screen bg-black flex items-center justify-center text-white">{error}</div>;
     if (pixCode) {
         return (
@@ -1653,7 +1653,7 @@ export const UpsellPage = () => {
                                             onSubmit={async (stripePaymentMethodId) => processPurchase('credit_card', undefined, { stripePaymentMethodId })}
                                         />
                                     </Elements>
-                                ) : <Loading label={t('upsell.loading_gateway', 'Carregando formulário seguro')} />
+                                ) : <Loading label={t('upsell.loading_gateway', 'Carregando formulário seguro')} light />
                             ) : gateway?.name === 'mercado_pago' ? (
                                 canAttemptSavedMercadoPagoCharge && !useManualMercadoPagoForm && gateway.public_key && upsellCapability.saved_profile?.gateway_payment_method_id ? (
                                     <MercadoPagoSavedCardUpsellForm

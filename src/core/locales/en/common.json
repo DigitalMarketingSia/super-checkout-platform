@@ -124,5 +124,23 @@
         "price_context": "The final price below follows the linked white label product whenever a published commercial setup exists."
       }
     }
+  },
+  "pwa_install": {
+    "badge": "Fast install",
+    "admin_title": "Install the admin app",
+    "portal_title": "Install the portal app",
+    "admin_description": "Open the admin with one tap and keep operational access faster on mobile.",
+    "portal_description": "Open the portal with one tap and keep installation, license, and access data close at hand.",
+    "ios_hint": "On iPhone or iPad, use Share and then Add to Home Screen to finish the installation.",
+    "action": "Install app",
+    "dismiss": "Not now"
+  },
+  "pwa_update": {
+    "badge": "Update ready",
+    "admin_title": "Update the installed admin",
+    "portal_title": "Update the installed portal",
+    "admin_description": "A newer safe version of the admin shell is ready. Update now to keep using the latest build.",
+    "portal_description": "A newer safe version of the portal shell is ready. Update now to keep using the latest build.",
+    "action": "Update now"
   }
 }

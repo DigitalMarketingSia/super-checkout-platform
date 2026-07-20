@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Layout } from '../../components/Layout';
 import { Button } from '../../components/ui/Button';
 import { EmailTemplateModal } from '../../components/modals/EmailTemplateModal';
+import { PwaPushSettingsCard } from '../../components/ui/PwaPushSettingsCard';
 import { useAuth } from '../../context/AuthContext';
 import { demoWorkspaceService } from '../../services/demoWorkspaceService';
 import { isDemoDataRuntime } from '../../services/demoDataService';
@@ -438,7 +439,7 @@ export const Notifications = () => {
       <div
         key={template.id}
         onClick={() => handleEdit(template)}
-        className="group flex items-center justify-between p-4 hover:bg-white/[0.02] rounded-2xl transition-all duration-300 cursor-pointer border border-transparent hover:border-white/5"
+        className="group flex cursor-pointer flex-col gap-4 rounded-2xl border border-transparent p-4 transition-all duration-300 hover:border-white/5 hover:bg-white/[0.02] sm:flex-row sm:items-center sm:justify-between"
       >
         <div className="flex items-center gap-4">
           <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border transition-all duration-300 ${
@@ -464,7 +465,7 @@ export const Notifications = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-4" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between gap-4 sm:justify-start" onClick={(e) => e.stopPropagation()}>
           <button
             onClick={() => toggleStatus(template, isSystem)}
             className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
@@ -491,10 +492,10 @@ export const Notifications = () => {
 
   function renderBusinessView() {
     return (
-      <div className="space-y-8 animate-in fade-in duration-500 max-w-2xl mx-auto">
+      <div className="mx-auto max-w-2xl space-y-6 animate-in fade-in duration-500 sm:space-y-8">
 
         {/* Main Glass Card inspired by mockup */}
-        <div className="relative overflow-hidden rounded-[2.5rem] border border-white/10 bg-[#0C0C14] p-8 shadow-2xl">
+        <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[#0C0C14] p-5 shadow-2xl sm:rounded-[2.5rem] sm:p-8">
           {/* Glass light reflection ray */}
           <div className="absolute -top-16 -left-16 w-44 h-44 bg-white/5 rounded-full blur-3xl pointer-events-none" />
 
@@ -520,13 +521,13 @@ export const Notifications = () => {
             </p>
 
             {/* Discreet inline help toggles */}
-            <div className="flex flex-wrap justify-center gap-2.5 mt-4">
+            <div className="mt-4 flex flex-col justify-center gap-2.5 sm:flex-row sm:flex-wrap">
               <button
                 onClick={() => {
                   setShowHelpCompleted(!showHelpCompleted);
                   setShowHelpManual(false);
                 }}
-                className={`px-3 py-1.5 rounded-full text-[10px] font-bold transition-all flex items-center gap-1.5 ${
+                className={`flex w-full items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-bold transition-all sm:w-auto ${
                   showHelpCompleted
                     ? 'bg-primary/15 border border-primary/30 text-primary shadow-[0_0_10px_rgba(138,43,226,0.1)]'
                     : 'bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:border-white/20'
@@ -540,7 +541,7 @@ export const Notifications = () => {
                   setShowHelpManual(!showHelpManual);
                   setShowHelpCompleted(false);
                 }}
-                className={`px-3 py-1.5 rounded-full text-[10px] font-bold transition-all flex items-center gap-1.5 ${
+                className={`flex w-full items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-bold transition-all sm:w-auto ${
                   showHelpManual
                     ? 'bg-blue-500/15 border border-blue-500/30 text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.1)]'
                     : 'bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:border-white/20'
@@ -576,9 +577,9 @@ export const Notifications = () => {
 
   function renderSystemTemplateGrid(items: EmailTemplate[]) {
     return (
-      <div className="space-y-8 animate-in fade-in duration-500 max-w-2xl mx-auto">
+      <div className="mx-auto max-w-2xl space-y-6 animate-in fade-in duration-500 sm:space-y-8">
         {/* Main Glass Card */}
-        <div className="relative overflow-hidden rounded-[2.5rem] border border-white/10 bg-[#0C0C14] p-8 shadow-2xl">
+        <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[#0C0C14] p-5 shadow-2xl sm:rounded-[2.5rem] sm:p-8">
           {/* Glass light reflection ray */}
           <div className="absolute -top-16 -left-16 w-44 h-44 bg-white/5 rounded-full blur-3xl pointer-events-none" />
 
@@ -622,7 +623,7 @@ export const Notifications = () => {
 
   return (
     <Layout>
-      <div className="space-y-8 pb-24 max-w-6xl mx-auto px-4 md:px-0 relative animate-in fade-in duration-500">
+      <div className="relative mx-auto max-w-6xl space-y-6 px-4 pb-24 animate-in fade-in duration-500 sm:space-y-8 md:px-0">
         {/* Premium Design Glows */}
         <div className="absolute top-10 left-1/4 w-[500px] h-[500px] bg-primary/10 blur-[150px] rounded-full pointer-events-none -z-10 animate-pulse-slow" />
         <div className="absolute top-40 right-1/4 w-[400px] h-[400px] bg-purple-500/5 blur-[120px] rounded-full pointer-events-none -z-10" />
@@ -634,19 +635,19 @@ export const Notifications = () => {
               <h1 className="text-3xl lg:text-4xl font-portal-display text-white mb-1 leading-none uppercase italic tracking-tight">
                 {t('notifications.hero.title_prefix')} <span className="text-primary font-black">{t('notifications.hero.title_highlight')}</span>
               </h1>
-              <div className="flex items-center gap-2 mt-1">
+              <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-center">
                 <p className="text-gray-400 font-medium uppercase tracking-[0.15em] text-[9px] font-mono">
                   {t('notifications.hero.badge')}
                 </p>
-                <div className="h-1.5 w-1.5 rounded-full bg-primary/45"></div>
+                <div className="hidden h-1.5 w-1.5 rounded-full bg-primary/45 sm:block"></div>
                 <span className="text-[9px] text-[#10B981] font-black uppercase tracking-[0.2em] font-mono">System Online</span>
               </div>
             </div>
 
             {/* Segmented Control Tab Selector */}
-            <div className="flex flex-row flex-wrap items-center gap-2.5">
+            <div className="flex w-full flex-row flex-wrap items-center gap-2.5 lg:w-auto">
               {isOwner && (
-                <div className="flex gap-1.5 p-1 bg-black/25 border border-white/15 rounded-[1.25rem] w-fit">
+                <div className="flex w-full gap-1.5 rounded-[1.25rem] border border-white/15 bg-black/25 p-1 sm:w-fit">
                   {[
                     { id: 'system' as const, label: t('notifications.tabs.system'), icon: Zap },
                     { id: 'business' as const, label: t('notifications.tabs.business'), icon: Layers },
@@ -654,7 +655,7 @@ export const Notifications = () => {
                     <button
                       key={tab.id}
                       onClick={() => setActiveTab(tab.id)}
-                      className={`flex items-center gap-2 rounded-xl px-5 py-2 text-[10px] font-black uppercase tracking-wider transition-all duration-300 ${
+                      className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-5 py-2 text-[10px] font-black uppercase tracking-wider transition-all duration-300 sm:flex-none ${
                         activeTab === tab.id
                           ? 'bg-primary border-primary text-white shadow-lg shadow-primary/15'
                           : 'text-gray-400 hover:text-white'
@@ -672,6 +673,8 @@ export const Notifications = () => {
             {isOwner ? t('notifications.hero.subtitle_owner') : t('notifications.hero.subtitle_user')}
           </p>
         </div>
+
+        <PwaPushSettingsCard />
 
         {/* Main Content Area */}
         <div className="relative z-10">

@@ -402,6 +402,7 @@ export class MercadoPagoAdapter {
     translateStatus(mpStatus: string): OrderStatus {
         const statusMap: Record<string, OrderStatus> = {
             'approved': OrderStatus.PAID,
+            'authorized': OrderStatus.PAID,
             'pending': OrderStatus.PENDING,
             'in_process': OrderStatus.PENDING,
             'rejected': OrderStatus.FAILED,

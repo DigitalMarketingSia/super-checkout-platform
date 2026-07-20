@@ -26,6 +26,8 @@ const SCHEMA_CHECKS = [
   { table: 'gateways', columns: ['provider', 'credentials', 'config', 'is_active'] },
   { table: 'customer_payment_profiles', columns: ['gateway_id', 'gateway_name', 'gateway_customer_id', 'gateway_payment_method_id', 'reusable'] },
   { table: 'consent_preferences', columns: ['checkout_id', 'visitor_key', 'consent_version', 'analytics', 'marketing'] },
+  { table: 'push_notification_preferences', columns: ['user_id', 'enabled', 'sale_approved', 'payment_failed', 'lead_captured'] },
+  { table: 'push_subscriptions', columns: ['user_id', 'surface_key', 'endpoint', 'permission_state', 'subscription_json', 'last_delivery_state', 'last_push_received_at', 'last_push_clicked_at'] },
   { table: 'privacy_requests', columns: ['account_id', 'request_type', 'status', 'subject_email'] },
   { table: 'data_retention_policies', columns: ['table_name', 'retention_days', 'run_mode', 'active'] },
   { table: 'data_retention_runs', columns: ['table_name', 'rows_affected', 'cutoff_at', 'created_at'] },

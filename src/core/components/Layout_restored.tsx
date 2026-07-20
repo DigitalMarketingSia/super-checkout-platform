@@ -99,12 +99,12 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
           {/* Show full logo if sidebar is open OR if we are on mobile (menu open) */}
           {(sidebarOpen || mobileMenuOpen) ? (
             <div className="flex items-center gap-2 text-primary font-bold text-xl tracking-tight animate-in fade-in duration-200 whitespace-nowrap">
-              <img src="/logo.png" alt="Super Checkout" className="w-8 h-8 object-contain rounded-md shrink-0" />
+              <img src="/logo-light.png" alt="Super Checkout" className="w-8 h-8 object-contain rounded-md shrink-0" />
               <span className="dark:text-white flex items-center gap-1">Super Checkout <span className="text-xs text-primary/80">.app</span></span>
             </div>
           ) : (
             <div className="w-full flex justify-center">
-              <img src="/logo.png" alt="Super Checkout" className="w-8 h-8 object-contain rounded-md" />
+              <img src="/logo-light.png" alt="Super Checkout" className="w-8 h-8 object-contain rounded-md" />
             </div>
           )}
 

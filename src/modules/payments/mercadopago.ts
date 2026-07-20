@@ -209,6 +209,11 @@ type MercadoPagoStoredProfile = {
   requires_reauthentication?: boolean;
 } | null;
 
+function isMercadoPagoPaidStatus(status: unknown) {
+  const normalized = String(status || '').trim().toLowerCase();
+  return normalized === 'approved' || normalized === 'authorized';
+}
+
 async function fetchMercadoPagoApi(params: {
   accessToken: string;
   path: string;
@@ -483,6 +488,9 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
 
     // 3. Montar Payload por metodo. Pix deve ir sem campos de cartao.
     const nameParts = (customerName || 'Cliente Teste').trim().split(/\s+/);
+    const firstName = nameParts[0] || 'Cliente';
+    const isSandboxTestName = firstName.toUpperCase() === 'APRO' || firstName.toUpperCase() === 'REJE';
+    
     const payer: any = useSavedPaymentMethod && reusableProfile?.gateway_customer_id
       ? {
           type: 'customer',
@@ -490,9 +498,12 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
         }
       : {
           email: customerEmail,
-          first_name: nameParts[0] || 'Cliente',
-          last_name: nameParts.slice(1).join(' ') || 'Super',
+          first_name: isSandboxTestName ? firstName.toUpperCase() : firstName,
         };
+
+    if (!useSavedPaymentMethod && !isSandboxTestName) {
+      payer.last_name = nameParts.slice(1).join(' ') || 'Super';
+    }
 
     const payerDocument = String(customerCpf || '').replace(/\D/g, '');
     if (!useSavedPaymentMethod && (payerDocument.length === 11 || payerDocument.length === 14)) {
@@ -518,6 +529,7 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
       if (!useSavedPaymentMethod) {
         body.payment_method_id = paymentMethodId;
       }
+      body.binary_mode = true;
     } else {
       body.payment_method_id = paymentMethod;
     }
@@ -601,7 +613,7 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
       };
     }
 
-    const paidStatus = mpResult.status === 'approved';
+    const paidStatus = isMercadoPagoPaidStatus(mpResult.status);
 
     let upsellCapability = null;
 
@@ -698,7 +710,7 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
     }
 
     const updatedOrder = {
-      status: (mpResult.status === 'approved') ? 'paid' : 'pending',
+      status: paidStatus ? 'paid' : 'pending',
       payment_id: String(mpResult.id),
       total: Number(totalAmount.toFixed(2)),
       items: resolvedOrderItems,

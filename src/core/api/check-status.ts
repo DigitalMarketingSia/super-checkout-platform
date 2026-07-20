@@ -7,6 +7,7 @@ import { decrypt, verifySignature } from '../utils/cryptoUtils.js';
 import { applyCors } from './_cors.js';
 import { fulfillOrder } from '../services/fulfillment.js';
 import { sendOrderAccessEmail } from '../services/orderEmail.js';
+import { dispatchPaymentFailedPush } from '../services/pushAutomation.js';
 import { enforceApiRateLimit } from './_rate-limit.js';
 import {
     buildSafeMercadoPagoRawResponse,
@@ -35,6 +36,7 @@ interface Order {
     user_id?: string;
     payment_id?: string;
     amount?: number;
+    total?: number;
     customer_email: string;
     customer_name: string;
     customer_user_id?: string;
@@ -173,6 +175,58 @@ async function processPaidSideEffects(params: {
         }
     } catch (error: any) {
         console.error(`[CheckStatus] Paid side effects failed for ${orderId}:`, error?.message || error);
+    }
+}
+
+async function processFailedSideEffects(params: {
+    supabaseAdmin?: any;
+    supabaseUrl: string;
+    serviceRoleKey?: string;
+    orderId: string;
+    knownOrder?: Order;
+}) {
+    const { supabaseUrl, serviceRoleKey, orderId, knownOrder } = params;
+    if (!params.supabaseAdmin && !serviceRoleKey) {
+        console.warn(`[CheckStatus] Missing service role key; cannot run failed side effects for ${orderId}.`);
+        return;
+    }
+
+    try {
+        const supabaseAdmin = params.supabaseAdmin || createClient(supabaseUrl, serviceRoleKey!, {
+            auth: {
+                autoRefreshToken: false,
+                persistSession: false,
+            },
+        });
+
+        let order = knownOrder;
+        if (!order) {
+            const { data, error } = await supabaseAdmin
+                .from('orders')
+                .select('*')
+                .eq('id', orderId)
+                .maybeSingle();
+            if (error) throw error;
+            order = data || undefined;
+        }
+
+        if (!order?.id || String(order.status || '').toLowerCase() !== 'failed') {
+            return;
+        }
+
+        const items = Array.isArray(order.items) ? order.items : [];
+        const pushResult = await dispatchPaymentFailedPush({
+            supabaseAdmin,
+            merchantUserId: order.user_id || null,
+            orderId,
+            customerName: order.customer_name || null,
+            amount: Number(order.total ?? order.amount ?? 0) || 0,
+            paymentMethod: order.payment_method || null,
+            productNames: items.map((item: any) => String(item?.name || '').trim()).filter(Boolean),
+        });
+        console.log(`[CheckStatus] Payment failed push result for ${orderId}:`, pushResult);
+    } catch (error: any) {
+        console.error(`[CheckStatus] Failed side effects failed for ${orderId}:`, error?.message || error);
     }
 }
 
@@ -457,6 +511,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 knownOrder: { ...order, status: 'paid' },
                 origin: requestOrigin,
             });
+        } else if (newStatus === 'failed' && currentStatusNorm !== 'failed') {
+            await processFailedSideEffects({
+                supabaseAdmin,
+                supabaseUrl,
+                serviceRoleKey,
+                orderId: orderId as string,
+                knownOrder: { ...order, status: 'failed' },
+            });
         }
 
         return res.status(200).json({ status: newStatus });
@@ -548,6 +610,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 orderId: orderId as string,
                 knownOrder: { ...order, status: 'paid' },
                 origin: requestOrigin,
+            });
+        } else if (newStatus === 'failed' && currentStatusNorm !== 'failed') {
+            await processFailedSideEffects({
+                supabaseAdmin,
+                supabaseUrl,
+                serviceRoleKey,
+                orderId: orderId as string,
+                knownOrder: { ...order, status: 'failed' },
             });
         }
 
@@ -688,6 +758,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 orderId: orderId as string,
                 knownOrder: { ...order, status: 'paid', payment_id: resolvedTransactionId },
                 origin: requestOrigin,
+            });
+        } else if (newStatus === 'failed' && currentStatusNorm !== 'failed') {
+            await processFailedSideEffects({
+                supabaseAdmin,
+                supabaseUrl,
+                serviceRoleKey,
+                orderId: orderId as string,
+                knownOrder: { ...order, status: 'failed', payment_id: resolvedTransactionId },
             });
         }
 
@@ -869,6 +947,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 orderId: orderId as string,
                 knownOrder: { ...order, status: 'paid' },
                 origin: requestOrigin,
+            });
+        } else if (newStatus === 'failed' && currentStatusNorm !== 'failed') {
+            await processFailedSideEffects({
+                supabaseAdmin,
+                supabaseUrl,
+                serviceRoleKey,
+                orderId: orderId as string,
+                knownOrder: { ...order, status: 'failed' },
             });
         }
 

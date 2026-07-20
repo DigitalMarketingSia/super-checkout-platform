@@ -16,6 +16,22 @@ interface RiskCaptchaProps {
 
 let turnstileScriptPromise: Promise<void> | null = null;
 
+function safelyRemoveTurnstileWidget(widgetId: string | null, container: HTMLDivElement | null) {
+    if (!widgetId || !window.turnstile?.remove) {
+        return;
+    }
+
+    try {
+        window.turnstile.remove(widgetId);
+    } catch (error) {
+        console.warn('[RiskCaptcha] Turnstile widget cleanup failed during unmount.', error);
+
+        if (container?.isConnected) {
+            container.replaceChildren();
+        }
+    }
+}
+
 function loadTurnstileScript() {
     if (typeof window === 'undefined') {
         return Promise.resolve();
@@ -79,9 +95,7 @@ export const RiskCaptcha: React.FC<RiskCaptchaProps> = ({ siteKey, onTokenChange
 
         return () => {
             cancelled = true;
-            if (widgetIdRef.current && window.turnstile?.remove) {
-                window.turnstile.remove(widgetIdRef.current);
-            }
+            safelyRemoveTurnstileWidget(widgetIdRef.current, containerRef.current);
             widgetIdRef.current = null;
         };
     }, [onTokenChange, siteKey]);

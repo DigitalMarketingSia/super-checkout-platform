@@ -1337,10 +1337,18 @@ class PaymentService {
 
       console.log('[PaymentService] Proceeding to handle response immediately...');
 
-      if (paymentResponse.status === 'approved' || paymentResponse.status === 'in_process' || paymentResponse.status === 'pending') {
+      const normalizedGatewayStatus = String(paymentResponse.status || '').toLowerCase();
+
+      if (
+        normalizedGatewayStatus === 'approved'
+        || normalizedGatewayStatus === 'authorized'
+        || normalizedGatewayStatus === 'in_process'
+        || normalizedGatewayStatus === 'pending'
+      ) {
         const paymentResult: ProcessPaymentResult = {
           success: true,
-          gatewayStatus: paymentResponse.status,
+          gatewayStatus: normalizedGatewayStatus,
+          message: normalizedGatewayStatus,
           statusSignature: result.statusSignature,
           upsellCapability: result.upsellCapability || null,
         };

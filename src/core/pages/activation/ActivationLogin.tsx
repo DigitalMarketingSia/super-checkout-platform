@@ -9,6 +9,7 @@ import { CENTRAL_CONFIG } from '../../config/central';
 import { getApiUrl } from '../../utils/apiUtils';
 import { platformUrls } from '../../config/platformUrls';
 import { licenseService } from '../../services/licenseService';
+import { PwaInstallBanner } from '../../components/ui/PwaInstallBanner';
 
 export const ActivationLogin = () => {
     const { t } = useTranslation(['auth', 'common']);
@@ -311,6 +312,8 @@ export const ActivationLogin = () => {
             <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-[128px] pointer-events-none" />
 
             <div className="z-10 w-full max-w-md">
+                <PwaInstallBanner />
+
                 <div className="text-center mb-10">
                     <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-1 rounded-full mb-6">
                         <ShieldCheck className="w-4 h-4 text-green-400" />

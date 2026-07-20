@@ -41,11 +41,13 @@ import { useFeatures } from '../hooks/useFeatures';
 import { ComplianceBanner } from './admin/ComplianceBanner';
 import { LanguageSelector } from './ui/LanguageSelector';
 import { Modal } from './ui/Modal';
+import { PwaInstallBanner } from './ui/PwaInstallBanner';
 import { useTranslation } from 'react-i18next';
 import { APP_VERSION } from '../config/version';
 import { getRuntimeMode } from '../config/runtimeMode';
 import { platformUrls } from '../config/platformUrls';
 import { demoWorkspaceService } from '../services/demoWorkspaceService';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
 const getHostnameFromUrl = (url?: string) => {
   if (!url) return null;
@@ -86,6 +88,8 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
   });
   const isDemoMode = getRuntimeMode() === 'demo';
   const demoWorkspace = isDemoMode ? demoWorkspaceService.getCachedWorkspace()?.workspace : null;
+
+  useBodyScrollLock(mobileMenuOpen);
 
   const navItems = [
     { path: '/admin', icon: LayoutDashboard, label: t('nav.overview', 'Visão Geral') },
@@ -205,7 +209,7 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
               <div className="flex items-center gap-3 animate-in fade-in duration-500 whitespace-nowrap">
                 <div className="relative group">
                   <div className="absolute inset-0 bg-primary/20 blur-lg rounded-full group-hover:bg-primary/40 transition-all duration-500"></div>
-                  <img src="/logo.png" alt="Super Checkout" className="relative w-9 h-9 object-contain rounded-xl shrink-0" />
+                  <img src="/logo-light.png" alt="Super Checkout" className="relative w-9 h-9 object-contain rounded-xl shrink-0" />
                 </div>
                 <div className="flex flex-col -space-y-2.5 py-1">
                   <span className="font-portal-display text-lg text-white italic tracking-tighter">SUPER</span>
@@ -219,7 +223,7 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
               <div className="w-full flex justify-center">
                 <div className="relative group">
                   <div className="absolute inset-0 bg-primary/20 blur-lg rounded-full"></div>
-                  <img src="/logo.png" alt="Super Checkout" className="relative w-9 h-9 object-contain rounded-xl" />
+                  <img src="/logo-light.png" alt="Super Checkout" className="relative w-9 h-9 object-contain rounded-xl" />
                 </div>
               </div>
             )}
@@ -635,6 +639,7 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
           {/* Content Scrollable Area */}
           <div className="flex-1 overflow-auto p-4 lg:p-10 lg:pt-6 scroll-smooth custom-scrollbar">
             <div className={`${maxWidth} mx-auto pb-20 lg:pb-0`}>
+              <PwaInstallBanner />
               {children}
             </div>
           </div>

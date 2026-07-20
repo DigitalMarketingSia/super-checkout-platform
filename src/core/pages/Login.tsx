@@ -648,7 +648,7 @@ export const Login = () => {
 
         <div className="w-full max-w-md relative z-10">
           <div className="text-center mb-8">
-            <img src="/logo.png" alt="Super Checkout" className="h-12 mx-auto mb-6" />
+            <img src="/logo-light.png" alt="Super Checkout" className="h-12 mx-auto mb-6" />
             <h2 className="text-4xl font-bold mb-2">
               {t('auth:login.access_infra')}
             </h2>

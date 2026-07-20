@@ -206,18 +206,18 @@ export const Checkouts = () => {
 
   return (
     <Layout>
-      <div className="flex flex-col lg:flex-row justify-between lg:items-end mb-12 gap-8">
+      <div className="mb-8 flex flex-col gap-6 sm:mb-12 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h1 className="text-4xl lg:text-5xl font-portal-display text-white mb-2 uppercase leading-none">Checkouts</h1>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
              <p className="text-gray-600 font-medium uppercase tracking-[0.1em] text-[10px]">{t('checkouts.subtitle')}</p>
-             <div className="h-1 w-1 rounded-full bg-gray-800"></div>
+             <div className="hidden h-1 w-1 rounded-full bg-gray-800 sm:block"></div>
              <span className="text-[10px] text-primary font-black uppercase tracking-[0.2em]">
                {getLimit('checkouts') ? t('checkouts.limit_status', { count: checkouts.length, limit: getLimit('checkouts') === 'unlimited' ? '∞' : getLimit('checkouts') }) : t('checkouts.active_control')}
              </span>
           </div>
         </div>
-        <Button disabled={checkingFeatures} onClick={() => handleActionWithCompliance(handleCreateCheckout)} className="px-10 py-4 bg-primary text-white rounded-[1.5rem] shadow-2xl shadow-primary/30 border-none font-black uppercase tracking-widest text-xs flex items-center gap-3 active:scale-95 transition-all">
+        <Button disabled={checkingFeatures} onClick={() => handleActionWithCompliance(handleCreateCheckout)} className="flex w-full items-center justify-center gap-3 rounded-[1.5rem] border-none bg-primary px-6 py-4 text-xs font-black uppercase tracking-widest text-white shadow-2xl shadow-primary/30 transition-all active:scale-95 sm:w-auto sm:px-10">
           {checkingFeatures ? <Loader2 className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />} {t('checkouts.new_checkout')}
         </Button>
       </div>
@@ -245,8 +245,8 @@ export const Checkouts = () => {
             );
 
             return (
-            <div key={chk.id} className="group relative bg-[#0F0F15]/40 hover:bg-[#151520]/60 border border-white/5 hover:border-primary/30 rounded-[2rem] overflow-hidden transition-all duration-300">
-               <div className="p-4 lg:px-8 lg:py-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4 lg:gap-8">
+            <div key={chk.id} className="group relative overflow-hidden rounded-[1.5rem] border border-white/5 bg-[#0F0F15]/40 transition-all duration-300 hover:border-primary/30 hover:bg-[#151520]/60 sm:rounded-[2rem]">
+               <div className="flex flex-col gap-4 p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between lg:gap-8 lg:px-8 lg:py-4">
                   
                   {/* Branding & Status - Column 1 */}
                   <div className="flex items-center gap-4 lg:w-[260px] shrink-0">
@@ -267,8 +267,8 @@ export const Checkouts = () => {
 
                   {/* Domain & Gateway Info - Column 2 */}
                   <div className="flex flex-col gap-2 flex-1 min-w-0">
-                     <div className="flex flex-wrap lg:flex-nowrap items-center gap-3 lg:gap-4">
-                        <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-black/40 border border-white/5 min-w-[130px]">
+                     <div className="flex flex-wrap items-center gap-3 lg:flex-nowrap lg:gap-4">
+                        <div className="flex min-w-0 items-center gap-2.5 rounded-xl border border-white/5 bg-black/40 px-3 py-2 sm:min-w-[130px]">
                            <Globe className="w-3.5 h-3.5 text-gray-700" />
                            <div className="min-w-0">
                               <p className="text-[7px] font-black uppercase text-gray-700 tracking-widest leading-none mb-0.5">{t('checkouts.domain')}</p>
@@ -276,7 +276,7 @@ export const Checkouts = () => {
                            </div>
                         </div>
 
-                        <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-black/40 border border-white/5 min-w-[130px]">
+                        <div className="flex min-w-0 items-center gap-2.5 rounded-xl border border-white/5 bg-black/40 px-3 py-2 sm:min-w-[130px]">
                            <CreditCard className="w-3.5 h-3.5 text-gray-700" />
                            <div className="min-w-0">
                               <p className="text-[7px] font-black uppercase text-gray-700 tracking-widest leading-none mb-0.5">{getCheckoutGatewayLabel(chk)}</p>
@@ -319,14 +319,14 @@ export const Checkouts = () => {
                   </div>
 
                   {/* Actions Bar - Column 3 */}
-                  <div className="flex items-center justify-between lg:justify-end gap-3 shrink-0 pt-4 lg:pt-0 border-t lg:border-t-0 border-white/5 lg:w-fit w-full">
-                     <div className="flex items-center gap-2">
+                  <div className="flex w-full shrink-0 items-center justify-between gap-3 border-t border-white/5 pt-4 lg:w-fit lg:justify-end lg:border-t-0 lg:pt-0">
+                     <div className="flex flex-1 items-center gap-2 lg:flex-initial">
                         <button 
                           onClick={() => {
                             const url = buildCheckoutPublicUrl(chk);
                             window.open(url, '_blank');
                           }}
-                          className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-500 hover:text-white border border-white/5 transition-all"
+                          className="flex h-11 flex-1 items-center justify-center rounded-xl border border-white/5 bg-white/5 text-gray-500 transition-all hover:bg-white/10 hover:text-white lg:h-auto lg:flex-none lg:p-2.5"
                           title={t('checkouts.preview')}
                         >
                            <Eye className="w-4.5 h-4.5" />
@@ -337,14 +337,14 @@ export const Checkouts = () => {
                              navigator.clipboard.writeText(url);
                              showAlert(t('common.success'), t('checkouts.link_copied', { url }), 'success');
                           }}
-                          className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-500 hover:text-white border border-white/5 transition-all"
+                          className="flex h-11 flex-1 items-center justify-center rounded-xl border border-white/5 bg-white/5 text-gray-500 transition-all hover:bg-white/10 hover:text-white lg:h-auto lg:flex-none lg:p-2.5"
                           title={t('checkouts.copy_link')}
                         >
                            <Copy className="w-4.5 h-4.5" />
                         </button>
                         <button 
                           onClick={() => navigate(`/admin/checkouts/edit/${chk.id}`)}
-                          className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white border border-white/5 transition-all"
+                          className="flex h-11 flex-1 items-center justify-center rounded-xl border border-white/5 bg-white/5 text-white transition-all hover:bg-white/10 lg:h-auto lg:flex-none lg:p-2.5"
                           title={t('checkouts.edit')}
                         >
                            <Edit2 className="w-4.5 h-4.5" />
@@ -354,7 +354,7 @@ export const Checkouts = () => {
                      <button 
                         onClick={() => handleDeleteClick(chk.id)}
                         disabled={checkingUsageId === chk.id}
-                        className="p-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/10 transition-all disabled:opacity-50"
+                         className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-red-500/10 bg-red-500/10 text-red-500 transition-all hover:bg-red-500/20 disabled:opacity-50"
                         title={t('checkouts.remove')}
                      >
                         {checkingUsageId === chk.id ? <Loader2 className="w-4.5 h-4.5 animate-spin" /> : <Trash2 className="w-4.5 h-4.5" />}
@@ -429,7 +429,7 @@ export const Checkouts = () => {
           </div>
 
           <div className="flex justify-end pt-4">
-            <Button onClick={() => setUsageWarning(null)} className="bg-white text-black font-black uppercase text-[10px] tracking-widest px-8 py-3 rounded-xl border-none">{t('checkouts.done')}</Button>
+            <Button onClick={() => setUsageWarning(null)} className="w-full rounded-xl border-none bg-white px-8 py-3 text-[10px] font-black uppercase tracking-widest text-black sm:w-auto">{t('checkouts.done')}</Button>
           </div>
         </div>
       </Modal>
@@ -449,9 +449,9 @@ export const Checkouts = () => {
               </p>
             </div>
           </div>
-          <div className="flex justify-end gap-3 pt-2">
-            <button onClick={() => setShowComplianceModal(false)} className="px-6 py-2 text-[10px] font-black text-gray-600 uppercase tracking-widest">{t('checkouts.later')}</button>
-            <a href="/admin/business-settings" className="bg-primary text-white px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-primary/20">{t('checkouts.configure_now')}</a>
+          <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:justify-end">
+            <button onClick={() => setShowComplianceModal(false)} className="w-full px-6 py-2 text-[10px] font-black text-gray-600 uppercase tracking-widest sm:w-auto">{t('checkouts.later')}</button>
+            <a href="/admin/business-settings" className="w-full rounded-xl bg-primary px-8 py-3 text-center text-[10px] font-black uppercase tracking-widest text-white shadow-xl shadow-primary/20 sm:w-auto">{t('checkouts.configure_now')}</a>
           </div>
         </div>
       </Modal>

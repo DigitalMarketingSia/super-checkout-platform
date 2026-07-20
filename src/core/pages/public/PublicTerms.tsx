@@ -59,7 +59,7 @@ export const PublicTerms = () => {
         void load();
     }, []);
 
-    if (loading) return <Loading />;
+    if (loading) return <Loading light />;
 
     const handleClose = () => {
         if (window.history.length > 1) {

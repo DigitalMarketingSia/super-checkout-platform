@@ -5,6 +5,7 @@ import { decrypt } from '../src/core/utils/cryptoUtils.js';
 import { MercadoPagoConfig, Payment } from 'mercadopago';
 import { fulfillOrder } from '../src/core/services/fulfillment.js';
 import { sendOrderAccessEmail } from '../src/core/services/orderEmail.js';
+import { dispatchPaymentFailedPush } from '../src/core/services/pushAutomation.js';
 import {
     buildSafePagSeguroRawResponse,
     getPagSeguroStatus,
@@ -405,39 +406,61 @@ async function handleStripe(req: VercelRequest, res: VercelResponse, rawBody: st
     } catch (e) { return res.status(401).json({ status: 'SIG_ERROR' }); }
 
     const successEvents = ['payment_intent.succeeded', 'charge.succeeded', 'checkout.session.completed'];
-    if (successEvents.includes(eventType)) {
+    const failureEvents = ['payment_intent.payment_failed'];
+    if (successEvents.includes(eventType) || failureEvents.includes(eventType)) {
         const oid = paymentRecord.order_id;
         const { order: orderData, checkout } = await loadOrderAndCheckout(supabaseAdmin, oid);
         if (!webhookOwnershipMatches(orderData, checkout, gatewayRecord, paymentRecord)) {
             await logWebhook(supabaseAdmin, `${eventId || effectiveId}_ownership_rejected`, 'Stripe ownership rejected', 200, rawBody);
             return res.status(200).json({ status: 'OWNERSHIP_REJECTED' });
         }
-        
+        const nextStatus = successEvents.includes(eventType) ? 'paid' : 'failed';
+        const previousOrderStatus = String(orderData?.status || '').toLowerCase();
         const updates = [
             supabaseAdmin
                 .from('orders')
-                .update({ status: 'paid' })
+                .update({ status: nextStatus })
                 .eq('id', oid)
                 .eq('user_id', orderData.user_id)
         ];
         if (mustCreate) {
-            updates.push(supabaseAdmin.from('payments').insert({ ...paymentRecord, id: crypto.randomUUID(), status: 'paid', raw_response: buildProviderRawResponse('stripe', payload), created_at: new Date().toISOString() }));
+            updates.push(supabaseAdmin.from('payments').insert({ ...paymentRecord, id: crypto.randomUUID(), status: nextStatus, raw_response: buildProviderRawResponse('stripe', payload), created_at: new Date().toISOString() }));
         } else {
             updates.push(
                 supabaseAdmin
                     .from('payments')
-                    .update({ status: 'paid', raw_response: buildProviderRawResponse('stripe', payload), user_id: orderData.user_id })
+                    .update({ status: nextStatus, raw_response: buildProviderRawResponse('stripe', payload), user_id: orderData.user_id })
                     .eq('id', paymentRecord.id)
                     .eq('order_id', oid)
             );
         }
         await Promise.all(updates);
-        await fulfillOrder(supabaseAdmin, {
-            orderId: oid,
-            email: orderData?.customer_email,
-            name: orderData?.customer_name,
-        });
-        await logWebhook(supabaseAdmin, eventId, `Stripe Approved: ${oid}`, 200, rawBody);
+
+        if (nextStatus === 'paid') {
+            await fulfillOrder(supabaseAdmin, {
+                orderId: oid,
+                email: orderData?.customer_email,
+                name: orderData?.customer_name,
+            });
+            await logWebhook(supabaseAdmin, eventId, `Stripe Approved: ${oid}`, 200, rawBody);
+        } else {
+            if (previousOrderStatus !== 'failed') {
+                const pushResult = await dispatchPaymentFailedPush({
+                    supabaseAdmin,
+                    merchantUserId: orderData?.user_id || null,
+                    orderId: oid,
+                    customerName: orderData?.customer_name || null,
+                    amount: Number(orderData?.total ?? orderData?.amount ?? 0) || 0,
+                    paymentMethod: orderData?.payment_method || null,
+                    productNames: Array.isArray(orderData?.items)
+                        ? orderData.items.map((item: any) => String(item?.name || '').trim()).filter(Boolean)
+                        : [],
+                    failureReason: eventType,
+                });
+                console.log('[Stripe Hub] Payment failed push result:', pushResult);
+            }
+            await logWebhook(supabaseAdmin, eventId, `Stripe Failed: ${oid}`, 200, rawBody);
+        }
     }
 
     return res.status(200).json({ status: 'OK' });
@@ -525,66 +548,90 @@ async function handleMercadoPago(req: VercelRequest, res: VercelResponse, rawBod
         if (!paymentRecord) return res.status(200).json({ status: 'ORDER_NOT_FOUND' });
 
         const mpStatus = mpData.status?.toLowerCase();
-        if (mpStatus === 'approved' || mpStatus === 'authorized') {
+        const nextStatus = mpStatus === 'approved' || mpStatus === 'authorized'
+            ? 'paid'
+            : (mpStatus === 'rejected' || mpStatus === 'cancelled' ? 'failed' : '');
+
+        if (nextStatus) {
             const oid = paymentRecord.order_id;
             const { order: orderData, checkout } = await loadOrderAndCheckout(supabaseAdmin, oid);
             if (!webhookOwnershipMatches(orderData, checkout, gatewayRecord, paymentRecord)) {
                 await logWebhook(supabaseAdmin, `${mpIdempotencyKey}_ownership_rejected`, 'MP ownership rejected', 200, rawBody);
                 return res.status(200).json({ status: 'OWNERSHIP_REJECTED' });
             }
+            const previousOrderStatus = String(orderData?.status || '').toLowerCase();
 
             const updates = [
                 supabaseAdmin
                     .from('orders')
-                    .update({ status: 'paid' })
+                    .update({ status: nextStatus })
                     .eq('id', oid)
                     .eq('user_id', orderData.user_id)
             ];
             if (!paymentRecord.id) {
-                updates.push(supabaseAdmin.from('payments').insert({ ...paymentRecord, id: crypto.randomUUID(), status: 'paid', raw_response: buildProviderRawResponse('mercadopago', mpData), created_at: new Date().toISOString() }));
+                updates.push(supabaseAdmin.from('payments').insert({ ...paymentRecord, id: crypto.randomUUID(), status: nextStatus, raw_response: buildProviderRawResponse('mercadopago', mpData), created_at: new Date().toISOString() }));
             } else {
                 updates.push(
                     supabaseAdmin
                         .from('payments')
-                        .update({ status: 'paid', raw_response: buildProviderRawResponse('mercadopago', mpData), user_id: orderData.user_id })
+                        .update({ status: nextStatus, raw_response: buildProviderRawResponse('mercadopago', mpData), user_id: orderData.user_id })
                         .eq('id', paymentRecord.id)
                         .eq('order_id', oid)
                 );
             }
             await Promise.all(updates);
 
-            const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-            const supabaseKey =
-                process.env.SUPABASE_SECRET_KEY_NEW ||
-                process.env.SUPABASE_SECRET_KEY ||
-                process.env.SUPABASE_SERVICE_ROLE_KEY_NEW ||
-                process.env.SUPABASE_SERVICE_ROLE_KEY;
-            if (!supabaseUrl || !supabaseKey) {
-                throw new Error('Missing Supabase runtime config for fulfill-order.');
-            }
+            if (nextStatus === 'paid') {
+                const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+                const supabaseKey =
+                    process.env.SUPABASE_SECRET_KEY_NEW ||
+                    process.env.SUPABASE_SECRET_KEY ||
+                    process.env.SUPABASE_SERVICE_ROLE_KEY_NEW ||
+                    process.env.SUPABASE_SERVICE_ROLE_KEY;
+                if (!supabaseUrl || !supabaseKey) {
+                    throw new Error('Missing Supabase runtime config for fulfill-order.');
+                }
 
-            await fulfillOrder(supabaseAdmin, {
-                orderId: oid,
-                email: orderData?.customer_email,
-                name: orderData?.customer_name,
-            });
-            try {
-                const origin = `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host}`;
-                const emailResult = await sendOrderAccessEmail(supabaseAdmin, {
+                await fulfillOrder(supabaseAdmin, {
                     orderId: oid,
-                    origin,
                     email: orderData?.customer_email,
                     name: orderData?.customer_name,
                 });
-                if ((emailResult as any)?.sent) {
-                    await logWebhook(supabaseAdmin, `${mpIdempotencyKey}_email_fallback`, `Business email sent: ${oid}`, 200, rawBody);
+                try {
+                    const origin = `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host}`;
+                    const emailResult = await sendOrderAccessEmail(supabaseAdmin, {
+                        orderId: oid,
+                        origin,
+                        email: orderData?.customer_email,
+                        name: orderData?.customer_name,
+                    });
+                    if ((emailResult as any)?.sent) {
+                        await logWebhook(supabaseAdmin, `${mpIdempotencyKey}_email_fallback`, `Business email sent: ${oid}`, 200, rawBody);
+                    }
+                } catch (emailError: any) {
+                    console.error('[MP Hub] Business email fallback failed:', emailError?.message || emailError);
+                    await logWebhook(supabaseAdmin, `${mpIdempotencyKey}_email_fallback_error`, 'Business email fallback failed', 500, rawBody);
                 }
-            } catch (emailError: any) {
-                console.error('[MP Hub] Business email fallback failed:', emailError?.message || emailError);
-                await logWebhook(supabaseAdmin, `${mpIdempotencyKey}_email_fallback_error`, 'Business email fallback failed', 500, rawBody);
-            }
 
-            await logWebhook(supabaseAdmin, mpIdempotencyKey, `Approved: ${oid}`, 200, rawBody);
+                await logWebhook(supabaseAdmin, mpIdempotencyKey, `Approved: ${oid}`, 200, rawBody);
+            } else {
+                if (previousOrderStatus !== 'failed') {
+                    const pushResult = await dispatchPaymentFailedPush({
+                        supabaseAdmin,
+                        merchantUserId: orderData?.user_id || null,
+                        orderId: oid,
+                        customerName: orderData?.customer_name || null,
+                        amount: Number(orderData?.total ?? orderData?.amount ?? 0) || 0,
+                        paymentMethod: orderData?.payment_method || null,
+                        productNames: Array.isArray(orderData?.items)
+                            ? orderData.items.map((item: any) => String(item?.name || '').trim()).filter(Boolean)
+                            : [],
+                        failureReason: mpStatus || null,
+                    });
+                    console.log('[MP Hub] Payment failed push result:', pushResult);
+                }
+                await logWebhook(supabaseAdmin, mpIdempotencyKey, `Failed: ${oid}`, 200, rawBody);
+            }
         }
         return res.status(200).json({ status: 'OK', mpStatus });
     } catch (err: any) {
@@ -726,6 +773,8 @@ async function handlePagSeguro(req: VercelRequest, res: VercelResponse, rawBody:
 
     await Promise.all(updates);
 
+    const previousOrderStatus = String(order.status || '').toLowerCase();
+
     if (localStatus === 'paid') {
         await fulfillOrder(supabaseAdmin, {
             orderId: order.id,
@@ -743,6 +792,20 @@ async function handlePagSeguro(req: VercelRequest, res: VercelResponse, rawBody:
         } catch (emailError: any) {
             console.error('[PagSeguro Hub] Business email fallback failed:', emailError?.message || emailError);
         }
+    } else if (localStatus === 'failed' && previousOrderStatus !== 'failed') {
+        const pushResult = await dispatchPaymentFailedPush({
+            supabaseAdmin,
+            merchantUserId: order.user_id || null,
+            orderId: order.id,
+            customerName: order?.customer_name || null,
+            amount: Number(order?.total ?? order?.amount ?? 0) || 0,
+            paymentMethod: order?.payment_method || null,
+            productNames: Array.isArray(order?.items)
+                ? order.items.map((item: any) => String(item?.name || '').trim()).filter(Boolean)
+                : [],
+            failureReason: providerStatus || null,
+        });
+        console.log('[PagSeguro Hub] Payment failed push result:', pushResult);
     }
 
     await logWebhook(supabaseAdmin, webhookEventId, `PagBank ${providerStatus}: ${order.id}`, 200, rawBody);

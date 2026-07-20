@@ -1,0 +1,29 @@
+{
+  "id": "/activate?source=pwa",
+  "name": "Super Checkout Portal",
+  "short_name": "SC Portal",
+  "description": "Portal operacional mobile do Super Checkout para ativacao e setup.",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "start_url": "/activate?source=pwa",
+  "scope": "/activate",
+  "display": "standalone",
+  "background_color": "#05050A",
+  "theme_color": "#05050A",
+  "orientation": "portrait",
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "/pwa-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

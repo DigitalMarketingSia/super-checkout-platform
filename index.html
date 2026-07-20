@@ -1,11 +1,74 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#05050A" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Super Checkout" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <style>
+    html,
+    body {
+      margin: 0;
+      min-height: 100%;
+      background: #05050A;
+      color: #ffffff;
+      color-scheme: dark;
+    }
+
+    html[data-boot-surface="checkout"],
+    html[data-boot-surface="checkout"] body {
+      background: #F9F9FB;
+      color: #111827;
+      color-scheme: light;
+    }
+  </style>
+  <script>
+    (function () {
+      try {
+        var path = (window.location && window.location.pathname) || '';
+        var isCheckoutSurface = path === '/privacy-policy'
+          || path === '/terms-of-purchase'
+          || path.indexOf('/c/') === 0
+          || path.indexOf('/pagamento/') === 0
+          || path.indexOf('/upsell/') === 0
+          || path.indexOf('/thank-you/') === 0;
+        var isPwaSurface = path.indexOf('/admin') === 0 || path.indexOf('/activate/setup') === 0;
+        var root = document.documentElement;
+        var themeColorMeta = document.querySelector('meta[name="theme-color"]');
+
+        root.classList.remove('light', 'dark');
+        root.classList.add(isCheckoutSurface ? 'light' : 'dark');
+        root.setAttribute('data-boot-surface', isCheckoutSurface ? 'checkout' : 'default');
+        root.setAttribute('data-boot-pwa-surface', isPwaSurface ? 'auth' : 'none');
+
+        if (themeColorMeta) {
+          themeColorMeta.setAttribute('content', isCheckoutSurface ? '#F9F9FB' : '#05050A');
+        }
+
+        if (isPwaSurface && !document.querySelector('link[rel="manifest"]')) {
+          var manifestPath = path.indexOf('/activate/setup') === 0
+            ? '/manifest-portal.webmanifest'
+            : '/manifest-admin.webmanifest';
+          var manifestLink = document.createElement('link');
+          manifestLink.setAttribute('rel', 'manifest');
+          manifestLink.setAttribute('href', manifestPath);
+          document.head.appendChild(manifestLink);
+        }
+      } catch (error) {
+        document.documentElement.classList.remove('light');
+        document.documentElement.classList.add('dark');
+        document.documentElement.setAttribute('data-boot-surface', 'default');
+        document.documentElement.setAttribute('data-boot-pwa-surface', 'none');
+      }
+    })();
+  </script>
   <title>Super Checkout | Plataforma Digital</title>
-  <link rel="icon" type="image/x-icon" href="/logo.png" />
+  <link rel="icon" type="image/x-icon" href="/logo-light.png" />
   <link
     href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&family=Montserrat:ital,wght@0,900;1,900&display=swap"
     rel="stylesheet">

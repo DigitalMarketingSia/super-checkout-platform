@@ -47,8 +47,8 @@ const DEMO_RUNTIME_VERSION = 4;
 const DEMO_RUNTIME_STORAGE_LIMIT_BYTES = 4 * 1024 * 1024;
 const DEMO_RUNTIME_MAX_ASSET_BYTES = 2 * 1024 * 1024;
 const DEMO_LEGACY_PLACEHOLDER_TEXT = 'Conteudo temporario do workspace demo.';
-const DEMO_LESSON_RESOURCE_IMAGE = '/logo.png';
-const DEMO_MEMBER_POSTER_IMAGE = '/logo.png';
+const DEMO_LESSON_RESOURCE_IMAGE = '/logo-light.png';
+const DEMO_MEMBER_POSTER_IMAGE = '/logo-light.png';
 const DEMO_MEMBER_COVER_IMAGE = '/print-flow.png';
 const DEMO_MEMBER_AREA_BANNER_IMAGE = '/capa area de membros demo.png';
 const DEMO_SUPPLEMENTARY_PDF_URL = 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf';
@@ -555,7 +555,7 @@ const buildDefaultDemoBusinessSettings = (workspace: DemoWorkspace): DemoBusines
   currency: workspace.seed_payload.business.currency,
   is_ready_to_sell: true,
   compliance_status: 'verified',
-  logo_url: '/logo.png',
+  logo_url: '/logo-light.png',
   primary_color: '#8A2BE2',
   demo_mode: true,
   updated_at: workspace.updated_at || workspace.created_at,
@@ -587,7 +587,7 @@ const normalizeDemoBusinessSettings = (
     currency: candidate.currency === 'USD' || candidate.currency === 'EUR' ? candidate.currency : defaults.currency,
     is_ready_to_sell: candidate.is_ready_to_sell !== false,
     compliance_status: String(candidate.compliance_status || defaults.compliance_status || 'verified'),
-    logo_url: String(candidate.logo_url || defaults.logo_url || '/logo.png'),
+    logo_url: String(candidate.logo_url || defaults.logo_url || '/logo-light.png'),
     primary_color: String(candidate.primary_color || defaults.primary_color || '#8A2BE2'),
     demo_mode: true,
     updated_at: String(candidate.updated_at || defaults.updated_at || new Date().toISOString()),
@@ -1446,7 +1446,7 @@ const mapCheckout = (workspace: DemoWorkspace): Checkout[] => {
         subtitle: 'Simule o pos-compra sem cobrar nada',
         description: 'Este upsell usa gateway ficticio e pedido temporario do workspace demo.',
         media_type: 'image',
-        media_url: '/logo.png',
+        media_url: '/logo-light.png',
         button_text: 'Adicionar oferta demo',
         show_title: true,
         show_subtitle: true,
@@ -1584,8 +1584,8 @@ const mapMemberArea = (workspace: DemoWorkspace): MemberArea => ({
   name: workspace.seed_payload.member_area.name,
   slug: workspace.seed_payload.member_area.slug,
   domain_id: workspace.seed_payload.domains.find((domain) => domain.usage === 'member_area')?.id || null,
-  logo_url: '/logo.png',
-  login_image_url: '/logo.png',
+  logo_url: '/logo-light.png',
+  login_image_url: '/logo-light.png',
   primary_color: '#8A2BE2',
   created_at: workspace.created_at,
   layout_mode: 'module',

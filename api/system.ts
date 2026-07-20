@@ -11,6 +11,7 @@ import { enforceApiRateLimit } from '../src/core/api/_rate-limit.js';
 import { fulfillOrder } from '../src/core/services/fulfillment.js';
 import { sendOrderAccessEmail } from '../src/core/services/orderEmail.js';
 import { mergeOrderMetadata, normalizeOrderMetadata } from '../src/core/services/orderMetadata.js';
+import { dispatchPaymentFailedPush } from '../src/core/services/pushAutomation.js';
 import { getAllowedGatewayIdsForPaymentMethod } from '../src/core/config/paymentRouting.js';
 
 const DEFAULT_ALLOWED_ORIGIN = 'https://app.supercheckout.app';
@@ -1155,7 +1156,7 @@ async function finalizeStripePaymentHandler(req: VercelRequest, res: VercelRespo
 
     const { data: order } = await supabaseAdmin
       .from('orders')
-      .select('id, status, user_id, checkout_id, payment_id, customer_email, customer_name, payment_method')
+      .select('id, status, user_id, checkout_id, payment_id, customer_email, customer_name, payment_method, amount, items, metadata')
       .eq('id', orderId)
       .maybeSingle();
 
@@ -1283,6 +1284,24 @@ async function finalizeStripePaymentHandler(req: VercelRequest, res: VercelRespo
         }
       } catch (finalizeError: any) {
         console.error('[System] finalize-stripe-payment side effects failed:', finalizeError?.message || finalizeError);
+      }
+    } else if (internalStatus === 'failed' && previousOrderStatus !== 'failed') {
+      try {
+        const pushResult = await dispatchPaymentFailedPush({
+          supabaseAdmin,
+          merchantUserId,
+          orderId,
+          customerName: order.customer_name || null,
+          amount: Number((order as any).total ?? order.amount ?? 0) || 0,
+          paymentMethod: order.payment_method || null,
+          productNames: Array.isArray(order.items)
+            ? order.items.map((item: any) => String(item?.name || '').trim()).filter(Boolean)
+            : [],
+          failureReason: stripeStatus || null,
+        });
+        console.log('[System] finalize-stripe-payment push result:', pushResult);
+      } catch (pushError: any) {
+        console.error('[System] finalize-stripe-payment push failed:', pushError?.message || pushError);
       }
     }
 

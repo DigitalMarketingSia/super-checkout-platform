@@ -703,7 +703,7 @@ export default function InstallerWizard() {
                 {/* Header */}
                 <div className="text-center mb-16">
                     <div className="inline-flex items-center justify-center p-3 mb-6 rounded-2xl bg-white/5 border border-white/10 shadow-2xl backdrop-blur-sm">
-                        <img src="/logo.png" alt="Logo" className="w-12 h-12 object-contain" onError={(e) => e.currentTarget.src = 'https://via.placeholder.com/48'} />
+                        <img src="/logo-light.png" alt="Logo" className="w-12 h-12 object-contain" onError={(e) => e.currentTarget.src = 'https://via.placeholder.com/48'} />
                     </div>
                     <h1 className="text-5xl font-extrabold tracking-tight mb-4 bg-clip-text text-transparent bg-gradient-to-r from-white via-gray-200 to-gray-400">
                         {t('title')}

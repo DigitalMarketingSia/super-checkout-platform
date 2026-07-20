@@ -3,7 +3,7 @@
 -- ==========================================
 CREATE TABLE IF NOT EXISTS public.system_info(
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    db_version TEXT NOT NULL DEFAULT '1.0.31',
+    db_version TEXT NOT NULL DEFAULT '1.0.33',
     last_update_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
     last_applied_migration_version TEXT,
@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS public.system_info(
 );
 
 INSERT INTO public.system_info (db_version) 
-SELECT '1.0.31' WHERE NOT EXISTS (SELECT 1 FROM public.system_info);
+SELECT '1.0.33' WHERE NOT EXISTS (SELECT 1 FROM public.system_info);
 
 DO $$
 BEGIN
@@ -337,6 +337,102 @@ END $$;
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_consent_preferences_checkout_visitor
 ON public.consent_preferences(checkout_id, visitor_key);
+
+CREATE TABLE IF NOT EXISTS public.push_notification_preferences(
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    installation_id UUID,
+    enabled BOOLEAN NOT NULL DEFAULT true,
+    sale_approved BOOLEAN NOT NULL DEFAULT true,
+    payment_failed BOOLEAN NOT NULL DEFAULT true,
+    lead_captured BOOLEAN NOT NULL DEFAULT false,
+    system_alerts BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    UNIQUE(user_id)
+);
+
+DO $$
+BEGIN
+    ALTER TABLE public.push_notification_preferences ADD COLUMN IF NOT EXISTS installation_id UUID;
+    ALTER TABLE public.push_notification_preferences ADD COLUMN IF NOT EXISTS enabled BOOLEAN DEFAULT true;
+    ALTER TABLE public.push_notification_preferences ADD COLUMN IF NOT EXISTS sale_approved BOOLEAN DEFAULT true;
+    ALTER TABLE public.push_notification_preferences ADD COLUMN IF NOT EXISTS payment_failed BOOLEAN DEFAULT true;
+    ALTER TABLE public.push_notification_preferences ADD COLUMN IF NOT EXISTS lead_captured BOOLEAN DEFAULT false;
+    ALTER TABLE public.push_notification_preferences ADD COLUMN IF NOT EXISTS system_alerts BOOLEAN DEFAULT true;
+    ALTER TABLE public.push_notification_preferences ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
+    ALTER TABLE public.push_notification_preferences ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
+END $$;
+
+CREATE TABLE IF NOT EXISTS public.push_subscriptions(
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    installation_id UUID,
+    surface_key TEXT NOT NULL CHECK (surface_key IN ('admin', 'portal')),
+    endpoint TEXT NOT NULL UNIQUE,
+    subscription_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    p256dh_key TEXT,
+    auth_key TEXT,
+    permission_state TEXT NOT NULL DEFAULT 'granted' CHECK (permission_state IN ('default', 'granted', 'denied', 'revoked')),
+    device_label TEXT,
+    user_agent TEXT,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    revoked_at TIMESTAMP WITH TIME ZONE,
+    last_seen_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    last_test_sent_at TIMESTAMP WITH TIME ZONE,
+    last_push_received_at TIMESTAMP WITH TIME ZONE,
+    last_push_clicked_at TIMESTAMP WITH TIME ZONE,
+    last_delivery_state TEXT,
+    last_delivery_tag TEXT,
+    last_delivery_title TEXT,
+    last_delivery_body TEXT,
+    last_delivery_error TEXT,
+    last_delivery_sw_version TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+DO $$
+BEGIN
+    ALTER TABLE public.push_subscriptions ADD COLUMN IF NOT EXISTS installation_id UUID;
+    ALTER TABLE public.push_subscriptions ADD COLUMN IF NOT EXISTS surface_key TEXT;
+    ALTER TABLE public.push_subscriptions ADD COLUMN IF NOT EXISTS endpoint TEXT;
+    ALTER TABLE public.push_subscriptions ADD COLUMN IF NOT EXISTS subscription_json JSONB DEFAULT '{}'::jsonb;
+    ALTER TABLE public.push_subscriptions ADD COLUMN IF NOT EXISTS p256dh_key TEXT;
+    ALTER TABLE public.push_subscriptions ADD COLUMN IF NOT EXISTS auth_key TEXT;
+    ALTER TABLE public.push_subscriptions ADD COLUMN IF NOT EXISTS permission_state TEXT DEFAULT 'granted';
+    ALTER TABLE public.push_subscriptions ADD COLUMN IF NOT EXISTS device_label TEXT;
+    ALTER TABLE public.push_subscriptions ADD COLUMN IF NOT EXISTS user_agent TEXT;
+    ALTER TABLE public.push_subscriptions ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
+    ALTER TABLE public.push_subscriptions ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMP WITH TIME ZONE;
+    ALTER TABLE public.push_subscriptions ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
+    ALTER TABLE public.push_subscriptions ADD COLUMN IF NOT EXISTS last_test_sent_at TIMESTAMP WITH TIME ZONE;
+    ALTER TABLE public.push_subscriptions ADD COLUMN IF NOT EXISTS last_push_received_at TIMESTAMP WITH TIME ZONE;
+    ALTER TABLE public.push_subscriptions ADD COLUMN IF NOT EXISTS last_push_clicked_at TIMESTAMP WITH TIME ZONE;
+    ALTER TABLE public.push_subscriptions ADD COLUMN IF NOT EXISTS last_delivery_state TEXT;
+    ALTER TABLE public.push_subscriptions ADD COLUMN IF NOT EXISTS last_delivery_tag TEXT;
+    ALTER TABLE public.push_subscriptions ADD COLUMN IF NOT EXISTS last_delivery_title TEXT;
+    ALTER TABLE public.push_subscriptions ADD COLUMN IF NOT EXISTS last_delivery_body TEXT;
+    ALTER TABLE public.push_subscriptions ADD COLUMN IF NOT EXISTS last_delivery_error TEXT;
+    ALTER TABLE public.push_subscriptions ADD COLUMN IF NOT EXISTS last_delivery_sw_version TEXT;
+    ALTER TABLE public.push_subscriptions ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
+    ALTER TABLE public.push_subscriptions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
+END $$;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_push_notification_preferences_user
+ON public.push_notification_preferences(user_id);
+
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user_surface
+ON public.push_subscriptions(user_id, surface_key, is_active);
+
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_last_test_sent_at
+ON public.push_subscriptions(last_test_sent_at DESC NULLS LAST);
+
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_last_push_received_at
+ON public.push_subscriptions(last_push_received_at DESC NULLS LAST);
+
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_last_push_clicked_at
+ON public.push_subscriptions(last_push_clicked_at DESC NULLS LAST);
 
 -- 2.2 Member Areas
 CREATE TABLE IF NOT EXISTS member_areas(
@@ -909,6 +1005,18 @@ ALTER TABLE public.consent_preferences ALTER COLUMN updated_at SET NOT NULL;
 DROP TRIGGER IF EXISTS update_consent_preferences_updated_at ON public.consent_preferences;
 CREATE TRIGGER update_consent_preferences_updated_at
     BEFORE UPDATE ON public.consent_preferences
+    FOR EACH ROW
+    EXECUTE FUNCTION public.handle_updated_at();
+
+DROP TRIGGER IF EXISTS update_push_notification_preferences_updated_at ON public.push_notification_preferences;
+CREATE TRIGGER update_push_notification_preferences_updated_at
+    BEFORE UPDATE ON public.push_notification_preferences
+    FOR EACH ROW
+    EXECUTE FUNCTION public.handle_updated_at();
+
+DROP TRIGGER IF EXISTS update_push_subscriptions_updated_at ON public.push_subscriptions;
+CREATE TRIGGER update_push_subscriptions_updated_at
+    BEFORE UPDATE ON public.push_subscriptions
     FOR EACH ROW
     EXECUTE FUNCTION public.handle_updated_at();
 
@@ -2054,6 +2162,35 @@ USING (
 );
 
 CREATE POLICY "Admins can view all consent preferences" ON public.consent_preferences
+FOR SELECT TO authenticated
+USING (public.is_admin());
+
+ALTER TABLE public.push_notification_preferences ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.push_subscriptions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own push notification preferences" ON public.push_notification_preferences
+FOR SELECT TO authenticated
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can manage own push notification preferences" ON public.push_notification_preferences
+FOR ALL TO authenticated
+USING (auth.uid() = user_id)
+WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Admins can view all push notification preferences" ON public.push_notification_preferences
+FOR SELECT TO authenticated
+USING (public.is_admin());
+
+CREATE POLICY "Users can view own push subscriptions" ON public.push_subscriptions
+FOR SELECT TO authenticated
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can manage own push subscriptions" ON public.push_subscriptions
+FOR ALL TO authenticated
+USING (auth.uid() = user_id)
+WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Admins can view all push subscriptions" ON public.push_subscriptions
 FOR SELECT TO authenticated
 USING (public.is_admin());
 
@@ -3337,6 +3474,17 @@ WHERE version = '1.0.31';
 INSERT INTO public.schema_migrations(version, description, success, execution_time_ms)
 SELECT '1.0.31', 'Canonical schema hardens member area RPC access with owner/admin gate', true, 0
 WHERE NOT EXISTS (SELECT 1 FROM public.schema_migrations WHERE version = '1.0.31');
+
+UPDATE public.schema_migrations
+SET success = true,
+    description = 'Canonical schema adds PWA push diagnostics telemetry and device reset support',
+    error_log = NULL,
+    executed_at = timezone('utc'::text, now())
+WHERE version = '1.0.33';
+
+INSERT INTO public.schema_migrations(version, description, success, execution_time_ms)
+SELECT '1.0.33', 'Canonical schema adds PWA push diagnostics telemetry and device reset support', true, 0
+WHERE NOT EXISTS (SELECT 1 FROM public.schema_migrations WHERE version = '1.0.33');
 
 UPDATE public.schema_migrations
 SET success = true,

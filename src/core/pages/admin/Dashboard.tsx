@@ -371,7 +371,7 @@ export const Dashboard = () => {
   const FilterButton = ({ label, value, icon: IconComponent }: { label: string; value: Period; icon: any }) => (
     <button
       onClick={() => setPeriod(value)}
-      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all duration-300 flex items-center gap-1.5 ${period === value
+      className={`flex shrink-0 items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold transition-all duration-300 ${period === value
         ? 'bg-[#10B981]/15 text-[#10B981] border border-[#10B981]/30 shadow-[0_0_15px_rgba(16,185,129,0.15)]'
         : 'bg-transparent border border-transparent text-gray-500 hover:text-white hover:border-white/5 hover:bg-white/5'
         }`}
@@ -406,25 +406,39 @@ export const Dashboard = () => {
   return (
     <Layout>
       {/* Top Header & Filter Bar */}
-      <div className="flex flex-col gap-4 mb-8">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      <div className="mb-8 flex flex-col gap-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h1 className="text-3xl lg:text-4xl font-portal-display text-white mb-1 leading-none">
               {t('dashboard')}
             </h1>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <p className="text-gray-600 font-medium uppercase tracking-[0.1em] text-[9px]">{t('dashboard_desc')}</p>
-              <div className="h-1 w-1 rounded-full bg-gray-800"></div>
+              <div className="hidden h-1 w-1 rounded-full bg-gray-800 sm:block"></div>
               <span className="text-[9px] text-[#10B981] font-black uppercase tracking-[0.2em]">Live Control</span>
             </div>
           </div>
         </div>
 
         {/* Period Selector Area */}
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-2.5">
           <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">{t('period', { defaultValue: 'Período' })}</span>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1 bg-[#111116] p-1 rounded-2xl border border-white/5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+            <div className="sm:hidden">
+              <select
+                value={period}
+                onChange={(e) => setPeriod(e.target.value as Period)}
+                className="w-full appearance-none rounded-2xl border border-white/5 bg-[#111116] px-4 py-3 text-sm font-bold text-white outline-none transition-all"
+              >
+                <option value="today" className="bg-[#0A0A0F]">{t('today')}</option>
+                <option value="yesterday" className="bg-[#0A0A0F]">{t('yesterday')}</option>
+                <option value="7d" className="bg-[#0A0A0F]">{t('period_7d')}</option>
+                <option value="15d" className="bg-[#0A0A0F]">{t('period_15d')}</option>
+                <option value="30d" className="bg-[#0A0A0F]">{t('period_30d')}</option>
+                <option value="total" className="bg-[#0A0A0F]">{t('period_total')}</option>
+              </select>
+            </div>
+            <div className="hidden items-center gap-1 rounded-2xl border border-white/5 bg-[#111116] p-1 sm:flex sm:flex-wrap">
               <FilterButton label={t('today')} value="today" icon="sun" />
               <FilterButton label={t('yesterday')} value="yesterday" icon="moon" />
               <FilterButton label={t('period_7d')} value="7d" icon="calendar" />
@@ -433,19 +447,21 @@ export const Dashboard = () => {
               <FilterButton label={t('period_total')} value="total" icon="infinity" />
             </div>
 
-            {/* Visibility Toggle Button */}
-            <button
-              onClick={() => setShowValues(!showValues)}
-              className="p-2.5 rounded-xl bg-white/5 border border-white/5 text-gray-400 hover:text-white hover:bg-white/10 transition-all"
-              title={showValues ? "Ocultar valores" : "Mostrar valores"}
-            >
-              {showValues ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-            </button>
+            <div className="flex items-center gap-2">
+              {/* Visibility Toggle Button */}
+              <button
+                onClick={() => setShowValues(!showValues)}
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/5 bg-white/5 text-gray-400 transition-all hover:bg-white/10 hover:text-white"
+                title={showValues ? "Ocultar valores" : "Mostrar valores"}
+              >
+                {showValues ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+              </button>
 
-            {/* Tracking Indicator */}
-            <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[#10B981]/5 border border-[#10B981]/10 text-xs font-bold text-gray-400">
-              <div className="w-2 h-2 rounded-full bg-[#10B981] shadow-[0_0_8px_#10B981] animate-pulse"></div>
-              <span className="text-[10px] uppercase tracking-wider text-[#10B981]/90">Tracking</span>
+              {/* Tracking Indicator */}
+              <div className="flex flex-1 items-center gap-2 rounded-xl border border-[#10B981]/10 bg-[#10B981]/5 px-3 py-2 text-xs font-bold text-gray-400 sm:flex-initial">
+                <div className="w-2 h-2 rounded-full bg-[#10B981] shadow-[0_0_8px_#10B981] animate-pulse"></div>
+                <span className="text-[10px] uppercase tracking-wider text-[#10B981]/90">Tracking</span>
+              </div>
             </div>
           </div>
         </div>
@@ -455,10 +471,10 @@ export const Dashboard = () => {
       {!isDemoMode && <UpdateBanner />}
 
       {/* MAIN CARDS ROW 1: Sales & Quantities */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+      <div className="mb-6 grid grid-cols-1 gap-5 sm:gap-6 md:grid-cols-2">
         
         {/* Card 1: Revenue */}
-        <Card className="relative overflow-hidden group p-5 flex flex-row items-center justify-between min-h-[120px] bg-[#111116] border border-white/5 rounded-2xl">
+        <Card className="group relative flex min-h-[120px] flex-col gap-4 overflow-hidden rounded-2xl border border-white/5 bg-[#111116] p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
           <div className="absolute inset-0 opacity-10 pointer-events-none">
             <Aurora
               colorStops={['#10B981', '#064e3b', '#000']}
@@ -485,9 +501,9 @@ export const Dashboard = () => {
             </div>
           </div>
 
-          <div className="relative z-10 flex flex-col items-end justify-between h-full min-w-[120px]">
+          <div className="relative z-10 flex h-full flex-col items-start justify-between gap-3 sm:min-w-[120px] sm:items-end">
             {/* Sparkline trend */}
-            <div className="w-28 h-8 opacity-40 group-hover:opacity-80 transition-opacity">
+            <div className="h-8 w-full opacity-40 transition-opacity group-hover:opacity-80 sm:w-28">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartData}>
                   <Area type="monotone" dataKey="value" stroke="#10B981" strokeWidth={1.5} fill="none" />
@@ -496,7 +512,7 @@ export const Dashboard = () => {
             </div>
 
             {/* Percentage change */}
-            <div className={`text-[10px] font-black flex items-center gap-1.5 mt-2 ${comparisonStats.revenueChange >= 0 ? 'text-[#10B981]' : 'text-red-500'}`}>
+            <div className={`mt-1 flex items-center gap-1.5 text-[10px] font-black ${comparisonStats.revenueChange >= 0 ? 'text-[#10B981]' : 'text-red-500'}`}>
               <span>{comparisonStats.revenueChange >= 0 ? `+${comparisonStats.revenueChange.toFixed(1)}%` : `${comparisonStats.revenueChange.toFixed(1)}%`}</span>
               <span className="text-gray-500 font-bold uppercase tracking-wider text-[8px]">vs ontem</span>
             </div>
@@ -504,7 +520,7 @@ export const Dashboard = () => {
         </Card>
 
         {/* Card 2: Quantity of Sales */}
-        <Card className="relative overflow-hidden group p-5 flex flex-row items-center justify-between min-h-[120px] bg-[#111116] border border-white/5 rounded-2xl">
+        <Card className="group relative flex min-h-[120px] flex-col gap-4 overflow-hidden rounded-2xl border border-white/5 bg-[#111116] p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
           <div className="absolute inset-0 opacity-10 pointer-events-none">
             <Aurora
               colorStops={['#8A2BE2', '#4B0082', '#000']}
@@ -531,9 +547,9 @@ export const Dashboard = () => {
             </div>
           </div>
 
-          <div className="relative z-10 flex flex-col items-end justify-between h-full min-w-[120px]">
+          <div className="relative z-10 flex h-full flex-col items-start justify-between gap-3 sm:min-w-[120px] sm:items-end">
             {/* Sparkline trend */}
-            <div className="w-28 h-8 opacity-40 group-hover:opacity-80 transition-opacity">
+            <div className="h-8 w-full opacity-40 transition-opacity group-hover:opacity-80 sm:w-28">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartData}>
                   <Area type="monotone" dataKey="value" stroke="#8A2BE2" strokeWidth={1.5} fill="none" />
@@ -542,7 +558,7 @@ export const Dashboard = () => {
             </div>
 
             {/* Percentage change */}
-            <div className={`text-[10px] font-black flex items-center gap-1.5 mt-2 ${comparisonStats.countChange >= 0 ? 'text-[#10B981]' : 'text-red-500'}`}>
+            <div className={`mt-1 flex items-center gap-1.5 text-[10px] font-black ${comparisonStats.countChange >= 0 ? 'text-[#10B981]' : 'text-red-500'}`}>
               <span>{comparisonStats.countChange >= 0 ? `+${comparisonStats.countChange.toFixed(1)}%` : `${comparisonStats.countChange.toFixed(1)}%`}</span>
               <span className="text-gray-500 font-bold uppercase tracking-wider text-[8px]">vs ontem</span>
             </div>
@@ -551,20 +567,20 @@ export const Dashboard = () => {
       </div>
 
       {/* ROW 2: Slim Sales Performance Chart with Stats Sidebar */}
-      <div className="w-full mb-6">
-        <Card className="relative overflow-hidden bg-[#111116] border border-white/5 rounded-2xl p-5" noPadding>
-          <div className="flex flex-col md:flex-row gap-6">
+      <div className="mb-6 w-full">
+        <Card className="relative overflow-hidden rounded-2xl border border-white/5 bg-[#111116] p-4 sm:p-5" noPadding>
+          <div className="flex flex-col gap-5 md:flex-row md:gap-6">
             
             {/* Chart Area */}
             <div className="flex-1 min-w-0 flex flex-col">
-              <div className="flex justify-between items-end mb-4">
+              <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <h3 className="font-portal-display text-lg text-white">{t('sales_desempenho', { defaultValue: 'Desempenho de vendas' })}</h3>
                   <p className="text-[8px] font-black uppercase tracking-[0.2em] text-gray-700 mt-0.5">Market Activity</p>
                 </div>
               </div>
               
-              <div className="w-full h-56 lg:h-64 mt-2">
+              <div className="mt-2 h-52 w-full sm:h-56 lg:h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
                     <defs>
@@ -618,9 +634,9 @@ export const Dashboard = () => {
             <div className="hidden md:block w-px bg-white/5 self-stretch my-2"></div>
 
             {/* Stats Info Sidebar */}
-            <div className="w-full md:w-48 flex flex-col justify-between gap-6 py-2">
+            <div className="flex w-full flex-col justify-between gap-5 border-t border-white/5 pt-4 md:w-48 md:border-t-0 md:pt-2">
               {/* Dropdown selector */}
-              <div className="flex justify-end">
+              <div className="flex justify-start md:justify-end">
                 <div className="relative">
                   <select
                     value={period}
@@ -675,11 +691,11 @@ export const Dashboard = () => {
       </div>
 
       {/* GRID ROW 3: Payment Methods, General Conversion & Compact Widgets */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-6">
+      <div className="mb-6 grid grid-cols-1 gap-5 sm:gap-6 lg:grid-cols-4">
         
         {/* Left Area (Payment Methods): Takes 2 columns */}
-        <Card className="lg:col-span-2 relative overflow-hidden p-5 flex flex-col justify-center bg-[#111116] border border-white/5 rounded-2xl">
-          <div className="flex items-center justify-between mb-4">
+        <Card className="relative flex flex-col justify-center overflow-hidden rounded-2xl border border-white/5 bg-[#111116] p-4 sm:p-5 lg:col-span-2">
+          <div className="mb-4 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <CreditCard className="w-4 h-4 text-gray-500" />
               <span className="text-white/60 font-black uppercase tracking-[0.2em] text-[10px]">{t('payment_methods_title')}</span>
@@ -727,14 +743,14 @@ export const Dashboard = () => {
                   const methodRevenue = methodOrders.reduce((acc, curr) => acc + curr.amount, 0);
 
                   return (
-                    <div key={idx} className="flex items-center justify-between text-xs py-1 border-b border-white/5 last:border-0">
+                    <div key={idx} className="flex flex-col gap-2 border-b border-white/5 py-2 text-xs last:border-0 sm:flex-row sm:items-center sm:justify-between">
                       <div className="flex items-center gap-2">
                         <div className="w-12 flex items-center justify-start flex-shrink-0">
                           <item.icon />
                         </div>
                         <span className="text-gray-400 font-medium">{item.name}</span>
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center justify-between gap-3 sm:justify-end">
                         <span className="text-gray-500 font-bold text-[10px]">{pct}%</span>
                         <span className="text-gray-600">|</span>
                         <span className="text-white font-bold text-[11px] min-w-[70px] text-right">{formatValue(methodRevenue, true)}</span>
@@ -753,7 +769,7 @@ export const Dashboard = () => {
         </Card>
 
         {/* Middle Area (Conversion rate progress circle): Takes 1 column */}
-        <Card className="lg:col-span-1 relative overflow-hidden p-5 flex flex-col justify-center items-center text-center bg-[#111116] border border-white/5 rounded-2xl">
+        <Card className="relative flex flex-col items-center justify-center overflow-hidden rounded-2xl border border-white/5 bg-[#111116] p-4 text-center sm:p-5 lg:col-span-1">
           <div className="relative flex items-center justify-center w-28 h-28 mb-3">
             <svg className="w-full h-full transform -rotate-90">
               <circle
@@ -793,10 +809,10 @@ export const Dashboard = () => {
         </Card>
 
         {/* Right Area (Vertical widgets): Takes 1 column */}
-        <div className="lg:col-span-1 flex flex-col gap-3 justify-between">
+        <div className="flex flex-col justify-between gap-4 lg:col-span-1">
           
           {/* Widget 1: Carts Abandoned */}
-          <div className="bg-[#111116] rounded-2xl p-3 px-4 border border-white/5 flex items-center justify-between flex-1 min-h-[50px] group hover:bg-[#15151e] transition-all">
+          <div className="group flex min-h-[50px] flex-1 flex-col gap-2 rounded-2xl border border-white/5 bg-[#111116] p-4 transition-all hover:bg-[#15151e] sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-col">
               <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">{t('abandoned_carts')}</span>
               <span className="text-xl font-portal-display text-white mt-0.5">{stats.abandonedCarts}</span>
@@ -807,7 +823,7 @@ export const Dashboard = () => {
           </div>
 
           {/* Widget 2: Refunds */}
-          <div className="bg-[#111116] rounded-2xl p-3 px-4 border border-white/5 flex items-center justify-between flex-1 min-h-[50px] group hover:bg-[#15151e] transition-all">
+          <div className="group flex min-h-[50px] flex-1 flex-col gap-2 rounded-2xl border border-white/5 bg-[#111116] p-4 transition-all hover:bg-[#15151e] sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-col">
               <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">{t('refunds', { defaultValue: 'Reembolso' })}</span>
               <div className="flex items-baseline gap-1.5 mt-0.5">
@@ -821,7 +837,7 @@ export const Dashboard = () => {
           </div>
 
           {/* Widget 3: Active Products */}
-          <div className="bg-[#111116] rounded-2xl p-3 px-4 border border-white/5 flex items-center justify-between flex-1 min-h-[50px] group hover:bg-[#15151e] transition-all">
+          <div className="group flex min-h-[50px] flex-1 flex-col gap-2 rounded-2xl border border-white/5 bg-[#111116] p-4 transition-all hover:bg-[#15151e] sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-col">
               <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">{t('products_label', { defaultValue: 'Produtos' })}</span>
               <span className="text-xl font-portal-display text-white mt-0.5">{stats.productCount}</span>

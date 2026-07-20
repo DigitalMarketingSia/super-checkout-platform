@@ -124,5 +124,23 @@
         "price_context": "O valor final abaixo acompanha o produto white label vinculado quando existir configuração comercial publicada."
       }
     }
+  },
+  "pwa_install": {
+    "badge": "Instalacao rapida",
+    "admin_title": "Instalar painel no celular",
+    "portal_title": "Instalar portal no celular",
+    "admin_description": "Abra o painel com um toque e deixe o acesso operacional mais rapido no admin mobile.",
+    "portal_description": "Abra o portal com um toque e mantenha instalacao, licenca e acessos rapidos sempre por perto.",
+    "ios_hint": "No iPhone ou iPad, use Compartilhar e depois Adicionar a Tela de Inicio para concluir a instalacao.",
+    "action": "Instalar app",
+    "dismiss": "Agora nao"
+  },
+  "pwa_update": {
+    "badge": "Atualizacao pronta",
+    "admin_title": "Atualizar painel instalado",
+    "portal_title": "Atualizar portal instalado",
+    "admin_description": "Uma nova versao segura do painel ja foi preparada. Atualize agora para continuar com o shell mais recente.",
+    "portal_description": "Uma nova versao segura do portal ja foi preparada. Atualize agora para continuar com o shell mais recente.",
+    "action": "Atualizar agora"
   }
 }

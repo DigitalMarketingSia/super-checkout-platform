@@ -327,6 +327,7 @@ const ProcessingModal = ({
    businessName,
    paymentMethod,
    hostedCardRedirect = false,
+   gatewayStatus = '',
 }: {
    isOpen: boolean;
    state: ProcessState;
@@ -335,8 +336,13 @@ const ProcessingModal = ({
    businessName: string;
    paymentMethod?: string;
    hostedCardRedirect?: boolean;
+   gatewayStatus?: string;
 }) => {
    const { t } = useTranslation('public');
+   const normalizedGatewayStatus = String(gatewayStatus || '').trim().toLowerCase();
+   const isCardPendingConfirmation = !hostedCardRedirect
+      && paymentMethod === 'credit_card'
+      && (normalizedGatewayStatus === 'pending' || normalizedGatewayStatus === 'in_process');
 
    if (!isOpen) return null;
 
@@ -379,15 +385,18 @@ const ProcessingModal = ({
 
             {state === 'success' && (
                <>
-                  <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-6 animate-in zoom-in ${hostedCardRedirect ? 'bg-blue-100' : 'bg-green-100'}`}>
+                  <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-6 animate-in zoom-in ${hostedCardRedirect ? 'bg-blue-100' : isCardPendingConfirmation ? 'bg-amber-100' : 'bg-green-100'}`}>
                      {hostedCardRedirect ? (
                         <ShieldCheck className="w-10 h-10 text-blue-600" strokeWidth={2.5} />
+                     ) : isCardPendingConfirmation ? (
+                        <Clock className="w-10 h-10 text-amber-600" strokeWidth={2.5} />
                      ) : (
                         <Check className="w-10 h-10 text-green-500" strokeWidth={3} />
                      )}
                   </div>
-                  <h3 className={`text-xl font-medium text-center mb-2 ${hostedCardRedirect ? 'text-blue-700' : 'text-green-600'}`}>
+                  <h3 className={`text-xl font-medium text-center mb-2 ${hostedCardRedirect ? 'text-blue-700' : isCardPendingConfirmation ? 'text-amber-700' : 'text-green-600'}`}>
                      {hostedCardRedirect ? t('checkout.asaas_card_redirect_modal_title', 'Abrindo o pagamento seguro...') :
+                      isCardPendingConfirmation ? t('checkout.payment_pending_title', 'Pagamento em processamento') :
                       paymentMethod === 'pix' ? t('checkout.pix_generated', 'Pix gerado!') :
                       paymentMethod === 'boleto' ? t('checkout.boleto_generated', 'Boleto gerado!') :
                       t('checkout.payment_approved', 'Pagamento aprovado!')}
@@ -395,7 +404,9 @@ const ProcessingModal = ({
                   <p className="text-sm text-gray-500 text-center">
                      {hostedCardRedirect
                         ? t('checkout.asaas_card_redirect_modal_desc', 'Você vai concluir o pagamento no ambiente seguro do Asaas.')
-                        : t('checkout.redirecting', 'Redirecionando...')}
+                        : isCardPendingConfirmation
+                           ? t('checkout.payment_pending_desc', 'A operadora ainda estÃ¡ confirmando o pagamento. A prÃ³xima tela vai acompanhar a atualizaÃ§Ã£o automaticamente.')
+                           : t('checkout.redirecting', 'Redirecionando...')}
                   </p>
                </>
             )}
@@ -506,7 +517,7 @@ const StripeWrapper = ({ children, checkoutId: propId }: { children: React.React
       loadGateway();
    }, [id]);
 
-   if (!stripePromise) return <Loading label={t('checkout.loading', 'Carregando checkout')} />;
+   if (!stripePromise) return <Loading label={t('checkout.loading', 'Carregando checkout')} light />;
 
    if (stripePromise === 'not_stripe' || stripePromise === 'no_gateway' || stripePromise === 'error') {
       return <>{children}</>;
@@ -566,6 +577,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
    const [installmentOptions, setInstallmentOptions] = useState<InstallmentOption[]>([]);
    const [loadingInstallments, setLoadingInstallments] = useState(false);
    const [processState, setProcessState] = useState<ProcessState>('idle');
+   const [processGatewayStatus, setProcessGatewayStatus] = useState('');
    const [processError, setProcessError] = useState<string | null>(null);
 
    const [alertState, setAlertState] = useState<{ isOpen: boolean; title: string; message: string; variant: 'success' | 'error' | 'info' }>({
@@ -1437,6 +1449,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
       }
 
       setProcessState('processing');
+      setProcessGatewayStatus('');
       setProcessError(null);
       setIsProcessing(true);
 
@@ -1541,11 +1554,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                created_at: new Date().toISOString()
             });
 
-            // Treat pending/in_process credit cards correctly (wait UI, redirect but maybe show feedback)
-            if (paymentMethod === 'credit_card' && result.message === 'in_process') {
-               // Optional: specific in_process message
-            }
-
+            setProcessGatewayStatus(String(result.gatewayStatus || result.message || '').trim().toLowerCase());
             setProcessState('success');
 
             // Artificial delay to show success state in the modal
@@ -1607,6 +1616,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
              }, 1000); // 1 second showing the green checkmark
          } else {
             setProcessState('error');
+            setProcessGatewayStatus('');
             setProcessError(result.message || t('checkout.transaction_declined', 'Transação recusada. Verifique os dados do cartão.'));
             setIsProcessing(false);
          }
@@ -1619,6 +1629,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
             name: error.name
          });
          setProcessState('error');
+         setProcessGatewayStatus('');
          setProcessError(error.message || t('checkout.payment_error_retry', 'Erro ao processar pagamento. Verifique seus dados e tente novamente.'));
          setIsProcessing(false);
       }
@@ -1682,7 +1693,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
       );
    };
 
-   if (loading) return <Loading label={t('checkout.loading', 'Carregando checkout')} />;
+   if (loading) return <Loading label={t('checkout.loading', 'Carregando checkout')} light />;
    if (error || !data) return <div className="min-h-screen flex items-center justify-center bg-[#f9fafb] text-gray-500">{error}</div>;
 
    const totalAmount = calculateTotal();
@@ -2489,6 +2500,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                onClose={() => setProcessState('idle')}
                businessName={businessName}
                paymentMethod={paymentMethod || undefined}
+               gatewayStatus={processGatewayStatus}
                hostedCardRedirect={Boolean(paymentMethod === 'credit_card' && isAsaasHostedCardFlow)}
             />
             <AlertModal
@@ -2816,7 +2828,7 @@ const PublicCheckoutContent = ({ checkoutId }: { checkoutId?: string }) => {
       loadGateway();
    }, [id]);
 
-   if (loading || !id) return <Loading label={t('checkout.loading', 'Carregando checkout')} />;
+   if (loading || !id) return <Loading label={t('checkout.loading', 'Carregando checkout')} light />;
 
    return (
       <StripeHooksBridge gatewayName={supportsStripeRuntime ? GatewayProvider.STRIPE : undefined}>

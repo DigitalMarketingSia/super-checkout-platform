@@ -377,7 +377,7 @@ export const ThankYou = () => {
   }, [isDemoRuntime, order, orderId, statusSignature]);
 
   if (loading) {
-    return <Loading label={t('thank_you.loading', 'Carregando pedido')} />;
+    return <Loading label={t('thank_you.loading', 'Carregando pedido')} light />;
   }
 
   // Ensure config exists
@@ -426,7 +426,7 @@ export const ThankYou = () => {
               {isAwaitingConfirmation
                 ? (
                   order?.payment_method === 'credit_card'
-                    ? t('thank_you.pending_card_subtitle', 'O cliente voltou da etapa segura do Asaas, mas a cobrança ainda está aguardando confirmação final. Esta página atualiza automaticamente assim que o pagamento for aprovado.')
+                    ? t('thank_you.pending_card_subtitle', 'O pagamento com cartão ainda está aguardando confirmação final. Esta página atualiza automaticamente assim que o pedido for aprovado.')
                     : t('thank_you.pending_subtitle', 'Estamos aguardando a confirmação final do pagamento. Esta página atualiza automaticamente assim que o pedido for aprovado.')
                 )
                 : t('thank_you.subtitle', 'Sua compra foi realizada com sucesso. Você receberá os detalhes do acesso no seu e-mail em instantes.')}
@@ -478,7 +478,7 @@ export const ThankYou = () => {
                   {t('thank_you.pending_status_title', 'Status atual: aguardando confirmação')}
                 </p>
                 <p className="text-xs text-amber-800 mt-1">
-                  {t('thank_you.pending_status_desc', 'O Asaas ainda não confirmou esta cobrança. Assim que a confirmação chegar por webhook ou consulta de status, esta página será atualizada automaticamente.')}
+                  {t('thank_you.pending_status_desc', 'A operadora ainda não confirmou esta cobrança. Assim que a confirmação chegar por webhook ou consulta de status, esta página será atualizada automaticamente.')}
                 </p>
                 <div className="mt-4">
                   <Button

@@ -13,6 +13,7 @@ import { ConfigLoader } from './components/ConfigLoader';
 import { Toaster } from 'sonner';
 import { getEnv } from './utils/env';
 import { GlobalErrorBoundary } from './components/GlobalErrorBoundary';
+import { isLightPublicRoute } from './utils/isLightPublicRoute';
 import {
   getCurrentHostname,
   getHostnameFromUrl,
@@ -189,7 +190,7 @@ const SystemOwnerRoute: React.FC<{ children: React.ReactNode; requireControlPlan
   const { user, profile, loading } = useAuth();
 
   if (loading) return <Loading />;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/admin/login" replace />;
 
   const effectiveRole = profile?.effective_role || profile?.role;
   if (effectiveRole !== 'master_admin') {
@@ -384,6 +385,7 @@ const DomainDispatcher = () => {
         <Route path="/debug-auth" element={<AuthDebug />} />
       )}
       <Route path="/login" element={<HostAwareLoginRoute />} />
+      <Route path="/admin/login" element={<HostAwareLoginRoute />} />
       <Route path="/passport" element={<PassportExchange />} />
       <Route path="/demo" element={<DemoWorkspaceLauncher />} />
       <Route path="/register" element={<Register />} />
@@ -516,7 +518,7 @@ const App = () => {
   }, []);
 
   if (isHydrating) {
-    return <div className="h-screen w-screen flex items-center justify-center bg-[#05050A] text-white italic font-bold uppercase tracking-widest text-xs animate-pulse">{t('loading_config')}</div>;
+    return <Loading label={t('loading_config')} light={isLightPublicRoute(window.location.pathname)} />;
   }
 
   // Check if we have the critical keys to start the app

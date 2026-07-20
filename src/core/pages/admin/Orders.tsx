@@ -13,6 +13,7 @@ import {
 import { OrderDetailsModal } from '../../components/admin/orders/OrderDetailsModal';
 import { CustomerDetailsModal } from '../../components/admin/orders/CustomerDetailsModal';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router-dom';
 import Aurora from '../../components/ui/Aurora';
 
 interface CustomerProfile {
@@ -27,6 +28,7 @@ interface CustomerProfile {
 
 export const Orders = () => {
   const { t, i18n } = useTranslation(['admin', 'common']);
+  const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<'orders' | 'customers'>('orders');
   const [orders, setOrders] = useState<Order[]>([]);
   const [customers, setCustomers] = useState<CustomerProfile[]>([]);
@@ -51,10 +53,43 @@ export const Orders = () => {
   const [isMsgModalOpen, setIsMsgModalOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerProfile | null>(null);
+  const pushedOrderId = searchParams.get('order');
 
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (!pushedOrderId) {
+      return;
+    }
+
+    const matchedOrder = orders.find((order) => order.id === pushedOrderId);
+    if (!matchedOrder) {
+      return;
+    }
+
+    if (activeTab !== 'orders') {
+      setActiveTab('orders');
+    }
+
+    if (selectedOrder?.id !== matchedOrder.id) {
+      setSelectedOrder(matchedOrder);
+    }
+  }, [activeTab, orders, pushedOrderId, selectedOrder?.id]);
+
+  const closeSelectedOrder = () => {
+    setSelectedOrder(null);
+
+    if (!pushedOrderId) {
+      return;
+    }
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete('order');
+    nextParams.delete('source');
+    setSearchParams(nextParams, { replace: true });
+  };
 
   const loadData = async () => {
     const allOrders = await storage.getOrders();
@@ -196,7 +231,7 @@ export const Orders = () => {
   const TabButton = ({ label, value, icon: Icon }: { label: string; value: 'orders' | 'customers'; icon: any }) => (
     <button
       onClick={() => setActiveTab(value)}
-      className={`px-6 py-2.5 rounded-full text-xs font-black uppercase tracking-[0.2em] transition-all flex items-center gap-2 ${activeTab === value
+      className={`flex flex-1 items-center justify-center gap-2 rounded-full px-4 py-2.5 text-[11px] font-black uppercase tracking-[0.2em] transition-all sm:flex-none sm:px-6 sm:text-xs ${activeTab === value
         ? 'bg-primary text-white shadow-[0_0_20px_rgba(138,43,226,0.4)] border border-white/20'
         : 'text-gray-500 hover:text-white'
         }`}
@@ -210,7 +245,7 @@ export const Orders = () => {
     <Layout>
       {/* Tactical Header Architecture */}
       <div 
-        className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-12 p-8 rounded-[2.5rem] border-2 border-dashed border-white/20 backdrop-blur-3xl relative overflow-hidden transition-all shadow-[0_20px_50px_rgba(0,0,0,0.5)]"
+        className="relative mb-8 flex flex-col justify-between gap-6 overflow-hidden rounded-[2rem] border-2 border-dashed border-white/20 p-5 shadow-[0_20px_50px_rgba(0,0,0,0.5)] transition-all backdrop-blur-3xl sm:mb-12 sm:gap-4 sm:rounded-[2.5rem] sm:p-8 md:flex-row md:items-center"
         style={{ 
           background: 'linear-gradient(135deg, rgba(0,0,0,0.4) 0%, rgba(138,43,226,0.1) 100%)',
         }}
@@ -220,16 +255,16 @@ export const Orders = () => {
         
         <div className="flex flex-col gap-6 relative z-10">
           <div>
-            <h1 className="text-3xl xl:text-5xl font-black text-white italic uppercase tracking-tighter leading-none mb-4">
+            <h1 className="mb-4 text-2xl font-black italic uppercase leading-none tracking-tighter text-white sm:text-3xl xl:text-5xl">
               {activeTab === 'orders' ? t('orders.header.transaction') : t('orders.header.customer')} <span className="text-primary">{t('orders.header.registry')}</span>
             </h1>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 text-white/40 text-[10px] font-bold uppercase tracking-[0.3em]">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+              <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.3em] text-white/40">
                 <Activity className="w-3.5 h-3.5" />
                 {t('orders.header.real_time_monitor')}
               </div>
-              <div className="w-1 h-1 rounded-full bg-white/20" />
-              <div className="flex items-center gap-2 text-white/60 text-[10px] font-mono uppercase tracking-[0.2em]">
+              <div className="hidden h-1 w-1 rounded-full bg-white/20 sm:block" />
+              <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.2em] text-white/60">
                 <Database className="w-3.5 h-3.5 text-primary" />
                 {activeTab === 'orders'
                   ? t('orders.header.logged_entries', { count: orders.length })
@@ -271,14 +306,16 @@ export const Orders = () => {
         </div>
 
         {/* Tab Controls & Actions */}
-        <div className="flex flex-col items-end gap-6 relative z-10 shrink-0">
-          <div className="flex items-center gap-2 bg-black/40 p-1.5 rounded-full border border-white/5 backdrop-blur-md shadow-2xl">
-            <TabButton label={t('orders.tabs.log')} value="orders" icon={ShoppingBag} />
-            <TabButton label={t('orders.tabs.users')} value="customers" icon={Users} />
-            
-            <div className="h-8 w-px bg-white/10 mx-2"></div>
+        <div className="relative z-10 flex w-full shrink-0 flex-col gap-4 md:w-auto md:items-end md:gap-6">
+          <div className="flex w-full flex-col gap-3 rounded-[2rem] border border-white/5 bg-black/40 p-2 backdrop-blur-md shadow-2xl sm:flex-row sm:items-center sm:rounded-full sm:p-1.5">
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <TabButton label={t('orders.tabs.log')} value="orders" icon={ShoppingBag} />
+              <TabButton label={t('orders.tabs.users')} value="customers" icon={Users} />
+            </div>
 
-            <div className="flex items-center gap-1">
+            <div className="hidden h-8 w-px bg-white/10 sm:block"></div>
+
+            <div className="flex items-center justify-end gap-1 border-t border-white/5 pt-2 sm:border-t-0 sm:pt-0">
               {activeTab === 'customers' && (
                 <button 
                   onClick={handleExportCustomers} 
@@ -309,7 +346,7 @@ export const Orders = () => {
       </div>
 
       {/* SLIM FILTER OVERLAY */}
-      <div className="mb-0 flex flex-col lg:flex-row gap-4 items-center justify-between bg-black/40 p-4 rounded-t-[2.5rem] border-x border-t border-white/5 backdrop-blur-xl">
+      <div className="mb-0 flex flex-col items-center justify-between gap-4 rounded-t-[2rem] border-x border-t border-white/5 bg-black/40 p-4 backdrop-blur-xl sm:rounded-t-[2.5rem] lg:flex-row">
          <div className="w-full lg:w-96 relative group">
             <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-4 h-4 text-white/10 group-focus-within:text-primary transition-colors" />
             <input 
@@ -346,7 +383,7 @@ export const Orders = () => {
 
       {/* Extended Filters Drawer */}
       {showFilters && (
-        <div className="p-8 bg-black/60 border-x border-white/5 grid grid-cols-1 md:grid-cols-2 gap-8 animate-in slide-in-from-top-2 relative overflow-hidden group/drawer">
+        <div className="group/drawer relative grid grid-cols-1 gap-6 overflow-hidden border-x border-white/5 bg-black/60 p-4 animate-in slide-in-from-top-2 sm:p-8 md:grid-cols-2 md:gap-8">
           <div className="absolute top-0 right-0 p-8 opacity-5">
              <Layers className="w-24 h-24 text-primary" />
           </div>
@@ -395,7 +432,7 @@ export const Orders = () => {
                   <div 
                     key={order.id} 
                     onClick={() => setSelectedOrder(order)}
-                    className="group relative hover:bg-white/[0.02] flex flex-col lg:flex-row lg:items-center gap-6 lg:gap-6 px-8 py-6 transition-all cursor-pointer overflow-hidden"
+                    className="group relative flex cursor-pointer flex-col gap-5 overflow-hidden px-4 py-5 transition-all hover:bg-white/[0.02] sm:px-6 sm:py-6 lg:flex-row lg:items-center lg:gap-6 lg:px-8"
                   >
                     {/* Hover Glow */}
                     <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none bg-gradient-to-r from-primary/[0.03] via-transparent to-transparent"></div>
@@ -469,7 +506,7 @@ export const Orders = () => {
               <div 
                 key={i} 
                 onClick={() => setSelectedCustomer(customer)}
-                className="group relative bg-transparent hover:bg-white/[0.02] p-8 transition-all duration-500 cursor-pointer overflow-hidden border-white/[0.03]"
+                className="group relative cursor-pointer overflow-hidden border-white/[0.03] bg-transparent p-5 transition-all duration-500 hover:bg-white/[0.02] sm:p-8"
               >
                 {/* Glow Background */}
                 <div className="absolute -top-20 -right-20 w-40 h-40 bg-primary/5 blur-[50px] opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
@@ -531,19 +568,19 @@ export const Orders = () => {
 
       {/* Pagination Controls */}
       {totalPages > 1 && (
-        <div className="mt-12 flex flex-col items-center gap-6">
+        <div className="mt-10 flex flex-col items-center gap-5 sm:mt-12 sm:gap-6">
           <div className="h-px w-full bg-gradient-to-r from-transparent via-white/5 to-transparent"></div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <button
               onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
               disabled={currentPage === 1}
-              className="p-4 rounded-2xl border border-white/5 bg-black/40 text-gray-500 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition-all"
+              className="rounded-2xl border border-white/5 bg-black/40 p-3 text-gray-500 transition-all hover:text-white disabled:cursor-not-allowed disabled:opacity-20 sm:p-4"
             >
               <ChevronRight className="w-5 h-5 rotate-180" />
             </button>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               {(() => {
                 const range = [];
                 const maxVisible = 5;
@@ -577,7 +614,7 @@ export const Orders = () => {
                     <button
                       key={page}
                       onClick={() => setCurrentPage(page as number)}
-                      className={`w-12 h-12 rounded-2xl text-xs font-black uppercase transition-all border ${currentPage === page
+                      className={`h-11 w-11 rounded-2xl border text-[11px] font-black uppercase transition-all sm:h-12 sm:w-12 sm:text-xs ${currentPage === page
                         ? 'bg-white text-black border-white shadow-xl'
                         : 'bg-black/40 text-gray-500 border-white/5 hover:text-white'
                         }`}
@@ -592,7 +629,7 @@ export const Orders = () => {
             <button
               onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
               disabled={currentPage === totalPages}
-              className="p-4 rounded-2xl border border-white/5 bg-black/40 text-gray-500 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition-all"
+              className="rounded-2xl border border-white/5 bg-black/40 p-3 text-gray-500 transition-all hover:text-white disabled:cursor-not-allowed disabled:opacity-20 sm:p-4"
             >
               <ChevronRight className="w-5 h-5" />
             </button>
@@ -642,7 +679,7 @@ export const Orders = () => {
         <OrderDetailsModal
           isOpen={true}
           order={selectedOrder}
-          onClose={() => setSelectedOrder(null)}
+          onClose={closeSelectedOrder}
         />
       )}
 

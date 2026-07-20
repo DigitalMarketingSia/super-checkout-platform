@@ -46,7 +46,7 @@ export function mapAsaasStatusToLocal(
   status: string,
   billingType?: string,
   options?: { sandbox?: boolean | null },
-) {
+): 'paid' | 'pending' | 'canceled' | 'refunded' | 'failed' {
   const normalizedStatus = String(status || '').trim().toUpperCase();
   const normalizedBillingType = String(billingType || '').trim().toUpperCase();
   const isSandbox = options?.sandbox === true;
