@@ -497,7 +497,7 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
           id: reusableProfile.gateway_customer_id,
         }
       : {
-          email: customerEmail,
+          email: isSandboxTestName ? 'test_user_sandbox@testuser.com' : customerEmail,
           first_name: isSandboxTestName ? firstName.toUpperCase() : firstName,
           last_name: isSandboxTestName ? firstName.toUpperCase() : (nameParts.slice(1).join(' ') || 'Super'),
         };
