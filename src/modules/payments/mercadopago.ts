@@ -497,12 +497,12 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
           id: reusableProfile.gateway_customer_id,
         }
       : {
-          email: isSandboxTestName ? 'test_user_sandbox123@hotmail.com' : customerEmail,
+          email: customerEmail,
           first_name: firstName,
         };
 
     if (!useSavedPaymentMethod) {
-      payer.last_name = isSandboxTestName ? 'Teste' : (nameParts.slice(1).join(' ') || 'Super');
+      payer.last_name = nameParts.slice(1).join(' ') || 'Super';
     }
 
     const payerDocument = String(customerCpf || '').replace(/\D/g, '');
@@ -529,9 +529,7 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
       if (!useSavedPaymentMethod) {
         body.payment_method_id = paymentMethodId;
       }
-      if (!isSandboxTestName) {
-        body.binary_mode = true;
-      }
+      body.binary_mode = true;
     } else {
       body.payment_method_id = paymentMethod;
     }
