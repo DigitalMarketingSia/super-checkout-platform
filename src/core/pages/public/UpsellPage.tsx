@@ -260,6 +260,20 @@ const formatUpsellInstallmentLabel = (amount: number, currency?: string | null) 
         : `1x de ${formattedAmount}`;
 };
 
+const formatUpsellPrice = (amount: number, currency?: string | null) => {
+    const normalizedCurrency = String(currency || 'BRL').trim().toUpperCase() || 'BRL';
+
+    try {
+        return new Intl.NumberFormat('pt-BR', {
+            style: 'currency',
+            currency: normalizedCurrency,
+            minimumFractionDigits: 2,
+        }).format(amount || 0);
+    } catch {
+        return `R$ ${Number(amount || 0).toFixed(2)}`;
+    }
+};
+
 const formatUpsellExpiryInput = (value: string) => {
     const digits = value.replace(/\D/g, '').slice(0, 4);
     if (digits.length <= 2) return digits;
@@ -1585,6 +1599,16 @@ export const UpsellPage = () => {
 
     if (loading) return <Loading label={t('upsell.loading', 'Carregando oferta')} light />;
     if (error) return <div className="min-h-screen bg-black flex items-center justify-center text-white">{error}</div>;
+
+    const config = checkout?.config.upsell!;
+    const currentPrice = Number(upsellProduct?.price_real || 0);
+    const rawComparePrice = Number(upsellProduct?.price_fake ?? (config as any)?.compare_price ?? 0);
+    const comparePrice = Number.isFinite(rawComparePrice) && rawComparePrice > currentPrice ? rawComparePrice : null;
+    const discountPercentage = comparePrice && currentPrice > 0
+        ? Math.max(1, Math.round(((comparePrice - currentPrice) / comparePrice) * 100))
+        : null;
+    const upsellCurrency = checkout?.currency || upsellProduct?.currency || 'BRL';
+
     if (pixCode) {
         return (
             <div className="min-h-screen bg-[#05050A] text-white flex flex-col items-center justify-center p-4">
@@ -1594,7 +1618,7 @@ export const UpsellPage = () => {
                     </div>
                     <div>
                         <h2 className="text-2xl font-bold mb-2">{t('upsell.reserved_title', 'Oferta reservada!')}</h2>
-                        <p className="text-gray-300 leading-relaxed">{t('upsell.reserved_desc', 'Seu pedido principal já foi confirmado. Escaneie o QR Code abaixo apenas para concluir o pagamento do item adicional.')}</p>
+                        <p className="text-gray-300 leading-relaxed">{t('upsell.reserved_desc', 'Seu pedido principal já foi confirmado. Escaneie o QR Code abaixo para garantir o item adicional com o preço exclusivo que você acabou de desbloquear.')}</p>
                     </div>
                     <div className={`rounded-xl border p-4 text-left ${pixPaymentConfirmed ? 'border-green-400/20 bg-green-400/10' : 'border-primary/20 bg-primary/10'}`}>
                         <div className="flex items-center gap-2 text-sm font-semibold">
@@ -1609,6 +1633,19 @@ export const UpsellPage = () => {
                     </div>
                     <div className="bg-white p-4 rounded-xl mx-auto w-64 h-64 flex items-center justify-center">
                         <img src={pixQrImageSrc || `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(pixCode)}`} className="w-full h-full" />
+                    </div>
+                    <div className="rounded-xl border border-green-400/25 bg-green-400/10 px-5 py-4">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-green-300">{t('upsell.pix_exclusive_price', 'Preço exclusivo no Pix')}</p>
+                        {comparePrice ? (
+                            <div className="mt-2 flex items-center justify-center gap-2 text-sm text-gray-400">
+                                <span>{t('upsell.price_from', 'De')}</span>
+                                <span className="font-semibold line-through">{formatUpsellPrice(comparePrice, upsellCurrency)}</span>
+                            </div>
+                        ) : null}
+                        <div className="mt-1 flex items-baseline justify-center gap-2">
+                            <span className="text-sm font-semibold text-gray-300">{comparePrice ? t('upsell.price_for', 'por') : t('upsell.pix_price_label', 'Valor no Pix')}</span>
+                            <strong className="text-3xl font-black text-green-400">{formatUpsellPrice(currentPrice, upsellCurrency)}</strong>
+                        </div>
                     </div>
                     <div className="text-left space-y-3">
                         <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-gray-400">{t('pix.copy_and_paste', 'Pix copia e cola')}</p>
@@ -1635,20 +1672,10 @@ export const UpsellPage = () => {
             </div>
         );
     }
-
-
-
-    const config = checkout?.config.upsell!;
     const stripeWalletType = gateway?.name === 'stripe'
         && !useManualStripeCardForm
         && (originalOrder?.payment_method === 'apple_pay' || originalOrder?.payment_method === 'google_pay')
         ? originalOrder.payment_method
-        : null;
-    const currentPrice = Number(upsellProduct?.price_real || 0);
-    const rawComparePrice = Number(upsellProduct?.price_fake ?? (config as any).compare_price ?? 0);
-    const comparePrice = Number.isFinite(rawComparePrice) && rawComparePrice > currentPrice ? rawComparePrice : null;
-    const discountPercentage = comparePrice && currentPrice > 0
-        ? Math.max(1, Math.round(((comparePrice - currentPrice) / comparePrice) * 100))
         : null;
     const upsellCardImageUrl = resolveUpsellCardImageUrl(upsellProduct, config);
     const upsellHeroVideoUrl = config.show_media && config.media_type === 'video'
