@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { loadStripe, type Stripe, type StripeCardNumberElement } from '@stripe/stripe-js';
-import { Elements, CardCvcElement, CardExpiryElement, CardNumberElement, useElements, useStripe } from '@stripe/react-stripe-js';
+import { loadStripe, type PaymentRequest, type Stripe, type StripeCardNumberElement } from '@stripe/stripe-js';
+import { Elements, CardCvcElement, CardExpiryElement, CardNumberElement, PaymentRequestButtonElement, useElements, useStripe } from '@stripe/react-stripe-js';
 import { useTranslation } from 'react-i18next';
 import { Check, CheckCircle, Clock, Copy, CreditCard, Loader2, Lock, Package, QrCode, ShieldCheck, Sliders } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
@@ -159,7 +159,7 @@ const resolvePreferredUpsellGateway = (params: {
 
 const stripeElementOptions = {
     style: {
-        base: { color: '#FFFFFF', fontSize: '14px', '::placeholder': { color: '#9CA3AF' } },
+        base: { color: '#1F2937', fontSize: '14px', '::placeholder': { color: '#9CA3AF' } },
         invalid: { color: '#F87171' },
     },
 };
@@ -335,11 +335,12 @@ function StripeUpsellForm(props: {
     errorMessage: string;
     onHolderNameChange: (value: string) => void;
     onError: (message: string) => void;
-    onSubmit: (paymentMethodId: string) => Promise<void>;
+    onSubmit: (paymentMethodId: string) => Promise<unknown>;
 }) {
     const stripe = useStripe();
     const elements = useElements();
     const { t } = useTranslation('public');
+    const [cardFlipped, setCardFlipped] = useState(false);
 
     const submit = async () => {
         props.onError('');
@@ -369,25 +370,186 @@ function StripeUpsellForm(props: {
     };
 
     return (
-        <div className="w-full max-w-sm space-y-4">
-            <div className="bg-white/5 p-4 rounded-xl border border-white/10">
-                <h4 className="font-bold mb-4 flex items-center gap-2">
-                    <CreditCard className="w-4 h-4 text-primary" /> {t('upsell.card_details', 'Dados do cartão')}
-                </h4>
-                <p className="text-xs text-gray-400 leading-relaxed mb-4">
-                    {t('upsell.card_form_notice', 'Você está confirmando um pagamento adicional apenas para esta oferta. O pedido principal não será cobrado novamente.')}
-                </p>
-                <input className="w-full bg-black/30 border border-white/10 rounded mb-3 p-3 text-sm" placeholder={t('upsell.cardholder', 'Nome no cartão')} value={props.holderName} onChange={(e) => props.onHolderNameChange(e.target.value)} />
-                <div className="w-full bg-black/30 border border-white/10 rounded mb-3 p-3"><CardNumberElement options={stripeElementOptions} /></div>
-                <div className="grid grid-cols-2 gap-3 mb-3">
-                    <div className="w-full bg-black/30 border border-white/10 rounded p-3"><CardExpiryElement options={stripeElementOptions} /></div>
-                    <div className="w-full bg-black/30 border border-white/10 rounded p-3"><CardCvcElement options={stripeElementOptions} /></div>
-                </div>
-                {props.errorMessage && <p className="text-sm text-amber-300 leading-relaxed">{props.errorMessage}</p>}
+        <div className="w-full max-w-[280px] mx-auto space-y-3 pt-2">
+            <p className="text-xs text-gray-400 leading-relaxed">
+                {t('upsell.card_form_notice', 'Você está confirmando um pagamento adicional apenas para esta oferta. O pedido principal não será cobrado novamente.')}
+            </p>
+            <UpsellCardPreview
+                holderName={props.holderName}
+                flipped={cardFlipped}
+                onToggle={() => setCardFlipped((current) => !current)}
+            />
+            <input
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 shadow-sm outline-none transition-all focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/20"
+                placeholder={t('upsell.cardholder', 'Nome no cartão')}
+                value={props.holderName}
+                onFocus={() => setCardFlipped(false)}
+                onChange={(event) => props.onHolderNameChange(event.target.value)}
+            />
+            <div className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 shadow-sm transition-all focus-within:border-[#10B981] focus-within:ring-2 focus-within:ring-[#10B981]/20">
+                <CardNumberElement options={stripeElementOptions} onFocus={() => setCardFlipped(false)} />
             </div>
+            <div className="grid grid-cols-2 gap-3">
+                <div className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 shadow-sm transition-all focus-within:border-[#10B981] focus-within:ring-2 focus-within:ring-[#10B981]/20">
+                    <CardExpiryElement options={stripeElementOptions} onFocus={() => setCardFlipped(false)} />
+                </div>
+                <div className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 shadow-sm transition-all focus-within:border-[#10B981] focus-within:ring-2 focus-within:ring-[#10B981]/20">
+                    <CardCvcElement options={stripeElementOptions} onFocus={() => setCardFlipped(true)} />
+                </div>
+            </div>
+            {props.errorMessage && <p className="text-sm text-amber-300 leading-relaxed">{props.errorMessage}</p>}
             <Button onClick={submit} className={upsellFormSubmitButtonClassName} disabled={props.processing || !stripe}>
                 {props.processing ? t('upsell.finalizing', 'Finalizando...') : t('upsell.confirm_payment', 'Confirmar pagamento')}
             </Button>
+        </div>
+    );
+}
+
+function StripeWalletUpsellForm(props: {
+    processing: boolean;
+    walletType: 'apple_pay' | 'google_pay';
+    amount: number;
+    currency: string;
+    productName: string;
+    errorMessage: string;
+    onError: (message: string) => void;
+    onUseCard: () => void;
+    onSubmit: (paymentMethodId: string, beforeAdditionalAuth: () => void) => Promise<boolean>;
+}) {
+    const stripe = useStripe();
+    const { t } = useTranslation('public');
+    const [paymentRequest, setPaymentRequest] = useState<PaymentRequest | null>(null);
+    const [availabilityChecked, setAvailabilityChecked] = useState(false);
+    const [walletAvailable, setWalletAvailable] = useState(false);
+    const walletLabel = props.walletType === 'apple_pay' ? 'Apple Pay' : 'Google Pay';
+
+    useEffect(() => {
+        let cancelled = false;
+        setPaymentRequest(null);
+        setAvailabilityChecked(false);
+        setWalletAvailable(false);
+
+        if (!stripe) {
+            return () => {
+                cancelled = true;
+            };
+        }
+
+        const nextPaymentRequest = stripe.paymentRequest({
+            country: 'BR',
+            currency: String(props.currency || 'BRL').toLowerCase(),
+            total: {
+                label: props.productName || t('upsell.payment_label', 'Pagamento adicional'),
+                amount: Math.max(1, Math.round(Number(props.amount || 0) * 100)),
+            },
+            requestPayerName: true,
+            requestPayerEmail: true,
+        });
+
+        void nextPaymentRequest.canMakePayment()
+            .then((availability) => {
+                if (cancelled) return;
+
+                const supportsWallet = props.walletType === 'apple_pay'
+                    ? Boolean(availability?.applePay)
+                    : Boolean(availability?.googlePay);
+
+                setWalletAvailable(supportsWallet);
+                setPaymentRequest(supportsWallet ? nextPaymentRequest : null);
+                setAvailabilityChecked(true);
+            })
+            .catch(() => {
+                if (!cancelled) {
+                    setWalletAvailable(false);
+                    setAvailabilityChecked(true);
+                }
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [stripe, props.amount, props.currency, props.productName, props.walletType, t]);
+
+    useEffect(() => {
+        if (!paymentRequest) return;
+
+        const handlePaymentMethod = async (event: any) => {
+            if (props.processing) {
+                event.complete('fail');
+                return;
+            }
+
+            let completed = false;
+            const complete = (status: 'success' | 'fail') => {
+                if (!completed) {
+                    completed = true;
+                    event.complete(status);
+                }
+            };
+
+            try {
+                const paid = await props.onSubmit(event.paymentMethod.id, () => complete('success'));
+                if (!completed) {
+                    complete(paid ? 'success' : 'fail');
+                }
+            } catch {
+                complete('fail');
+                props.onError(t('upsell.payment_error', 'Erro ao processar pagamento.'));
+            }
+        };
+
+        paymentRequest.on('paymentmethod', handlePaymentMethod);
+        return () => {
+            paymentRequest.off('paymentmethod', handlePaymentMethod);
+        };
+    }, [paymentRequest, props]);
+
+    if (!availabilityChecked) {
+        return <Loading label={t('upsell.loading_gateway', 'Carregando pagamento seguro')} light />;
+    }
+
+    if (!walletAvailable || !paymentRequest) {
+        return (
+            <div className="w-full max-w-sm space-y-4">
+                <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-left">
+                    <h4 className="mb-2 flex items-center gap-2 font-bold"><CreditCard className="h-4 w-4 text-primary" /> {walletLabel}</h4>
+                    <p className="text-sm leading-relaxed text-gray-300">
+                        {t('upsell.wallet_unavailable', '{{wallet}} nao esta disponivel neste dispositivo. Use outro cartao para concluir este item adicional.', { wallet: walletLabel })}
+                    </p>
+                </div>
+                <Button onClick={props.onUseCard} className={upsellFormSubmitButtonClassName} disabled={props.processing}>
+                    {t('upsell.use_another_card', 'Usar outro cartao')}
+                </Button>
+            </div>
+        );
+    }
+
+    return (
+        <div className="w-full max-w-sm space-y-4">
+            <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-left">
+                <h4 className="mb-2 flex items-center gap-2 font-bold"><ShieldCheck className="h-4 w-4 text-primary" /> {walletLabel}</h4>
+                <p className="text-sm leading-relaxed text-gray-300">
+                    {t('upsell.wallet_reconfirm_notice', 'Confirme o pagamento adicional na sua carteira. O pedido principal nao sera cobrado novamente.')}
+                </p>
+            </div>
+            <div className="h-[52px] overflow-hidden rounded-xl bg-black">
+                <PaymentRequestButtonElement
+                    options={{
+                        paymentRequest,
+                        style: {
+                            paymentRequestButton: {
+                                type: 'buy',
+                                theme: 'dark',
+                                height: '52px',
+                            },
+                        },
+                    }}
+                />
+            </div>
+            {props.errorMessage && <p className="text-sm leading-relaxed text-amber-300">{props.errorMessage}</p>}
+            <button type="button" onClick={props.onUseCard} className="w-full text-sm text-gray-400 underline underline-offset-4 hover:text-white">
+                {t('upsell.use_another_card', 'Usar outro cartao')}
+            </button>
         </div>
     );
 }
@@ -404,7 +566,7 @@ function MercadoPagoSavedCardUpsellForm(props: {
     errorMessage: string;
     onError: (message: string) => void;
     onUseAnotherCard: () => void;
-    onSubmit: (cardToken: string) => Promise<void>;
+    onSubmit: (cardToken: string) => Promise<unknown>;
     amount: number;
     currency?: string | null;
 }) {
@@ -694,6 +856,7 @@ export const UpsellPage = () => {
     const [cardFormError, setCardFormError] = useState('');
     const [cardFormNotice, setCardFormNotice] = useState('');
     const [useManualMercadoPagoForm, setUseManualMercadoPagoForm] = useState(false);
+    const [useManualStripeCardForm, setUseManualStripeCardForm] = useState(false);
     const [stripePromise, setStripePromise] = useState<Promise<Stripe | null> | null>(null);
     const [error, setError] = useState('');
     const [cardData, setCardData] = useState({ number: '', holderName: '', expiryMonth: '', expiryYear: '', cvc: '' });
@@ -1253,19 +1416,19 @@ export const UpsellPage = () => {
         && Boolean(upsellCapability.saved_profile?.gateway_payment_method_id);
 
     const processPurchase = async (
-        method: 'credit_card' | 'pix',
+        method: 'credit_card' | 'pix' | 'apple_pay' | 'google_pay',
         cardDetails?: typeof cardData,
-        options?: { stripePaymentMethodId?: string; useSavedPaymentMethod?: boolean; mercadoPagoCardToken?: string }
+        options?: { stripePaymentMethodId?: string; useSavedPaymentMethod?: boolean; mercadoPagoCardToken?: string; beforeAdditionalAuth?: () => void }
     ) => {
-        if (!originalOrder || !upsellProduct || !checkout) return;
+        if (!originalOrder || !upsellProduct || !checkout) return false;
         const effectiveGatewayId = gateway?.id || '';
         if (!effectiveGatewayId && orderId !== 'preview') {
             alert(t('upsell.gateway_init_error', 'O gateway ainda está carregando. Tente novamente em alguns segundos.'));
-            return;
+            return false;
         }
         if (orderId === 'preview') {
             alert(t('upsell.preview_success_alert', 'Sucesso! (Simulação de compra concluída no modo de visualização)'));
-            return;
+            return true;
         }
         setProcessing(true);
         setCardFormError('');
@@ -1294,6 +1457,7 @@ export const UpsellPage = () => {
                     setServerCapability(result.upsellCapability);
                 }
                 if (result.requiresAction) {
+                    options?.beforeAdditionalAuth?.();
                     const confirmed = await confirmStripeNextAction(
                         result.clientSecret,
                         result.paymentMethodId,
@@ -1302,12 +1466,12 @@ export const UpsellPage = () => {
                     );
                     if (!confirmed) {
                         setProcessing(false);
-                        return;
+                        return false;
                     }
                 }
                 if (result.redirectUrl) {
                     window.location.href = result.redirectUrl;
-                    return;
+                    return true;
                 }
                 if (result.pixData) {
                     setPixCode(result.pixData.qr_code);
@@ -1319,10 +1483,11 @@ export const UpsellPage = () => {
                     setPixRedirectTarget('');
                     pixRedirectedRef.current = false;
                     setProcessing(false);
+                    return true;
                 } else {
                     navigate(buildUpsellThankYouTarget(result.orderId, result.statusSignature || null));
+                    return true;
                 }
-                return;
             }
             if (result.requiresPaymentForm) {
                 if (result.upsellCapability) {
@@ -1335,17 +1500,22 @@ export const UpsellPage = () => {
                         holderName: current.holderName || originalOrder.customer_name || '',
                     }));
                 }
+                if (gateway?.name === 'stripe' && (originalOrder.payment_method === 'apple_pay' || originalOrder.payment_method === 'google_pay')) {
+                    setUseManualStripeCardForm(true);
+                }
                 setCardFormNotice(result.message || t('upsell.saved_method_fallback_notice', 'O banco pediu uma confirmação adicional. Revise o cartão abaixo para concluir apenas este item adicional.'));
                 setShowCardForm(true);
                 setProcessing(false);
-                return;
+                return false;
             }
             alert(t('upsell.payment_declined', 'Pagamento recusado: {{message}}', { message: result.message }));
             setProcessing(false);
+            return false;
         } catch (purchaseError) {
             console.error(purchaseError);
             alert(t('upsell.payment_error', 'Erro ao processar pagamento.'));
             setProcessing(false);
+            return false;
         }
     };
 
@@ -1375,6 +1545,7 @@ export const UpsellPage = () => {
             setCardFormError('');
             setCardFormNotice('');
             setUseManualMercadoPagoForm(false);
+            setUseManualStripeCardForm(false);
             if (originalOrder.payment_method === 'pix') {
                 await processPurchase('pix');
             } else if (shouldAttemptSavedStripeCharge) {
@@ -1460,6 +1631,11 @@ export const UpsellPage = () => {
 
 
     const config = checkout?.config.upsell!;
+    const stripeWalletType = gateway?.name === 'stripe'
+        && !useManualStripeCardForm
+        && (originalOrder?.payment_method === 'apple_pay' || originalOrder?.payment_method === 'google_pay')
+        ? originalOrder.payment_method
+        : null;
     const currentPrice = Number(upsellProduct?.price_real || 0);
     const rawComparePrice = Number(upsellProduct?.price_fake ?? (config as any).compare_price ?? 0);
     const comparePrice = Number.isFinite(rawComparePrice) && rawComparePrice > currentPrice ? rawComparePrice : null;
@@ -1643,20 +1819,37 @@ export const UpsellPage = () => {
                         </>
                     ) : (
                         <>
-                            {cardFormNotice && gateway?.name !== 'mercado_pago' && <div className="w-full max-w-sm rounded-xl border border-amber-400/20 bg-amber-400/10 p-4 text-sm text-amber-100 leading-relaxed">{cardFormNotice}</div>}
+                            {cardFormNotice && gateway?.name !== 'mercado_pago' && !stripeWalletType && <div className="w-full max-w-sm rounded-xl border border-amber-400/20 bg-amber-400/10 p-4 text-sm text-amber-100 leading-relaxed">{cardFormNotice}</div>}
                             {gateway?.name === 'stripe' ? (
                                 stripePromise ? (
                                     <Elements stripe={stripePromise} options={{ mode: 'payment', currency: (checkout?.currency || 'BRL').toLowerCase(), amount: Math.max(100, Math.round((upsellProduct?.price_real || 0) * 100)), appearance: { theme: 'night', variables: { colorPrimary: '#22C55E', colorBackground: 'transparent', colorText: '#FFFFFF', colorDanger: '#F87171' } } }}>
-                                        <StripeUpsellForm
-                                            processing={processing}
-                                            holderName={cardData.holderName || originalOrder?.customer_name || ''}
-                                            customerEmail={originalOrder?.customer_email || ''}
-                                            customerPhone={originalOrder?.customer_phone}
-                                            errorMessage={cardFormError}
-                                            onHolderNameChange={(value) => setCardData({ ...cardData, holderName: value })}
-                                            onError={setCardFormError}
-                                            onSubmit={async (stripePaymentMethodId) => processPurchase('credit_card', undefined, { stripePaymentMethodId })}
-                                        />
+                                        {stripeWalletType ? (
+                                            <StripeWalletUpsellForm
+                                                processing={processing}
+                                                walletType={stripeWalletType}
+                                                amount={Number(upsellProduct?.price_real || 0)}
+                                                currency={checkout?.currency || 'BRL'}
+                                                productName={upsellProduct?.name || t('upsell.payment_label', 'Pagamento adicional')}
+                                                errorMessage={cardFormError}
+                                                onError={setCardFormError}
+                                                onUseCard={() => {
+                                                    setUseManualStripeCardForm(true);
+                                                    setCardData((current) => ({ ...current, holderName: current.holderName || originalOrder?.customer_name || '' }));
+                                                }}
+                                                onSubmit={async (stripePaymentMethodId, beforeAdditionalAuth) => processPurchase(stripeWalletType, undefined, { stripePaymentMethodId, beforeAdditionalAuth })}
+                                            />
+                                        ) : (
+                                            <StripeUpsellForm
+                                                processing={processing}
+                                                holderName={cardData.holderName || originalOrder?.customer_name || ''}
+                                                customerEmail={originalOrder?.customer_email || ''}
+                                                customerPhone={originalOrder?.customer_phone}
+                                                errorMessage={cardFormError}
+                                                onHolderNameChange={(value) => setCardData({ ...cardData, holderName: value })}
+                                                onError={setCardFormError}
+                                                onSubmit={async (stripePaymentMethodId) => processPurchase('credit_card', undefined, { stripePaymentMethodId })}
+                                            />
+                                        )}
                                     </Elements>
                                 ) : <Loading label={t('upsell.loading_gateway', 'Carregando formulário seguro')} light />
                             ) : gateway?.name === 'mercado_pago' ? (
