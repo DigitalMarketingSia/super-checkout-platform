@@ -505,7 +505,15 @@ function StripeWalletUpsellForm(props: {
     }, [paymentRequest, props]);
 
     if (!availabilityChecked) {
-        return <Loading label={t('upsell.loading_gateway', 'Carregando pagamento seguro')} light />;
+        return (
+            <div className="flex w-full max-w-sm items-center justify-center py-6" aria-live="polite">
+                <div className="relative flex h-12 w-12 items-center justify-center">
+                    <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-primary border-r-primary/20 animate-spin" />
+                    <img src="/logo-light.png" alt="" className="h-7 w-7 object-contain" />
+                </div>
+                <span className="sr-only">{t('upsell.loading_gateway', 'Carregando pagamento seguro')}</span>
+            </div>
+        );
     }
 
     if (!walletAvailable || !paymentRequest) {
