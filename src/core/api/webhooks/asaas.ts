@@ -116,8 +116,9 @@ async function logWebhook(supabaseAdmin: any, params: {
         provider_payment_id: params.providerPaymentId || null,
         provider_event: params.providerEvent || null,
         order_id: params.orderId || null,
+        payload_bytes: Buffer.byteLength(params.payload, 'utf8'),
+        payload_sha256: crypto.createHash('sha256').update(params.payload).digest('hex'),
       }),
-      raw_data: params.payload,
       processed: params.processed,
       created_at: new Date().toISOString(),
     });

@@ -1364,8 +1364,7 @@ CREATE POLICY "Users can view own webhook logs"
 ON public.webhook_logs
 FOR SELECT TO authenticated
 USING (
-  webhook_id IS NULL
-  OR EXISTS (
+  EXISTS (
     SELECT 1 FROM public.webhooks w
     WHERE w.id = webhook_logs.webhook_id
       AND w.user_id = auth.uid()

@@ -13,7 +13,6 @@ interface WebhookLog {
     direction: string;
     event: string;
     payload: string;
-    raw_data?: string;
     processed: boolean;
     created_at: string;
 }
@@ -65,8 +64,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 gateway_id: gatewayId,
                 direction: 'incoming',
                 event: event,
-                payload: JSON.stringify(payload),
-                raw_data: JSON.stringify(payload),
+                // Webhook bodies can carry buyer and payment data. Keep only
+                // operational metadata; the full body must never be retained.
+                payload: JSON.stringify({
+                    redacted: true,
+                    provider: 'mercadopago',
+                    payload_bytes: Buffer.byteLength(JSON.stringify(payload || {}), 'utf8'),
+                }),
                 processed: processed,
                 created_at: new Date().toISOString()
             };

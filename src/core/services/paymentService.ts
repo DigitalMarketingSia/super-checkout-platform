@@ -1896,7 +1896,12 @@ class PaymentService {
       await this.logWebhook({
         gateway_id: relatedPayment.gateway_id,
         event: action || 'payment.updated',
-        payload: JSON.stringify(payload),
+        payload: JSON.stringify({
+          redacted: true,
+          provider: 'mercadopago',
+          provider_payment_id: String(paymentId),
+          event: action || 'payment.updated',
+        }),
         processed: true
       });
 
@@ -1909,7 +1914,11 @@ class PaymentService {
 
       await this.logWebhook({
         event: 'webhook.error',
-        payload: JSON.stringify({ error: error.message, originalPayload: payload }),
+        payload: JSON.stringify({
+          redacted: true,
+          provider: 'mercadopago',
+          error_type: 'webhook_processing_error',
+        }),
         processed: false
       });
 
@@ -2063,8 +2072,11 @@ class PaymentService {
       gateway_id: data.gateway_id,
       direction: 'incoming',
       event: data.event,
-      payload: data.payload,
-      raw_data: data.payload,
+      // Do not persist provider payloads in browser-accessible operational logs.
+      payload: JSON.stringify({
+        redacted: true,
+        payload_bytes: String(data.payload || '').length,
+      }),
       processed: data.processed,
       created_at: new Date().toISOString()
     };
