@@ -786,10 +786,14 @@ export async function processMercadoPagoPayment(payload: MPPaymentPayload) {
 
     return {
       success: true,
-      id: mpResult.id,
+      paymentId: String(mpResult.id || ''),
       status: mpResult.status,
-      data: mpResult,
-      amount: totalAmount,
+      pixData: paymentMethod === 'pix'
+        ? {
+            qr_code: String(mpResult?.point_of_interaction?.transaction_data?.qr_code || ''),
+            qr_code_base64: String(mpResult?.point_of_interaction?.transaction_data?.qr_code_base64 || ''),
+          }
+        : undefined,
       statusSignature: generateSignature(orderId),
       upsellCapability,
     };

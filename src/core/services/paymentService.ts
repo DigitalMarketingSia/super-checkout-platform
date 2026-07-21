@@ -12,7 +12,7 @@ import type { UpgradeIntentContext } from './licenseService';
 import type { UpsellGatewayCapability } from '../config/upsellCapabilities';
 import type { CheckoutTrackingAttribution } from '../utils/trackingAttribution';
 import { encryptPagSeguroCard } from '../utils/pagSeguroBrowser';
-import { buildSafePagSeguroRawResponse, getPagSeguroStatus, mapPagSeguroStatusToLocal } from '../utils/pagSeguro';
+import { buildSafePagSeguroRawResponse, mapPagSeguroStatusToLocal } from '../utils/pagSeguro';
 import { buildSafeMercadoPagoRawResponse, buildSafeStripeRawResponse } from '../utils/paymentRawResponse';
 import { buildSafeAsaasRawResponse, mapAsaasStatusToLocal } from '../utils/asaas';
 import { dispatchDemoWebhookEvent } from './demoWebhookService';
@@ -1348,16 +1348,25 @@ class PaymentService {
         throw new Error(getSafeMercadoPagoErrorMessage(result?.error));
       }
 
-      const paymentResponse = result.data;
+      const publicPaymentSummary = {
+        id: typeof result.paymentId === 'string' ? result.paymentId : '',
+        status: typeof result.status === 'string' ? result.status : '',
+        point_of_interaction: request.paymentMethod === 'pix' && result.pixData ? {
+          transaction_data: {
+            qr_code: typeof result.pixData.qr_code === 'string' ? result.pixData.qr_code : '',
+            qr_code_base64: typeof result.pixData.qr_code_base64 === 'string' ? result.pixData.qr_code_base64 : '',
+          },
+        } : undefined,
+      };
 
       // 3. Record Payment locally
       const newPayment: Payment = {
         id: generateUUID(),
         order_id: order.id,
         gateway_id: gateway.id,
-        status: mpAdapter.translateStatus(paymentResponse.status),
-        transaction_id: paymentResponse.id.toString(),
-        raw_response: buildSafeMercadoPagoRawResponse(paymentResponse),
+        status: mpAdapter.translateStatus(publicPaymentSummary.status),
+        transaction_id: publicPaymentSummary.id || order.id,
+        raw_response: buildSafeMercadoPagoRawResponse(publicPaymentSummary),
         created_at: new Date().toISOString()
       };
 
@@ -1369,7 +1378,7 @@ class PaymentService {
 
       debugPayment('[PaymentService] Mercado Pago payment response received.');
 
-      const normalizedGatewayStatus = String(paymentResponse.status || '').toLowerCase();
+      const normalizedGatewayStatus = String(publicPaymentSummary.status || '').toLowerCase();
 
       if (
         normalizedGatewayStatus === 'approved'
@@ -1389,8 +1398,8 @@ class PaymentService {
         // Only attach QR data when the request itself was a Pix payment.
         if (request.paymentMethod === 'pix') {
           paymentResult.pixData = {
-            qr_code: paymentResponse.point_of_interaction?.transaction_data?.qr_code || '',
-            qr_code_base64: paymentResponse.point_of_interaction?.transaction_data?.qr_code_base64 || ''
+            qr_code: publicPaymentSummary.point_of_interaction?.transaction_data?.qr_code || '',
+            qr_code_base64: publicPaymentSummary.point_of_interaction?.transaction_data?.qr_code_base64 || ''
           };
         }
 
@@ -1398,7 +1407,7 @@ class PaymentService {
       } else {
         return {
           success: false,
-          message: paymentResponse.status_detail ? mpAdapter.translateError(paymentResponse.status_detail) : i18n.t('payment_rejected')
+          message: i18n.t('payment_rejected')
         };
       }
 
@@ -1523,15 +1532,18 @@ class PaymentService {
         throw new Error(result.error || result.message || 'Erro ao processar pagamento no PagBank.');
       }
 
-      const paymentResponse = result.data;
-      const providerStatus = result.status || getPagSeguroStatus(paymentResponse);
+      const providerStatus = String(result.status || 'WAITING').trim().toUpperCase();
+      const publicPaymentSummary = {
+        id: typeof result.paymentId === 'string' ? result.paymentId : '',
+        status: providerStatus,
+      };
       const newPayment: Payment = {
         id: generateUUID(),
         order_id: order.id,
         gateway_id: gateway.id,
         status: this.mapPagSeguroOrderStatus(providerStatus),
-        transaction_id: String(paymentResponse?.id || order.id),
-        raw_response: buildSafePagSeguroRawResponse(paymentResponse),
+        transaction_id: publicPaymentSummary.id || order.id,
+        raw_response: buildSafePagSeguroRawResponse(publicPaymentSummary),
         created_at: new Date().toISOString()
       };
 
@@ -1545,7 +1557,7 @@ class PaymentService {
       if (localStatus === OrderStatus.FAILED || localStatus === OrderStatus.CANCELED) {
         return {
           success: false,
-          message: paymentResponse?.charges?.[0]?.payment_response?.message || i18n.t('payment_rejected')
+          message: i18n.t('payment_rejected')
         };
       }
 
@@ -1611,17 +1623,21 @@ class PaymentService {
         throw new Error(result.error || result.message || 'Erro ao processar pagamento no Asaas.');
       }
 
-      const paymentResponse = result.data;
-      const providerStatus = String(result.status || paymentResponse?.status || 'PENDING').trim().toUpperCase();
-      const localStatus = this.mapAsaasOrderStatus(providerStatus, paymentResponse?.billingType);
+      const providerStatus = String(result.status || 'PENDING').trim().toUpperCase();
+      const localStatus = this.mapAsaasOrderStatus(providerStatus, 'PIX');
+      const publicPaymentSummary = {
+        id: typeof result.paymentId === 'string' ? result.paymentId : '',
+        status: providerStatus,
+        billingType: 'PIX',
+      };
 
       const newPayment: Payment = {
         id: generateUUID(),
         order_id: order.id,
         gateway_id: gateway.id,
         status: localStatus,
-        transaction_id: String(paymentResponse?.id || order.id),
-        raw_response: buildSafeAsaasRawResponse(paymentResponse, result.pixData ? {
+        transaction_id: publicPaymentSummary.id || order.id,
+        raw_response: buildSafeAsaasRawResponse(publicPaymentSummary, result.pixData ? {
           payload: result.pixData.qr_code,
           encodedImage: result.pixData.qr_code_base64,
         } : undefined),

@@ -423,7 +423,7 @@ export async function processAsaasPayment(payload: AsaasPaymentPayload) {
       success: true,
       status: String(paymentResponse?.status || 'PENDING').trim().toUpperCase(),
       localStatus,
-      data: paymentResponse,
+      paymentId: String(paymentResponse?.id || ''),
       statusSignature,
       redirectUrl,
       pixData: {
@@ -449,7 +449,6 @@ export async function processAsaasPayment(payload: AsaasPaymentPayload) {
       success: false,
       code,
       error: publicMessage,
-      details: typeof error?.message === 'string' ? error.message : null,
     };
   }
 }

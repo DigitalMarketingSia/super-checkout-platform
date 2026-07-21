@@ -383,7 +383,6 @@ export async function processPagSeguroPayment(payload: PagSeguroPaymentPayload) 
     return {
       success: true,
       status: providerStatus,
-      data: pagSeguroOrder,
       statusSignature: generateSignature(orderId),
       pixData: paymentMethod === 'pix'
         ? {
@@ -391,7 +390,7 @@ export async function processPagSeguroPayment(payload: PagSeguroPaymentPayload) 
             qr_code_base64: getPagSeguroQrCodeImageUrl(pagSeguroOrder),
           }
         : undefined,
-      paymentId: getPagSeguroCharge(pagSeguroOrder)?.id || null,
+      paymentId: String(getPagSeguroCharge(pagSeguroOrder)?.id || ''),
     };
   } catch (error: any) {
     const isSecurityError = error instanceof PaymentSecurityError;
@@ -410,7 +409,6 @@ export async function processPagSeguroPayment(payload: PagSeguroPaymentPayload) 
       success: false,
       code,
       error: publicMessage,
-      details: typeof error?.message === 'string' ? error.message : null,
     };
   }
 }
