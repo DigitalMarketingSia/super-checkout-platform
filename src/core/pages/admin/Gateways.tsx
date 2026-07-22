@@ -1007,12 +1007,14 @@ export const Gateways = () => {
     subtitle,
     isActive,
     onClick,
+    preserveLogoColor = false,
   }: {
     logoSrc: string;
     logoAlt: string;
     subtitle: string;
     isActive: boolean;
     onClick: () => void;
+    preserveLogoColor?: boolean;
   }) => (
     <div
       onClick={onClick}
@@ -1032,7 +1034,11 @@ export const Gateways = () => {
       </div>
 
       <div className="h-full flex flex-col items-center justify-center p-12">
-        <img src={logoSrc} alt={logoAlt} className="h-12 object-contain brightness-0 invert group-hover:scale-110 transition-transform duration-500" />
+        <img
+          src={logoSrc}
+          alt={logoAlt}
+          className={`h-12 object-contain group-hover:scale-110 transition-transform duration-500 ${preserveLogoColor ? '' : 'brightness-0 invert'}`}
+        />
         <p className="mt-6 text-[10px] font-black text-gray-700 uppercase tracking-[0.3em] group-hover:text-gray-500 transition-colors">{subtitle}</p>
       </div>
 
@@ -1086,6 +1092,7 @@ export const Gateways = () => {
           subtitle: 'Global Payments',
           isActive: paypalConfig.active,
           onClick: () => openGatewayModal('paypal'),
+          preserveLogoColor: true,
         })}
 
         {renderGatewayCard({

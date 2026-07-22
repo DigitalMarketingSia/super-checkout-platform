@@ -2044,7 +2044,11 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                               <div className="absolute -top-0.5 -right-0.5 bg-[#10B981] text-white rounded-bl-lg rounded-tr-lg p-0.5 shadow-sm animate-in zoom-in">
                                  <Check size={12} strokeWidth={3} />
                               </div>
-                      )}
+                           )}
+                           <Barcode className="w-5 h-5" />
+                           <span className="text-sm font-bold">{t('checkout.payment_method_labels.boleto', 'Boleto')}</span>
+                        </button>
+                     )}
 
                       {canPayWithPayPal && (
                          <button
@@ -2063,10 +2067,6 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                             <span className="text-sm font-bold">PayPal</span>
                          </button>
                       )}
-                           <Barcode className="w-5 h-5" />
-                           <span className="text-sm font-bold">{t('checkout.payment_method_labels.boleto', 'Boleto')}</span>
-                        </button>
-                     )}
 
                      {canPayWithApplePay && paymentRequest && walletAvailability && (
                         <WalletTabButton
