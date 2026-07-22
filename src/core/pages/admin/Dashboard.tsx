@@ -62,6 +62,14 @@ const GooglePayLogo = ({ className = "" }: { className?: string }) => (
   </svg>
 );
 
+const PayPalLogo = ({ className = "" }: { className?: string }) => (
+  <img
+    src="/paypal-logo.png"
+    alt="PayPal"
+    className={`h-4 w-auto max-w-12 object-contain flex-shrink-0 ${className}`}
+  />
+);
+
 export const Dashboard = () => {
   const { t, i18n } = useTranslation(['admin', 'common']);
   const [period, setPeriod] = useState<Period>('today');
@@ -78,7 +86,7 @@ export const Dashboard = () => {
     conversionRate: 0,
     avgTicket: 0,
     customers: 0,
-    paymentMethods: { pix: 0, card: 0, boleto: 0, google_pay: 0, apple_pay: 0 },
+    paymentMethods: { pix: 0, card: 0, boleto: 0, google_pay: 0, apple_pay: 0, paypal: 0 },
     pendingRevenue: 0,
     refundedRevenue: 0,
     refundedCount: 0,
@@ -280,6 +288,7 @@ export const Dashboard = () => {
       const boletoCount = paidOrders.filter(o => o.payment_method === 'boleto').length;
       const googlePayCount = paidOrders.filter(o => o.payment_method === 'google_pay').length;
       const applePayCount = paidOrders.filter(o => o.payment_method === 'apple_pay').length;
+      const paypalCount = paidOrders.filter(o => o.payment_method === 'paypal').length;
 
       const uniqueCustomers = new Set(filteredOrders.map(o => o.customer_email)).size;
 
@@ -318,7 +327,8 @@ export const Dashboard = () => {
           card: cardCount,
           boleto: boletoCount,
           google_pay: googlePayCount,
-          apple_pay: applePayCount
+          apple_pay: applePayCount,
+          paypal: paypalCount
         },
         pendingRevenue,
         refundedRevenue,
@@ -397,7 +407,8 @@ export const Dashboard = () => {
     { name: t('card'), value: stats.paymentMethods.card, color: '#8A2BE2', icon: CardLogo, key: 'credit_card' },
     { name: t('boleto'), value: stats.paymentMethods.boleto, color: '#F97316', icon: BoletoLogo, key: 'boleto' },
     { name: 'Apple Pay', value: stats.paymentMethods.apple_pay, color: '#FFFFFF', icon: ApplePayLogo, key: 'apple_pay' },
-    { name: 'Google Pay', value: stats.paymentMethods.google_pay, color: '#4285F4', icon: GooglePayLogo, key: 'google_pay' }
+    { name: 'Google Pay', value: stats.paymentMethods.google_pay, color: '#4285F4', icon: GooglePayLogo, key: 'google_pay' },
+    { name: 'PayPal', value: stats.paymentMethods.paypal, color: '#0070E0', icon: PayPalLogo, key: 'paypal' }
   ];
 
   const activePayments = paymentMethodsList.filter(item => item.value > 0);
