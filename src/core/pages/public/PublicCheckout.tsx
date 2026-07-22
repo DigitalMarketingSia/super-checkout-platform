@@ -2183,18 +2183,8 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                         <img src="/paypal-dark.svg" alt="PayPal" className="h-8 w-auto max-w-[126px] mx-auto mb-3 object-contain" />
                         <h3 className="text-lg font-medium text-gray-900 mb-1">Pagamento seguro com PayPal</h3>
                         <p className="text-sm text-gray-500">
-                           Clique em um botao PayPal abaixo para conferir o pedido e abrir a janela oficial de aprovacao. Seus dados de login nao passam pelo checkout.
+                           Revise os itens extras abaixo e conclua pelo botao oficial do PayPal ao final da pagina. Seus dados de login nao passam pelo checkout.
                         </p>
-                        <div className="mt-5 rounded-xl border border-blue-100 bg-white p-3 shadow-sm">
-                           <PayPalCheckoutButton
-                              clientId={paypalGateway?.public_key || ''}
-                              currency={data.product.currency || 'BRL'}
-                              onCreateOrder={handlePayPalCreateOrder}
-                              onApprove={handlePayPalApproval}
-                              onCancel={handlePayPalCancel}
-                              onError={(message) => showAlert('PayPal', message, 'error')}
-                           />
-                        </div>
                      </div>
                   )}
 
@@ -2639,6 +2629,17 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                            </>
                         )}
                      </button>
+                  ) : canPayWithPayPal ? (
+                     <div className="w-full rounded-xl border border-blue-100 bg-white p-3 shadow-sm animate-in fade-in duration-300">
+                        <PayPalCheckoutButton
+                           clientId={paypalGateway?.public_key || ''}
+                           currency={data.product.currency || 'BRL'}
+                           onCreateOrder={handlePayPalCreateOrder}
+                           onApprove={handlePayPalApproval}
+                           onCancel={handlePayPalCancel}
+                           onError={(message) => showAlert('PayPal', message, 'error')}
+                        />
+                     </div>
                   ) : null}
                   <div className="text-center py-6 border-t border-gray-100 mt-8">
                    <p className="text-[10px] text-gray-400 font-bold flex items-center justify-center gap-1 mb-1 uppercase tracking-widest">
