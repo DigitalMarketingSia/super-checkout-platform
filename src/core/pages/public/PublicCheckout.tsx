@@ -190,6 +190,12 @@ type PayPalPreparedOrder = {
    statusSignature?: string;
 };
 
+type PayPalOrderPreparationResult = {
+   ok: boolean;
+   paypalOrderId?: string;
+   message?: string;
+};
+
 const getDefaultDemoScenarioForPaymentMethod = (paymentMethod: PaymentMethod | null) => (
    paymentMethod === 'pix' ? 'pix_pending' : paymentMethod ? 'approved' : ''
 );
@@ -592,7 +598,17 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
    const [processState, setProcessState] = useState<ProcessState>('idle');
    const [processGatewayStatus, setProcessGatewayStatus] = useState('');
    const [processError, setProcessError] = useState<string | null>(null);
-   const [paypalPreparedOrder, setPaypalPreparedOrder] = useState<PayPalPreparedOrder | null>(null);
+   const paypalPreparedOrderRef = useRef<PayPalPreparedOrder | null>(null);
+   const paypalPreparationPromiseRef = useRef<Promise<PayPalOrderPreparationResult> | null>(null);
+
+   const storePayPalPreparedOrder = (preparedOrder: PayPalPreparedOrder) => {
+      paypalPreparedOrderRef.current = preparedOrder;
+   };
+
+   const clearPayPalPreparedOrder = () => {
+      paypalPreparedOrderRef.current = null;
+      paypalPreparationPromiseRef.current = null;
+   };
 
    const [alertState, setAlertState] = useState<{ isOpen: boolean; title: string; message: string; variant: 'success' | 'error' | 'info' }>({
       isOpen: false,
@@ -613,7 +629,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
 
    const handlePaymentMethodSelect = (method: PaymentMethod) => {
       setPaymentMethod(method);
-      if (method !== 'paypal') setPaypalPreparedOrder(null);
+      if (method !== 'paypal') clearPayPalPreparedOrder();
 
       if (!isDemoCheckout) return;
 
@@ -1175,7 +1191,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
    };
 
    const toggleBump = (bumpId: string) => {
-      setPaypalPreparedOrder(null);
+      clearPayPalPreparedOrder();
       setSelectedBumps(prev =>
          prev.includes(bumpId) ? prev.filter(id => id !== bumpId) : [...prev, bumpId]
       );
@@ -1466,7 +1482,10 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
          }
       }
 
-      setProcessState('processing');
+      const isPayPalPreparation = paymentMethod === 'paypal';
+      if (!isPayPalPreparation) {
+         setProcessState('processing');
+      }
       setProcessGatewayStatus('');
       setProcessError(null);
       setIsProcessing(true);
@@ -1543,7 +1562,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
 
           if (result.success) {
             if (paymentMethod === 'paypal' && result.paypalOrderId && result.orderId) {
-               setPaypalPreparedOrder({
+               storePayPalPreparedOrder({
                   orderId: result.orderId,
                   gatewayId: methodGateway.id,
                   paypalOrderId: result.paypalOrderId,
@@ -1650,6 +1669,14 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                 }
              }, 1000); // 1 second showing the green checkmark
          } else {
+            if (isPayPalPreparation) {
+               showAlert('PayPal', result.message || 'Nao foi possivel preparar o pagamento PayPal. Tente novamente.', 'error');
+               setProcessState('idle');
+               setProcessGatewayStatus('');
+               setProcessError(null);
+               setIsProcessing(false);
+               return;
+            }
             setProcessState('error');
             setProcessGatewayStatus('');
             setProcessError(result.message || t('checkout.transaction_declined', 'Transação recusada. Verifique os dados do cartão.'));
@@ -1658,6 +1685,14 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
 
       } catch (error: any) {
           debugCheckoutPayment('[PublicCheckout] Payment processing failed.', error);
+          if (isPayPalPreparation) {
+             showAlert('PayPal', 'Nao foi possivel preparar o pagamento PayPal. Tente novamente.', 'error');
+             setProcessState('idle');
+             setProcessGatewayStatus('');
+             setProcessError(null);
+             setIsProcessing(false);
+             return;
+          }
           setProcessState('error');
           setProcessGatewayStatus('');
           setProcessError(t('checkout.payment_error_retry', 'Erro ao processar pagamento. Verifique seus dados e tente novamente.'));
@@ -1758,8 +1793,43 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
     const shouldRenderCpfField = config.fields.cpf || shouldRequireCpfField;
     const isAsaasHostedCardFlow = activeGateway?.name === GatewayProvider.ASAAS && paymentMethod === 'credit_card';
 
+    const handlePayPalCreateOrder = async (): Promise<PayPalOrderPreparationResult> => {
+       const existingOrder = paypalPreparedOrderRef.current;
+       if (existingOrder) {
+          return { ok: true, paypalOrderId: existingOrder.paypalOrderId };
+       }
+
+       if (paypalPreparationPromiseRef.current) {
+          return paypalPreparationPromiseRef.current;
+       }
+
+       let preparation: Promise<PayPalOrderPreparationResult>;
+       preparation = (async () => {
+          await handleSubmit();
+          const preparedOrder = paypalPreparedOrderRef.current;
+          if (!preparedOrder) {
+             return {
+                ok: false,
+                message: 'Revise os dados obrigatorios antes de continuar com o PayPal.',
+             };
+          }
+
+          return { ok: true, paypalOrderId: preparedOrder.paypalOrderId };
+       })();
+       paypalPreparationPromiseRef.current = preparation;
+
+       try {
+          return await preparation;
+       } finally {
+          if (paypalPreparationPromiseRef.current === preparation) {
+             paypalPreparationPromiseRef.current = null;
+          }
+       }
+    };
+
     const handlePayPalApproval = async (providerOrderId: string) => {
-       if (!paypalPreparedOrder || !paypalGateway || !data) {
+       const preparedOrder = paypalPreparedOrderRef.current;
+       if (!preparedOrder || !paypalGateway || !data) {
           return { ok: false, message: 'O pedido PayPal nao esta pronto para ser concluido.' };
        }
 
@@ -1768,7 +1838,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
        setProcessState('processing');
        const result = await paymentService.capturePayPalOrder({
           checkoutId: data.checkout.id,
-          orderId: paypalPreparedOrder.orderId,
+          orderId: preparedOrder.orderId,
           gatewayId: paypalGateway.id,
           paypalOrderId: providerOrderId,
        });
@@ -1781,19 +1851,18 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
           return { ok: false, message };
        }
 
-       const statusSignature = result.statusSignature || paypalPreparedOrder.statusSignature;
+       const statusSignature = result.statusSignature || preparedOrder.statusSignature;
        setProcessGatewayStatus(String(result.gatewayStatus || 'completed').toLowerCase());
        setProcessState('success');
-       setPaypalPreparedOrder(null);
+       clearPayPalPreparedOrder();
        setTimeout(() => {
           const signedQuery = statusSignature ? `?sig=${encodeURIComponent(statusSignature)}` : '';
-          navigate(`/thank-you/${paypalPreparedOrder.orderId}${signedQuery}`);
+          navigate(`/thank-you/${preparedOrder.orderId}${signedQuery}`);
        }, 700);
        return { ok: true };
     };
 
     const handlePayPalCancel = () => {
-       setPaypalPreparedOrder(null);
        showAlert('Pagamento cancelado', 'A aprovacao no PayPal foi cancelada. Voce pode tentar novamente quando quiser.', 'info');
     };
 
@@ -2063,8 +2132,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                                   <Check size={12} strokeWidth={3} />
                                </div>
                             )}
-                            <img src="/paypal-logo.png" alt="" className="h-5 w-5 object-contain" />
-                            <span className="text-sm font-bold">PayPal</span>
+                            <img src="/paypal-dark.svg" alt="PayPal" className="h-5 w-auto max-w-[72px] object-contain" />
                          </button>
                       )}
 
@@ -2112,11 +2180,21 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                   {/* SEÇÃO CARTÃO */}
                   {paymentMethod === 'paypal' && canPayWithPayPal && (
                      <div className="p-6 bg-blue-50 border border-blue-100 rounded-xl text-center animate-in fade-in duration-300">
-                        <img src="/paypal-logo.png" alt="PayPal" className="h-9 mx-auto mb-3 object-contain" />
+                        <img src="/paypal-dark.svg" alt="PayPal" className="h-8 w-auto max-w-[126px] mx-auto mb-3 object-contain" />
                         <h3 className="text-lg font-medium text-gray-900 mb-1">Pagamento seguro com PayPal</h3>
                         <p className="text-sm text-gray-500">
-                           Revise o pedido e continue. A aprovacao acontece na janela oficial do PayPal; seus dados de login nao passam pelo checkout.
+                           Clique em um botao PayPal abaixo para conferir o pedido e abrir a janela oficial de aprovacao. Seus dados de login nao passam pelo checkout.
                         </p>
+                        <div className="mt-5 rounded-xl border border-blue-100 bg-white p-3 shadow-sm">
+                           <PayPalCheckoutButton
+                              clientId={paypalGateway?.public_key || ''}
+                              currency={data.product.currency || 'BRL'}
+                              onCreateOrder={handlePayPalCreateOrder}
+                              onApprove={handlePayPalApproval}
+                              onCancel={handlePayPalCancel}
+                              onError={(message) => showAlert('PayPal', message, 'error')}
+                           />
+                        </div>
                      </div>
                   )}
 
@@ -2527,16 +2605,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                      </div>
                   </div>
 
-                   {paymentMethod === 'paypal' && paypalPreparedOrder && paypalGateway ? (
-                      <PayPalCheckoutButton
-                         clientId={paypalGateway.public_key}
-                         currency={data.product.currency || 'BRL'}
-                         paypalOrderId={paypalPreparedOrder.paypalOrderId}
-                         onApprove={handlePayPalApproval}
-                         onCancel={handlePayPalCancel}
-                         onError={(message) => showAlert('PayPal', message, 'error')}
-                      />
-                   ) : (paymentMethod === 'apple_pay' || paymentMethod === 'google_pay') && paymentRequest ? (
+                   {(paymentMethod === 'apple_pay' || paymentMethod === 'google_pay') && paymentRequest ? (
                      <div className="w-full">
                         <WalletExpressButton
                            paymentRequest={paymentRequest}
@@ -2553,7 +2622,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                            simulated={!!walletAvailability?.simulated}
                         />
                      </div>
-                  ) : (
+                  ) : paymentMethod !== 'paypal' ? (
                      <button
                         onClick={handleSubmit}
                         disabled={isProcessing || !paymentMethod}
@@ -2570,7 +2639,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                            </>
                         )}
                      </button>
-                  )}
+                  ) : null}
                   <div className="text-center py-6 border-t border-gray-100 mt-8">
                    <p className="text-[10px] text-gray-400 font-bold flex items-center justify-center gap-1 mb-1 uppercase tracking-widest">
                       <ShieldCheck className="w-4 h-4 text-[#10B981]" /> {t('checkout.secure_purchase', 'Compra 100% segura')}
@@ -2904,20 +2973,26 @@ const WalletExpressButton = ({
 const PayPalCheckoutButton = ({
    clientId,
    currency,
-   paypalOrderId,
+   onCreateOrder,
    onApprove,
    onCancel,
    onError,
 }: {
    clientId: string;
    currency: string;
-   paypalOrderId: string;
+   onCreateOrder: () => Promise<PayPalOrderPreparationResult>;
    onApprove: (orderId: string) => Promise<{ ok: boolean; message?: string }>;
    onCancel: () => void;
    onError: (message: string) => void;
 }) => {
    const containerRef = useRef<HTMLDivElement | null>(null);
+   const callbacksRef = useRef({ onCreateOrder, onApprove, onCancel, onError });
+   const suppressPreparationErrorRef = useRef(false);
    const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
+
+   useEffect(() => {
+      callbacksRef.current = { onCreateOrder, onApprove, onCancel, onError };
+   }, [onCreateOrder, onApprove, onCancel, onError]);
 
    useEffect(() => {
       let disposed = false;
@@ -2930,7 +3005,7 @@ const PayPalCheckoutButton = ({
          if (disposed || !containerRef.current || !paypal?.Buttons) {
             if (!disposed) {
                setState('error');
-               onError('O PayPal nao foi inicializado. Recarregue a pagina e tente novamente.');
+               callbacksRef.current.onError('O PayPal nao foi inicializado. Recarregue a pagina e tente novamente.');
             }
             return;
          }
@@ -2938,15 +3013,29 @@ const PayPalCheckoutButton = ({
          containerRef.current.innerHTML = '';
          buttonsInstance = paypal.Buttons({
             style: { layout: 'vertical', color: 'gold', shape: 'rect', label: 'paypal' },
-            createOrder: () => paypalOrderId,
+            createOrder: async () => {
+               const result = await callbacksRef.current.onCreateOrder();
+               if (!result.ok || !result.paypalOrderId) {
+                  suppressPreparationErrorRef.current = true;
+                  throw new Error('PAYPAL_PREPARATION_REJECTED');
+               }
+               return result.paypalOrderId;
+            },
             onApprove: async (details: { orderID?: string }) => {
-               const result = await onApprove(String(details?.orderID || paypalOrderId));
+               const result = await callbacksRef.current.onApprove(String(details?.orderID || ''));
                if (!result.ok) {
                   throw new Error(result.message || 'PAYPAL_CAPTURE_FAILED');
                }
             },
-            onCancel,
-            onError: () => onError('O PayPal nao conseguiu concluir esta tentativa. Tente novamente.'),
+            onCancel: () => callbacksRef.current.onCancel(),
+            onError: (error: unknown) => {
+               const message = String((error as any)?.message || error || '');
+               if (suppressPreparationErrorRef.current || message.includes('PAYPAL_PREPARATION_REJECTED')) {
+                  suppressPreparationErrorRef.current = false;
+                  return;
+               }
+               callbacksRef.current.onError('O PayPal nao conseguiu concluir esta tentativa. Tente novamente.');
+            },
          });
          buttonsInstance.render(containerRef.current);
          setState('ready');
@@ -2960,12 +3049,12 @@ const PayPalCheckoutButton = ({
          existingScript.addEventListener('error', () => {
             if (!disposed) {
                setState('error');
-               onError('Nao foi possivel carregar o PayPal. Verifique sua conexao e tente novamente.');
+               callbacksRef.current.onError('Nao foi possivel carregar o PayPal. Verifique sua conexao e tente novamente.');
             }
          }, { once: true });
       } else if (!normalizedClientId) {
          setState('error');
-         onError('O PayPal nao esta configurado para este checkout.');
+         callbacksRef.current.onError('O PayPal nao esta configurado para este checkout.');
       } else {
          const script = document.createElement('script');
          script.async = true;
@@ -2975,7 +3064,7 @@ const PayPalCheckoutButton = ({
          script.onerror = () => {
             if (!disposed) {
                setState('error');
-               onError('Nao foi possivel carregar o PayPal. Verifique sua conexao e tente novamente.');
+               callbacksRef.current.onError('Nao foi possivel carregar o PayPal. Verifique sua conexao e tente novamente.');
             }
          };
          document.head.appendChild(script);
@@ -2985,7 +3074,7 @@ const PayPalCheckoutButton = ({
          disposed = true;
          buttonsInstance?.close?.();
       };
-   }, [clientId, currency, onApprove, onCancel, onError, paypalOrderId]);
+   }, [clientId, currency]);
 
    if (state === 'error') return null;
    return (
