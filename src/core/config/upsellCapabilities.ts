@@ -43,6 +43,7 @@ function normalizeGatewayName(value: string | null | undefined): UpsellGatewayNa
   if (normalized === GatewayProvider.STRIPE) return GatewayProvider.STRIPE;
   if (normalized === GatewayProvider.MERCADO_PAGO) return GatewayProvider.MERCADO_PAGO;
   if (normalized === GatewayProvider.PAGSEGURO || normalized === 'pagbank') return GatewayProvider.PAGSEGURO;
+  if (normalized === GatewayProvider.PAYPAL) return GatewayProvider.PAYPAL;
   if (normalized === GatewayProvider.PIX) return GatewayProvider.PIX;
   return 'unknown';
 }
@@ -55,6 +56,7 @@ function normalizePaymentMethod(value: string | null | undefined): UpsellPayment
     || normalized === 'boleto'
     || normalized === 'apple_pay'
     || normalized === 'google_pay'
+    || normalized === 'paypal'
   ) {
     return normalized as UpsellPaymentMethod;
   }
@@ -165,6 +167,16 @@ export function resolveUpsellGatewayCapability(params: {
     case GatewayProvider.PAGSEGURO:
       return {
         ...baseCapability,
+        strategy: 'new_card_capture',
+        mode: 'repayment_explicit',
+      };
+    case GatewayProvider.PAYPAL:
+      return {
+        ...baseCapability,
+        supports_saved_method: false,
+        supports_off_session_charge: false,
+        supports_wallet_reuse: false,
+        requires_payment_form: true,
         strategy: 'new_card_capture',
         mode: 'repayment_explicit',
       };

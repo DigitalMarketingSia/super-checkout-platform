@@ -18,6 +18,7 @@ export enum GatewayProvider {
   STRIPE = 'stripe', // Future
   PAGSEGURO = 'pagseguro',
   ASAAS = 'asaas',
+  PAYPAL = 'paypal',
   PIX = 'pix',       // Native/Manual
 }
 
@@ -32,7 +33,8 @@ export type PaymentMethodType =
   | 'pix'
   | 'boleto'
   | 'apple_pay'
-  | 'google_pay';
+  | 'google_pay'
+  | 'paypal';
 
 export interface CheckoutMethodGatewayRoute {
   enabled: boolean;
@@ -141,6 +143,7 @@ export interface CheckoutConfig {
     boleto: boolean;
     apple_pay?: boolean;
     google_pay?: boolean;
+    paypal?: boolean;
   };
   payment_routing?: CheckoutPaymentRoutingConfig;
   timer: {

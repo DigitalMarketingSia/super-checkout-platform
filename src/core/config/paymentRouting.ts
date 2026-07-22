@@ -13,6 +13,7 @@ export const ROUTABLE_PAYMENT_METHODS: PaymentMethodType[] = [
   'boleto',
   'apple_pay',
   'google_pay',
+  'paypal',
 ];
 
 type GatewayReference = Pick<Gateway, 'id' | 'name'>;
@@ -33,6 +34,7 @@ export const GATEWAY_METHOD_COMPATIBILITY: Record<
     boleto: false,
     apple_pay: false,
     google_pay: false,
+    paypal: false,
   },
   [GatewayProvider.STRIPE]: {
     pix: false,
@@ -40,6 +42,7 @@ export const GATEWAY_METHOD_COMPATIBILITY: Record<
     boleto: false,
     apple_pay: true,
     google_pay: true,
+    paypal: false,
   },
   [GatewayProvider.PAGSEGURO]: {
     pix: true,
@@ -47,6 +50,7 @@ export const GATEWAY_METHOD_COMPATIBILITY: Record<
     boleto: false,
     apple_pay: false,
     google_pay: false,
+    paypal: false,
   },
   [GatewayProvider.ASAAS]: {
     pix: true,
@@ -54,6 +58,15 @@ export const GATEWAY_METHOD_COMPATIBILITY: Record<
     boleto: false,
     apple_pay: false,
     google_pay: false,
+    paypal: false,
+  },
+  [GatewayProvider.PAYPAL]: {
+    pix: false,
+    credit_card: false,
+    boleto: false,
+    apple_pay: false,
+    google_pay: false,
+    paypal: true,
   },
   [GatewayProvider.PIX]: {
     pix: true,
@@ -61,6 +74,7 @@ export const GATEWAY_METHOD_COMPATIBILITY: Record<
     boleto: false,
     apple_pay: false,
     google_pay: false,
+    paypal: false,
   },
 };
 

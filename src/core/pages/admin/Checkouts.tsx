@@ -138,6 +138,7 @@ export const Checkouts = () => {
     if (methods.boleto) labels.push('BOLETO');
     if (methods.apple_pay) labels.push('APPLE PAY');
     if (methods.google_pay) labels.push('GOOGLE PAY');
+    if (methods.paypal) labels.push('PAYPAL');
     return labels;
   };
 

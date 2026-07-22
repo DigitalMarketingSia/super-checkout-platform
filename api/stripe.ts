@@ -312,6 +312,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return await handleAsaasWebhook(req, res, rawBody, supabaseAdmin);
         }
 
+        if (action === 'paypal') {
+            const { handlePayPalWebhook } = await import('../src/modules/payments/paypal.js');
+            const origin = `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host}`;
+            const result = await handlePayPalWebhook({
+                rawBody,
+                headers: req.headers,
+                supabaseAdmin,
+                origin,
+            });
+            return res.status(result.status).json(result.body);
+        }
+
         return res.status(404).json({ error: 'ACTION_NOT_FOUND' });
 
     } catch (error: any) {

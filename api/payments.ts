@@ -183,6 +183,7 @@ function toPublicPaymentResult(result: any) {
         status: safePublicString(result.status, 96),
         localStatus: safePublicString(result.localStatus, 64),
         statusSignature: safePublicString(result.statusSignature, 512),
+        paypalOrderId: safePublicString(result.paypalOrderId, 256),
         redirectUrl: toPublicRedirectUrl(result.redirectUrl),
         pixData: toPublicPixData(result.pixData),
         boletoData: toPublicBoletoData(result.boletoData),
@@ -293,6 +294,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             });
 
             return res.status(result.success ? 200 : 400).json(toPublicPaymentResult(result));
+        }
+
+        if (action === 'paypal-create-order') {
+            const { createPayPalOrder } = await import('../src/modules/payments/paypal.js');
+            const result = await createPayPalOrder({
+                ...body,
+                paymentMethod: 'paypal',
+                ip,
+            });
+            return res.status(result.success ? 200 : 400).json(toPublicPaymentResult(result));
+        }
+
+        if (action === 'paypal-capture-order') {
+            const { capturePayPalOrder } = await import('../src/modules/payments/paypal.js');
+            const protocol = req.headers['x-forwarded-proto'] || 'https';
+            const host = req.headers.host;
+            const baseUrl = `${protocol}://${host}`;
+            const result = await capturePayPalOrder({
+                ...body,
+                ip,
+                baseUrl,
+            });
+            return res.status(result.success ? 200 : 400).json(toPublicPaymentResult(result));
+        }
+
+        if (action === 'paypal-test-credentials') {
+            const { requireApiAuth } = await import('../src/core/api/_authz.js');
+            const auth = await requireApiAuth(req, res, {
+                source: 'paypal_test_credentials',
+                allowedRoles: ['owner', 'admin', 'master_admin'],
+            });
+            if (!auth) return;
+
+            const { testPayPalGatewayCredentials } = await import('../src/modules/payments/paypal.js');
+            const result = await testPayPalGatewayCredentials({
+                supabaseAdmin: auth.supabaseAdmin,
+                merchantUserId: auth.user.id,
+                gatewayId: String(body.gatewayId || '').trim(),
+            });
+            return res.status(result.success ? 200 : 400).json(result);
         }
         
         return res.status(404).json({ error: `Action ${action} not found in Payments Controller` });

@@ -93,7 +93,7 @@ const sanitizeUpsellBenefits = (benefits?: string[] | null) => (
 
 const initialConfig: CheckoutConfig = {
    fields: { name: true, email: true, phone: false, cpf: false },
-   payment_methods: { pix: true, credit_card: true, boleto: true, apple_pay: false, google_pay: false },
+   payment_methods: { pix: true, credit_card: true, boleto: true, apple_pay: false, google_pay: false, paypal: false },
    payment_routing: {},
    timer: { active: false, minutes: 15, bg_color: '#EF4444', text_color: '#FFFFFF' },
    header_image: '',
@@ -187,6 +187,7 @@ const PAYMENT_METHOD_DEFINITIONS: Array<{
    { id: 'boleto', translationKey: 'checkout_editor.pay_boleto', fallbackLabel: 'Boleto bancario', icon: FileText, supportsAutomaticBackup: false },
    { id: 'apple_pay', translationKey: 'checkout_editor.pay_apple', fallbackLabel: 'Apple Pay', icon: Smartphone, supportsAutomaticBackup: false },
    { id: 'google_pay', translationKey: 'checkout_editor.pay_google', fallbackLabel: 'Google Pay', icon: Smartphone, supportsAutomaticBackup: false },
+   { id: 'paypal', translationKey: 'checkout_editor.pay_paypal', fallbackLabel: 'PayPal', icon: Smartphone, supportsAutomaticBackup: false },
 ];
 
 const pushUniqueGatewayId = (values: string[], gatewayId?: string | null) => {
@@ -313,7 +314,11 @@ export const CheckoutEditor = () => {
       [t]
    );
    const currencyEligibleGateways = useMemo(
-      () => activeSelectableGateways.filter((gateway) => currency === 'BRL' || gateway.name === GatewayProvider.STRIPE),
+       () => activeSelectableGateways.filter((gateway) => (
+          currency === 'BRL'
+          || gateway.name === GatewayProvider.STRIPE
+          || gateway.name === GatewayProvider.PAYPAL
+       )),
       [activeSelectableGateways, currency]
    );
    const effectivePaymentRouting = useMemo(
@@ -509,6 +514,7 @@ export const CheckoutEditor = () => {
             boleto: config.payment_methods.boleto && methodHasCompatibleGateway('boleto'),
             apple_pay: config.payment_methods.apple_pay && methodHasCompatibleGateway('apple_pay'),
             google_pay: config.payment_methods.google_pay && methodHasCompatibleGateway('google_pay'),
+            paypal: config.payment_methods.paypal && methodHasCompatibleGateway('paypal'),
          };
          const hasAnyActivePaymentMethod = ROUTABLE_PAYMENT_METHODS.some(
             (paymentMethod) => sanitizedPaymentMethods[paymentMethod]
@@ -652,8 +658,10 @@ export const CheckoutEditor = () => {
             return "/stripe-logo.png";
          case GatewayProvider.ASAAS:
             return "/Asaas-logo.png";
-         case GatewayProvider.PAGSEGURO:
-            return "/pag-seguro-logoo.png";
+          case GatewayProvider.PAGSEGURO:
+             return "/pag-seguro-logoo.png";
+          case GatewayProvider.PAYPAL:
+             return "/paypal-logo.png";
          default:
             return "";
       }

@@ -134,6 +134,7 @@ export interface ProcessPaymentResult {
   requiresAction?: boolean;
   clientSecret?: string;
   paymentMethodId?: string;
+  paypalOrderId?: string;
   code?: string;
 }
 
@@ -912,6 +913,9 @@ class PaymentService {
               break;
             case GatewayProvider.ASAAS:
               gatewayResponse = await this.processAsaas(gateway, currentOrder, attemptRequest);
+              break;
+            case GatewayProvider.PAYPAL:
+              gatewayResponse = await this.processPayPal(gateway, currentOrder, attemptRequest);
               break;
             default:
               gatewayResponse = { success: false, message: i18n.t('unknown_gateway') };
@@ -2039,6 +2043,88 @@ class PaymentService {
 
     if (error) {
       throw error;
+    }
+  }
+
+  private async processPayPal(
+    gateway: Gateway,
+    order: Order,
+    request: ProcessPaymentRequest
+  ): Promise<ProcessPaymentResult> {
+    if (request.paymentMethod !== 'paypal') {
+      return { success: false, message: 'O PayPal esta disponivel apenas como carteira digital.' };
+    }
+
+    try {
+      const response = await fetch(getApiUrl('/api/payments?action=paypal-create-order'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          checkoutId: order.checkout_id,
+          orderId: order.id,
+          gatewayId: gateway.id,
+          selectedBumpIds: request.selectedBumps || [],
+        }),
+      });
+      const result = await response.json().catch(() => null);
+
+      if (!response.ok || !result?.success || !result?.paypalOrderId) {
+        return {
+          success: false,
+          message: result?.error || 'Nao foi possivel preparar o pagamento via PayPal. Tente novamente.',
+          code: result?.code,
+        };
+      }
+
+      return {
+        success: true,
+        orderId: order.id,
+        gatewayStatus: String(result.status || 'CREATED').toLowerCase(),
+        statusSignature: typeof result.statusSignature === 'string' ? result.statusSignature : undefined,
+        paypalOrderId: String(result.paypalOrderId),
+      };
+    } catch (error: any) {
+      console.error('[PaymentService] PayPal order creation failed:', error?.message || error);
+      return {
+        success: false,
+        message: 'Nao foi possivel preparar o pagamento via PayPal. Tente novamente.',
+      };
+    }
+  }
+
+  async capturePayPalOrder(params: {
+    checkoutId: string;
+    orderId: string;
+    gatewayId: string;
+    paypalOrderId: string;
+  }): Promise<ProcessPaymentResult> {
+    try {
+      const response = await fetch(getApiUrl('/api/payments?action=paypal-capture-order'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok || !result?.success) {
+        return {
+          success: false,
+          message: result?.error || 'Nao foi possivel concluir o pagamento via PayPal. Tente novamente.',
+          code: result?.code,
+        };
+      }
+
+      return {
+        success: true,
+        orderId: params.orderId,
+        gatewayStatus: String(result.status || 'COMPLETED').toLowerCase(),
+        statusSignature: typeof result.statusSignature === 'string' ? result.statusSignature : undefined,
+      };
+    } catch (error: any) {
+      console.error('[PaymentService] PayPal capture failed:', error?.message || error);
+      return {
+        success: false,
+        message: 'Nao foi possivel concluir o pagamento via PayPal. Tente novamente.',
+      };
     }
   }
 

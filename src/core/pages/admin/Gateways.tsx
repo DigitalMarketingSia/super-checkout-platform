@@ -34,6 +34,11 @@ type PagSeguroConfigState = MercadoPagoConfigState & {
   environment: 'production' | 'sandbox';
 };
 
+type PayPalConfigState = MercadoPagoConfigState & {
+  environment: 'production' | 'sandbox';
+  last_verified_at?: string | null;
+};
+
 const DEFAULT_MP_CONFIG: MercadoPagoConfigState = {
   public_key: '',
   private_key: '',
@@ -89,6 +94,19 @@ const DEFAULT_PAGSEGURO_CONFIG: PagSeguroConfigState = {
   min_installment_value: 5.0,
   has_private_key: false,
   has_webhook_secret: false,
+};
+
+const DEFAULT_PAYPAL_CONFIG: PayPalConfigState = {
+  public_key: '',
+  private_key: '',
+  webhook_secret: '',
+  active: false,
+  environment: 'production',
+  max_installments: 1,
+  min_installment_value: 0,
+  has_private_key: false,
+  has_webhook_secret: false,
+  last_verified_at: null,
 };
 
 const PAGBANK_GATEWAY_ENABLED = false;
@@ -166,9 +184,11 @@ export const Gateways = () => {
   const [stripeConfig, setStripeConfig] = useState<StripeConfigState>(DEFAULT_STRIPE_CONFIG);
   const [pagSeguroConfig, setPagSeguroConfig] = useState<PagSeguroConfigState>(DEFAULT_PAGSEGURO_CONFIG);
   const [asaasConfig, setAsaasConfig] = useState<AsaasConfigState>(DEFAULT_ASAAS_CONFIG);
+  const [paypalConfig, setPaypalConfig] = useState<PayPalConfigState>(DEFAULT_PAYPAL_CONFIG);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [activeModalApp, setActiveModalApp] = useState<'mp' | 'stripe' | 'pagseguro' | 'asaas' | null>(null);
+  const [activeModalApp, setActiveModalApp] = useState<'mp' | 'stripe' | 'pagseguro' | 'asaas' | 'paypal' | null>(null);
   const [isConnectingOauth, setIsConnectingOauth] = useState(false);
+  const [isTestingPaypal, setIsTestingPaypal] = useState(false);
   const [pagbankDisconnectRequested, setPagbankDisconnectRequested] = useState(false);
   const [pagbankDebugUnlocked, setPagbankDebugUnlocked] = useState(false);
   const [pagbankSandboxSellerEmail, setPagbankSandboxSellerEmail] = useState('');
@@ -197,6 +217,7 @@ export const Gateways = () => {
     const stripe = all.find(gateway => gateway.name === GatewayProvider.STRIPE);
     const pagSeguro = all.find(gateway => gateway.name === GatewayProvider.PAGSEGURO);
     const asaas = all.find(gateway => gateway.name === GatewayProvider.ASAAS);
+    const paypal = all.find(gateway => gateway.name === GatewayProvider.PAYPAL);
 
     setMpConfig(
       mercadoPago
@@ -258,6 +279,25 @@ export const Gateways = () => {
             sandbox: Boolean(asaas.config?.sandbox),
           }
         : DEFAULT_ASAAS_CONFIG
+    );
+
+    setPaypalConfig(
+      paypal
+        ? {
+            public_key: paypal.public_key || '',
+            private_key: '',
+            webhook_secret: '',
+            active: paypal.active ?? (paypal as any).is_active ?? false,
+            environment: paypal.config?.environment === 'sandbox' ? 'sandbox' : 'production',
+            max_installments: 1,
+            min_installment_value: 0,
+            has_private_key: Boolean(paypal.private_key),
+            has_webhook_secret: Boolean(paypal.webhook_secret),
+            last_verified_at: typeof paypal.config?.paypal_last_verified_at === 'string'
+              ? paypal.config.paypal_last_verified_at
+              : null,
+          }
+        : DEFAULT_PAYPAL_CONFIG
     );
   };
 
@@ -368,6 +408,49 @@ export const Gateways = () => {
     return accessToken;
   };
 
+  const handlePayPalCredentialTest = async () => {
+    const gateway = gateways.find((entry) => entry.name === GatewayProvider.PAYPAL);
+    if (!gateway?.id || !gateway.private_key) {
+      showAlert('Salve primeiro', 'Salve o Client ID e o Client Secret antes de testar a conexao PayPal.', 'info');
+      return;
+    }
+
+    const credentialsChangedSinceSave = Boolean(
+      paypalConfig.private_key.trim()
+      || paypalConfig.webhook_secret.trim()
+      || paypalConfig.public_key.trim() !== String(gateway.public_key || '').trim()
+      || paypalConfig.environment !== (gateway.config?.environment === 'sandbox' ? 'sandbox' : 'production')
+    );
+    if (credentialsChangedSinceSave) {
+      showAlert('Salve primeiro', 'Salve as alteracoes das credenciais PayPal antes de executar o teste.', 'info');
+      return;
+    }
+
+    setIsTestingPaypal(true);
+    try {
+      const accessToken = await resolveAccessToken();
+      const response = await fetch('/api/payments?action=paypal-test-credentials', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ gatewayId: gateway.id }),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || 'O PayPal recusou as credenciais informadas.');
+      }
+
+      setPaypalConfig((current) => ({ ...current, last_verified_at: new Date().toISOString() }));
+      showAlert('PayPal conectado', `Credenciais ${result.environment === 'sandbox' ? 'Sandbox' : 'de producao'} validadas com sucesso.`, 'success');
+    } catch (error: any) {
+      showAlert('Teste PayPal falhou', error?.message || 'Nao foi possivel validar as credenciais PayPal.', 'error');
+    } finally {
+      setIsTestingPaypal(false);
+    }
+  };
+
   const handleSave = async (event: React.FormEvent) => {
     event.preventDefault();
 
@@ -381,26 +464,31 @@ export const Gateways = () => {
         ? GatewayProvider.MERCADO_PAGO
         : activeModalApp === 'pagseguro'
           ? GatewayProvider.PAGSEGURO
-          : activeModalApp === 'asaas'
+        : activeModalApp === 'asaas'
             ? GatewayProvider.ASAAS
-            : GatewayProvider.STRIPE;
+            : activeModalApp === 'paypal'
+              ? GatewayProvider.PAYPAL
+              : GatewayProvider.STRIPE;
       const configState = activeModalApp === 'mp'
         ? mpConfig
         : activeModalApp === 'pagseguro'
           ? pagSeguroConfig
-          : activeModalApp === 'asaas'
+        : activeModalApp === 'asaas'
             ? asaasConfig
-            : stripeConfig;
+            : activeModalApp === 'paypal'
+              ? paypalConfig
+              : stripeConfig;
 
       const {
         max_installments,
         min_installment_value,
-        has_private_key: _hasPrivateKey,
-        has_webhook_secret: _hasWebhookSecret,
+        has_private_key: hasPrivateKey,
+        has_webhook_secret: hasWebhookSecret,
         ...restConfigRaw
       } = configState;
       const interest_rate = 'interest_rate' in configState ? configState.interest_rate : undefined;
       const environment = 'environment' in configState ? configState.environment : undefined;
+      const paypal_last_verified_at = 'last_verified_at' in configState ? configState.last_verified_at : undefined;
       const sandbox = 'sandbox' in restConfigRaw ? restConfigRaw.sandbox : undefined;
       const { sandbox: _sandbox, ...restConfig } = restConfigRaw as any;
 
@@ -409,7 +497,8 @@ export const Gateways = () => {
         config: {
           max_installments,
           min_installment_value,
-          ...(environment ? { environment } : {}),
+           ...(environment ? { environment } : {}),
+           ...(paypal_last_verified_at ? { paypal_last_verified_at } : {}),
           ...(sandbox !== undefined ? { sandbox } : {}),
           ...(interest_rate !== undefined ? { interest_rate } : {}),
         },
@@ -419,6 +508,16 @@ export const Gateways = () => {
           clear_oauth_credentials: true,
         } : {}),
       };
+
+      if (activeModalApp === 'paypal' && restConfig.active) {
+        const hasClientId = Boolean(String(restConfig.public_key || '').trim());
+        const hasClientSecret = Boolean(String(restConfig.private_key || '').trim()) || Boolean(hasPrivateKey);
+        const hasWebhookId = Boolean(String(restConfig.webhook_secret || '').trim()) || Boolean(hasWebhookSecret);
+        if (!hasClientId || !hasClientSecret || !hasWebhookId || !paypalConfig.last_verified_at) {
+          showAlert('Configuracao PayPal incompleta', 'Para habilitar o PayPal, informe Client ID, Client Secret e o Webhook ID da assinatura oficial.', 'error');
+          return;
+        }
+      }
 
       const index = gateways.findIndex(gateway => gateway.name === provider);
 
@@ -612,7 +711,7 @@ export const Gateways = () => {
     }
   };
 
-  const openGatewayModal = (provider: 'mp' | 'stripe' | 'pagseguro' | 'asaas') => {
+  const openGatewayModal = (provider: 'mp' | 'stripe' | 'pagseguro' | 'asaas' | 'paypal') => {
     if (provider === 'pagseguro' && !PAGBANK_GATEWAY_ENABLED) {
       showAlert('PagBank indisponivel', 'A integracao com o PagBank foi removida porque a homologacao foi negada.', 'info');
       return;
@@ -632,20 +731,25 @@ export const Gateways = () => {
   const isStripeModal = activeModalApp === 'stripe';
   const isPagSeguroModal = activeModalApp === 'pagseguro';
   const isAsaasModal = activeModalApp === 'asaas';
+  const isPayPalModal = activeModalApp === 'paypal';
   const activeConfig = isMercadoPagoModal
     ? mpConfig
     : isPagSeguroModal
       ? pagSeguroConfig
       : isAsaasModal
         ? asaasConfig
-        : stripeConfig;
+        : isPayPalModal
+          ? paypalConfig
+          : stripeConfig;
   const activeModalTitle = isMercadoPagoModal
     ? 'Sincronizar Mercado Pago'
     : isPagSeguroModal
       ? 'Sincronizar PagSeguro / PagBank'
       : isAsaasModal
         ? 'Sincronizar Asaas'
-        : 'Sincronizar Stripe';
+        : isPayPalModal
+          ? 'Sincronizar PayPal'
+          : 'Sincronizar Stripe';
   const activeHintHtml = isMercadoPagoModal
     ? sanitizeTranslationHtml(t('gateways.mp_hint'))
     : isPagSeguroModal
@@ -656,21 +760,29 @@ export const Gateways = () => {
         ? sanitizeTranslationHtml(
             'Sua API Key do Asaas é criptografada com AES-256 no momento em que você salva e nunca mais retorna para o navegador.'
           )
-      : sanitizeTranslationHtml(
+        : isPayPalModal
+          ? sanitizeTranslationHtml(
+              'Use o Client ID e o Client Secret da sua conta PayPal Business. O comprador aprova a compra no popup oficial do PayPal; o Client Secret nunca sai do servidor.'
+            )
+          : sanitizeTranslationHtml(
           'Para configurar o Stripe, acesse seu painel na aba Desenvolvedores, crie as chaves de API e configure o Webhook para apontar para seu sistema.'
         );
   const publicKeyPlaceholder = isMercadoPagoModal
     ? 'APP_USR-...'
     : isPagSeguroModal
       ? 'PAGSEGURO_PUBLIC_KEY'
-      : 'pk_live_...';
+      : isPayPalModal
+        ? 'PayPal Client ID'
+        : 'pk_live_...';
   const privateKeyPlaceholder = isMercadoPagoModal
     ? 'APP_USR-... ou TEST-...'
     : isPagSeguroModal
       ? 'PAGSEGURO_TOKEN'
       : isAsaasModal
         ? '$aact_prod_...'
-      : 'sk_live_...';
+        : isPayPalModal
+          ? 'PayPal Client Secret'
+          : 'sk_live_...';
   const inferredMercadoPagoEnvironment = isMercadoPagoModal
     ? detectMercadoPagoCredentialEnvironment(activeConfig.public_key, activeConfig.private_key)
     : null;
@@ -680,7 +792,9 @@ export const Gateways = () => {
       ? 'authenticity-token'
       : isAsaasModal
         ? 'asaas-access-token'
-      : 'Opcional';
+        : isPayPalModal
+          ? 'PayPal Webhook ID'
+          : 'Opcional';
   const privateKeyStatusMessage = activeConfig.has_private_key && !activeConfig.private_key.trim()
     ? 'Segredo ja salvo. Deixe em branco para manter ou preencha para substituir.'
     : 'Digite este campo apenas se quiser gravar ou substituir o segredo atual.';
@@ -849,7 +963,7 @@ export const Gateways = () => {
       : []),
   ].filter(meta => Boolean(meta.value));
 
-  const updateActiveConfig = (partial: Partial<MercadoPagoConfigState & StripeConfigState & PagSeguroConfigState & AsaasConfigState>) => {
+  const updateActiveConfig = (partial: Partial<MercadoPagoConfigState & StripeConfigState & PagSeguroConfigState & AsaasConfigState & PayPalConfigState>) => {
     if (isMercadoPagoModal) {
       setMpConfig(prev => ({ ...prev, ...partial }));
       return;
@@ -862,6 +976,20 @@ export const Gateways = () => {
 
     if (isAsaasModal) {
       setAsaasConfig(prev => ({ ...prev, ...partial as AsaasConfigState }));
+      return;
+    }
+
+    if (isPayPalModal) {
+      setPaypalConfig(prev => {
+        const next = { ...prev, ...partial as PayPalConfigState };
+        const credentialsChanged = (
+          (partial.public_key !== undefined && partial.public_key !== prev.public_key)
+          || (partial.private_key !== undefined && partial.private_key !== prev.private_key)
+          || (partial.webhook_secret !== undefined && partial.webhook_secret !== prev.webhook_secret)
+          || (partial.environment !== undefined && partial.environment !== prev.environment)
+        );
+        return credentialsChanged ? { ...next, last_verified_at: null } : next;
+      });
       return;
     }
 
@@ -916,41 +1044,6 @@ export const Gateways = () => {
     </div>
   );
 
-  const renderComingSoonCard = ({
-    logoSrc,
-    logoAlt,
-    subtitle,
-    onClick,
-  }: {
-    logoSrc: string;
-    logoAlt: string;
-    subtitle: string;
-    onClick: () => void;
-  }) => (
-    <div
-      onClick={onClick}
-      className="group relative h-64 rounded-[2.5rem] border bg-black/20 border-white/5 opacity-60 hover:opacity-100 hover:border-white/10 transition-all duration-500 cursor-pointer overflow-hidden"
-    >
-      <div className="absolute top-8 left-8">
-        <div className="px-4 py-1.5 rounded-xl border text-[10px] font-black uppercase tracking-widest flex items-center gap-2 bg-white/5 text-gray-600 border-white/5">
-          <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
-          {t('gateways.soon')}
-        </div>
-      </div>
-
-      <div className="h-full flex flex-col items-center justify-center p-12">
-        <img src={logoSrc} alt={logoAlt} className="h-12 object-contain brightness-0 invert group-hover:scale-110 transition-transform duration-500" />
-        <p className="mt-6 text-[10px] font-black text-gray-700 uppercase tracking-[0.3em] group-hover:text-gray-500 transition-colors">{subtitle}</p>
-      </div>
-
-      <div className="absolute bottom-6 right-8 opacity-0 group-hover:opacity-100 transition-all translate-x-4 group-hover:translate-x-0">
-        <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-white">
-          <ArrowRight className="w-5 h-5" />
-        </div>
-      </div>
-    </div>
-  );
-
   return (
     <Layout>
       <div className="flex flex-col lg:flex-row justify-between lg:items-end mb-12 gap-8">
@@ -987,11 +1080,12 @@ export const Gateways = () => {
           onClick: () => openGatewayModal('stripe'),
         })}
 
-        {renderComingSoonCard({
+        {renderGatewayCard({
           logoSrc: '/paypal-logo.png',
           logoAlt: 'PayPal',
           subtitle: 'Global Payments',
-          onClick: () => showAlert('PayPal', 'A integracao com o PayPal estara disponivel em breve.', 'info'),
+          isActive: paypalConfig.active,
+          onClick: () => openGatewayModal('paypal'),
         })}
 
         {renderGatewayCard({
@@ -1262,6 +1356,57 @@ export const Gateways = () => {
               </Card>
             )}
 
+            {isPayPalModal && (
+              <Card className="bg-white/5 border-white/5 rounded-[1.8rem]">
+                <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-4 block">Ambiente</label>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { id: 'production', label: 'Producao' },
+                    { id: 'sandbox', label: 'Sandbox' },
+                  ].map(option => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => updateActiveConfig({ environment: option.id as 'production' | 'sandbox' })}
+                      className={`py-4 rounded-2xl text-[10px] font-black border uppercase tracking-widest transition-all ${paypalConfig.environment === option.id ? 'bg-primary border-primary text-white shadow-lg shadow-primary/20' : 'bg-black/20 border-white/5 text-gray-700 hover:bg-white/5'}`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-4 text-[10px] font-black text-gray-600 uppercase tracking-widest leading-relaxed">
+                  Use credenciais do mesmo ambiente. O Webhook ID e informado abaixo depois de criar o webhook no painel PayPal para `/api/stripe?action=paypal`.
+                </p>
+              </Card>
+            )}
+
+            {isPayPalModal && (
+              <div className="rounded-[1.8rem] border border-blue-500/20 bg-blue-500/5 p-5">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-200">Validacao de credenciais</p>
+                    <p className="mt-2 text-xs leading-relaxed text-blue-50/80">
+                      O teste cria apenas um token OAuth efemero no servidor. Nenhuma cobranca e nenhum pedido sao criados.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={isTestingPaypal || !gateways.some((gateway) => gateway.name === GatewayProvider.PAYPAL && gateway.private_key)}
+                    onClick={handlePayPalCredentialTest}
+                    className="shrink-0 rounded-2xl px-5 py-3 text-[10px] font-black uppercase tracking-widest"
+                  >
+                    {isTestingPaypal ? 'Testando...' : 'Testar credenciais'}
+                  </Button>
+                </div>
+                {paypalConfig.last_verified_at && (
+                  <p className="mt-3 text-[10px] font-black uppercase tracking-widest text-emerald-300">
+                    Ultima validacao: {formatStatusDate(paypalConfig.last_verified_at)}
+                  </p>
+                )}
+              </div>
+            )}
+
             {isAsaasModal && (
               <Card className="bg-white/5 border-white/5 rounded-[1.8rem]">
                 <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-4 block">Ambiente</label>
@@ -1286,7 +1431,7 @@ export const Gateways = () => {
               </Card>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {!isPayPalModal && <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <Card className="bg-white/5 border-white/5 rounded-[1.8rem]">
                 <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-4 block">Parcelamento Maximo</label>
                 <div className="grid grid-cols-4 gap-2">
@@ -1316,7 +1461,7 @@ export const Gateways = () => {
                   />
                 </div>
               </Card>
-            </div>
+            </div>}
 
             {isStripeModal && (
               <div className="p-6 rounded-[1.8rem] bg-white/5 border border-white/5">
@@ -1332,7 +1477,7 @@ export const Gateways = () => {
             )}
 
             <div>
-              <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-3 block">Secret de Webhook (Opcional)</label>
+              <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-3 block">{isPayPalModal ? 'Webhook ID do PayPal' : 'Secret de Webhook (Opcional)'}</label>
               <input
                 type="text"
                 className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-4 focus:border-primary/50 outline-none text-white font-mono text-xs transition-all"
@@ -1348,6 +1493,11 @@ export const Gateways = () => {
                   Se voce configurar o token de autenticidade do webhook no PagBank, informe o mesmo valor aqui para validacao forte do evento.
                 </p>
               )}
+              {isPayPalModal && (
+                <p className="mt-3 text-[10px] font-black text-gray-600 uppercase tracking-widest leading-relaxed">
+                  Este campo guarda o Webhook ID (nao o Client Secret) cifrado no servidor e e usado para validar a assinatura oficial do PayPal.
+                </p>
+              )}
             </div>
           </div>
 
@@ -1355,7 +1505,13 @@ export const Gateways = () => {
             <div className="flex items-center gap-4">
               <button
                 type="button"
-                onClick={() => updateActiveConfig({ active: !activeConfig.active })}
+                onClick={() => {
+                  if (isPayPalModal && !activeConfig.active && !paypalConfig.last_verified_at) {
+                    showAlert('Teste obrigatorio', 'Teste as credenciais do PayPal antes de habilitar o gateway.', 'info');
+                    return;
+                  }
+                  updateActiveConfig({ active: !activeConfig.active });
+                }}
                 className={`w-14 h-8 rounded-full transition-all relative ${activeConfig.active ? 'bg-primary' : 'bg-gray-800'}`}
               >
                 <div className={`absolute top-1 w-6 h-6 rounded-full bg-white transition-all ${activeConfig.active ? 'left-7 shadow-xl' : 'left-1'}`} />
