@@ -24,6 +24,19 @@ const debugUpsellPayment = (...args: unknown[]) => {
     }
 };
 
+type PayPalUpsellPreparedOrder = {
+    orderId: string;
+    gatewayId: string;
+    paypalOrderId: string;
+    statusSignature?: string;
+};
+
+type PayPalUpsellOrderPreparationResult = {
+    ok: boolean;
+    paypalOrderId?: string;
+    message?: string;
+};
+
 const getUpsellOrderSessionKey = (orderId?: string) => `upsell-original-order:${orderId || 'unknown'}`;
 const getUpsellPixSessionKey = (orderId?: string) => `upsell-pix-context:${orderId || 'unknown'}`;
 const toPixQrImageSrc = (value?: string | null) => {
@@ -91,6 +104,8 @@ const getUpsellGatewayMethodCandidates = (paymentMethod?: string | null): Paymen
             return ['google_pay', 'credit_card'];
         case 'boleto':
             return ['boleto', 'credit_card'];
+        case 'paypal':
+            return ['paypal'];
         case 'credit_card':
         default:
             return ['credit_card'];
@@ -883,6 +898,8 @@ export const UpsellPage = () => {
     const [error, setError] = useState('');
     const [cardData, setCardData] = useState({ number: '', holderName: '', expiryMonth: '', expiryYear: '', cvc: '' });
     const pixRedirectedRef = useRef(false);
+    const paypalPreparedOrderRef = useRef<PayPalUpsellPreparedOrder | null>(null);
+    const paypalPreparationPromiseRef = useRef<Promise<PayPalUpsellOrderPreparationResult> | null>(null);
     const [timeLeft, setTimeLeft] = useState(600); // 10 minutos para escassez
 
     useEffect(() => {
@@ -1401,7 +1418,9 @@ export const UpsellPage = () => {
                     ? t('upsell.method_google_pay', 'Google Pay')
                     : originalOrder?.payment_method === 'boleto'
                         ? t('upsell.method_boleto', 'Boleto')
-                        : t('upsell.method_unknown', 'Método não identificado');
+                        : originalOrder?.payment_method === 'paypal'
+                            ? 'PayPal'
+                            : t('upsell.method_unknown', 'Método não identificado');
     const originalGatewayName = String(gateway?.name || serverCapability?.gateway || '').trim().toLowerCase();
     const originalGatewayLabel = originalGatewayName === 'stripe'
         ? 'Stripe'
@@ -1409,6 +1428,8 @@ export const UpsellPage = () => {
             ? 'Mercado Pago'
             : originalGatewayName === 'asaas'
                 ? 'Asaas'
+                : originalGatewayName === 'paypal'
+                    ? 'PayPal'
                 : t('upsell.gateway_unknown', 'Gateway padrão');
 
     const trustModeDescription = upsellCapability.mode === 'not_immediate'
@@ -1538,6 +1559,121 @@ export const UpsellPage = () => {
             alert(t('upsell.payment_error', 'Erro ao processar pagamento.'));
             setProcessing(false);
             return false;
+        }
+    };
+
+    const clearPayPalPreparedOrder = () => {
+        paypalPreparedOrderRef.current = null;
+        paypalPreparationPromiseRef.current = null;
+    };
+
+    const preparePayPalUpsellOrder = async (): Promise<PayPalUpsellOrderPreparationResult> => {
+        const existingOrder = paypalPreparedOrderRef.current;
+        if (existingOrder) {
+            return { ok: true, paypalOrderId: existingOrder.paypalOrderId };
+        }
+
+        if (paypalPreparationPromiseRef.current) {
+            return paypalPreparationPromiseRef.current;
+        }
+
+        let preparation: Promise<PayPalUpsellOrderPreparationResult>;
+        preparation = (async () => {
+            if (!originalOrder || !upsellProduct || !checkout || !gateway?.id || gateway.name !== 'paypal') {
+                const message = t('upsell.gateway_init_error', 'O PayPal ainda esta carregando. Tente novamente em alguns segundos.');
+                setCardFormError(message);
+                return { ok: false, message };
+            }
+
+            setProcessing(true);
+            setCardFormError('');
+            setCardFormNotice('');
+
+            try {
+                const result = await paymentService.processPayment({
+                    checkoutId: checkout.id,
+                    offerId: 'upsell',
+                    amount: upsellProduct.price_real || 0,
+                    customerName: originalOrder.customer_name,
+                    customerEmail: originalOrder.customer_email,
+                    customerPhone: originalOrder.customer_phone,
+                    customerCpf: originalOrder.customer_cpf,
+                    gatewayId: gateway.id,
+                    paymentMethod: 'paypal',
+                    currency: checkout.currency || 'BRL',
+                    items: [{ name: upsellProduct.name, price: upsellProduct.price_real || 0, quantity: 1, type: 'upsell', product_id: upsellProduct.id }],
+                    customerUserId: originalOrder.customer_user_id,
+                    originalOrderId: originalOrder.id,
+                });
+
+                if (!result.success || !result.orderId || !result.paypalOrderId) {
+                    const message = result.message || t('upsell.payment_error', 'Nao foi possivel preparar o pagamento adicional. Tente novamente.');
+                    setCardFormError(message);
+                    return { ok: false, message };
+                }
+
+                paypalPreparedOrderRef.current = {
+                    orderId: result.orderId,
+                    gatewayId: gateway.id,
+                    paypalOrderId: result.paypalOrderId,
+                    statusSignature: result.statusSignature,
+                };
+                return { ok: true, paypalOrderId: result.paypalOrderId };
+            } catch (error) {
+                console.error('[UpsellPage] Failed to prepare PayPal upsell order:', error);
+                const message = t('upsell.payment_error', 'Nao foi possivel preparar o pagamento adicional. Tente novamente.');
+                setCardFormError(message);
+                return { ok: false, message };
+            } finally {
+                setProcessing(false);
+            }
+        })();
+        paypalPreparationPromiseRef.current = preparation;
+
+        try {
+            return await preparation;
+        } finally {
+            if (paypalPreparationPromiseRef.current === preparation) {
+                paypalPreparationPromiseRef.current = null;
+            }
+        }
+    };
+
+    const capturePayPalUpsellOrder = async (providerOrderId: string) => {
+        const preparedOrder = paypalPreparedOrderRef.current;
+        if (!preparedOrder || !checkout) {
+            return {
+                ok: false,
+                message: t('upsell.payment_error', 'O pagamento adicional do PayPal nao esta pronto para ser concluido.'),
+            };
+        }
+
+        setProcessing(true);
+        setCardFormError('');
+        try {
+            const result = await paymentService.capturePayPalOrder({
+                checkoutId: checkout.id,
+                orderId: preparedOrder.orderId,
+                gatewayId: preparedOrder.gatewayId,
+                paypalOrderId: providerOrderId,
+            });
+            if (!result.success) {
+                const message = result.message || t('upsell.payment_error', 'O PayPal nao confirmou o pagamento adicional. Tente novamente.');
+                setCardFormError(message);
+                return { ok: false, message };
+            }
+
+            const statusSignature = result.statusSignature || preparedOrder.statusSignature;
+            clearPayPalPreparedOrder();
+            navigate(buildUpsellThankYouTarget(preparedOrder.orderId, statusSignature || null));
+            return { ok: true };
+        } catch (error) {
+            console.error('[UpsellPage] Failed to capture PayPal upsell order:', error);
+            const message = t('upsell.payment_error', 'O PayPal nao confirmou o pagamento adicional. Tente novamente.');
+            setCardFormError(message);
+            return { ok: false, message };
+        } finally {
+            setProcessing(false);
         }
     };
 
@@ -1677,6 +1813,9 @@ export const UpsellPage = () => {
         && (originalOrder?.payment_method === 'apple_pay' || originalOrder?.payment_method === 'google_pay')
         ? originalOrder.payment_method
         : null;
+    const canUsePayPalUpsell = originalOrder?.payment_method === 'paypal'
+        && gateway?.name === 'paypal'
+        && Boolean(gateway.public_key);
     const upsellCardImageUrl = resolveUpsellCardImageUrl(upsellProduct, config);
     const upsellHeroVideoUrl = config.show_media && config.media_type === 'video'
         ? resolveYouTubeEmbedUrl(config.media_url)
@@ -1831,17 +1970,36 @@ export const UpsellPage = () => {
 
                     {!showCardForm ? (
                         <>
-                            <button onClick={handleAccept} disabled={processing} className="w-full md:w-auto px-6 md:px-8 py-3.5 md:py-4 bg-[#10B981] hover:bg-[#059669] text-white font-black text-sm md:text-base lg:text-lg rounded-full shadow-lg hover:scale-105 transition-all flex items-center justify-center gap-2.5 animate-pulse shadow-green-500/10 whitespace-nowrap">
-                                {processing ? (
-                                    t('upsell.processing', 'Processando...')
-                                ) : (
-                                    <>
-                                        <Lock className="w-5 h-5 shrink-0" />
-                                        <span className="hidden md:inline">{upsellCapability.original_payment_method === 'pix' || upsellCapability.mode === 'not_immediate' ? primaryUpsellCta : ctaTextDesktop}</span>
-                                        <span className="inline md:hidden">{upsellCapability.original_payment_method === 'pix' || upsellCapability.mode === 'not_immediate' ? primaryUpsellCta : ctaTextMobile}</span>
-                                    </>
-                                )}
-                            </button>
+                            {canUsePayPalUpsell ? (
+                                <div className="w-full max-w-sm rounded-2xl border border-blue-400/25 bg-white p-3 shadow-xl shadow-blue-950/30">
+                                    <p className="mb-3 px-1 text-center text-xs font-medium leading-relaxed text-gray-600">
+                                        Aprove a compra adicional na janela oficial do PayPal. Seu pedido principal nao sera cobrado novamente.
+                                    </p>
+                                    <PayPalUpsellButton
+                                        clientId={gateway?.public_key || ''}
+                                        currency={checkout?.currency || 'BRL'}
+                                        processing={processing}
+                                        onCreateOrder={preparePayPalUpsellOrder}
+                                        onApprove={capturePayPalUpsellOrder}
+                                        onCancel={() => setCardFormNotice('A aprovacao do PayPal foi cancelada. Voce pode tentar novamente quando quiser.')}
+                                        onError={(message) => setCardFormError(message)}
+                                    />
+                                    {cardFormError && <p className="px-1 pt-3 text-center text-sm leading-relaxed text-amber-700">{cardFormError}</p>}
+                                    {cardFormNotice && <p className="px-1 pt-3 text-center text-xs leading-relaxed text-gray-500">{cardFormNotice}</p>}
+                                </div>
+                            ) : (
+                                <button onClick={handleAccept} disabled={processing} className="w-full md:w-auto px-6 md:px-8 py-3.5 md:py-4 bg-[#10B981] hover:bg-[#059669] text-white font-black text-sm md:text-base lg:text-lg rounded-full shadow-lg hover:scale-105 transition-all flex items-center justify-center gap-2.5 animate-pulse shadow-green-500/10 whitespace-nowrap">
+                                    {processing ? (
+                                        t('upsell.processing', 'Processando...')
+                                    ) : (
+                                        <>
+                                            <Lock className="w-5 h-5 shrink-0" />
+                                            <span className="hidden md:inline">{upsellCapability.original_payment_method === 'pix' || upsellCapability.mode === 'not_immediate' ? primaryUpsellCta : ctaTextDesktop}</span>
+                                            <span className="inline md:hidden">{upsellCapability.original_payment_method === 'pix' || upsellCapability.mode === 'not_immediate' ? primaryUpsellCta : ctaTextMobile}</span>
+                                        </>
+                                    )}
+                                </button>
+                            )}
                             <button onClick={() => {
                                 if (orderId === 'preview') {
                                     alert(t('upsell.preview_decline_alert', 'Você recusou a oferta no modo de visualização. Redirecionando para a página de obrigado simulada.'));
@@ -2039,6 +2197,120 @@ export const UpsellPage = () => {
                         </div>
                     </div>
                 </div>
+            )}
+        </div>
+    );
+};
+
+const PayPalUpsellButton = ({
+    clientId,
+    currency,
+    processing,
+    onCreateOrder,
+    onApprove,
+    onCancel,
+    onError,
+}: {
+    clientId: string;
+    currency: string;
+    processing: boolean;
+    onCreateOrder: () => Promise<PayPalUpsellOrderPreparationResult>;
+    onApprove: (orderId: string) => Promise<{ ok: boolean; message?: string }>;
+    onCancel: () => void;
+    onError: (message: string) => void;
+}) => {
+    const containerRef = useRef<HTMLDivElement | null>(null);
+    const callbacksRef = useRef({ onCreateOrder, onApprove, onCancel, onError });
+    const suppressPreparationErrorRef = useRef(false);
+
+    useEffect(() => {
+        callbacksRef.current = { onCreateOrder, onApprove, onCancel, onError };
+    }, [onApprove, onCancel, onCreateOrder, onError]);
+
+    useEffect(() => {
+        const normalizedClientId = String(clientId || '').trim();
+        const normalizedCurrency = String(currency || 'BRL').trim().toUpperCase() || 'BRL';
+        let disposed = false;
+        let buttonsInstance: any = null;
+
+        const renderButtons = () => {
+            const paypal = (window as any).paypal;
+            if (disposed || !containerRef.current || !paypal?.Buttons) {
+                if (!disposed) {
+                    callbacksRef.current.onError('O PayPal nao foi inicializado. Recarregue a pagina e tente novamente.');
+                }
+                return;
+            }
+
+            containerRef.current.innerHTML = '';
+            buttonsInstance = paypal.Buttons({
+                style: { layout: 'vertical', color: 'gold', shape: 'rect', label: 'paypal' },
+                createOrder: async () => {
+                    const result = await callbacksRef.current.onCreateOrder();
+                    if (!result.ok || !result.paypalOrderId) {
+                        suppressPreparationErrorRef.current = true;
+                        throw new Error('PAYPAL_UPSELL_PREPARATION_REJECTED');
+                    }
+                    return result.paypalOrderId;
+                },
+                onApprove: async (details: { orderID?: string }) => {
+                    const result = await callbacksRef.current.onApprove(String(details?.orderID || ''));
+                    if (!result.ok) {
+                        throw new Error(result.message || 'PAYPAL_UPSELL_CAPTURE_FAILED');
+                    }
+                },
+                onCancel: () => callbacksRef.current.onCancel(),
+                onError: (error: unknown) => {
+                    const message = String((error as any)?.message || error || '');
+                    if (suppressPreparationErrorRef.current || message.includes('PAYPAL_UPSELL_PREPARATION_REJECTED')) {
+                        suppressPreparationErrorRef.current = false;
+                        return;
+                    }
+                    callbacksRef.current.onError('O PayPal nao conseguiu concluir esta tentativa. Tente novamente.');
+                },
+            });
+            void buttonsInstance.render(containerRef.current);
+        };
+
+        if (!normalizedClientId) {
+            callbacksRef.current.onError('O PayPal nao esta configurado para esta oferta.');
+            return;
+        }
+
+        const existingScript = document.querySelector<HTMLScriptElement>('script[data-super-checkout-paypal-sdk="true"]');
+        if ((window as any).paypal?.Buttons) {
+            renderButtons();
+        } else if (existingScript) {
+            existingScript.addEventListener('load', renderButtons, { once: true });
+            existingScript.addEventListener('error', () => {
+                if (!disposed) callbacksRef.current.onError('Nao foi possivel carregar o PayPal. Verifique sua conexao e tente novamente.');
+            }, { once: true });
+        } else {
+            const script = document.createElement('script');
+            script.dataset.superCheckoutPaypalSdk = 'true';
+            script.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(normalizedClientId)}&currency=${encodeURIComponent(normalizedCurrency)}&intent=capture&components=buttons&disable-funding=venmo,paylater`;
+            script.async = true;
+            script.onload = renderButtons;
+            script.onerror = () => {
+                if (!disposed) callbacksRef.current.onError('Nao foi possivel carregar o PayPal. Verifique sua conexao e tente novamente.');
+            };
+            document.head.appendChild(script);
+        }
+
+        return () => {
+            disposed = true;
+            buttonsInstance?.close?.();
+            if (containerRef.current) containerRef.current.innerHTML = '';
+        };
+    }, [clientId, currency]);
+
+    return (
+        <div className={processing ? 'pointer-events-none opacity-60 transition-opacity' : 'transition-opacity'}>
+            <div ref={containerRef} />
+            {processing && (
+                <p className="pt-2 text-center text-xs font-medium text-gray-500">
+                    Preparando pagamento seguro...
+                </p>
             )}
         </div>
     );

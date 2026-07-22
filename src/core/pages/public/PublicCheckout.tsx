@@ -1857,7 +1857,23 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
        clearPayPalPreparedOrder();
        setTimeout(() => {
           const signedQuery = statusSignature ? `?sig=${encodeURIComponent(statusSignature)}` : '';
-          navigate(`/thank-you/${preparedOrder.orderId}${signedQuery}`);
+          persistUpsellOrderContext(preparedOrder.orderId, {
+             id: preparedOrder.orderId,
+             checkout_id: data.checkout.id,
+             amount: calculateTotal(),
+             customer_name: customer.name,
+             customer_email: customer.email,
+             customer_phone: customer.phone || '',
+             customer_cpf: customer.cpf || '',
+             payment_method: 'paypal',
+             status: OrderStatus.PENDING,
+             items: [],
+             customer_user_id: userId,
+             created_at: new Date().toISOString(),
+          });
+          navigate(hasConfiguredUpsell
+             ? `/upsell/${preparedOrder.orderId}${signedQuery}`
+             : `/thank-you/${preparedOrder.orderId}${signedQuery}`);
        }, 700);
        return { ok: true };
     };

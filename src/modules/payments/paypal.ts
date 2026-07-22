@@ -116,6 +116,131 @@ function resolveCanonicalOrderDetails(params: {
   return { items, total };
 }
 
+function getConfiguredUpsellProductId(checkout: any) {
+  const productId = checkout?.config?.upsell?.product_id;
+  return typeof productId === 'string' && productId.trim() ? productId.trim() : '';
+}
+
+async function assertPayPalUpsellNotAlreadyPurchased(params: {
+  supabaseAdmin: any;
+  checkoutId: string;
+  merchantUserId: string;
+  originalOrderId: string;
+}) {
+  const { data: existingUpsell, error } = await params.supabaseAdmin
+    .from('orders')
+    .select('id')
+    .eq('checkout_id', params.checkoutId)
+    .eq('user_id', params.merchantUserId)
+    .in('status', ['paid', 'approved'])
+    .contains('metadata', { original_order_id: params.originalOrderId })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error('[PayPal] Existing upsell lookup failed:', error.message);
+    throw new PaymentSecurityError('UPSELL_LOOKUP_FAILED', 'Nao foi possivel validar esta oferta adicional.');
+  }
+
+  if (existingUpsell?.id) {
+    throw new PaymentSecurityError('UPSELL_ALREADY_PURCHASED', 'Esta oferta adicional ja foi adicionada ao seu pedido.');
+  }
+}
+
+async function resolvePayPalCanonicalOrderDetails(params: {
+  supabaseAdmin: any;
+  checkout: any;
+  mainProduct: any;
+  merchantUserId: string;
+  order: any;
+  selectedBumpIds: unknown;
+}) {
+  const metadata = normalizeOrderMetadata(params.order.metadata);
+  const postPurchase = metadata.post_purchase && typeof metadata.post_purchase === 'object'
+    ? metadata.post_purchase
+    : null;
+  const isUpsell = postPurchase?.source_surface === 'upsell';
+
+  if (!isUpsell) {
+    const validBumps = await loadValidCheckoutBumps(
+      params.supabaseAdmin,
+      params.checkout,
+      params.merchantUserId,
+      params.selectedBumpIds,
+    );
+    return {
+      ...resolveCanonicalOrderDetails({ mainProduct: params.mainProduct, selectedBumps: validBumps }),
+      kind: 'checkout' as const,
+    };
+  }
+
+  const originalOrderId = typeof postPurchase?.original_order_id === 'string'
+    ? postPurchase.original_order_id.trim()
+    : '';
+  if (!originalOrderId || metadata.original_order_id !== originalOrderId) {
+    throw new PaymentSecurityError('UPSELL_ORIGINAL_ORDER_FORBIDDEN', 'Nao foi possivel validar o pedido principal deste upsell.');
+  }
+
+  const originalOrder = await loadOwnedOrderForCheckoutWithMerchant(
+    params.supabaseAdmin,
+    params.checkout,
+    params.merchantUserId,
+    originalOrderId,
+  );
+  const originalStatus = String(originalOrder.status || '').trim().toLowerCase();
+  if ((originalStatus !== 'paid' && originalStatus !== 'approved') || originalOrder.payment_method !== 'paypal') {
+    throw new PaymentSecurityError('UPSELL_ORIGINAL_ORDER_NOT_PAID', 'O pedido principal ainda nao esta elegivel para esta oferta.');
+  }
+
+  await assertPayPalUpsellNotAlreadyPurchased({
+    supabaseAdmin: params.supabaseAdmin,
+    checkoutId: params.checkout.id,
+    merchantUserId: params.merchantUserId,
+    originalOrderId,
+  });
+
+  if (params.checkout?.config?.upsell?.active !== true) {
+    throw new PaymentSecurityError('UPSELL_NOT_ACTIVE', 'Esta oferta adicional nao esta mais disponivel.');
+  }
+
+  const upsellProductId = getConfiguredUpsellProductId(params.checkout);
+  if (!upsellProductId) {
+    throw new PaymentSecurityError('UPSELL_PRODUCT_MISSING', 'Esta oferta adicional nao esta mais disponivel.');
+  }
+
+  const { data: upsellProduct, error: upsellProductError } = await params.supabaseAdmin
+    .from('products')
+    .select('*')
+    .eq('id', upsellProductId)
+    .eq('user_id', params.merchantUserId)
+    .eq('active', true)
+    .maybeSingle();
+
+  if (upsellProductError) {
+    console.error('[PayPal] Upsell product lookup failed:', upsellProductError.message);
+    throw new PaymentSecurityError('UPSELL_PRODUCT_LOOKUP_FAILED', 'Esta oferta adicional nao esta disponivel.');
+  }
+
+  const price = Number(upsellProduct?.price_real || 0);
+  if (!upsellProduct || !Number.isFinite(price) || price <= 0) {
+    throw new PaymentSecurityError('UPSELL_PRODUCT_FORBIDDEN', 'Esta oferta adicional nao esta disponivel.');
+  }
+
+  return {
+    items: [{
+      id: upsellProduct.id,
+      product_id: upsellProduct.id,
+      name: upsellProduct.name,
+      price,
+      quantity: 1,
+      type: 'upsell',
+    }],
+    total: price,
+    kind: 'upsell' as const,
+    originalOrderId,
+  };
+}
+
 function getPayPalCredentials(gateway: any): PayPalGatewayCredentials {
   const clientId = String(gateway?.public_key || '').trim();
   const clientSecret = decrypt(String(gateway?.private_key || '')).trim();
@@ -292,13 +417,14 @@ export async function createPayPalOrder(payload: PayPalCreateOrderPayload) {
 
     const context = await loadPayPalPaymentContext({ supabaseAdmin, checkoutId, orderId, gatewayId });
     const currency = getServerCurrency(context.checkout, context.mainProduct);
-    const validBumps = await loadValidCheckoutBumps(
+    const canonical = await resolvePayPalCanonicalOrderDetails({
       supabaseAdmin,
-      context.checkout,
-      context.merchantUserId,
+      checkout: context.checkout,
+      mainProduct: context.mainProduct,
+      merchantUserId: context.merchantUserId,
+      order: context.order,
       selectedBumpIds,
-    );
-    const canonical = resolveCanonicalOrderDetails({ mainProduct: context.mainProduct, selectedBumps: validBumps });
+    });
     const metadata = normalizeOrderMetadata(context.order.metadata);
     const credentials = getPayPalCredentials(context.gateway);
     const savedPayPalOrderId = normalizeProviderId(metadata.paypal_order_id);
@@ -325,7 +451,7 @@ export async function createPayPalOrder(payload: PayPalCreateOrderPayload) {
         purchase_units: [{
           reference_id: orderId,
           custom_id: orderId,
-          description: `Pedido ${orderId}`.slice(0, 127),
+          description: `${canonical.kind === 'upsell' ? 'Upsell' : 'Pedido'} ${orderId}`.slice(0, 127),
           amount: {
             currency_code: currency,
             value: toPayPalAmount(canonical.total),
@@ -354,6 +480,8 @@ export async function createPayPalOrder(payload: PayPalCreateOrderPayload) {
       paypal_order_id: paypalOrderId,
       paypal_environment: credentials.environment,
       paypal_order_created_at: new Date().toISOString(),
+      paypal_order_kind: canonical.kind,
+      ...(canonical.kind === 'upsell' ? { paypal_original_order_id: canonical.originalOrderId } : {}),
     });
     await upsertServerPaymentRecord({
       supabaseAdmin,
