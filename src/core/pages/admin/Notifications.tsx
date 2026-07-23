@@ -9,7 +9,7 @@ import { useAuth } from '../../context/AuthContext';
 import { demoWorkspaceService } from '../../services/demoWorkspaceService';
 import { isDemoDataRuntime } from '../../services/demoDataService';
 import { supabase } from '../../services/supabase';
-import { POST_PURCHASE_TEMPLATE_EVENT_TYPES } from '../../services/postPurchaseEmailTemplates';
+import { getMemberAccessEmailTemplates } from '../../services/memberAccessEmailTemplates';
 
 interface EmailTemplate {
   id: string;
@@ -50,7 +50,7 @@ function getTemplateLanguagePriority(language: string | undefined, preferredLang
   return 0;
 }
 
-function buildBusinessTemplateDefinitions(t: TranslateFn): BusinessEmailTemplateDefinition[] {
+function buildBusinessTemplateDefinitions(t: TranslateFn, language: string): BusinessEmailTemplateDefinition[] {
   return [
     {
       eventType: 'ORDER_COMPLETED',
@@ -121,6 +121,14 @@ function buildBusinessTemplateDefinitions(t: TranslateFn): BusinessEmailTemplate
         <p style="margin:0;"><a href="{{members_area_url}}" style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;font-weight:700;padding:11px 16px;border-radius:8px;">${t('notifications.templates.access_granted.body.cta')}</a></p>
       `),
     },
+    ...getMemberAccessEmailTemplates(language).map((template) => ({
+      eventType: template.eventType,
+      name: template.name,
+      purpose: template.purpose,
+      subject: template.subject,
+      htmlBody: template.htmlBody,
+      variables: template.variables,
+    })),
   ];
 }
 
@@ -230,8 +238,8 @@ export const Notifications = () => {
   const preferredLanguage = i18n.language.startsWith('es') ? 'es' : i18n.language.startsWith('en') ? 'en' : 'pt';
 
   const businessTemplateDefinitions = useMemo(
-    () => buildBusinessTemplateDefinitions((key, options) => t(key, options)),
-    [t],
+    () => buildBusinessTemplateDefinitions((key, options) => t(key, options), preferredLanguage),
+    [preferredLanguage, t],
   );
   const businessTemplateDefinitionByEvent = useMemo(
     () => new Map(businessTemplateDefinitions.map((template) => [template.eventType, template])),
