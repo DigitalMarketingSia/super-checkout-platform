@@ -64,6 +64,16 @@ function getMemberAccessUrl(req: VercelRequest, memberAreaSlug?: string) {
         : `${baseUrl}/login`;
 }
 
+function getMemberPasswordSetupUrl(req: VercelRequest, memberAreaSlug?: string) {
+    const baseUrl = getRequestBaseUrl(req);
+    const slug = String(memberAreaSlug || '').trim();
+    const encodedSlug = encodeURIComponent(slug);
+    const loginPath = slug ? `/app/${encodedSlug}/login` : '/login';
+    const updatePasswordPath = slug ? `/app/${encodedSlug}/update-password` : '/update-password';
+
+    return `${baseUrl}${updatePasswordPath}?scope=member&next=${encodeURIComponent(loginPath)}`;
+}
+
 async function findAuthUserByEmail(supabaseAdmin: SupabaseClient, email: string) {
     const normalizedEmail = normalizeEmail(email);
     if (!normalizedEmail) return null;
@@ -550,6 +560,7 @@ async function sendMemberCreatedEmail(params: {
     isNewUser: boolean;
     memberAreaSlug: string;
     memberAreaName: string;
+    passwordSetupUrl?: string;
 }) {
     if (!supabaseUrl || !supabaseServiceKey) {
         throw new Error('missing_supabase_email_config');
@@ -561,6 +572,7 @@ async function sendMemberCreatedEmail(params: {
     const safeMemberAreaName = escapeHtml(params.memberAreaName);
     const safeAccessUrl = escapeHtml(accessUrl);
     const safeLoginUrl = escapeHtml(`${baseUrl}/login`);
+    const safePasswordSetupUrl = escapeHtml(params.passwordSetupUrl || '');
 
     const emailSubject = params.isNewUser
         ? (params.memberAreaName ? `Acesso Liberado: ${params.memberAreaName}` : 'Acesso Liberado - Boas vindas!')
@@ -569,13 +581,13 @@ async function sendMemberCreatedEmail(params: {
     const emailHtml = params.isNewUser
         ? `
             <h1>Bem-vindo${safeMemberAreaName ? ` ao ${safeMemberAreaName}` : ''}!</h1>
-            <p>Sua conta foi criada com sucesso.</p>
+            <p>Seu acesso foi liberado e sua conta foi criada com sucesso.</p>
             <p><strong>Email:</strong> ${safeEmail}</p>
-            <p>Enviamos um link seguro para voce definir sua senha. Use o link recebido para concluir o primeiro acesso.</p>
+            <p>Para concluir o primeiro acesso, crie sua senha pelo botao abaixo.</p>
             <div style="margin: 30px 0;">
-                <a href="${safeAccessUrl}" style="background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;">Acessar Agora</a>
+                <a href="${safePasswordSetupUrl}" style="background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;">Criar senha e acessar</a>
             </div>
-            <p style="font-size: 12px; color: #666;">Por seguranca, nenhuma senha provisoria e enviada por e-mail.</p>
+            <p style="font-size: 12px; color: #666;">Por seguranca, nenhuma senha provisoria e enviada por e-mail. Este link e pessoal e temporario.</p>
         `
         : `
             <h1>Novo Acesso Liberado!</h1>
@@ -587,7 +599,7 @@ async function sendMemberCreatedEmail(params: {
             <p><small>Esqueceu sua senha? <a href="${safeLoginUrl}">Recupere aqui</a>.</small></p>
         `;
 
-    await fetch(`${supabaseUrl}/functions/v1/send-email`, {
+    const response = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -599,6 +611,10 @@ async function sendMemberCreatedEmail(params: {
             html: emailHtml,
         }),
     });
+
+    if (!response.ok) {
+        throw new Error(`member_welcome_email_failed:${response.status}`);
+    }
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -771,20 +787,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     memberArea || undefined,
                 );
 
+                let passwordSetupUrl = '';
                 if (isNewUser) {
-                    const { error: recoveryError } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
-                        redirectTo: getMemberAccessUrl(req, context.slug),
+                    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+                        type: 'recovery',
+                        email,
+                        options: { redirectTo: getMemberPasswordSetupUrl(req, context.slug) },
                     });
 
-                    if (recoveryError) {
-                        console.error('[admin_members] Password setup email failed:', recoveryError.message);
+                    passwordSetupUrl = String(linkData?.properties?.action_link || '');
+                    if (linkError || !passwordSetupUrl) {
+                        console.error('[admin_members] Password setup link generation failed:', linkError?.message || 'missing_action_link');
                         await logMemberAuthzEvent({
                             auth,
                             req,
-                            eventType: 'member_password_setup_email_failed',
+                            eventType: 'member_password_setup_link_failed',
                             severity: 'WARNING',
                             metadata: { member_area_id: memberAreaId || null },
                         });
+                        throw new Error('member_password_setup_link_failed');
                     }
                 }
 
@@ -794,6 +815,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     isNewUser,
                     memberAreaSlug: context.slug,
                     memberAreaName: context.name,
+                    passwordSetupUrl,
                 });
             } catch (emailErr: any) {
                 console.warn('[Admin API] Email sending failed:', emailErr?.message || emailErr);
