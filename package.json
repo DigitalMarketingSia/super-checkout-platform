@@ -8,6 +8,7 @@
     "vercel": "node scripts/vercel-dev.cjs",
     "vercel:raw": "vercel dev",
     "build": "vite build",
+    "build:app": "vite build",
     "preview": "vite preview",
     "pwa:build:smoke": "node scripts/pwa-smoke-runner.cjs build",
     "pwa:preview:smoke": "node scripts/pwa-smoke-runner.cjs preview",
@@ -15,6 +16,8 @@
     "typecheck:api": "tsc -p tsconfig.api.audit.json --pretty false",
     "lint:audit": "eslint . --max-warnings=0",
     "i18n:audit": "node scripts/i18n-audit.cjs",
+    "security:exposure:source": "node scripts/security-exposure-gate.cjs source",
+    "security:exposure:bundle": "node scripts/security-exposure-gate.cjs bundle",
     "security:smoke:negative": "node scripts/security-smoke-negative.cjs",
     "migration:hash": "node scripts/migration-helper.mjs hash",
     "migration:scaffold": "node scripts/migration-helper.mjs scaffold"

@@ -16,13 +16,14 @@ import SQL_SCHEMA from '../../../schemas/canonical_schema.sql?raw';
 type Step = 'license' | 'supabase' | 'supabase_migrations' | 'supabase_keys' | 'deploy' | 'success' | 'check_subscription' | 'supabase_setup' | 'vercel_config';
 
 const generatePaymentEncryptionKey = () => {
-    const bytes = new Uint8Array(32);
     const cryptoApi = globalThis.crypto;
     if (!cryptoApi?.getRandomValues) {
         throw new Error('Secure random generator is not available');
     }
+
+    const bytes = new Uint8Array(32);
     cryptoApi.getRandomValues(bytes);
-    return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+    return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
 };
 
 const safeInstallerErrorMessage = (error: any) =>
@@ -129,8 +130,10 @@ export default function InstallerWizard() {
 
     const [supabaseUrl, setSupabaseUrl] = useState('');
     const [anonKey, setAnonKey] = useState('');
-    const [serviceKey, setServiceKey] = useState('');
-    const [paymentEncryptionKey, setPaymentEncryptionKey] = useState('');
+    // Manual self-hosted mode: values remain only in this browser step.
+    // Never write them to storage, URLs, API requests, logs, or Central.
+    const [manualServiceRoleKey, setManualServiceRoleKey] = useState('');
+    const [manualPaymentEncryptionKey, setManualPaymentEncryptionKey] = useState('');
 
     // Vercel config
     const [vercelDomain, setVercelDomain] = useState('');
@@ -249,8 +252,8 @@ export default function InstallerWizard() {
 
                     localStorage.setItem('super_checkout_install_id', freshInstallId);
                     localStorage.setItem('installation_id', freshInstallId);
-                    const freshPaymentEncryptionKey = generatePaymentEncryptionKey();
-                    setPaymentEncryptionKey(freshPaymentEncryptionKey);
+                    setManualServiceRoleKey('');
+                    setManualPaymentEncryptionKey('');
                     setInstallationId(freshInstallId);
                     setCurrentStep('check_subscription');
                 }
@@ -334,6 +337,11 @@ export default function InstallerWizard() {
             setCopiedId('generic');
             setTimeout(() => setCopiedId(null), 2000);
         }
+    };
+
+    const clearEphemeralManualSecrets = () => {
+        setManualServiceRoleKey('');
+        setManualPaymentEncryptionKey('');
     };
 
     const runSuccessAnim = (msg: string, callback: () => void) => {
@@ -424,31 +432,6 @@ export default function InstallerWizard() {
     };
 
 
-
-    const handleKeysSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        setLoading(true);
-
-        if (!anonKey || !serviceKey) {
-            showAlert(t('common:error'), t('errors.keys_required'), 'error');
-            setLoading(false);
-            return;
-        }
-
-        // Simulate processing for better UX
-        setTimeout(() => {
-            localStorage.setItem('installer_supabase_anon_key', anonKey);
-            localStorage.setItem('installer_supabase_url', supabaseUrl);
-            localStorage.removeItem('installer_supabase_service_key');
-
-            addLog(t('keys.success_msg'));
-            setLoading(false);
-
-            runSuccessAnim(t('keys.configured_msg'), () => {
-                setCurrentStep('deploy'); // Go to Deploy Step
-            });
-        }, 1500);
-    };
 
     const prepareTargetSetupBootstrap = async (domain: string) => {
         if (!installToken) {
@@ -571,7 +554,7 @@ export default function InstallerWizard() {
         localStorage.removeItem('installer_owner_id');
 
         localStorage.removeItem('installer_payment_encryption_key');
-        setPaymentEncryptionKey(generatePaymentEncryptionKey());
+        clearEphemeralManualSecrets();
 
         const savedStep = localStorage.getItem('installer_step') as Step;
         if (savedStep && savedStep !== 'success') {
@@ -595,7 +578,7 @@ export default function InstallerWizard() {
         return 'pending';
     };
 
-    const deployUrl = `https://vercel.com/new/clone?repository-url=${encodeURIComponent(DISTRIBUTION_REPOSITORY_URL)}&env=VITE_SUPABASE_URL,VITE_SUPABASE_ANON_KEY,SUPABASE_SERVICE_ROLE_KEY,VITE_CENTRAL_API_URL,VITE_CENTRAL_SUPABASE_ANON_KEY,PAYMENT_ENCRYPTION_KEY&envDescription=Configuracao%20Super%20Checkout&project-name=super-checkout&repository-name=super-checkout`;
+    const deployUrl = `https://vercel.com/new/clone?repository-url=${encodeURIComponent(DISTRIBUTION_REPOSITORY_URL)}&env=VITE_SUPABASE_URL,VITE_SUPABASE_ANON_KEY,VITE_CENTRAL_API_URL,VITE_CENTRAL_SUPABASE_ANON_KEY&envDescription=Configuracao%20publica%20do%20Super%20Checkout&project-name=super-checkout&repository-name=super-checkout`;
 
     // Navigation Helper
     const stepsOrder = ['check_subscription', 'supabase_setup', 'supabase_migrations', 'supabase_keys', 'deploy', 'vercel_config', 'success'];
@@ -879,6 +862,12 @@ export default function InstallerWizard() {
                                 e.preventDefault();
                                 setLoading(true); // Show loading animation immediately
 
+                                if (!anonKey.trim() || !manualServiceRoleKey.trim()) {
+                                    showAlert(t('common:error'), t('errors.keys_required'), 'error');
+                                    setLoading(false);
+                                    return;
+                                }
+
                                 try {
                                     // SAVE KEYS TO LOCALSTORAGE (CRITICAL FIX)
                                     localStorage.setItem('installer_supabase_anon_key', anonKey);
@@ -973,7 +962,8 @@ export default function InstallerWizard() {
                                     localStorage.removeItem('installer_supabase_service_key');
                                     localStorage.removeItem('installer_owner_id');
                                     localStorage.removeItem('installer_setup_token');
-                                     console.log('[Installer] Public config saved. Server-side bootstrap will run after deploy.');
+                                    setManualPaymentEncryptionKey((current) => current || generatePaymentEncryptionKey());
+                                    console.log('[Installer] Public config saved. Server-side bootstrap will run after deploy.');
                                      setLoading(false);
                                      setCurrentStep('deploy');
                                      return;
@@ -1134,8 +1124,9 @@ export default function InstallerWizard() {
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-300 mb-1.5">{t('keys.service_label')}</label>
-                                    <input type="text" value={serviceKey} onChange={e => setServiceKey(e.target.value)} required
+                                    <input type="password" value={manualServiceRoleKey} onChange={e => setManualServiceRoleKey(e.target.value)} required autoComplete="off"
                                         className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white text-xs font-mono" />
+                                    <p className="mt-2 text-xs text-amber-200/80">{t('keys.manual_secret_notice')}</p>
                                 </div>
                                 <button type="submit" className="w-full bg-[#3ECF8E] text-black font-bold py-3 rounded-xl mt-2 hover:bg-[#3ECF8E]/90 flex justify-center items-center gap-2">
                                     {loading ? (
@@ -1173,10 +1164,10 @@ export default function InstallerWizard() {
                                         {[
                                             { k: 'VITE_SUPABASE_URL', v: supabaseUrl },
                                             { k: 'VITE_SUPABASE_ANON_KEY', v: anonKey },
-                                            { k: 'SUPABASE_SERVICE_ROLE_KEY', v: serviceKey },
+                                            { k: 'SUPABASE_SERVICE_ROLE_KEY', v: manualServiceRoleKey },
                                             { k: 'VITE_CENTRAL_API_URL', v: CENTRAL_CONFIG.API_URL },
                                             { k: 'VITE_CENTRAL_SUPABASE_ANON_KEY', v: import.meta.env.VITE_CENTRAL_SUPABASE_ANON_KEY },
-                                            { k: 'PAYMENT_ENCRYPTION_KEY', v: paymentEncryptionKey }
+                                            { k: 'PAYMENT_ENCRYPTION_KEY', v: manualPaymentEncryptionKey }
                                         ].map((env, i) => (
                                             <div key={i} className="flex items-center justify-between gap-3 bg-white/5 p-3 rounded-xl cursor-pointer hover:bg-white/10 group transition-all" onClick={() => copyToClipboard(env.v, env.k)}>
                                                 <div className="overflow-hidden flex-1">
@@ -1193,6 +1184,14 @@ export default function InstallerWizard() {
                                         ))}
                                     </div>
 
+                                    <div className="mb-6 rounded-xl border border-amber-400/30 bg-amber-400/10 p-4 text-sm text-amber-100">
+                                        <div className="mb-1 flex items-center gap-2 font-bold">
+                                            <ShieldAlert className="h-4 w-4" />
+                                            {t('deploy.server_only_title')}
+                                        </div>
+                                        <p className="text-amber-100/80">{t('deploy.server_only_desc')}</p>
+                                    </div>
+
                                     <a href={deployUrl} target="_blank" rel="noopener noreferrer"
                                         className="w-full bg-white text-black font-bold py-4 rounded-xl flex items-center justify-center gap-3 hover:bg-gray-100 transition-all shadow-xl shadow-white/10 group"
                                     >
@@ -1202,8 +1201,11 @@ export default function InstallerWizard() {
                                     </a>
                                 </div>
 
-                                <button onClick={() => setCurrentStep('vercel_config')} className="w-full bg-[#3ECF8E] hover:bg-[#3ECF8E]/90 text-black font-bold py-3 rounded-xl flex items-center justify-center gap-2">
-                                    {t('deploy.already_deployed')} <ChevronRight className="w-4 h-4" />
+                                <button onClick={() => {
+                                    clearEphemeralManualSecrets();
+                                    setCurrentStep('vercel_config');
+                                }} className="w-full bg-[#3ECF8E] hover:bg-[#3ECF8E]/90 text-black font-bold py-3 rounded-xl flex items-center justify-center gap-2">
+                                    {t('deploy.secrets_configured_continue')} <ChevronRight className="w-4 h-4" />
                                 </button>
                             </div>
                         </div>

@@ -41,7 +41,8 @@
     "title": "Claves de Acceso",
     "desc": "Copie las claves de Supabase en Project Settings > API.",
     "anon_label": "Anon Public Key",
-    "service_label": "Service Role Key (Secret)",
+    "service_label": "Service Role Key (privada)",
+    "manual_secret_notice": "Se utiliza solo en esta instalaci\u00f3n para copiar la variable de Vercel. No guardamos ni enviamos esta clave.",
     "processing": "Procesando...",
     "success_msg": "¡Claves de API guardadas con éxito!",
     "configured_msg": "¡Claves Configuradas!"
@@ -49,11 +50,14 @@
   "deploy": {
     "title": "Publicar en Vercel",
     "desc": "Cree su sitio automáticamente en Vercel.",
-    "step1": "1. Copie y pegue estas claves al realizar el deploy:",
+    "step1": "1. Copie estas variables para el deploy en Vercel:",
+    "server_only_title": "Claves temporales de servidor",
+    "server_only_desc": "Copie ambas claves privadas directamente en Vercel. Existen solo en esta pantalla y se eliminan al continuar.",
     "copy_success": "¡Copiado!",
     "copy_btn": "Copiar",
     "domain_activated": "¡Dominio Activado!",
-    "already_deployed": "Ya hice el Deploy, quiero configurar"
+    "already_deployed": "Ya hice el Deploy, quiero configurar",
+    "secrets_configured_continue": "Ya configuré las claves en Vercel, continuar"
   },
   "vercel_config": {
     "title": "Configuración Post-Deploy",

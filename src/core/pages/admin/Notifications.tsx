@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Bell, CheckCircle, Edit2, Info, Layers, Mail, XCircle, Zap, ChevronRight } from 'lucide-react';
+import { Bell, Edit2, Info, Layers, Mail, Zap, ChevronRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Layout } from '../../components/Layout';
 import { Button } from '../../components/ui/Button';
@@ -33,7 +33,7 @@ interface BusinessEmailTemplateDefinition {
 }
 
 type DemoTemplateScope = 'business' | 'system';
-type NotificationsTab = 'system' | 'business';
+type NotificationsTab = 'business' | 'system' | 'push';
 type TranslateFn = (key: string, options?: Record<string, unknown>) => string;
 
 const buildEmailFrame = (content: string) => `
@@ -462,7 +462,7 @@ export const Notifications = () => {
             <span className={`block text-[8px] font-black uppercase tracking-widest font-mono leading-none mb-1 ${
               isActive ? 'text-emerald-400' : 'text-gray-500'
             }`}>
-              {isSystem ? 'Sistema' : (template.event_type === 'ACCESS_GRANTED' ? 'Acesso Manual' : 'PÃ³s-Compra')}
+              {isSystem ? 'Sistema' : (template.event_type === 'ACCESS_GRANTED' ? 'Acesso Manual' : 'Pós-Compra')}
             </span>
             <h4 className="text-sm font-bold text-white transition-colors group-hover:text-primary leading-tight">
               {template.name}
@@ -525,7 +525,7 @@ export const Notifications = () => {
               Escolha o Template
             </h3>
             <p className="text-xs text-gray-400 max-w-xs font-medium">
-              Selecione o fluxo pÃ³s-venda ou controle de acesso que deseja gerenciar.
+              Selecione o fluxo pós-venda ou controle de acesso que deseja gerenciar.
             </p>
 
             {/* Discreet inline help toggles */}
@@ -563,13 +563,13 @@ export const Notifications = () => {
             {/* Explanation Boxes */}
             {showHelpCompleted && (
               <div className="mt-4 p-4 rounded-2xl bg-primary/5 border border-primary/20 text-xs text-gray-300 text-left leading-relaxed animate-in slide-in-from-top-2 duration-200">
-                Compra aprovada funciona como fallback quando nÃ£o existe um e-mail especÃ­fico de entrega. Entrega direta e Ã¡rea de membros substituem a confirmaÃ§Ã£o genÃ©rica e enviam apenas os acessos reais gerados no servidor.
+                Compra aprovada funciona como fallback quando não existe um e-mail específico de entrega. Entrega direta e área de membros substituem a confirmação genérica e enviam apenas os acessos reais gerados no servidor.
               </div>
             )}
 
             {showHelpManual && (
               <div className="mt-4 p-4 rounded-2xl bg-blue-500/5 border border-blue-500/20 text-xs text-gray-300 text-left leading-relaxed animate-in slide-in-from-top-2 duration-200">
-                Acesso manual de aluno Ã© um fluxo separado do pÃ³s-compra. Ele sÃ³ entra quando vocÃª reenvia manualmente o acesso de um membro.
+                Acesso manual de aluno é um fluxo separado do pós-compra. Ele só entra quando você reenvia manualmente o acesso de um membro.
               </div>
             )}
           </div>
@@ -609,7 +609,7 @@ export const Notifications = () => {
               Templates do Sistema
             </h3>
             <p className="text-xs text-gray-400 max-w-sm font-medium">
-              Templates de e-mail de disparos internos e seguranÃ§a da infraestrutura SAAS.
+              Templates de e-mail de disparos internos e segurança da infraestrutura SAAS.
             </p>
           </div>
 
@@ -628,6 +628,31 @@ export const Notifications = () => {
       </div>
     );
   }
+
+  const navItems: Array<{ id: NotificationsTab; label: string; icon: React.FC<{ className?: string }>; desc: string }> = [
+    {
+      id: 'business',
+      label: isOwner ? t('notifications.tabs.business') : t('notifications.tabs.business_user'),
+      icon: Layers,
+      desc: 'Templates pós-compra e entrega',
+    },
+    ...(isOwner
+      ? [
+          {
+            id: 'system' as const,
+            label: t('notifications.tabs.system'),
+            icon: Zap,
+            desc: 'Templates de infraestrutura e alertas',
+          },
+        ]
+      : []),
+    {
+      id: 'push',
+      label: 'Push Operacional',
+      icon: Bell,
+      desc: 'Notificações PWA no celular e desktop',
+    },
+  ];
 
   return (
     <Layout>
@@ -651,60 +676,108 @@ export const Notifications = () => {
                 <span className="text-[9px] text-[#10B981] font-black uppercase tracking-[0.2em] font-mono">System Online</span>
               </div>
             </div>
-
-            {/* Segmented Control Tab Selector */}
-            <div className="flex w-full flex-row flex-wrap items-center gap-2.5 lg:w-auto">
-              {isOwner && (
-                <div className="flex w-full gap-1.5 rounded-[1.25rem] border border-white/15 bg-black/25 p-1 sm:w-fit">
-                  {[
-                    { id: 'system' as const, label: t('notifications.tabs.system'), icon: Zap },
-                    { id: 'business' as const, label: t('notifications.tabs.business'), icon: Layers },
-                  ].map((tab) => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id)}
-                      className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-5 py-2 text-[10px] font-black uppercase tracking-wider transition-all duration-300 sm:flex-none ${
-                        activeTab === tab.id
-                          ? 'bg-primary border-primary text-white shadow-lg shadow-primary/15'
-                          : 'text-gray-400 hover:text-white'
-                      }`}
-                    >
-                      <tab.icon className="h-3.5 w-3.5" />
-                      {tab.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
           <p className="text-xs text-gray-300 max-w-2xl leading-relaxed italic border-l border-primary/30 pl-4 font-medium">
             {isOwner ? t('notifications.hero.subtitle_owner') : t('notifications.hero.subtitle_user')}
           </p>
         </div>
 
-        <PwaPushSettingsCard />
+        {/* Mobile Navigation Selector (Horizontal scrollable bar) */}
+        <div className="lg:hidden flex overflow-x-auto gap-2 pb-4 scrollbar-none -mx-4 px-4">
+          {navItems.map((item) => {
+            const isActive = activeTab === item.id;
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setActiveTab(item.id)}
+                className={`flex-shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all duration-300 ${
+                  isActive
+                    ? item.id === 'push'
+                      ? 'bg-cyan-500 border-cyan-500 text-black shadow-lg shadow-cyan-500/20'
+                      : 'bg-primary border-primary text-white shadow-lg'
+                    : 'bg-white/[0.02] border-white/10 text-gray-400 hover:text-white hover:border-white/20'
+                }`}
+              >
+                <Icon className={`w-3.5 h-3.5 ${isActive && item.id === 'push' ? 'text-black' : ''}`} />
+                {item.label}
+              </button>
+            );
+          })}
+        </div>
 
-        {/* Main Content Area */}
-        <div className="relative z-10">
-          {loading ? (
-            <div className="flex justify-center py-20">
-              <p className="animate-pulse text-gray-400">{t('notifications.loading')}</p>
-            </div>
-          ) : isOwner ? (
-            <div className="space-y-8">
-              {activeTab === 'system' ? (
-                <div className="space-y-6">
-                  {renderSystemTemplateGrid(systemTemplates)}
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  {renderBusinessView()}
-                </div>
-              )}
-            </div>
-          ) : (
-            renderBusinessView()
-          )}
+        {/* 2-Column Asymmetric Grid Layout (Matching /admin/settings pattern) */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          {/* Left Inner Sidebar (Desktop Navigation Buttons Stacked) */}
+          <div className="hidden lg:flex lg:col-span-4 flex-col gap-3">
+            {navItems.map((item) => {
+              const isActive = activeTab === item.id;
+              const Icon = item.icon;
+
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setActiveTab(item.id)}
+                  className={`w-full text-left flex items-start gap-4 p-4 rounded-2xl border transition-all duration-300 group ${
+                    isActive
+                      ? item.id === 'push'
+                        ? 'bg-cyan-500/10 border-cyan-400/40 text-white shadow-lg shadow-cyan-500/10'
+                        : 'bg-primary/10 border-primary/40 text-white shadow-lg shadow-primary/10'
+                      : 'bg-[#0C0C14] border-white/10 text-gray-400 hover:text-white hover:border-white/20 hover:bg-white/[0.03]'
+                  }`}
+                >
+                  <div className={`p-3 rounded-xl border shrink-0 transition-all duration-300 ${
+                    isActive
+                      ? item.id === 'push'
+                        ? 'bg-cyan-400/20 border-cyan-400/40 text-cyan-300 shadow-[0_0_12px_rgba(6,182,212,0.3)]'
+                        : 'bg-primary/20 border-primary/40 text-primary shadow-[0_0_12px_rgba(138,43,226,0.3)]'
+                      : 'bg-white/5 border-white/10 text-gray-400 group-hover:text-white'
+                  }`}>
+                    <Icon className="w-5 h-5" />
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <span className={`text-sm font-bold leading-tight uppercase tracking-tight ${
+                        isActive ? (item.id === 'push' ? 'text-cyan-300' : 'text-white font-black') : 'text-gray-200 group-hover:text-white'
+                      }`}>
+                        {item.label}
+                      </span>
+                      <ChevronRight className={`w-4 h-4 transition-transform duration-300 ${
+                        isActive ? 'translate-x-1 ' + (item.id === 'push' ? 'text-cyan-300' : 'text-primary') : 'text-gray-600 opacity-0 group-hover:opacity-100'
+                      }`} />
+                    </div>
+                    <p className="text-[11px] text-gray-400 mt-1 leading-relaxed font-medium">
+                      {item.desc}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Right Content Area */}
+          <div className="lg:col-span-8 relative z-10">
+            {loading ? (
+              <div className="flex justify-center py-20">
+                <p className="animate-pulse text-gray-400">{t('notifications.loading')}</p>
+              </div>
+            ) : activeTab === 'push' ? (
+              <div className="animate-in fade-in duration-300">
+                <PwaPushSettingsCard />
+              </div>
+            ) : activeTab === 'system' && isOwner ? (
+              <div className="space-y-6 animate-in fade-in duration-300">
+                {renderSystemTemplateGrid(systemTemplates)}
+              </div>
+            ) : (
+              <div className="space-y-6 animate-in fade-in duration-300">
+                {renderBusinessView()}
+              </div>
+            )}
+          </div>
         </div>
 
         <EmailTemplateModal
