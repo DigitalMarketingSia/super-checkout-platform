@@ -47,14 +47,18 @@ function getMemberAccessUrl(req: VercelRequest, memberAreaSlug?: string) {
         : `${baseUrl}/login`;
 }
 
+function getMemberMagicLinkUrl(req: VercelRequest, memberAreaSlug?: string) {
+    return `${getMemberAccessUrl(req, memberAreaSlug)}?email_access=1`;
+}
+
 function getMemberPasswordSetupUrl(req: VercelRequest, memberAreaSlug?: string) {
     const baseUrl = getRequestBaseUrl(req);
     const slug = String(memberAreaSlug || '').trim();
     const encodedSlug = encodeURIComponent(slug);
-    const loginPath = slug ? `/app/${encodedSlug}/login` : '/login';
+    const nextPath = slug ? `/app/${encodedSlug}` : '/';
     const updatePasswordPath = slug ? `/app/${encodedSlug}/update-password` : '/update-password';
 
-    return `${baseUrl}${updatePasswordPath}?scope=member&next=${encodeURIComponent(loginPath)}`;
+    return `${baseUrl}${updatePasswordPath}?scope=member&next=${encodeURIComponent(nextPath)}`;
 }
 
 async function findAuthUserByEmail(supabaseAdmin: SupabaseClient, email: string) {
@@ -710,7 +714,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 try {
                     const { error: magicLinkError } = await supabaseAdmin.auth.signInWithOtp({
                         email,
-                        options: { emailRedirectTo: getMemberAccessUrl(req, emailContext.slug) },
+                        options: { emailRedirectTo: getMemberMagicLinkUrl(req, emailContext.slug) },
                     });
                     if (magicLinkError) throw magicLinkError;
                 } catch (emailErr: any) {
@@ -775,7 +779,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             if (type === 'reset_password') {
                 const { error } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
-                    redirectTo: getMemberAccessUrl(req, memberArea.slug),
+                    redirectTo: getMemberPasswordSetupUrl(req, memberArea.slug),
                 });
                 if (error) {
                     console.error('[admin_members] Reset password email failed:', error.message);
@@ -784,7 +788,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             } else if (type === 'magic_link') {
                 const { error } = await supabaseAdmin.auth.signInWithOtp({
                     email,
-                    options: { emailRedirectTo: getMemberAccessUrl(req, memberArea.slug) },
+                    options: { emailRedirectTo: getMemberMagicLinkUrl(req, memberArea.slug) },
                 });
                 if (error) {
                     console.error('[admin_members] Magic link email failed:', error.message);

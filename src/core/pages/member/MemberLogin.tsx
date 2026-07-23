@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { storage } from '../../services/storageService';
 import { MemberArea } from '../../types';
@@ -59,7 +59,7 @@ export const MemberLogin = ({ forcedSlug }: { forcedSlug?: string }) => {
         }
     };
 
-    const getSafeRedirectPath = () => {
+    const getSafeRedirectPath = useCallback(() => {
         const fallbackPath = forcedSlug ? '/' : `/app/${slug}`;
         const nextPath = new URLSearchParams(location.search).get('next');
 
@@ -72,7 +72,37 @@ export const MemberLogin = ({ forcedSlug }: { forcedSlug?: string }) => {
         }
 
         return nextPath.startsWith(`/app/${slug}`) ? nextPath : fallbackPath;
-    };
+    }, [forcedSlug, location.search, slug]);
+
+    const isMagicLinkCallback = new URLSearchParams(location.search).get('email_access') === '1';
+
+    useEffect(() => {
+        if (isDemoRuntime || !isMagicLinkCallback) return;
+
+        let active = true;
+        const finishMagicLinkLogin = async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!active) return;
+
+            if (session) {
+                navigate(getSafeRedirectPath(), { replace: true });
+            } else {
+                setError('Este link de acesso e invalido ou expirou. Solicite um novo link.');
+            }
+        };
+
+        void finishMagicLinkLogin();
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            if (session && active) {
+                navigate(getSafeRedirectPath(), { replace: true });
+            }
+        });
+
+        return () => {
+            active = false;
+            subscription.unsubscribe();
+        };
+    }, [getSafeRedirectPath, isDemoRuntime, isMagicLinkCallback, navigate]);
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
