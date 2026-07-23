@@ -1,5 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { createClient } from '@supabase/supabase-js';
 import { enforceApiRateLimit } from '../src/core/api/_rate-limit.js';
+import { getLocalSupabaseServerConfig } from '../src/core/api/_supabase-server.js';
 
 const CRM_READ_ACTIONS = new Set([
     'get_partners',
@@ -60,6 +62,53 @@ function maskEmail(email?: string | null): string {
     const [name, domain] = String(email || '').split('@');
     if (!name || !domain) return 'unknown';
     return `${name.slice(0, 2)}***@${domain}`;
+}
+
+function parseConfigValue(value: unknown): string | null {
+    if (typeof value !== 'string') return null;
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+
+    try {
+        const parsed = JSON.parse(trimmed);
+        return typeof parsed === 'string' && parsed.trim() ? parsed.trim() : null;
+    } catch {
+        return trimmed.replace(/^"|"$/g, '') || null;
+    }
+}
+
+async function resolveServerLicenseKey(): Promise<string> {
+    const configuredKey = String(process.env.LICENSE_KEY || process.env.MASTER_LICENSE_KEY || '').trim();
+    if (configuredKey) return configuredKey;
+
+    const { supabaseUrl, serverKey } = getLocalSupabaseServerConfig();
+    if (!supabaseUrl || !serverKey) return '';
+
+    const supabase = createClient(supabaseUrl, serverKey, {
+        auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const { data: config } = await supabase
+        .from('app_config')
+        .select('value')
+        .eq('key', 'installation_id')
+        .maybeSingle();
+    const installationId = parseConfigValue(config?.value);
+    if (!installationId) return '';
+
+    const { data: installation } = await supabase
+        .from('installations')
+        .select('license_key, status')
+        .eq('installation_id', installationId)
+        .maybeSingle();
+    if (!installation?.license_key || installation.status !== 'active') return '';
+
+    const { data: license } = await supabase
+        .from('licenses')
+        .select('key, status')
+        .eq('key', installation.license_key)
+        .maybeSingle();
+
+    return license?.status === 'active' ? String(license.key) : '';
 }
 
 /**
@@ -987,7 +1036,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     || (endpoint === 'manage-licenses' && CRM_READ_ACTIONS.has(bodyObj.action))
                     || (endpoint === 'upgrade-intents' && bodyObj.action === 'create_upgrade_intent')
                 ) {
-                    bodyObj.license_key = bodyObj.license_key || process.env.VITE_LICENSE_KEY || process.env.NEXT_PUBLIC_LICENSE_KEY;
+                    const serverLicenseKey = await resolveServerLicenseKey();
+                    if (!serverLicenseKey) {
+                        return res.status(500).json({ error: 'Server configuration error: missing LICENSE_KEY' });
+                    }
+
+                    bodyObj.license_key = serverLicenseKey;
                     bodyObj.current_domain = getRequestDomain(req, bodyObj.current_domain);
                     if (endpoint === 'pagbank-oauth') {
                         bodyObj.target_origin = getRequestOrigin(req, bodyObj.target_origin);

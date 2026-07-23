@@ -2,7 +2,6 @@ import { CENTRAL_CONFIG } from '../config/central';
 import { platformUrls } from '../config/platformUrls';
 import { centralSupabase, CENTRAL_SUPABASE_ANON_KEY } from './centralClient';
 import { supabase as localSupabase } from './supabase';
-import { getEnv } from '../utils/env';
 
 export interface License {
     key: string;
@@ -536,7 +535,6 @@ export const licenseService = {
         beneficiary_email: string | null;
         source_surface: string;
     }> {
-        const licenseKey = getEnv('VITE_LICENSE_KEY') || getEnv('LICENSE_KEY') || null;
         const localInstallationId = typeof window !== 'undefined'
             ? window.localStorage.getItem('installation_id')
             : null;
@@ -547,7 +545,6 @@ export const licenseService = {
             headers: await getHeaders(),
             body: JSON.stringify({
                 action: 'create_upgrade_intent',
-                license_key: licenseKey,
                 local_installation_id: localInstallationId,
                 current_domain: currentDomain,
                 ...payload

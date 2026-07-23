@@ -470,6 +470,12 @@ const App = () => {
     if (typeof document === 'undefined') return;
 
     document.documentElement.dataset.runtimeMode = runtimeMode;
+
+    // License credentials belong to the installer and the server only. Clear the
+    // legacy browser copy after an application update without interrupting setup.
+    if (!window.location.pathname.startsWith('/installer')) {
+      window.localStorage.removeItem('installer_license_key');
+    }
   }, [runtimeMode]);
 
   // --- CROSS-DOMAIN CONFIG HYDRATION ---
@@ -496,7 +502,6 @@ const App = () => {
           console.log('🔧 Hydrating Cross-Domain Config...');
           if (config.url) localStorage.setItem('installer_supabase_url', config.url);
           if (config.anon) localStorage.setItem('installer_supabase_anon_key', config.anon);
-          if (config.license) localStorage.setItem('installer_license_key', config.license);
           if (config.org) localStorage.setItem('installer_org_slug', config.org);
           if (config.install_id) localStorage.setItem('installation_id', config.install_id); // Hydrate Installation ID
           if (config.setup_token) localStorage.setItem('installer_setup_token', config.setup_token);
@@ -526,8 +531,7 @@ const App = () => {
     (
       runtimeMode === 'demo' ||
       (
-        !!getEnv('VITE_SUPABASE_URL') &&
-        !!getEnv('VITE_LICENSE_KEY')
+        !!getEnv('VITE_SUPABASE_URL')
       )
     );
 

@@ -8,9 +8,7 @@ const DEFAULT_DEMO_URL = 'https://demo.supercheckout.app';
 
 const normalizeBaseUrl = (url: string) => url.replace(/\/+$/, '');
 
-const getEnvUrl = (key: string, fallback: string): string => {
-    const env = (import.meta.env as unknown as Record<string, string | undefined>)[key];
-
+const getEnvUrl = (env: string | undefined, fallback: string): string => {
     if (env) {
         return normalizeBaseUrl(env);
     }
@@ -23,11 +21,11 @@ const getEnvUrl = (key: string, fallback: string): string => {
 };
 
 export const platformUrls = {
-    marketing: getEnvUrl('VITE_SUPER_CHECKOUT_MARKETING_URL', DEFAULT_MARKETING_URL),
-    app: getEnvUrl('VITE_SUPER_CHECKOUT_APP_URL', DEFAULT_APP_URL),
-    portal: getEnvUrl('VITE_SUPER_CHECKOUT_PORTAL_URL', DEFAULT_PORTAL_URL),
-    install: getEnvUrl('VITE_SUPER_CHECKOUT_INSTALL_URL', DEFAULT_INSTALL_URL),
-    demo: getEnvUrl('VITE_SUPER_CHECKOUT_DEMO_URL', DEFAULT_DEMO_URL),
+    marketing: getEnvUrl(import.meta.env.VITE_SUPER_CHECKOUT_MARKETING_URL, DEFAULT_MARKETING_URL),
+    app: getEnvUrl(import.meta.env.VITE_SUPER_CHECKOUT_APP_URL, DEFAULT_APP_URL),
+    portal: getEnvUrl(import.meta.env.VITE_SUPER_CHECKOUT_PORTAL_URL, DEFAULT_PORTAL_URL),
+    install: getEnvUrl(import.meta.env.VITE_SUPER_CHECKOUT_INSTALL_URL, DEFAULT_INSTALL_URL),
+    demo: getEnvUrl(import.meta.env.VITE_SUPER_CHECKOUT_DEMO_URL, DEFAULT_DEMO_URL),
 };
 
 export const buildPlatformUrl = (

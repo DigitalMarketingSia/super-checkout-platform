@@ -158,8 +158,6 @@ export const resolveFeatureAccess = async (userEmail?: string | null): Promise<R
 
     const localPlan = await SystemManager.getPlanType();
     const localPlanDefaults = resolvePlanDefaults(localPlan);
-    const licenseKey = import.meta.env.VITE_LICENSE_KEY || localStorage.getItem('installer_license_key');
-
     const [{ data: { session: centralSession } }, { data: { session: localSession } }] = await Promise.all([
         centralSupabase.auth.getSession(),
         supabase.auth.getSession(),
@@ -178,7 +176,6 @@ export const resolveFeatureAccess = async (userEmail?: string | null): Promise<R
                 },
                 body: JSON.stringify({
                     action: 'resolve_all',
-                    license_key: licenseKey,
                 }),
             });
 

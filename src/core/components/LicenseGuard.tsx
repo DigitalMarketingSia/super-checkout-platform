@@ -19,9 +19,6 @@ export const LicenseGuard: React.FC<LicenseGuardProps> = ({ children }) => {
     const [messageText, setMessageText] = useState('');
     const [loading, setLoading] = useState(true);
 
-    const LOCAL_KEY = typeof window !== 'undefined' ? localStorage.getItem('installer_license_key') : null;
-    const LICENSE_KEY = LOCAL_KEY || import.meta.env.VITE_LICENSE_KEY;
-
     const setTranslatedMessage = (key: string | null, text = '') => {
         setMessageKey(key);
         setMessageText(text);
@@ -77,8 +74,8 @@ export const LicenseGuard: React.FC<LicenseGuardProps> = ({ children }) => {
 
             try {
                 const supabaseUrl = (supabase as any).supabaseUrl || '';
-                if (supabaseUrl.includes('placeholder') || !LICENSE_KEY) {
-                    console.warn('[LicenseGuard] App not configured (Placeholder URL or Missing Key). Redirecting to installer...');
+                if (supabaseUrl.includes('placeholder')) {
+                    console.warn('[LicenseGuard] App not configured (Placeholder URL). Redirecting to installer...');
                     window.location.href = '/installer';
                     return;
                 }
@@ -160,10 +157,8 @@ export const LicenseGuard: React.FC<LicenseGuardProps> = ({ children }) => {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        key: LICENSE_KEY,
                         installation_id: installationId,
-                        domain: currentDomain,
-                        skip_lock: true
+                        domain: currentDomain
                     }),
                 });
 
@@ -224,7 +219,7 @@ export const LicenseGuard: React.FC<LicenseGuardProps> = ({ children }) => {
         };
 
         void validateLicense();
-    }, [LICENSE_KEY, setInstallationId]);
+    }, [setInstallationId]);
 
     if (loading) {
         return <Loading label={t('license_guard_validating')} />;
@@ -246,9 +241,6 @@ export const LicenseGuard: React.FC<LicenseGuardProps> = ({ children }) => {
                             <div className="text-sm text-gray-300">
                                 <p className="font-bold text-red-400 mb-1">{t('license_guard_reason')}</p>
                                 <p>{resolvedMessage}</p>
-                                {LICENSE_KEY && (
-                                    <p className="mt-2 text-xs text-gray-500 font-mono">{t('config_loader_license_label')}: {LICENSE_KEY.substring(0, 8)}...</p>
-                                )}
                             </div>
                         </div>
                     </div>

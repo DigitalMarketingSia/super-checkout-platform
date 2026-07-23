@@ -164,8 +164,6 @@ export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) =>
     };
 
     const content = offers[offerSlug] || offers.unlimited_domains;
-    const licenseKey = import.meta.env.VITE_LICENSE_KEY || '';
-
     const dynamicProduct = products.find((product) => matchesUpgradePlanSlug(product.saas_plan_slug, content.planSlug));
     const checkoutUrl = resolveFirstSafeCheckoutUrl(
         dynamicProduct?.checkout_url,
@@ -197,7 +195,6 @@ export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) =>
                 sourceContext: {
                     trigger: 'upsell_modal',
                     offer_slug: offerSlug,
-                    license_key: licenseKey || null,
                     plan_slug: planSlug,
                     checkout_source: dynamicProduct?.checkout_url ? 'official_plan' : 'missing_checkout_url',
                 },

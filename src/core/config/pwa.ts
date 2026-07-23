@@ -21,14 +21,27 @@ const PWA_HOST_ALLOWLIST_FLAG_NAME = 'VITE_PWA_HOST_ALLOWLIST';
 const PWA_INSTALLATION_ALLOWLIST_FLAG_NAME = 'VITE_PWA_INSTALLATION_ALLOWLIST';
 const PWA_PUSH_PUBLIC_KEY_FLAG_NAME = 'VITE_PWA_PUSH_PUBLIC_KEY';
 
+// Keep this explicit. Dynamic indexing of import.meta.env causes Vite to embed
+// every VITE_* variable in the browser bundle.
+const PWA_PUBLIC_ENV: Record<string, string | undefined> = {
+  [PWA_SHELL_FLAG_NAME]: import.meta.env.VITE_PWA_SHELL_ENABLED,
+  [PWA_SERVICE_WORKER_FLAG_NAME]: import.meta.env.VITE_PWA_SW_ENABLED,
+  [PWA_PUSH_FLAG_NAME]: import.meta.env.VITE_PWA_PUSH_ENABLED,
+  [PWA_SHELL_SURFACES_FLAG_NAME]: import.meta.env.VITE_PWA_SHELL_SURFACES,
+  [PWA_SERVICE_WORKER_SURFACES_FLAG_NAME]: import.meta.env.VITE_PWA_SW_SURFACES,
+  [PWA_PUSH_SURFACES_FLAG_NAME]: import.meta.env.VITE_PWA_PUSH_SURFACES,
+  [PWA_HOST_ALLOWLIST_FLAG_NAME]: import.meta.env.VITE_PWA_HOST_ALLOWLIST,
+  [PWA_INSTALLATION_ALLOWLIST_FLAG_NAME]: import.meta.env.VITE_PWA_INSTALLATION_ALLOWLIST,
+  [PWA_PUSH_PUBLIC_KEY_FLAG_NAME]: import.meta.env.VITE_PWA_PUSH_PUBLIC_KEY,
+};
+
 const AUTHORIZED_SURFACES: Array<{ key: PwaSurfaceKey; pattern: RegExp }> = [
   { key: 'admin', pattern: /^\/admin(?:\/|$)/ },
   { key: 'portal', pattern: /^\/activate(?:\/|$)/ },
 ];
 
 const readPwaFlag = (flagName: string, devDefault: boolean) => {
-  const env = import.meta.env as Record<string, string | undefined>;
-  const rawFlag = String(env[flagName] || '').trim().toLowerCase();
+  const rawFlag = String(PWA_PUBLIC_ENV[flagName] || '').trim().toLowerCase();
 
   if (import.meta.env.DEV) {
     return rawFlag ? rawFlag !== 'false' : devDefault;
@@ -48,8 +61,7 @@ export const isPwaPushEnabled = () =>
 const normalizeValue = (value: string | null | undefined) => String(value || '').trim().toLowerCase();
 
 const readCsvEnv = (flagName: string) => {
-  const env = import.meta.env as Record<string, string | undefined>;
-  const raw = String(env[flagName] || '').trim();
+  const raw = String(PWA_PUBLIC_ENV[flagName] || '').trim();
 
   if (!raw) {
     return [];
@@ -132,8 +144,7 @@ export const getPwaServiceWorkerScriptUrl = () =>
   `${PWA_SERVICE_WORKER_PATH}?v=${encodeURIComponent(PWA_SERVICE_WORKER_VERSION)}`;
 
 export const getPwaPushPublicKey = () => {
-  const env = import.meta.env as Record<string, string | undefined>;
-  return String(env[PWA_PUSH_PUBLIC_KEY_FLAG_NAME] || '').trim();
+  return String(PWA_PUBLIC_ENV[PWA_PUSH_PUBLIC_KEY_FLAG_NAME] || '').trim();
 };
 
 export const isPwaPushConfigured = () => Boolean(getPwaPushPublicKey());

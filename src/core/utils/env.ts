@@ -1,9 +1,28 @@
 /**
  * Helper padronizado para buscar variaveis de ambiente com a seguinte prioridade:
  * 1. Runtime ENV (injetado via window._env_ em tempo de execucao - ideal para Docker/Vercel)
- * 2. Build time ENV (Vite import.meta.env)
- * 3. LocalStorage (fallback apenas para chaves especificas do instalador)
+ * 2. Build time ENV (Vite import.meta.env, apenas allowlist publica)
+ * 3. LocalStorage (fallback apenas para configuracao publica do instalador)
  */
+const PUBLIC_BUILD_ENV: Record<string, string | undefined> = {
+  VITE_SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL,
+  NEXT_PUBLIC_SUPABASE_URL: import.meta.env.NEXT_PUBLIC_SUPABASE_URL,
+  VITE_SUPABASE_ANON_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY,
+  VITE_SUPABASE_PUBLISHABLE_KEY: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: import.meta.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+  VITE_CENTRAL_SUPABASE_ANON_KEY: import.meta.env.VITE_CENTRAL_SUPABASE_ANON_KEY,
+  VITE_CENTRAL_SUPABASE_PUBLISHABLE_KEY: import.meta.env.VITE_CENTRAL_SUPABASE_PUBLISHABLE_KEY,
+  NEXT_PUBLIC_CENTRAL_SUPABASE_ANON_KEY: import.meta.env.NEXT_PUBLIC_CENTRAL_SUPABASE_ANON_KEY,
+  NEXT_PUBLIC_CENTRAL_SUPABASE_PUBLISHABLE_KEY: import.meta.env.NEXT_PUBLIC_CENTRAL_SUPABASE_PUBLISHABLE_KEY,
+  VITE_CENTRAL_API_URL: import.meta.env.VITE_CENTRAL_API_URL,
+  VITE_TURNSTILE_SITE_KEY: import.meta.env.VITE_TURNSTILE_SITE_KEY,
+  VITE_ENABLE_SUPABASE_AUTH_CAPTCHA: import.meta.env.VITE_ENABLE_SUPABASE_AUTH_CAPTCHA,
+  VITE_GITHUB_UPDATE_APP_SLUG: import.meta.env.VITE_GITHUB_UPDATE_APP_SLUG,
+  VITE_GITHUB_UPDATE_APP_INSTALL_URL: import.meta.env.VITE_GITHUB_UPDATE_APP_INSTALL_URL,
+  VITE_UPDATE_SOURCE_REPOSITORY: import.meta.env.VITE_UPDATE_SOURCE_REPOSITORY,
+};
+
 export const getEnv = (key: string): string | undefined => {
   const aliases: Record<string, string[]> = {
     VITE_SUPABASE_ANON_KEY: ['VITE_SUPABASE_PUBLISHABLE_KEY', 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY', 'SUPABASE_PUBLISHABLE_KEY'],
@@ -22,7 +41,9 @@ export const getEnv = (key: string): string | undefined => {
     key.includes('SERVICE_ROLE')
     || key.endsWith('_SECRET_KEY')
     || key.includes('PRIVATE_KEY')
-    || key.includes('PAYMENT_ENCRYPTION_KEY');
+    || key.includes('PAYMENT_ENCRYPTION_KEY')
+    || key === 'LICENSE_KEY'
+    || key === 'MASTER_LICENSE_KEY';
   const getStoredPublishableKey = (): string | undefined => {
     if (typeof window === 'undefined' || !isSupabasePublicClientKey || key.includes('CENTRAL_')) {
       return undefined;
@@ -42,6 +63,10 @@ export const getEnv = (key: string): string | undefined => {
 
   // 1. Prioridade maxima: injecao em tempo de execucao (window._env_)
   if (typeof window !== 'undefined' && (window as any)._env_) {
+    if (isServerOnlyKey) {
+      return undefined;
+    }
+
     for (const candidate of candidateKeys) {
       const value = (window as any)._env_[candidate];
       if (value) return resolveSupabasePublicKey(value);
@@ -67,34 +92,18 @@ export const getEnv = (key: string): string | undefined => {
     }
   }
 
-  // 2. Segunda prioridade: variaveis de build (Vite)
-  if (typeof import.meta !== 'undefined' && import.meta.env) {
+  // 2. Segunda prioridade: variaveis de build explicitamente publicas.
+  // Nunca indexe import.meta.env dinamicamente: isso faz o Vite serializar todas
+  // as variaveis publicas, inclusive uma chave marcada acidentalmente como VITE_.
+  if (!isServerOnlyKey) {
     for (const candidate of candidateKeys) {
-      if (isServerOnlyKey && (candidate.startsWith('VITE_') || candidate.startsWith('NEXT_PUBLIC_'))) {
-        continue;
-      }
-
-      if (import.meta.env[candidate]) return resolveSupabasePublicKey(import.meta.env[candidate]);
-
-      if (isServerOnlyKey) {
-        continue;
-      }
-
-      const cleanKey = candidate.replace('VITE_', '');
-      if (import.meta.env[cleanKey]) return resolveSupabasePublicKey(import.meta.env[cleanKey]);
-
-      const nextKey = candidate.startsWith('VITE_') ? candidate.replace('VITE_', 'NEXT_PUBLIC_') : `NEXT_PUBLIC_${candidate}`;
-      if (import.meta.env[nextKey]) return resolveSupabasePublicKey(import.meta.env[nextKey]);
+      const value = PUBLIC_BUILD_ENV[candidate];
+      if (value) return resolveSupabasePublicKey(value);
     }
   }
 
-  // 3. Fallback: LocalStorage (apenas em ambiente de navegador para o instalador)
+  // 3. Fallback: LocalStorage (apenas configuracao publica do instalador)
   if (typeof window !== 'undefined') {
-    if (key === 'VITE_LICENSE_KEY' || key === 'LICENSE_KEY') {
-      const localLicense = window.localStorage.getItem('installer_license_key');
-      if (localLicense) return localLicense;
-    }
-
     const isSupabaseKey = key.includes('SUPABASE');
     const isCentralKey = key.includes('CENTRAL_');
     if (isSupabaseKey && !isCentralKey && !isServerOnlyKey) {

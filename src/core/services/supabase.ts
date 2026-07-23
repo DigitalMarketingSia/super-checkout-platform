@@ -4,13 +4,11 @@ import { getEnv } from '../utils/env';
 
 const SUPABASE_URL = getEnv('VITE_SUPABASE_URL');
 const SUPABASE_ANON_KEY = getEnv('VITE_SUPABASE_ANON_KEY') || getEnv('VITE_SUPABASE_PUBLISHABLE_KEY');
-const SUPABASE_SERVICE_KEY = getEnv('SUPABASE_SERVICE_ROLE_KEY');
 
 // Initialize with valid keys OR dummy values to prevent crash
 // If keys are missing, the client will fail network requests but the UI can still load (for Installer)
 const finalUrl = SUPABASE_URL || 'https://placeholder.supabase.co';
 const finalPublicKey = SUPABASE_ANON_KEY || 'placeholder-key';
-const finalKey = (typeof window === 'undefined' && SUPABASE_SERVICE_KEY) ? SUPABASE_SERVICE_KEY : finalPublicKey;
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   console.warn('[Supabase] Credenciais nao encontradas. O app pode estar em modo de Instalacao.');
@@ -73,7 +71,9 @@ const publicClientOptions = {
   ...browserGlobalOptions,
 };
 
-export const supabase = createClient(finalUrl, finalKey, clientOptions);
+// This module is bundled for the browser. Privileged Supabase keys must only be
+// used by API routes/Edge Functions, never by a client created here.
+export const supabase = createClient(finalUrl, finalPublicKey, clientOptions);
 export const publicSupabase = createClient(finalUrl, finalPublicKey, publicClientOptions);
 export const CLIENT_INSTANCE_ID = `instance_${Math.random().toString(36).slice(2, 9)}`;
 console.log('[Supabase Service] Initialized client:', CLIENT_INSTANCE_ID);

@@ -22,9 +22,8 @@ export const useEntitlements = () => {
     ): Promise<EntitlementCheck> => {
         setLoading(true);
         try {
-            const licenseKey = import.meta.env.VITE_LICENSE_KEY || localStorage.getItem('installer_license_key');
             const { data: { session } } = await centralSupabase.auth.getSession();
-            if (!session?.access_token && !licenseKey) {
+            if (!session?.access_token) {
                 return { allowed: false, limit: 0, message: 'Not authenticated', upsell_offer: null };
             }
 
@@ -37,8 +36,7 @@ export const useEntitlements = () => {
                 body: JSON.stringify({ 
                     resource, 
                     feature, 
-                    current_count: currentCount,
-                    license_key: licenseKey
+                    current_count: currentCount
                 })
             });
 
