@@ -1,7 +1,6 @@
 // api/admin/members.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { randomBytes } from 'node:crypto';
 import { applyCors } from '../_cors.js';
 import { enforceApiRateLimit } from '../_rate-limit.js';
 import {
@@ -11,9 +10,6 @@ import {
     type ApiRole,
     type AuthzSeverity,
 } from '../_authz.js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
 function maskEmail(email?: string | null) {
     const [name, domain] = String(email || '').split('@');
@@ -37,19 +33,6 @@ function getStringArray(value: unknown) {
 
 function isUuid(value: string) {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
-}
-
-function generateInternalPassword() {
-    return `${randomBytes(24).toString('base64url')}A1!`;
-}
-
-function escapeHtml(value: unknown) {
-    return String(value || '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
 }
 
 function getRequestBaseUrl(req: VercelRequest) {
@@ -554,69 +537,6 @@ async function getMemberAreaEmailContext(
     };
 }
 
-async function sendMemberCreatedEmail(params: {
-    req: VercelRequest;
-    email: string;
-    isNewUser: boolean;
-    memberAreaSlug: string;
-    memberAreaName: string;
-    passwordSetupUrl?: string;
-}) {
-    if (!supabaseUrl || !supabaseServiceKey) {
-        throw new Error('missing_supabase_email_config');
-    }
-
-    const baseUrl = getRequestBaseUrl(params.req);
-    const accessUrl = getMemberAccessUrl(params.req, params.memberAreaSlug);
-    const safeEmail = escapeHtml(params.email);
-    const safeMemberAreaName = escapeHtml(params.memberAreaName);
-    const safeAccessUrl = escapeHtml(accessUrl);
-    const safeLoginUrl = escapeHtml(`${baseUrl}/login`);
-    const safePasswordSetupUrl = escapeHtml(params.passwordSetupUrl || '');
-
-    const emailSubject = params.isNewUser
-        ? (params.memberAreaName ? `Acesso Liberado: ${params.memberAreaName}` : 'Acesso Liberado - Boas vindas!')
-        : `Novo acesso liberado${params.memberAreaName ? `: ${params.memberAreaName}` : ''}`;
-
-    const emailHtml = params.isNewUser
-        ? `
-            <h1>Bem-vindo${safeMemberAreaName ? ` ao ${safeMemberAreaName}` : ''}!</h1>
-            <p>Seu acesso foi liberado e sua conta foi criada com sucesso.</p>
-            <p><strong>Email:</strong> ${safeEmail}</p>
-            <p>Para concluir o primeiro acesso, crie sua senha pelo botao abaixo.</p>
-            <div style="margin: 30px 0;">
-                <a href="${safePasswordSetupUrl}" style="background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;">Criar senha e acessar</a>
-            </div>
-            <p style="font-size: 12px; color: #666;">Por seguranca, nenhuma senha provisoria e enviada por e-mail. Este link e pessoal e temporario.</p>
-        `
-        : `
-            <h1>Novo Acesso Liberado!</h1>
-            <p>Voce recebeu acesso a um novo conteudo${safeMemberAreaName ? ` em <strong>${safeMemberAreaName}</strong>` : ''}.</p>
-            <p>Como voce ja possui cadastro, utilize sua senha atual para acessar.</p>
-            <div style="margin: 30px 0;">
-                <a href="${safeAccessUrl}" style="background-color: #28a745; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;">Acessar Area de Membros</a>
-            </div>
-            <p><small>Esqueceu sua senha? <a href="${safeLoginUrl}">Recupere aqui</a>.</small></p>
-        `;
-
-    const response = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${supabaseServiceKey}`,
-        },
-        body: JSON.stringify({
-            to: params.email,
-            subject: emailSubject,
-            html: emailHtml,
-        }),
-    });
-
-    if (!response.ok) {
-        throw new Error(`member_welcome_email_failed:${response.status}`);
-    }
-}
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     applyCors(req, res, 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
 
@@ -687,9 +607,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const productIds = await requireOwnedProductsForArea(auth, req, res, requestedProductIds, memberAreaId || undefined);
             if (!productIds) return;
 
+            const emailContext = await getMemberAreaEmailContext(
+                supabaseAdmin,
+                auth.user.id,
+                productIds,
+                memberArea || undefined,
+            );
+
             let userId = '';
             let isNewUser = false;
-            const internalPassword = generateInternalPassword();
 
             console.log(`[Admin] Processing member add for ${maskEmail(email)}`);
 
@@ -707,11 +633,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (existingProfile) {
                 userId = existingProfile.id;
             } else {
-                const { data: userData, error: createError } = await supabaseAdmin.auth.admin.createUser({
-                    email,
-                    password: internalPassword,
-                    email_confirm: true,
-                    user_metadata: { name: name || email.split('@')[0] },
+                const { data: userData, error: createError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+                    redirectTo: getMemberPasswordSetupUrl(req, emailContext.slug),
+                    data: {
+                        name: name || email.split('@')[0],
+                        member_area_name: emailContext.name || 'Área de membros',
+                    },
                 });
 
                 if (createError) {
@@ -779,46 +706,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
             }
 
-            try {
-                const context = await getMemberAreaEmailContext(
-                    supabaseAdmin,
-                    auth.user.id,
-                    productIds,
-                    memberArea || undefined,
-                );
-
-                let passwordSetupUrl = '';
-                if (isNewUser) {
-                    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-                        type: 'recovery',
+            if (!isNewUser) {
+                try {
+                    const { error: magicLinkError } = await supabaseAdmin.auth.signInWithOtp({
                         email,
-                        options: { redirectTo: getMemberPasswordSetupUrl(req, context.slug) },
+                        options: { emailRedirectTo: getMemberAccessUrl(req, emailContext.slug) },
                     });
-
-                    passwordSetupUrl = String(linkData?.properties?.action_link || '');
-                    if (linkError || !passwordSetupUrl) {
-                        console.error('[admin_members] Password setup link generation failed:', linkError?.message || 'missing_action_link');
-                        await logMemberAuthzEvent({
-                            auth,
-                            req,
-                            eventType: 'member_password_setup_link_failed',
-                            severity: 'WARNING',
-                            metadata: { member_area_id: memberAreaId || null },
-                        });
-                        throw new Error('member_password_setup_link_failed');
-                    }
+                    if (magicLinkError) throw magicLinkError;
+                } catch (emailErr: any) {
+                    console.warn('[Admin API] Existing member magic link email failed:', emailErr?.message || emailErr);
                 }
-
-                await sendMemberCreatedEmail({
-                    req,
-                    email,
-                    isNewUser,
-                    memberAreaSlug: context.slug,
-                    memberAreaName: context.name,
-                    passwordSetupUrl,
-                });
-            } catch (emailErr: any) {
-                console.warn('[Admin API] Email sending failed:', emailErr?.message || emailErr);
             }
 
             await logMemberAuthzEvent({
@@ -885,7 +782,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     return res.status(500).json({ error: 'Internal Server Error' });
                 }
             } else if (type === 'magic_link') {
-                const { error } = await supabaseAdmin.auth.signInWithOtp({ email });
+                const { error } = await supabaseAdmin.auth.signInWithOtp({
+                    email,
+                    options: { emailRedirectTo: getMemberAccessUrl(req, memberArea.slug) },
+                });
                 if (error) {
                     console.error('[admin_members] Magic link email failed:', error.message);
                     return res.status(500).json({ error: 'Internal Server Error' });
