@@ -74,7 +74,6 @@
     "@playwright/test": "^1.62.0",
     "@types/node": "^22.14.0",
     "@types/pg": "^8.15.6",
-    "@vercel/node": "^5.8.22",
     "@vitejs/plugin-react": "^6.0.3",
     "autoprefixer": "^10.4.20",
     "eslint": "^10.3.0",
@@ -92,11 +91,6 @@
   },
   "overrides": {
     "@babel/core": "7.29.7",
-    "@vercel/node": {
-      "path-to-regexp": "6.3.0",
-      "tsx": "4.23.0",
-      "undici": "6.27.0"
-    },
     "@vercel/python-analysis": {
       "js-yaml": "4.3.0",
       "minimatch": "10.2.5",
