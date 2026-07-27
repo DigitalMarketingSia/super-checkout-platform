@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Play, FileText, Download, ExternalLink } from 'lucide-react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router';
 import { supabase } from '../../../services/supabase';
 import { TutorialViewer } from './TutorialViewer';
 import { useTranslation } from 'react-i18next';

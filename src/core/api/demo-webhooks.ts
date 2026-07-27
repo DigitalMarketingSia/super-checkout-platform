@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { createHmac } from 'node:crypto';
 import { enforceApiRateLimit } from './_rate-limit.js';
 import { encrypt, decrypt } from '../utils/cryptoUtils.js';
 import {
@@ -153,6 +154,9 @@ function sanitizeWebhook(input: unknown): WebhookConfig | null {
   const createdAt = String(source.created_at || new Date().toISOString());
   const description = String(source.description || '').trim().slice(0, MAX_DESCRIPTION_LENGTH);
   const secret = String(source.secret || '').trim().slice(0, MAX_SECRET_LENGTH);
+  // Cookies issued before this release did not record the mode. Preserve their
+  // behavior instead of silently breaking an endpoint that expects legacy auth.
+  const signatureMode = source.signature_mode === 'hmac_sha256' ? 'hmac_sha256' : 'legacy';
 
   if (!id || !name || !url || events.length === 0) return null;
 
@@ -166,6 +170,7 @@ function sanitizeWebhook(input: unknown): WebhookConfig | null {
     events,
     active: source.active !== false,
     secret: secret || undefined,
+    signature_mode: signatureMode,
     created_at: createdAt,
     last_fired_at: typeof source.last_fired_at === 'string' ? source.last_fired_at : undefined,
     last_status: typeof source.last_status === 'number' ? source.last_status : undefined,
@@ -250,7 +255,18 @@ async function dispatchToWebhook(params: {
   }
 
   if (params.hook.secret) {
-    headers['X-Super-Checkout-Signature'] = params.hook.secret;
+    if (params.hook.signature_mode === 'hmac_sha256') {
+      const timestamp = Math.floor(Date.now() / 1000).toString();
+      const signedBody = params.hook.method === 'GET' ? '' : body;
+      const signature = createHmac('sha256', params.hook.secret)
+        .update(`${timestamp}.${signedBody}`)
+        .digest('hex');
+      headers['X-Super-Checkout-Timestamp'] = timestamp;
+      headers['X-Super-Checkout-Signature'] = `sha256=${signature}`;
+      headers['X-Super-Checkout-Signature-Version'] = 'v1';
+    } else {
+      headers['X-Super-Checkout-Signature'] = params.hook.secret;
+    }
   }
 
   try {

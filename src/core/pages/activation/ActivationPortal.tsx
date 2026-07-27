@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { centralSupabase } from '../../services/centralClient';
 import { licenseService, License } from '../../services/licenseService';
 import { storage } from '../../services/storageService';

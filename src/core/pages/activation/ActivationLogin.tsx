@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router';
 import { Mail, ArrowRight, ShieldCheck, Loader2, Lock } from 'lucide-react';
 import { AuthCaptchaPanel } from '../../components/auth/AuthCaptchaPanel';
 import { getSupabaseAuthCaptchaSiteKey } from '../../config/authCaptcha';

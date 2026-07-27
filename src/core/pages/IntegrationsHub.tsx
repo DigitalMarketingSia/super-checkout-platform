@@ -11,7 +11,7 @@ import {
   ChevronRight,
   Mail
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { Layout } from '../components/Layout';
 import { Card } from '../components/ui/Card';
 import { ResendConfigModal } from '../components/modals/ResendConfigModal';

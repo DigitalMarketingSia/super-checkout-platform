@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext } from 'react-router';
 import { MemberArea } from '../../types';
 import { HelpCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { useTranslation } from 'react-i18next';

@@ -5,7 +5,7 @@ import { MemberArea } from '../../types';
 import { Button } from '../../components/ui/Button';
 import { ConfirmModal } from '../../components/ui/Modal';
 import { Plus, Users, ExternalLink, Trash2, Activity, Globe, Layout as LayoutIcon, ChevronRight, Loader2 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { useAuth } from '../../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { useFeatures } from '../../hooks/useFeatures';

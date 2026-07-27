@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router';
 import { AlertTriangle, ArrowRight, Loader2, ShieldCheck } from 'lucide-react';
 import { CENTRAL_CONFIG } from '../config/central';
 import { platformUrls } from '../config/platformUrls';

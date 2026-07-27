@@ -1,7 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link2, MonitorSmartphone, Sparkles } from 'lucide-react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router';
 import { UpsellModal } from '../../components/ui/UpsellModal';
 
 type OfferSlug = 'unlimited_domains' | 'partner_rights' | 'whitelabel';

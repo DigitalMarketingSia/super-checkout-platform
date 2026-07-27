@@ -305,6 +305,8 @@ export interface WebhookHeader {
   value: string;
 }
 
+export type WebhookSignatureMode = 'legacy' | 'hmac_sha256';
+
 export interface WebhookConfig {
   id: string;
   name: string;
@@ -315,6 +317,7 @@ export interface WebhookConfig {
   events: string[]; // e.g., 'checkout.completed', 'payment.failed'
   active: boolean;
   secret?: string;
+  signature_mode?: WebhookSignatureMode;
   created_at: string;
   last_fired_at?: string;
   last_status?: number; // 200, 400, 500

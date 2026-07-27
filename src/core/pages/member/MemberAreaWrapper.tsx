@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Outlet, useParams, useNavigate } from 'react-router-dom';
+import { Outlet, useParams, useNavigate } from 'react-router';
 import { MemberAreaLayout } from './MemberAreaLayout';
 import { supabase } from '../../services/supabase';
 import { storage } from '../../services/storageService';

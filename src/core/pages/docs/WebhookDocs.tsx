@@ -54,10 +54,13 @@ export const WebhookDocs = () => {
                             <Card>
                                 <h3 className="font-bold text-gray-900 dark:text-white mb-2">Cabeçalho de Assinatura</h3>
                                 <code className="block bg-black/50 p-3 rounded text-sm text-green-400 font-mono mb-4">
-                                    X-Super-Checkout-Signature: &lt;sua-chave-secreta&gt;
+                                    {`X-Super-Checkout-Timestamp: <unix-seconds>\nX-Super-Checkout-Signature: sha256=<hex>\nX-Super-Checkout-Signature-Version: v1`}
                                 </code>
                                 <p className="text-sm text-gray-500">
-                                    Você pode (e deve) verificar se este cabeçalho corresponde à chave secreta configurada no painel do seu webhook.
+                                    A assinatura é HMAC-SHA256 de <code>{'${timestamp}.${corpoBruto}'}</code>, usando o segredo configurado no webhook. Compare em tempo constante e rejeite timestamps com mais de cinco minutos para evitar replay.
+                                </p>
+                                <p className="mt-3 text-sm text-gray-500">
+                                    O modo legado, que envia o segredo diretamente no cabeçalho, existe somente para compatibilidade temporária com integrações antigas. Novos webhooks usam HMAC por padrão.
                                 </p>
                             </Card>
                         </section>

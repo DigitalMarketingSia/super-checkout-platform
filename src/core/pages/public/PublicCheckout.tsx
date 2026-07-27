@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router';
 import { supabase } from '../../services/supabase';
 import { storage } from '../../services/storageService';
 import { Checkout, CheckoutConfig, CheckoutPaymentRoutingConfig, Product, Gateway, Order, OrderStatus, OrderItem, InstallmentOption, GatewayProvider, PaymentMethodType } from '../../types';

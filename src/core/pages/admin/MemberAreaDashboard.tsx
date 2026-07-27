@@ -3,7 +3,7 @@ import { Layout } from '../../components/Layout';
 import { storage } from '../../services/storageService';
 import { MemberArea } from '../../types';
 import { ArrowLeft, BookOpen, Settings, Globe, Package, ExternalLink, Layers, Users, Activity, Terminal, Lock } from 'lucide-react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router';
 import { Contents } from './Contents';
 import { MemberSettings } from './MemberSettings';
 import { MemberDomains } from './MemberDomains';

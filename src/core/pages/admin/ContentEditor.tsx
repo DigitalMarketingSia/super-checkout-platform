@@ -7,7 +7,7 @@ import { AlertModal } from '../../components/ui/Modal';
 import {
     ArrowLeft, Save, Upload, Plus, Trash2, Edit2, Video, FileText, File as FileIcon, ChevronDown, ChevronRight, Layers, Lock, Terminal, Activity, Globe, Monitor, Smartphone, Layout as LayoutIcon
 } from 'lucide-react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { LessonEditorModal } from '../../components/admin/LessonEditorModal';
 import { useTranslation } from 'react-i18next';
 

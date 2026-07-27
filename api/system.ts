@@ -2130,6 +2130,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return await (await import('../src/core/api/send-email.js')).default(req, res);
             case 'demo-webhooks':
                 return await (await import('../src/core/api/demo-webhooks.js')).default(req, res);
+            case 'test-webhook':
+                return await (await import('../src/core/api/test-webhook.js')).default(req, res);
             case 'public-gateway':
                 return await publicGatewayHandler(req, res);
             case 'auto-login':

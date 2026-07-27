@@ -4,7 +4,7 @@ import { useFunnelStore } from '../store/useFunnelStore';
 import { FUNNEL_TEMPLATES } from '../constants/templates';
 import { cn } from '../lib/utils';
 import { ConfirmationModal } from './ConfirmationModal';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 
 export const Sidebar = () => {

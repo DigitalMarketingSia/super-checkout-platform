@@ -1,6 +1,6 @@
 import React from 'react';
 import { Download, RefreshCcw, Share2, Smartphone } from 'lucide-react';
-import { useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
   getPwaSurfaceKey,

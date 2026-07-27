@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router';
 import { Home, ShoppingBag, Package, User, ChevronLeft, BookOpen } from 'lucide-react';
 
 interface IconSidebarProps {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router";
 import { storage } from "../../services/storageService";
 import { Content, Module, Lesson, MemberArea, AccessGrant } from "../../types";
 import {

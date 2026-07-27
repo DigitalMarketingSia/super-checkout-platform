@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router';
 import { useAuth } from '../../context/AuthContext';
 import { LogOut, User, Menu, X, ChevronDown, ChevronRight, ExternalLink, Home, ShoppingBag, LinkIcon, ChevronUp, Instagram, ArrowUpRight, HelpCircle, Ban, Package } from 'lucide-react';
 import { MemberArea, SidebarItem } from '../../types';

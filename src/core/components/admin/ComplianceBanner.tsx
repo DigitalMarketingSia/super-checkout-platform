@@ -1,6 +1,6 @@
 import React from 'react';
 import { AlertTriangle, ArrowRight } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 
 interface ComplianceBannerProps {

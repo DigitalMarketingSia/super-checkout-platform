@@ -33,6 +33,22 @@ type WebhookFormState = {
   events: string[];
   active: boolean;
   method: WebhookConfig['method'];
+  signature_mode: NonNullable<WebhookConfig['signature_mode']>;
+};
+
+const hmacSha256Hex = async (secret: string, message: string) => {
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(message));
+  return Array.from(new Uint8Array(signature))
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
 };
 
 const generateWebhookId = () => {
@@ -48,7 +64,7 @@ const eventOptions = getDemoWebhookEventOptions();
 
 export const Webhooks = () => {
   const { t } = useTranslation('admin');
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const [activeTab, setActiveTab] = useState<'outgoing' | 'history' | 'incoming'>('outgoing');
   const [webhooks, setWebhooks] = useState<WebhookConfig[]>([]);
   const [logs, setLogs] = useState<WebhookLog[]>([]);
@@ -119,6 +135,9 @@ export const Webhooks = () => {
       events: webhook.events,
       active: webhook.active,
       method: webhook.method || 'POST',
+      // Records created before the migration retain legacy delivery until the
+      // owner explicitly saves them with HMAC selected.
+      signature_mode: webhook.signature_mode === 'hmac_sha256' ? 'hmac_sha256' : 'legacy',
     });
     setIsModalOpen(true);
   };
@@ -159,6 +178,7 @@ export const Webhooks = () => {
       events: formData.events,
       active: formData.active,
       secret: formData.secret.trim() || undefined,
+      signature_mode: formData.signature_mode,
       created_at: existing?.created_at || new Date().toISOString(),
       last_fired_at: existing?.last_fired_at,
       last_status: existing?.last_status,
@@ -217,26 +237,72 @@ export const Webhooks = () => {
         return;
       }
 
-      const response = await fetch(webhook.url, {
-        method: webhook.method,
+      const accessToken = session?.access_token;
+      if (!accessToken) throw new Error('Missing authenticated session');
+
+      const response = await fetch('/api/system?action=test-webhook', {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(webhook.secret ? { 'X-Super-Checkout-Signature': webhook.secret } : {}),
+          Authorization: `Bearer ${accessToken}`,
         },
-        body: webhook.method === 'GET'
-          ? undefined
-          : JSON.stringify({
-            test: true,
-            event: 'pagamento.aprovado',
-            timestamp: new Date().toISOString(),
-          }),
+        body: JSON.stringify({ webhook_id: webhook.id }),
       });
+      const contentType = response.headers.get('content-type') || '';
+      const result = contentType.includes('application/json')
+        ? await response.json().catch(() => null)
+        : null;
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+      if (response.ok && result?.success === true) {
+        toast.success(t('webhooks.test_success', 'Webhook disparado com sucesso.'));
+        await fetchData();
+        return;
       }
 
-      toast.success(t('webhooks.test_success', 'Webhook disparado com sucesso.'));
+      // `npm run dev` serves only Vite, not the serverless API. Keep local
+      // development usable while making the production test server-to-server.
+      if (!import.meta.env.DEV || contentType.includes('application/json')) {
+        throw new Error(result?.error || `HTTP ${response.status}`);
+      }
+
+      const testPayload = {
+        test: true,
+        event: 'pagamento.aprovado',
+        timestamp: new Date().toISOString(),
+      };
+      const requestBody = webhook.method === 'GET' ? '' : JSON.stringify(testPayload);
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'X-Super-Checkout-Event': 'pagamento.aprovado',
+      };
+
+      if (webhook.secret) {
+        if (webhook.signature_mode === 'hmac_sha256') {
+          const signatureTimestamp = Math.floor(Date.now() / 1000).toString();
+          const signature = await hmacSha256Hex(webhook.secret, `${signatureTimestamp}.${requestBody}`);
+          headers['X-Super-Checkout-Timestamp'] = signatureTimestamp;
+          headers['X-Super-Checkout-Signature'] = `sha256=${signature}`;
+          headers['X-Super-Checkout-Signature-Version'] = 'v1';
+        } else {
+          headers['X-Super-Checkout-Signature'] = webhook.secret;
+        }
+      }
+
+      try {
+        const browserResponse = await fetch(webhook.url, {
+          method: webhook.method,
+          headers,
+          body: requestBody || undefined,
+        });
+        if (!browserResponse.ok) throw new Error(`HTTP ${browserResponse.status}`);
+        toast.success(t('webhooks.test_success', 'Webhook disparado com sucesso.'));
+      } catch (browserError) {
+        if (browserError instanceof TypeError) {
+          toast.info('A requisição foi enviada, mas o navegador não pode validar a resposta por CORS. Confirme o recebimento no endpoint.');
+          return;
+        }
+        throw browserError;
+      }
     } catch (error) {
       console.error('Error testing webhook:', error);
       toast.error(t('webhooks.test_error', 'Erro ao conectar com o endpoint.'));
@@ -610,6 +676,23 @@ export const Webhooks = () => {
                   placeholder={t('webhooks.form.secret_placeholder', 'whsec_demo')}
                 />
               </div>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-black uppercase text-gray-500 mb-2">{t('webhooks.form.signature_mode', 'Modo de assinatura')}</label>
+              <select
+                value={formData.signature_mode}
+                onChange={(event) => setFormData({ ...formData, signature_mode: event.target.value as NonNullable<WebhookConfig['signature_mode']> })}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-primary outline-none transition-all"
+              >
+                <option value="hmac_sha256" className="bg-[#0A0A15] text-white">HMAC-SHA256 com timestamp (recomendado)</option>
+                <option value="legacy" className="bg-[#0A0A15] text-white">Legado: segredo no cabeçalho</option>
+              </select>
+              <p className="mt-2 text-xs leading-relaxed text-gray-500">
+                {formData.signature_mode === 'hmac_sha256'
+                  ? 'Envia o timestamp e a assinatura HMAC do corpo da requisição; o segredo nunca é transmitido.'
+                  : 'Use apenas para manter uma integração antiga enquanto ela é atualizada para HMAC.'}
+              </p>
             </div>
 
             <div>

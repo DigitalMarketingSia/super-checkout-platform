@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router';
 import { CheckCircle, Package, Mail, ArrowRight, ExternalLink, LockKeyhole, Clock3, RefreshCcw } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Loading } from '../../components/ui/Loading';

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useOutletContext, useNavigate, useParams } from 'react-router-dom';
+import { useOutletContext, useNavigate, useParams } from 'react-router';
 import { MemberArea, Product, AccessGrant } from '../../types';
 import { storage } from '../../services/storageService';
 import { Package, Loader2, Play } from 'lucide-react';

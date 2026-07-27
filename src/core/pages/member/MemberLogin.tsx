@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
+import { useParams, useNavigate, Link, useLocation } from 'react-router';
 import { storage } from '../../services/storageService';
 import { MemberArea } from '../../types';
 import { Button } from '../../components/ui/Button';

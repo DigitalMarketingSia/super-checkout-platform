@@ -7,7 +7,7 @@ import { ConfirmModal, AlertModal } from '../../components/ui/Modal';
 import {
     Plus, Edit2, Trash2, Image as ImageIcon, Search, BookOpen, Package, Monitor, FileText, Layers
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 
 export const Contents = ({ memberAreaId, primaryColor }: { memberAreaId: string, primaryColor?: string }) => {

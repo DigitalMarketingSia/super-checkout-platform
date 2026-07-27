@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useOutletContext, useNavigate } from 'react-router-dom';
+import { useOutletContext, useNavigate } from 'react-router';
 import { useAuth } from '../../context/AuthContext';
 import { storage } from '../../services/storageService';
 import { supabase } from '../../services/supabase';

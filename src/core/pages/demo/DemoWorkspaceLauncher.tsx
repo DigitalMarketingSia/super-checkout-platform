@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ArrowRight, Boxes, Clock3, Loader2, Package, RefreshCcw, RotateCcw, ShieldCheck, ShoppingCart, Sparkles, UserRound, Workflow } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router';
 import { platformUrls } from '../../config/platformUrls';
 import { centralSupabase } from '../../services/centralClient';
 import { demoDataService } from '../../services/demoDataService';

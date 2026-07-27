@@ -35,7 +35,7 @@ import {
 import { useFunnelStore } from '../store/useFunnelStore';
 import { type FunnelNode } from '../types';
 import { cn } from '../lib/utils';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 
 const NODE_TYPES = [

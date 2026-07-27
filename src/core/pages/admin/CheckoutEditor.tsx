@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router';
 import { Layout } from '../../components/Layout';
 import { storage } from '../../services/storageService';
 import { Checkout, Product, Gateway, Domain, DomainStatus, CheckoutConfig, CheckoutPaymentRoutingConfig, GatewayProvider, DomainUsage, PaymentMethodType } from '../../types';

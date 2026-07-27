@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router';
 import { loadStripe, type PaymentRequest, type Stripe, type StripeCardNumberElement } from '@stripe/stripe-js';
 import { Elements, CardCvcElement, CardExpiryElement, CardNumberElement, PaymentRequestButtonElement, useElements, useStripe } from '@stripe/react-stripe-js';
 import { useTranslation } from 'react-i18next';

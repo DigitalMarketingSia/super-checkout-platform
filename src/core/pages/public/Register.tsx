@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router';
 import { Mail, Lock, User, Loader2, ArrowRight, AlertCircle, CheckCircle, Sparkles, RefreshCw, PencilLine, Zap, Globe, Fingerprint, Shield } from 'lucide-react';
 
 import { useTranslation } from 'react-i18next';

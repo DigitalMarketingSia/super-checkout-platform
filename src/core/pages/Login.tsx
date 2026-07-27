@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { Lock, Mail, Loader2, AlertCircle, User, ArrowRight, CheckCircle, ShieldCheck, Coins, Check } from 'lucide-react';
 import { AuthCaptchaPanel } from '../components/auth/AuthCaptchaPanel';
 import { getSupabaseAuthCaptchaSiteKey } from '../config/authCaptcha';

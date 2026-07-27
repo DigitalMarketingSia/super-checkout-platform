@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../../services/supabase';
 import { subscriptionService } from '../../services/subscriptionService';

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../services/supabase';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { ShieldCheck, User, Mail, Lock, ChevronRight, AlertCircle, Check } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useInstallation } from '../../context/InstallationContext';

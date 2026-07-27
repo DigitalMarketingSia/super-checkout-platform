@@ -1,5 +1,5 @@
 // ...
-import { useNavigate, useOutletContext } from 'react-router-dom';
+import { useNavigate, useOutletContext } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import { AccessGrant, Content, Module, Lesson, Product, TrackItem } from '../types';
 import { getRuntimeMode } from '../config/runtimeMode';

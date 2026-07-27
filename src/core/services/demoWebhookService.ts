@@ -39,11 +39,12 @@ const normalizeEventAliases = (event: string, aliases?: string[]) => {
 
 export const getDefaultDemoWebhookDraft = (): Pick<
   WebhookConfig,
-  'events' | 'method' | 'active'
+  'events' | 'method' | 'active' | 'signature_mode'
 > => ({
   events: [...DEMO_WEBHOOK_DEFAULT_EVENTS],
   method: 'POST',
   active: true,
+  signature_mode: 'hmac_sha256',
 });
 
 export const getDemoWebhookEventOptions = () => DEMO_WEBHOOK_EVENT_OPTIONS;

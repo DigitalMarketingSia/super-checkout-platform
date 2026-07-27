@@ -1018,6 +1018,8 @@ const normalizeDemoWebhooks = (webhooks: unknown): WebhookConfig[] =>
             : [],
           active: hook.active !== false,
           secret: hook.secret ? String(hook.secret) : undefined,
+          // Saved demo webhooks from before HMAC keep their legacy behavior.
+          signature_mode: (hook.signature_mode === 'hmac_sha256' ? 'hmac_sha256' : 'legacy') as WebhookConfig['signature_mode'],
           created_at: String(hook.created_at || new Date().toISOString()),
           last_fired_at: hook.last_fired_at ? String(hook.last_fired_at) : undefined,
           last_status: typeof hook.last_status === 'number' ? hook.last_status : undefined,

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { Plus, GitBranch, Clock, ArrowRight, Trash2, Edit2, Loader2 } from 'lucide-react';
 import { supabase } from '../../../../services/supabase';
 import { toast } from 'sonner';

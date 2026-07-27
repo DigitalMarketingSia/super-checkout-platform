@@ -13,7 +13,7 @@ import {
 import { OrderDetailsModal } from '../../components/admin/orders/OrderDetailsModal';
 import { CustomerDetailsModal } from '../../components/admin/orders/CustomerDetailsModal';
 import { useTranslation } from 'react-i18next';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router';
 import Aurora from '../../components/ui/Aurora';
 
 interface CustomerProfile {

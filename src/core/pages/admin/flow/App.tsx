@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Routes, Route, useParams } from 'react-router-dom';
+import { Routes, Route, useParams } from 'react-router';
 import './index.css';
 import { Editor } from './pages/Editor';
 import { Dashboard } from './pages/Dashboard';

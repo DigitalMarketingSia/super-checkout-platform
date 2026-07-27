@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { ArrowRight, Database } from 'lucide-react';
 import { SystemManager } from '../../services/systemManager';
 import { SCHEMA_VERSION } from '../../config/version';

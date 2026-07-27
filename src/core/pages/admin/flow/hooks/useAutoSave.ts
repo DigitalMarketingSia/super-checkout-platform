@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useFunnelStore } from '../store/useFunnelStore';
 import { saveFunnel } from '../lib/storage';
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router';
 
 export const useAutoSave = () => {
   const { nodes, edges, viewport } = useFunnelStore();

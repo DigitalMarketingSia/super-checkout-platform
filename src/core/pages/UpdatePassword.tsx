@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
 import { centralSupabase } from '../services/centralClient';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router';
 import { Lock, Loader2, AlertCircle, CheckCircle, ArrowRight } from 'lucide-react';
 import { logSecurityEvent } from '../services/securityAuditClient';
 
