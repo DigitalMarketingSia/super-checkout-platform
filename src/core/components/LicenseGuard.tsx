@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Lock, AlertTriangle } from 'lucide-react';
 import { publicSupabase, supabase } from '../services/supabase';
+import { isPublicViewUnavailable } from '../services/publicDataViews';
 import { Loading } from './ui/Loading';
 import { isDemoHostname } from '../config/runtimeMode';
 
@@ -97,11 +98,19 @@ export const LicenseGuard: React.FC<LicenseGuardProps> = ({ children }) => {
                     `www.${currentDomain}`
                 ];
 
-                const { data: domainData, error: domainError } = await publicSupabase
-                    .from('domains')
+                let { data: domainData, error: domainError } = await publicSupabase
+                    .from('public_domains')
                     .select('type, status, usage')
                     .in('domain', variations)
                     .maybeSingle();
+
+                if (isPublicViewUnavailable(domainError)) {
+                    ({ data: domainData, error: domainError } = await publicSupabase
+                        .from('domains')
+                        .select('type, status, usage')
+                        .in('domain', variations)
+                        .maybeSingle());
+                }
 
                 if (domainError) {
                     console.error('[LicenseGuard] DB verification failed:', domainError);

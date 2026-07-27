@@ -16,6 +16,7 @@ import {
 import { sanitizeGatewayPublicConfig } from '../utils/gatewayPublicConfig';
 import { getCachedAuthUser, setCachedAuthUser } from './authUserCache';
 import { demoDataService, isDemoDataRuntime } from './demoDataService';
+import { isPublicViewUnavailable } from './publicDataViews';
 import { publicSupabase, supabase } from './supabase';
 export { supabase };
 
@@ -938,11 +939,19 @@ class StorageService {
   async getPublicProduct(id: string): Promise<Product | null> {
     if (isDemoDataRuntime()) return demoDataService.getPublicProduct(id);
 
-    const { data, error } = await supabase
-      .from('products')
+    let { data, error } = await publicSupabase
+      .from('public_products')
       .select('*')
       .eq('id', id)
       .single();
+
+    if (isPublicViewUnavailable(error)) {
+      ({ data, error } = await publicSupabase
+        .from('products')
+        .select('*')
+        .eq('id', id)
+        .single());
+    }
 
     if (error) {
       console.error('Error fetching public product:', error.message);
@@ -953,27 +962,60 @@ class StorageService {
   }
 
   async getPublicSaaSProducts(): Promise<Product[]> {
-    const { data, error } = await supabase
-      .from('products')
-      .select(`
-        *, 
-        checkouts!member_area_checkout_id(id, custom_url_slug, domain_id, domains:domain_id(domain)), 
-        all_checkouts:checkouts!product_id(id, custom_url_slug, domain_id, domains:domain_id(domain))
-      `)
+    let { data, error } = await publicSupabase
+      .from('public_products')
+      .select('*')
       .not('saas_plan_slug', 'is', null)
       .eq('active', true);
+
+    if (isPublicViewUnavailable(error)) {
+      ({ data, error } = await publicSupabase
+        .from('products')
+        .select('*')
+        .not('saas_plan_slug', 'is', null)
+        .eq('active', true));
+    }
 
     if (error) {
       console.error('Error fetching public SaaS products:', error.message);
       return [];
     }
 
-    return (data || []).map((p: any) => {
-      // Robust detection of joined checkout data
-      const checkoutObj = p.checkouts ? (Array.isArray(p.checkouts) ? p.checkouts[0] : p.checkouts) : null;
-      const allCheckoutsArr = Array.isArray(p.all_checkouts) ? p.all_checkouts : (p.all_checkouts ? [p.all_checkouts] : []);
+    const productIds = (data || []).map((product: any) => product.id).filter(Boolean);
+    const { data: checkoutRows } = productIds.length > 0
+      ? await publicSupabase
+        .from('checkouts')
+        .select('id, product_id, custom_url_slug, domain_id, active')
+        .in('product_id', productIds)
+        .eq('active', true)
+      : { data: [] as any[] };
 
-      const bestCheckout = checkoutObj || allCheckoutsArr.find((c: any) => c.active !== false) || allCheckoutsArr[0];
+    const domainIds = (checkoutRows || []).map((checkout: any) => checkout.domain_id).filter(Boolean);
+    let { data: domainRows, error: domainError } = domainIds.length > 0
+      ? await publicSupabase
+        .from('public_domains')
+        .select('id, domain')
+        .in('id', domainIds)
+      : { data: [] as any[], error: null };
+
+    if (isPublicViewUnavailable(domainError)) {
+      ({ data: domainRows, error: domainError } = await publicSupabase
+        .from('domains')
+        .select('id, domain')
+        .in('id', domainIds));
+    }
+
+    if (domainError) {
+      console.error('Error fetching public domains for SaaS products:', domainError.message);
+    }
+
+    const domainsById = new Map((domainRows || []).map((domain: any) => [domain.id, domain.domain]));
+
+    return (data || []).map((p: any) => {
+      const allCheckouts = (checkoutRows || []).filter((checkout: any) => checkout.product_id === p.id);
+      const bestCheckout = allCheckouts.find((checkout: any) => checkout.id === p.member_area_checkout_id)
+        || allCheckouts[0]
+        || null;
 
       const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
       const protocol = isLocalHost ? 'http' : 'https';
@@ -981,7 +1023,7 @@ class StorageService {
       let checkout_url = p.redirect_link || '';
 
       if (bestCheckout) {
-        const domain = bestCheckout.domains?.domain;
+        const domain = bestCheckout.domain_id ? domainsById.get(bestCheckout.domain_id) : '';
         if (domain) {
           checkout_url = `https://${domain}/${bestCheckout.custom_url_slug}`;
         } else {
@@ -1000,11 +1042,19 @@ class StorageService {
   async getMemberAreaBySlug(slug: string): Promise<MemberArea | null> {
     if (isDemoDataRuntime()) return demoDataService.getMemberAreaBySlug(slug);
 
-    const { data, error } = await supabase
-      .from('member_areas')
+    let { data, error } = await publicSupabase
+      .from('public_member_areas')
       .select('*')
       .eq('slug', slug)
       .single();
+
+    if (isPublicViewUnavailable(error)) {
+      ({ data, error } = await publicSupabase
+        .from('member_areas')
+        .select('*')
+        .eq('slug', slug)
+        .single());
+    }
 
     if (error) {
       console.error('Error fetching member area:', error.message);
@@ -1079,11 +1129,19 @@ class StorageService {
       return areas.find((area) => area.domain_id === domainId) || null;
     }
 
-    const { data, error } = await publicSupabase
-      .from('member_areas')
+    let { data, error } = await publicSupabase
+      .from('public_member_areas')
       .select('*')
       .eq('domain_id', domainId)
       .single();
+
+    if (isPublicViewUnavailable(error)) {
+      ({ data, error } = await publicSupabase
+        .from('member_areas')
+        .select('*')
+        .eq('domain_id', domainId)
+        .single());
+    }
 
     if (error) {
       if (error.code !== 'PGRST116') {
@@ -1129,11 +1187,19 @@ class StorageService {
     // If hostname is 'www.foo.com', we check 'foo.com'
 
     // Use .in() to find any matching record
-    const { data, error } = await publicSupabase
-      .from('domains')
+    let { data, error } = await publicSupabase
+      .from('public_domains')
       .select('*')
       .in('domain', variations)
       .maybeSingle(); // We expect only one valid match, or we take the first one
+
+    if (isPublicViewUnavailable(error)) {
+      ({ data, error } = await publicSupabase
+        .from('domains')
+        .select('*')
+        .in('domain', variations)
+        .maybeSingle());
+    }
 
     if (error) {
       if (error.code !== 'PGRST116') {
@@ -1144,113 +1210,54 @@ class StorageService {
     return data as Domain;
   }
 
-  async getBusinessSettingsByHostname(hostname: string) {
+  async getPublicBusinessSettings() {
     if (isDemoDataRuntime()) return demoDataService.getBusinessSettings();
 
-    const domain = await this.getDomainByHostname(hostname);
-    
-    // Fallback for localhost or if domain is not found in a single-tenant setup
-    if (!domain) {
-      console.log('[StorageService] getBusinessSettingsByHostname: Domain not found, trying fallback to account settings with content.');
-      
-      // Try to find the most recent settings that actually have content
-      const { data: settingsWithContent } = await supabase
-        .from('business_settings')
-        .select('*')
-        .not('privacy_policy', 'is', null)
-        .order('updated_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+    let { data, error } = await publicSupabase
+      .from('public_business_settings')
+      .select('*')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-      if (settingsWithContent) return settingsWithContent;
-      
-      // If no content found, just get the most recent one
-      const { data: mostRecent } = await supabase
+    if (isPublicViewUnavailable(error)) {
+      ({ data, error } = await publicSupabase
         .from('business_settings')
         .select('*')
         .order('updated_at', { ascending: false })
         .limit(1)
-        .maybeSingle();
-      
-      return mostRecent;
+        .maybeSingle());
     }
 
-    // Get Account
-    const { data: account } = await supabase
-      .from('accounts')
-      .select('id')
-      .eq('owner_user_id', domain.user_id)
-      .single();
+    if (error) {
+      console.error('Error fetching public business settings:', error.message);
+      return null;
+    }
 
-    if (!account) return null;
+    return data;
+  }
 
-    // Get Settings
-    const { data: settings } = await supabase
-      .from('business_settings')
-      .select('*')
-      .eq('account_id', account.id)
-      .single();
-
-    return settings;
+  async getBusinessSettingsByHostname(_hostname: string) {
+    return this.getPublicBusinessSettings();
   }
 
   async getBusinessSettingsByCheckoutId(checkoutId: string) {
     if (isDemoDataRuntime()) return demoDataService.getBusinessSettings();
 
-    // 1. Get Checkout to find the owner
-    const { data: checkout } = await supabase
-      .from('checkouts')
-      .select('user_id')
-      .eq('id', checkoutId)
-      .maybeSingle();
-
-    if (!checkout?.user_id) return null;
-
-    // 2. Get Account associated with that user
-    const { data: account } = await supabase
-      .from('accounts')
-      .select('id')
-      .eq('owner_user_id', checkout.user_id)
-      .single();
-
-    if (!account) return null;
-
-    // 3. Get Business Settings for that account
-    const { data: settings } = await supabase
-      .from('business_settings')
-      .select('*')
-      .eq('account_id', account.id)
-      .single();
-
-    return settings;
+    // Each self-hosted installation has one business identity.  Do not walk
+    // through checkout/account owner records from an anonymous page: this
+    // public projection contains only legal and support fields.
+    void checkoutId;
+    return this.getPublicBusinessSettings();
   }
 
   async getBusinessSettingsByMemberAreaId(memberAreaId: string) {
     if (isDemoDataRuntime()) return demoDataService.getBusinessSettings();
 
-    const { data: memberArea } = await supabase
-      .from('member_areas')
-      .select('owner_id')
-      .eq('id', memberAreaId)
-      .maybeSingle();
-
-    if (!memberArea?.owner_id) return null;
-
-    const { data: account } = await supabase
-      .from('accounts')
-      .select('id')
-      .eq('owner_user_id', memberArea.owner_id)
-      .maybeSingle();
-
-    if (!account?.id) return null;
-
-    const { data: settings } = await supabase
-      .from('business_settings')
-      .select('*')
-      .eq('account_id', account.id)
-      .maybeSingle();
-
-    return settings;
+    // See getBusinessSettingsByCheckoutId: public legal pages receive only
+    // the sanitised single-installation business projection.
+    void memberAreaId;
+    return this.getPublicBusinessSettings();
   }
 
   async getDomainUsage(domainId: string) {

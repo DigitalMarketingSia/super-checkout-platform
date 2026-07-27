@@ -1,4 +1,5 @@
 import type { Checkout, Domain, MemberArea } from '../types';
+import { isPublicViewUnavailable } from './publicDataViews';
 import { publicSupabase } from './supabase';
 
 const buildHostnameVariations = (hostname: string) => ([
@@ -32,11 +33,19 @@ class DomainLookupService {
   }
 
   async getMemberAreaByDomain(domainId: string): Promise<MemberArea | null> {
-    const { data, error } = await publicSupabase
-      .from('member_areas')
+    let { data, error } = await publicSupabase
+      .from('public_member_areas')
       .select('*')
       .eq('domain_id', domainId)
       .single();
+
+    if (isPublicViewUnavailable(error)) {
+      ({ data, error } = await publicSupabase
+        .from('member_areas')
+        .select('*')
+        .eq('domain_id', domainId)
+        .single());
+    }
 
     if (error) {
       if (error.code !== 'PGRST116') {
@@ -49,11 +58,19 @@ class DomainLookupService {
   }
 
   async getDomainByHostname(hostname: string): Promise<Domain | null> {
-    const { data, error } = await publicSupabase
-      .from('domains')
+    let { data, error } = await publicSupabase
+      .from('public_domains')
       .select('*')
       .in('domain', buildHostnameVariations(hostname))
       .maybeSingle();
+
+    if (isPublicViewUnavailable(error)) {
+      ({ data, error } = await publicSupabase
+        .from('domains')
+        .select('*')
+        .in('domain', buildHostnameVariations(hostname))
+        .maybeSingle());
+    }
 
     if (error) {
       if (error.code !== 'PGRST116') {

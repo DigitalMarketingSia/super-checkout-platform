@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router';
-import { supabase } from '../../services/supabase';
 import { storage } from '../../services/storageService';
 import { Checkout, CheckoutConfig, CheckoutPaymentRoutingConfig, Product, Gateway, Order, OrderStatus, OrderItem, InstallmentOption, GatewayProvider, PaymentMethodType } from '../../types';
 import { licenseService, UpgradeIntentContext } from '../../services/licenseService';
@@ -922,77 +921,22 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                return;
             }
 
-            if (!checkout.active) {
-               setError(t('checkout.inactive', 'Este checkout esta inativo no momento.'));
-               setLoading(false);
-               return;
-            }             // 1.5 Fetch Business Settings using Checkout's Account/User
-             try {
-                if (checkout.user_id) {
-                   // Fetch Account
-                   const { data: account } = await supabase
-                      .from('accounts')
-                      .select('id')
-                      .eq('owner_user_id', checkout.user_id)
-                      .maybeSingle();
-
-                   if (account?.id) {                       // Fetch Settings
-                       const { data: settings } = await supabase
-                          .from('business_settings')
-                          .select('business_name, legal_name, legal_responsible_email, support_email, support_whatsapp, privacy_policy, privacy_policy_version, privacy_policy_published_at, terms_of_purchase, terms_of_purchase_version, terms_of_purchase_published_at, show_legal_footer, updated_at')
-                          .eq('account_id', account.id)
-                          .maybeSingle();
-
-                       applyBusinessSettings(settings);
-                   }
-                }
-             } catch (bsErr) {
-                console.warn("Could not load business settings", bsErr);
+             if (!checkout.active) {
+                setError(t('checkout.inactive', 'Este checkout esta inativo no momento.'));
+                setLoading(false);
+                return;
              }
+
+             // Public checkout receives only the legal/support projection, never
+             // direct rows from business_settings or accounts.
+            try {
+               applyBusinessSettings(await storage.getPublicBusinessSettings());
+            } catch (businessSettingsError) {
+               console.warn("Could not load public business settings", businessSettingsError);
+            }
 
             // 2. Get Main Product (Public)
             const mainProduct = await storage.getPublicProduct(checkout.product_id);
-
-            // Member-area checkouts can point checkout.user_id to an access/user context.
-            // The public legal footer must follow the checkout product owner.
-            if (checkout.product_id) {
-               try {
-                  const { data: productOwner } = await supabase
-                     .from('products')
-                     .select('user_id')
-                     .eq('id', checkout.product_id)
-                     .maybeSingle();
-
-                  if (productOwner?.user_id) {
-                     const { data: account } = await supabase
-                        .from('accounts')
-                        .select('id')
-                        .eq('owner_user_id', productOwner.user_id)
-                        .maybeSingle();
-
-                     if (account?.id) {
-                        const { data: settings } = await supabase
-                           .from('business_settings')
-                           .select('business_name, legal_name, legal_responsible_email, support_email, support_whatsapp, privacy_policy, privacy_policy_version, privacy_policy_published_at, terms_of_purchase, terms_of_purchase_version, terms_of_purchase_published_at, show_legal_footer, updated_at')
-                           .eq('account_id', account.id)
-                           .maybeSingle();
-
-                        applyBusinessSettings(settings);
-                     }
-                  }
-               } catch (bsFallbackErr) {
-                  console.warn("Could not load fallback business settings", bsFallbackErr);
-               }
-            }
-
-            // Final single-tenant fallback: on Vercel installs the checkout/member-area
-            // URL may not map to a custom domain, so use the installation business settings.
-            try {
-               const hostnameSettings = await storage.getBusinessSettingsByHostname(window.location.hostname);
-               applyBusinessSettings(hostnameSettings);
-            } catch (hostnameSettingsErr) {
-               console.warn("Could not load hostname business settings", hostnameSettingsErr);
-            }
 
             const gatewayIds = collectCheckoutRoutingGatewayIds({
                config: checkout.config,
