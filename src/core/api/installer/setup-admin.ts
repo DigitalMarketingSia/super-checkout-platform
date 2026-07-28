@@ -8,6 +8,10 @@ import {
     normalizeBootstrapDomain,
     validateSetupBootstrapToken,
 } from './setup-bootstrap.js';
+import {
+    recordRejectedSetupAdminAttempt,
+    type SetupAdminRejectionReason,
+} from './setup-admin-audit.js';
 
 type SetupBody = {
     name?: string;
@@ -206,14 +210,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const setupToken = String(body.setup_token || '').trim();
     const requestedInstallationId = String(body.installation_id || '').trim();
 
-    if (!name || !email || !password || !setupToken) {
-        return res.status(400).json({ error: 'Nome, e-mail, senha e setup_token sao obrigatorios.' });
-    }
-
-    if (password.length < 6) {
-        return res.status(400).json({ error: 'A senha deve ter pelo menos 6 caracteres.' });
-    }
-
     const supabase = createClient(supabaseUrl, serviceKey, {
         auth: {
             autoRefreshToken: false,
@@ -221,11 +217,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
     });
 
+    const rejectSetupAttempt = async (
+        status: number,
+        error: string,
+        reason: SetupAdminRejectionReason,
+        installationId?: string | null,
+    ) => {
+        await recordRejectedSetupAdminAttempt(supabase, {
+            request: req,
+            reason,
+            responseStatus: status,
+            email,
+            installationId,
+            requestedInstallationId,
+        });
+        return res.status(status).json({ error });
+    };
+
+    if (!name || !email || !password || !setupToken) {
+        return rejectSetupAttempt(400, 'Nome, e-mail, senha e setup_token sao obrigatorios.', 'invalid_request');
+    }
+
+    if (password.length < 6) {
+        return rejectSetupAttempt(400, 'A senha deve ter pelo menos 6 caracteres.', 'password_policy_rejected');
+    }
+
     try {
         const requestDomain = normalizeBootstrapDomain(req.headers['x-forwarded-host'] || req.headers.host || '');
         const bootstrapValidation = await validateSetupBootstrapToken(supabase, setupToken, requestDomain);
         if (!bootstrapValidation.valid) {
-            return res.status(403).json({ error: 'Token de bootstrap invalido ou expirado.' });
+            return rejectSetupAttempt(403, 'Token de bootstrap invalido ou expirado.', 'bootstrap_invalid');
         }
 
         const installationId = bootstrapValidation.state.installationId || '';
@@ -234,11 +255,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             : null;
 
         if (!installationId) {
-            return res.status(403).json({ error: 'Bootstrap sem installation_id valido.' });
+            return rejectSetupAttempt(403, 'Bootstrap sem installation_id valido.', 'bootstrap_missing_installation');
         }
 
         if (requestedInstallationId && requestedInstallationId !== installationId) {
-            return res.status(403).json({ error: 'installation_id nao corresponde ao bootstrap autorizado.' });
+            return rejectSetupAttempt(403, 'installation_id nao corresponde ao bootstrap autorizado.', 'installation_mismatch', installationId);
         }
 
         const rateLimit = enforceApiRateLimit(req, res, {
@@ -249,13 +270,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
 
         if (!rateLimit.allowed) {
-            return res.status(429).json({ error: 'Muitas tentativas de setup. Tente novamente mais tarde.' });
+            return rejectSetupAttempt(429, 'Muitas tentativas de setup. Tente novamente mais tarde.', 'rate_limited', installationId);
         }
 
         const required = await isSetupRequired(supabase, installationId);
         if (!required) {
             await clearSetupBootstrapToken(supabase);
-            return res.status(409).json({ error: 'Esta instalacao ja possui um administrador.' });
+            return rejectSetupAttempt(409, 'Esta instalacao ja possui um administrador.', 'setup_already_completed', installationId);
         }
 
         const { count, error: adminCountError } = await supabase
@@ -266,7 +287,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (adminCountError) throw adminCountError;
         if ((count || 0) > 0) {
             await clearSetupBootstrapToken(supabase);
-            return res.status(409).json({ error: 'Esta instalacao ja possui um administrador.' });
+            return rejectSetupAttempt(409, 'Esta instalacao ja possui um administrador.', 'setup_already_completed', installationId);
         }
 
         const userMetadata = {
@@ -343,6 +364,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
     } catch (error: any) {
         console.error('[setup-admin] error:', error?.message || error);
-        return res.status(500).json({ error: 'Falha ao criar administrador.' });
+        return rejectSetupAttempt(500, 'Falha ao criar administrador.', 'unexpected_failure');
     }
 }

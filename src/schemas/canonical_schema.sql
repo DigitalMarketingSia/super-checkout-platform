@@ -1089,6 +1089,22 @@ CREATE TABLE IF NOT EXISTS validation_logs(
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS public.security_events (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    event_type TEXT NOT NULL,
+    severity TEXT NOT NULL CHECK (severity IN ('INFO', 'WARNING', 'CRITICAL', 'FATAL')),
+    ip_address TEXT,
+    user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    metadata JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_security_events_ip_created
+    ON public.security_events(ip_address, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_security_events_type_severity
+    ON public.security_events(event_type, severity);
+
 -- 2.16 Installations (Agency/Multi-Tenant License Logic)
 CREATE TABLE IF NOT EXISTS installations(
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -1759,6 +1775,7 @@ ALTER TABLE track_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE gateways ENABLE ROW LEVEL SECURITY;
 ALTER TABLE licenses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE validation_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.security_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.accounts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.business_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.business_legal_document_versions ENABLE ROW LEVEL SECURITY;
@@ -2248,6 +2265,12 @@ CREATE POLICY "Service Role full access licenses" ON public.licenses TO service_
 
 CREATE POLICY "Admins can view validation logs" ON public.validation_logs FOR SELECT TO authenticated USING(public.is_admin());
 CREATE POLICY "Service Role full access validation logs" ON public.validation_logs TO service_role USING(true) WITH CHECK(true);
+
+REVOKE ALL ON public.security_events FROM anon, authenticated;
+GRANT SELECT ON public.security_events TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.security_events TO service_role;
+CREATE POLICY "Admins can view security events" ON public.security_events FOR SELECT TO authenticated USING(public.is_admin());
+CREATE POLICY "Service role can manage security events" ON public.security_events FOR ALL TO service_role USING(true) WITH CHECK(true);
 
 -- Product Contents
 CREATE POLICY "Users can manage product contents" ON product_contents FOR ALL USING(
