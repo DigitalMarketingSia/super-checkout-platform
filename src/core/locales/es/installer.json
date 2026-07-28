@@ -74,6 +74,12 @@
     "progress_finalize": "Finalizando la activaci\u00f3n y consumiendo el token de instalaci\u00f3n.",
     "progress_hint": "Despu\u00e9s de guardar las variables en Vercel, puede ser necesario hacer un Redeploy. Este paso puede tardar hasta cerca de 1 minuto."
   },
+  "central_trust": {
+    "title": "Credencial privada de la Central",
+    "description": "Copie estos valores en las variables de entorno Production del proyecto en Vercel y luego haga un nuevo deploy. Cada instalacion tiene su propia credencial.",
+    "one_time_warning": "Este secreto aparece solo en este paso. No cierre ni recargue antes de copiarlo. Nunca use una variable VITE_* ni lo envie por correo, mensaje, captura de pantalla, hoja de calculo o codigo fuente.",
+    "confirm": "Ya configure los valores e hice el redeploy"
+  },
   "success": {
     "title": "¡Instalación Concluida!",
     "desc": "¡Felicidades! Su Super Checkout está configurado.",

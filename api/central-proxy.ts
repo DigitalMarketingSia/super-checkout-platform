@@ -2,6 +2,12 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import { enforceApiRateLimit } from '../src/core/api/_rate-limit.js';
 import { getLocalSupabaseServerConfig } from '../src/core/api/_supabase-server.js';
+import {
+    buildCentralInstallationTrustHeaders,
+    getCentralInstallationTrustConfig,
+    type CentralInstallationTrustConfig,
+    type CentralInstallationTrustScope,
+} from '../src/core/api/_central-installation-trust.js';
 
 const CRM_READ_ACTIONS = new Set([
     'get_partners',
@@ -77,12 +83,15 @@ function parseConfigValue(value: unknown): string | null {
     }
 }
 
-async function resolveServerLicenseKey(): Promise<string> {
-    const configuredKey = String(process.env.LICENSE_KEY || process.env.MASTER_LICENSE_KEY || '').trim();
-    if (configuredKey) return configuredKey;
+type ServerInstallationContext = {
+    installationId: string;
+    licenseKey: string;
+};
 
+async function resolveServerInstallationContext(): Promise<ServerInstallationContext | null> {
+    const configuredKey = String(process.env.LICENSE_KEY || process.env.MASTER_LICENSE_KEY || '').trim();
     const { supabaseUrl, serverKey } = getLocalSupabaseServerConfig();
-    if (!supabaseUrl || !serverKey) return '';
+    if (!supabaseUrl || !serverKey) return null;
 
     const supabase = createClient(supabaseUrl, serverKey, {
         auth: { autoRefreshToken: false, persistSession: false },
@@ -93,14 +102,16 @@ async function resolveServerLicenseKey(): Promise<string> {
         .eq('key', 'installation_id')
         .maybeSingle();
     const installationId = parseConfigValue(config?.value);
-    if (!installationId) return '';
+    if (!installationId) return null;
 
     const { data: installation } = await supabase
         .from('installations')
         .select('license_key, status')
         .eq('installation_id', installationId)
         .maybeSingle();
-    if (!installation?.license_key || installation.status !== 'active') return '';
+    if (!installation?.license_key || installation.status !== 'active') return null;
+
+    if (configuredKey && configuredKey !== String(installation.license_key)) return null;
 
     const { data: license } = await supabase
         .from('licenses')
@@ -108,7 +119,15 @@ async function resolveServerLicenseKey(): Promise<string> {
         .eq('key', installation.license_key)
         .maybeSingle();
 
-    return license?.status === 'active' ? String(license.key) : '';
+    if (license?.status !== 'active') return null;
+    return {
+        installationId,
+        licenseKey: String(license.key),
+    };
+}
+
+async function resolveServerLicenseKey(): Promise<string> {
+    return (await resolveServerInstallationContext())?.licenseKey || '';
 }
 
 /**
@@ -654,6 +673,19 @@ function shouldForwardAdminSecret(
     return false;
 }
 
+function getInstallationTrustScope(
+    endpoint: string,
+    method: string | undefined,
+    requestBody: Record<string, any>,
+): CentralInstallationTrustScope | null {
+    if (method !== 'POST') return null;
+    if (endpoint === 'generate-install-token') return 'installation:self_service';
+    if (endpoint === 'manage-user-installations') return 'installation:self_service';
+    if (endpoint === 'upgrade-intents' && requestBody?.action === 'create_upgrade_intent') return 'upgrade:intents';
+    if (endpoint === 'system-update-runner') return 'system:update';
+    return null;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     // CORS Whitelist (Fase 15.1 — substitui wildcard '*')
     const origin = req.headers.origin;
@@ -939,7 +971,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             hasOwnerGradeControlPlaneAccess
         );
 
-        if (shouldSendAdminSecret && !centralSecret) {
+        const installationTrustScope = getInstallationTrustScope(endpoint, req.method, requestBody);
+        let installationTrustConfig: CentralInstallationTrustConfig | null = null;
+        let serverInstallationContext: ServerInstallationContext | null = null;
+
+        if (installationTrustScope) {
+            try {
+                installationTrustConfig = getCentralInstallationTrustConfig();
+                if (installationTrustConfig) {
+                    serverInstallationContext = await resolveServerInstallationContext();
+                    if (!serverInstallationContext || serverInstallationContext.installationId !== installationTrustConfig.installationId) {
+                        throw new Error('The Central installation identity does not match this deployment.');
+                    }
+                }
+            } catch (error: any) {
+                console.error(`[Central Proxy] Invalid per-installation trust configuration: ${error?.message || error}`);
+                return res.status(500).json({ error: 'Server configuration error: invalid Central installation trust credentials.' });
+            }
+        }
+
+        if (shouldSendAdminSecret && !installationTrustConfig && !centralSecret) {
             console.error(`[Central Proxy] Missing CENTRAL_SHARED_SECRET for trusted endpoint ${endpoint}`);
             return res.status(500).json({
                 error: 'Server configuration error: missing CENTRAL_SHARED_SECRET for trusted central action.',
@@ -1001,9 +1052,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const forwardHeaders: Record<string, string> = {
             'Content-Type': 'application/json',
         };
-        if (shouldSendAdminSecret && centralSecret) {
-            forwardHeaders['x-admin-secret'] = centralSecret;
-        }
 
         const fetchOptions: RequestInit = {
             method: req.method || 'GET',
@@ -1036,7 +1084,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     || (endpoint === 'manage-licenses' && CRM_READ_ACTIONS.has(bodyObj.action))
                     || (endpoint === 'upgrade-intents' && bodyObj.action === 'create_upgrade_intent')
                 ) {
-                    const serverLicenseKey = await resolveServerLicenseKey();
+                    const serverLicenseKey = serverInstallationContext?.licenseKey || await resolveServerLicenseKey();
                     if (!serverLicenseKey) {
                         return res.status(500).json({ error: 'Server configuration error: missing LICENSE_KEY' });
                     }
@@ -1053,6 +1101,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             } catch (e) {
                 fetchOptions.body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
             }
+        }
+
+        if (installationTrustConfig && installationTrustScope) {
+            const rawBody = typeof fetchOptions.body === 'string' ? fetchOptions.body : '';
+            Object.assign(forwardHeaders, buildCentralInstallationTrustHeaders({
+                config: installationTrustConfig,
+                method: req.method || 'POST',
+                endpoint,
+                rawBody,
+            }));
+        } else if (shouldSendAdminSecret && centralSecret) {
+            forwardHeaders['x-admin-secret'] = centralSecret;
         }
 
         const { response, responseData } = await fetchCentralWithInvokeKeyFallback({

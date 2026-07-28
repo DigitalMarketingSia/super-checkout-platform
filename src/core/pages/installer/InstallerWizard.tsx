@@ -13,7 +13,13 @@ import SQL_SCHEMA from '../../../schemas/canonical_schema.sql?raw';
 
 
 // Define the steps for the guided flow
-type Step = 'license' | 'supabase' | 'supabase_migrations' | 'supabase_keys' | 'deploy' | 'success' | 'check_subscription' | 'supabase_setup' | 'vercel_config';
+type Step = 'license' | 'supabase' | 'supabase_migrations' | 'supabase_keys' | 'deploy' | 'central_trust' | 'success' | 'check_subscription' | 'supabase_setup' | 'vercel_config';
+
+type CentralInstallationTrust = {
+    installationId: string;
+    credentialId: string;
+    credentialSecret: string;
+};
 
 const generatePaymentEncryptionKey = () => {
     const cryptoApi = globalThis.crypto;
@@ -134,6 +140,9 @@ export default function InstallerWizard() {
     // Never write them to storage, URLs, API requests, logs, or Central.
     const [manualServiceRoleKey, setManualServiceRoleKey] = useState('');
     const [manualPaymentEncryptionKey, setManualPaymentEncryptionKey] = useState('');
+    // Returned only once after the Central consumes the installation token.
+    // Never persist it in storage, the URL, logs or analytics.
+    const [centralInstallationTrust, setCentralInstallationTrust] = useState<CentralInstallationTrust | null>(null);
 
     // Vercel config
     const [vercelDomain, setVercelDomain] = useState('');
@@ -471,6 +480,16 @@ export default function InstallerWizard() {
             setInstallationId(payload.installation_id);
         }
 
+        const trust = payload?.central_installation_trust;
+        if (
+            trust
+            && typeof trust.installationId === 'string'
+            && typeof trust.credentialId === 'string'
+            && typeof trust.credentialSecret === 'string'
+        ) {
+            setCentralInstallationTrust(trust);
+        }
+
         return payload;
     };
 
@@ -517,11 +536,18 @@ export default function InstallerWizard() {
             setDeployProgressMessage(t('vercel_config.progress_verify'));
             await verifyDistributionBackend(cleanDomain, { licenseKey, installationId });
             setDeployProgressMessage(t('vercel_config.progress_finalize'));
-            await prepareTargetSetupBootstrap(cleanDomain);
+            const preparedSetup = await prepareTargetSetupBootstrap(cleanDomain);
+            const trust = preparedSetup?.central_installation_trust;
+            const hasInstallationTrust = Boolean(
+                trust
+                && typeof trust.installationId === 'string'
+                && typeof trust.credentialId === 'string'
+                && typeof trust.credentialSecret === 'string'
+            );
             localStorage.setItem('installer_vercel_domain', cleanDomain);
             runSuccessAnim('Domínio Ativado!', () => {
                 setDeployProgressMessage('');
-                setCurrentStep('success');
+                setCurrentStep(hasInstallationTrust ? 'central_trust' : 'success');
             });
 
         } catch (error: any) {
@@ -1325,6 +1351,41 @@ export default function InstallerWizard() {
                         </div>
                     )}
 
+                    {currentStep === 'central_trust' && centralInstallationTrust && (
+                        <div className="glass-panel border border-emerald-400/30 bg-emerald-500/5 backdrop-blur-xl rounded-2xl p-8 shadow-2xl animate-in fade-in slide-in-from-bottom-4">
+                            <div className="w-12 h-12 bg-emerald-500/20 rounded-xl flex items-center justify-center mb-6 text-emerald-300 shadow-lg shadow-emerald-500/10">
+                                <ShieldCheck className="w-6 h-6" />
+                            </div>
+                            <h1 className="text-2xl font-bold mb-2 text-white">{t('central_trust.title')}</h1>
+                            <p className="text-gray-300 mb-4">
+                                {t('central_trust.description')}
+                            </p>
+                            <div className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-4 text-sm text-amber-100 mb-6">
+                                {t('central_trust.one_time_warning')}
+                            </div>
+                            <div className="space-y-3 mb-6">
+                                {[
+                                    { k: 'CENTRAL_INSTALLATION_ID', v: centralInstallationTrust.installationId },
+                                    { k: 'CENTRAL_INSTALLATION_CREDENTIAL_ID', v: centralInstallationTrust.credentialId },
+                                    { k: 'CENTRAL_INSTALLATION_CREDENTIAL_SECRET', v: centralInstallationTrust.credentialSecret },
+                                ].map((env) => (
+                                    <button type="button" key={env.k} onClick={() => copyToClipboard(env.v, env.k)} className="w-full text-left flex items-center justify-between gap-3 bg-black/40 border border-white/10 p-3 rounded-xl hover:bg-white/10 group transition-all">
+                                        <div className="overflow-hidden flex-1">
+                                            <div className="text-xs text-gray-400 font-mono mb-1">{env.k}</div>
+                                            <div className="text-xs text-emerald-300 font-mono truncate">{env.v}</div>
+                                        </div>
+                                        <Copy className="w-4 h-4 text-gray-400 group-hover:text-white" />
+                                    </button>
+                                ))}
+                            </div>
+                            <button onClick={() => {
+                                setCentralInstallationTrust(null);
+                                setCurrentStep('success');
+                            }} className="w-full bg-emerald-400 hover:bg-emerald-300 text-black font-bold py-3 rounded-xl flex justify-center items-center gap-2">
+                                {t('central_trust.confirm')} <ChevronRight className="w-4 h-4" />
+                            </button>
+                        </div>
+                    )}
 
                     {/* --- STEP 5: SUCCESS --- */}
                     {currentStep === 'success' && (

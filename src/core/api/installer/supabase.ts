@@ -187,6 +187,22 @@ async function consumeCentralInstallToken(params: {
   if (!response.ok || !payload?.valid || !payload?.consumed) {
     throw new Error(payload?.message || 'Invalid installation token');
   }
+
+  const trust = payload?.installation_trust;
+  if (
+    !trust
+    || typeof trust.installation_id !== 'string'
+    || typeof trust.credential_id !== 'string'
+    || typeof trust.credential_secret !== 'string'
+  ) {
+    throw new Error('Central installation credential was not issued');
+  }
+
+  return {
+    installationId: trust.installation_id,
+    credentialId: trust.credential_id,
+    credentialSecret: trust.credential_secret,
+  };
 }
 
 async function ensureInstallerBuckets(supabase: any) {
@@ -1925,8 +1941,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           ttlMinutes: 60,
         });
 
+        let installationTrust: Awaited<ReturnType<typeof consumeCentralInstallToken>>;
         try {
-          await consumeCentralInstallToken({
+          installationTrust = await consumeCentralInstallToken({
             installToken,
             installationId,
             domain: runtimeTargetDomain,
@@ -1942,6 +1959,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           setup_token: preparedSetup.token,
           setup_expires_at: preparedSetup.expiresAt,
           domain: runtimeTargetDomain,
+          central_installation_trust: installationTrust,
         });
       }
 

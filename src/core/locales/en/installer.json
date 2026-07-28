@@ -74,6 +74,12 @@
     "progress_finalize": "Finalizing activation and consuming the installation token.",
     "progress_hint": "After saving the variables in Vercel, you may need to trigger a Redeploy. This step can take up to about 1 minute."
   },
+  "central_trust": {
+    "title": "Private Central credential",
+    "description": "Copy these values to the Vercel project Environment Variables for Production, then redeploy. Each installation has its own credential.",
+    "one_time_warning": "This secret appears only in this step. Do not close or reload before copying it. Never use a VITE_* variable or send it by email, message, screenshot, spreadsheet, or source code.",
+    "confirm": "I configured the values and redeployed"
+  },
   "success": {
     "title": "Installation Completed!",
     "desc": "Congratulations! Your Super Checkout is configured.",
