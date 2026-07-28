@@ -116,6 +116,13 @@ function getAuthToken(req: VercelRequest): string {
   return authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
 }
 
+function getDirectAccountTarget(req: VercelRequest): 'local' | 'central' {
+  const queryTarget = Array.isArray(req.query.target) ? req.query.target[0] : req.query.target;
+  const bodyTarget = (req.body as any)?.target;
+  const target = String(queryTarget || bodyTarget || '').trim().toLowerCase();
+  return target === 'central' ? 'central' : 'local';
+}
+
 async function resolveStoredLoginSession(admin: any, storedSession: any, expectedUserId: string) {
   const accessToken = String(storedSession?.access_token || '');
   if (accessToken) {
@@ -253,14 +260,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const action = getAction(req);
-    const supabaseUrl = getSupabaseUrl();
-    const serviceKey = getSupabaseServiceKey();
+    let supabaseUrl = getSupabaseUrl();
+    let serviceKey = getSupabaseServiceKey();
     let admin: any = null;
     if (supabaseUrl && serviceKey) {
       admin = createClient(supabaseUrl, serviceKey, {
         auth: { autoRefreshToken: false, persistSession: false },
       });
     }
+
+    const useDirectAccountTarget = (target: 'local' | 'central') => {
+      supabaseUrl = getSupabaseUrl(target);
+      serviceKey = getSupabaseServiceKey(target);
+      admin = null;
+
+      if (supabaseUrl && serviceKey) {
+        admin = createClient(supabaseUrl, serviceKey, {
+          auth: { autoRefreshToken: false, persistSession: false },
+        });
+      }
+
+      return Boolean(supabaseUrl && serviceKey && admin);
+    };
 
     const requireDefaultAdmin = () => {
       if (!supabaseUrl || !serviceKey || !admin) {
@@ -271,7 +292,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
 
     if (action === 'setup') {
-    if (!requireDefaultAdmin()) return;
+    const target = getDirectAccountTarget(req);
+    if (!useDirectAccountTarget(target) || !requireDefaultAdmin()) return;
     const token = getAuthToken(req);
     if (!token) return res.status(401).json({ error: 'Missing authorization token.' });
 
@@ -322,6 +344,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         email: maskEmail(user.email || ''),
         issuer: TWO_FACTOR_ISSUER,
         source: 'settings_2fa_setup',
+        target,
       },
     });
 
@@ -868,7 +891,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    if (!requireDefaultAdmin()) return;
+    const target = getDirectAccountTarget(req);
+    if (!useDirectAccountTarget(target) || !requireDefaultAdmin()) return;
 
     const token = getAuthToken(req);
     if (!token) return res.status(401).json({ error: 'Missing authorization token.' });
@@ -931,6 +955,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           email: maskEmail(profile.email || user.email || ''),
           source: 'auth_2fa_verify',
           flow: 'enable',
+          target,
         },
       });
       return res.status(401).json({ error: 'Código TOTP inválido.' });
@@ -961,6 +986,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         email: maskEmail(profile.email || user.email || ''),
         source: 'auth_2fa_verify',
         flow: 'enable',
+        target,
       },
     });
 
@@ -971,7 +997,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (action === 'disable') {
-    if (!requireDefaultAdmin()) return;
+    const target = getDirectAccountTarget(req);
+    if (!useDirectAccountTarget(target) || !requireDefaultAdmin()) return;
     const { code } = req.body || {};
     const normalizedCode = normalizeTotpCode(code);
     if (!normalizedCode || normalizedCode.length < 6) {
@@ -1038,6 +1065,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         metadata: {
           email: maskEmail(profile.email || user.email || ''),
           source: 'auth_2fa_disable',
+          target,
         },
       });
       return res.status(401).json({ error: 'Código TOTP inválido.' });
@@ -1068,6 +1096,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       metadata: {
         email: maskEmail(profile.email || user.email || ''),
         source: 'auth_2fa_disable',
+        target,
       },
     });
 

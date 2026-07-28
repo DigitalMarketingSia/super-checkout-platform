@@ -24,6 +24,10 @@ export const TWO_FACTOR_CHALLENGE_TTL_MS = 5 * 60 * 1000;
 export const STATELESS_LOGIN_CHALLENGE_PREFIX = 'sc2fa:v1:';
 const DEV_CENTRAL_API_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co/functions/v1';
 const DEV_CENTRAL_SUPABASE_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co';
+// The Central project is the official account directory used by the Portal.
+// This URL is public (it is not a credential); environment variables still
+// take precedence so a controlled Central environment can be configured.
+const OFFICIAL_CENTRAL_SUPABASE_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co';
 const STATELESS_CHALLENGE_TTL_SEC = 10 * 60;
 
 type UpstashResponse<T> = { result?: T; error?: string };
@@ -115,9 +119,12 @@ export async function logSecurityEvent(params: {
 
 export function getSupabaseUrl(target?: string): string {
   if (target === 'central') {
-    return process.env.VITE_CENTRAL_SUPABASE_URL
+    return process.env.CENTRAL_SUPABASE_URL
+      || process.env.VITE_CENTRAL_SUPABASE_URL
       || process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_URL
       || process.env.VITE_CENTRAL_API_URL?.replace('/functions/v1', '')
+      || process.env.NEXT_PUBLIC_CENTRAL_API_URL?.replace('/functions/v1', '')
+      || OFFICIAL_CENTRAL_SUPABASE_URL
       || getDevFallback(DEV_CENTRAL_API_URL.replace('/functions/v1', ''))
       || getDevFallback(DEV_CENTRAL_SUPABASE_URL);
   }
@@ -143,7 +150,15 @@ export function getSupabaseAnonKey(target?: string): string {
     || '';
 }
 
-export function getSupabaseServiceKey(): string {
+export function getSupabaseServiceKey(target?: string): string {
+  if (target === 'central') {
+    return process.env.CENTRAL_SUPABASE_SECRET_KEY
+      || process.env.CENTRAL_SUPABASE_SECRET_KEY_NEW
+      || process.env.CENTRAL_SUPABASE_SERVICE_ROLE_KEY
+      || process.env.CENTRAL_SUPABASE_SERVICE_ROLE_KEY_NEW
+      || '';
+  }
+
   return process.env.SUPABASE_SECRET_KEY
     || process.env.SUPABASE_SERVICE_ROLE_KEY
     || '';
