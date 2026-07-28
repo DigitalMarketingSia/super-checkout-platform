@@ -3504,8 +3504,6 @@ NOTIFY pgrst, 'reload schema';
 
 -- Public data hardening (v1.0.36): browser clients read only the projections
 -- below. Direct tables retain owner/member/server access but no broad anon read.
-BEGIN;
-
 DROP POLICY IF EXISTS "Public read app_config" ON public.app_config;
 DROP POLICY IF EXISTS "Public can read installation id" ON public.app_config;
 CREATE POLICY "Public can read installation id"
@@ -3612,7 +3610,5 @@ COMMENT ON VIEW public.public_domains IS
   'Public domain lookup projection. Owner identifiers are intentionally absent.';
 COMMENT ON VIEW public.public_member_areas IS
   'Public member-area branding projection. Owner identifiers are intentionally absent.';
-
-COMMIT;
 
 NOTIFY pgrst, 'reload schema';

@@ -4,8 +4,6 @@
 -- sanitized views. Direct table access remains available only to the owner,
 -- authorised members, or server-side service_role code.
 
-BEGIN;
-
 DO $$
 BEGIN
   IF to_regclass('public.app_config') IS NOT NULL THEN
@@ -250,5 +248,3 @@ BEGIN
     WHERE id = target_id;
   END IF;
 END $$;
-
-COMMIT;
