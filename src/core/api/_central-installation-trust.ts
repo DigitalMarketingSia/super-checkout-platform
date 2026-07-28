@@ -2,6 +2,7 @@ import { createHash, createHmac, randomUUID } from 'node:crypto';
 
 export type CentralInstallationTrustScope =
   | 'installation:self_service'
+  | 'installation:read'
   | 'upgrade:intents'
   | 'system:update';
 

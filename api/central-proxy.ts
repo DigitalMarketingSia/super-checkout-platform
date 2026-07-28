@@ -678,12 +678,15 @@ function getInstallationTrustScope(
     method: string | undefined,
     requestBody: Record<string, any>,
 ): CentralInstallationTrustScope | null {
+    if (endpoint === 'get-license-status' && method === 'GET') return 'installation:read';
+    if (endpoint === 'manage-user-installations' && method === 'GET') return 'installation:self_service';
     if (method !== 'POST') return null;
     if (endpoint === 'generate-install-token') return 'installation:self_service';
     if (
         endpoint === 'manage-user-installations'
         && requestBody?.action !== 'issue_installation_trust_credential'
     ) return 'installation:self_service';
+    if (endpoint === 'check-entitlement' || endpoint === 'account-flags') return 'installation:read';
     if (endpoint === 'upgrade-intents' && requestBody?.action === 'create_upgrade_intent') return 'upgrade:intents';
     if (endpoint === 'system-update-runner') return 'system:update';
     return null;
