@@ -23,6 +23,7 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../services/supabase';
+import { licenseService, type CentralInstallationTrustCredential } from '../../services/licenseService';
 import { getApiUrl } from '../../utils/apiUtils';
 import { logSecurityEvent } from '../../services/securityAuditClient';
 import { getSupabaseAuthCaptchaSiteKey, isSupabaseAuthCaptchaEnabled } from '../../config/authCaptcha';
@@ -84,6 +85,9 @@ export const Settings = () => {
     const [twoFactorSetupLoading, setTwoFactorSetupLoading] = useState(false);
     const [twoFactorSubmitLoading, setTwoFactorSubmitLoading] = useState(false);
     const [twoFactorMessage, setTwoFactorMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+    const [centralInstallationTrust, setCentralInstallationTrust] = useState<CentralInstallationTrustCredential | null>(null);
+    const [centralInstallationTrustLoading, setCentralInstallationTrustLoading] = useState(false);
+    const [centralInstallationTrustMessage, setCentralInstallationTrustMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
     const [defaultLocale, setDefaultLocale] = useState('en');
     const [defaultCurrency, setDefaultCurrency] = useState('USD');
@@ -329,6 +333,57 @@ export const Settings = () => {
             setTwoFactorMessage(errorMessage);
         } finally {
             setTwoFactorSubmitLoading(false);
+        }
+    };
+
+    const handleIssueCentralInstallationTrust = async () => {
+        const confirmed = window.confirm(t(
+            'account_settings.security.central_trust.confirmation',
+            'Esta credencial privada aparece uma unica vez. Copie os tres valores para a Vercel antes de fechar ou recarregar esta pagina. Deseja continuar?'
+        ));
+        if (!confirmed) return;
+
+        setCentralInstallationTrustLoading(true);
+        setCentralInstallationTrustMessage(null);
+
+        try {
+            const trust = await licenseService.issueExistingInstallationTrust();
+            setCentralInstallationTrust(trust);
+            setCentralInstallationTrustMessage({
+                type: 'success',
+                text: t(
+                    'account_settings.security.central_trust.issued',
+                    'Credencial emitida. Copie os tres valores abaixo antes de sair desta pagina.'
+                ),
+            });
+        } catch (error: any) {
+            setCentralInstallationTrustMessage({
+                type: 'error',
+                text: error?.message || t(
+                    'account_settings.security.central_trust.error',
+                    'Nao foi possivel emitir a credencial privada da Central.'
+                ),
+            });
+        } finally {
+            setCentralInstallationTrustLoading(false);
+        }
+    };
+
+    const copyCentralInstallationTrustValue = async (value: string, label: string) => {
+        try {
+            await navigator.clipboard.writeText(value);
+            setCentralInstallationTrustMessage({
+                type: 'success',
+                text: t('account_settings.security.central_trust.copied', '{{label}} copiado.', { label }),
+            });
+        } catch {
+            setCentralInstallationTrustMessage({
+                type: 'error',
+                text: t(
+                    'account_settings.security.central_trust.copy_error',
+                    'Nao foi possivel copiar automaticamente. Mantenha esta pagina aberta e tente novamente.'
+                ),
+            });
         }
     };
 
@@ -836,6 +891,91 @@ export const Settings = () => {
                                             </div>
                                         </div>
                                     )}
+
+                                    <div className="space-y-4 pt-6 border-t border-white/5">
+                                        <div className="flex items-start gap-3">
+                                            <div className="p-2 rounded-lg bg-sky-500/10 text-sky-300 border border-sky-400/20">
+                                                <ShieldCheck className="w-4 h-4" />
+                                            </div>
+                                            <div>
+                                                <h4 className="text-xs font-black uppercase tracking-wider text-white">
+                                                    {t('account_settings.security.central_trust.title', 'Credencial privada da Central')}
+                                                </h4>
+                                                <p className="mt-1 text-xs text-gray-400 leading-relaxed">
+                                                    {t(
+                                                        'account_settings.security.central_trust.description',
+                                                        'Use somente para migrar esta instalacao antiga. Cada valor pertence apenas a este projeto e nao pode ser recuperado depois.'
+                                                    )}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {centralInstallationTrustMessage && (
+                                            <div className={`p-3 rounded-xl border text-xs flex items-center gap-2 ${centralInstallationTrustMessage.type === 'success'
+                                                ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-300'
+                                                : 'bg-rose-500/10 border-rose-500/25 text-rose-300'
+                                                }`}>
+                                                {centralInstallationTrustMessage.type === 'success'
+                                                    ? <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                                                    : <AlertCircle className="w-4 h-4 flex-shrink-0" />}
+                                                <span>{centralInstallationTrustMessage.text}</span>
+                                            </div>
+                                        )}
+
+                                        {!centralInstallationTrust ? (
+                                            <Button
+                                                type="button"
+                                                onClick={handleIssueCentralInstallationTrust}
+                                                disabled={centralInstallationTrustLoading}
+                                                className="w-full h-11 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold uppercase tracking-wider text-xs flex items-center justify-center gap-2"
+                                            >
+                                                {centralInstallationTrustLoading
+                                                    ? <Loader2 className="w-4 h-4 animate-spin" />
+                                                    : <ShieldCheck className="w-4 h-4" />}
+                                                {centralInstallationTrustLoading
+                                                    ? t('account_settings.security.central_trust.issuing', 'Emitindo...')
+                                                    : t('account_settings.security.central_trust.issue', 'Emitir credencial unica')}
+                                            </Button>
+                                        ) : (
+                                            <div className="space-y-3 rounded-xl border border-amber-400/25 bg-amber-400/5 p-4">
+                                                <p className="text-xs text-amber-100 leading-relaxed">
+                                                    {t(
+                                                        'account_settings.security.central_trust.warning',
+                                                        'Copie cada valor e cole na variavel Production correspondente da Vercel. Nao feche nem recarregue esta pagina ate terminar.'
+                                                    )}
+                                                </p>
+                                                {[
+                                                    ['CENTRAL_INSTALLATION_ID', centralInstallationTrust.installationId],
+                                                    ['CENTRAL_INSTALLATION_CREDENTIAL_ID', centralInstallationTrust.credentialId],
+                                                    ['CENTRAL_INSTALLATION_CREDENTIAL_SECRET', centralInstallationTrust.credentialSecret],
+                                                ].map(([label, value]) => (
+                                                    <Button
+                                                        type="button"
+                                                        key={label}
+                                                        variant="outline"
+                                                        onClick={() => copyCentralInstallationTrustValue(value, label)}
+                                                        className="w-full min-h-11 justify-between border-white/10 bg-black/20 px-3 text-left font-mono text-[10px] text-white hover:bg-white/5"
+                                                    >
+                                                        <span className="truncate">{label}</span>
+                                                        <span className="ml-3 flex-shrink-0 text-sky-300">
+                                                            {t('account_settings.security.central_trust.copy', 'Copiar')}
+                                                        </span>
+                                                    </Button>
+                                                ))}
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    onClick={() => {
+                                                        setCentralInstallationTrust(null);
+                                                        setCentralInstallationTrustMessage(null);
+                                                    }}
+                                                    className="w-full text-xs font-bold text-gray-300 hover:text-white"
+                                                >
+                                                    {t('account_settings.security.central_trust.done', 'Copiei os tres valores')}
+                                                </Button>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         )}

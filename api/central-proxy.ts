@@ -680,7 +680,10 @@ function getInstallationTrustScope(
 ): CentralInstallationTrustScope | null {
     if (method !== 'POST') return null;
     if (endpoint === 'generate-install-token') return 'installation:self_service';
-    if (endpoint === 'manage-user-installations') return 'installation:self_service';
+    if (
+        endpoint === 'manage-user-installations'
+        && requestBody?.action !== 'issue_installation_trust_credential'
+    ) return 'installation:self_service';
     if (endpoint === 'upgrade-intents' && requestBody?.action === 'create_upgrade_intent') return 'upgrade:intents';
     if (endpoint === 'system-update-runner') return 'system:update';
     return null;
@@ -854,6 +857,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const controlPlaneAdminRole = hasSystemOwnerControlPlaneAccess ? 'master_admin' : (controlPlaneAdminAccess.role || '');
         const canCreateCommercialLicense = hasSystemOwnerControlPlaneAccess;
         const hasOwnerGradeControlPlaneAccess = hasSystemOwnerControlPlaneAccess;
+
+        if (endpoint === 'manage-user-installations' && action === 'issue_installation_trust_credential') {
+            if (req.method !== 'POST' || !hasLocalAdminAccess) {
+                console.warn(`[Central Proxy] Blocked installation trust migration attempt by ${maskedUserEmail}`);
+                return res.status(403).json({ error: 'Insufficient permissions' });
+            }
+
+            try {
+                if (getCentralInstallationTrustConfig()) {
+                    return res.status(409).json({
+                        error: 'This installation already uses a private Central credential. Use the documented rotation process instead.',
+                    });
+                }
+            } catch (error: any) {
+                console.error(`[Central Proxy] Invalid Central installation trust configuration: ${error?.message || error}`);
+                return res.status(500).json({ error: 'Server configuration error: invalid Central installation trust credentials.' });
+            }
+        }
 
         if (endpoint === 'create-commercial-license') {
             if (req.method !== 'POST') {
@@ -1070,6 +1091,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (endpoint === 'manage-user-installations' || endpoint === 'get-license-status') {
                     bodyObj.user_id = user.id;
                     bodyObj.email = user.email;
+                }
+
+                if (
+                    endpoint === 'manage-user-installations'
+                    && bodyObj.action === 'issue_installation_trust_credential'
+                ) {
+                    const issuanceContext = await resolveServerInstallationContext();
+                    if (!issuanceContext) {
+                        return res.status(500).json({ error: 'Server configuration error: active installation context is unavailable.' });
+                    }
+
+                    bodyObj.installation_id = issuanceContext.installationId;
+                    bodyObj.current_domain = getRequestDomain(req);
                 }
 
                 if (endpoint === 'create-commercial-license') {

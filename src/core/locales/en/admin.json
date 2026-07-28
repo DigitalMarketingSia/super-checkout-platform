@@ -698,7 +698,21 @@
       "change_password": "Change Password",
       "success": "Password changed successfully!",
       "error": "Error changing password",
-      "mismatch_error": "Passwords do not match"
+      "mismatch_error": "Passwords do not match",
+      "central_trust": {
+        "title": "Private Central credential",
+        "description": "Use this only to migrate a pre-existing installation. Each value belongs only to this project and cannot be recovered later.",
+        "confirmation": "This private credential is shown only once. Copy the three values to Vercel before closing or reloading this page. Continue?",
+        "issue": "Issue one-time credential",
+        "issuing": "Issuing...",
+        "issued": "Credential issued. Copy the three values below before leaving this page.",
+        "warning": "Copy each value to the matching Production variable in Vercel. Do not close or reload this page until finished.",
+        "copy": "Copy",
+        "copied": "{{label}} copied.",
+        "copy_error": "Could not copy automatically. Keep this page open and try again.",
+        "done": "I copied all three values",
+        "error": "Could not issue the private Central credential."
+      }
     },
     "system": {
       "title": "System Preferences",

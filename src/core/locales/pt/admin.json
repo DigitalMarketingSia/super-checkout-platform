@@ -698,7 +698,21 @@
       "change_password": "Alterar Senha",
       "success": "Senha alterada com sucesso!",
       "error": "Erro ao alterar senha",
-      "mismatch_error": "As senhas não coincidem"
+      "mismatch_error": "As senhas não coincidem",
+      "central_trust": {
+        "title": "Credencial privada da Central",
+        "description": "Use somente para migrar esta instalação antiga. Cada valor pertence apenas a este projeto e não pode ser recuperado depois.",
+        "confirmation": "Esta credencial privada aparece uma única vez. Copie os três valores para a Vercel antes de fechar ou recarregar esta página. Deseja continuar?",
+        "issue": "Emitir credencial única",
+        "issuing": "Emitindo...",
+        "issued": "Credencial emitida. Copie os três valores abaixo antes de sair desta página.",
+        "warning": "Copie cada valor e cole na variável Production correspondente da Vercel. Não feche nem recarregue esta página até terminar.",
+        "copy": "Copiar",
+        "copied": "{{label}} copiado.",
+        "copy_error": "Não foi possível copiar automaticamente. Mantenha esta página aberta e tente novamente.",
+        "done": "Copiei os três valores",
+        "error": "Não foi possível emitir a credencial privada da Central."
+      }
     },
     "system": {
       "title": "Preferências do Sistema",

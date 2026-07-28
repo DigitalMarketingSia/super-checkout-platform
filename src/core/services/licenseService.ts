@@ -37,6 +37,12 @@ export interface Installation {
     last_check_in: string;
 }
 
+export interface CentralInstallationTrustCredential {
+    installationId: string;
+    credentialId: string;
+    credentialSecret: string;
+}
+
 export interface LicenseFeature {
     id: string;
     license_key: string;
@@ -411,6 +417,40 @@ export const licenseService = {
             const err = await response.json();
             throw new Error(err.error || 'Falha ao desvincular instalação');
         }
+    },
+
+    /**
+     * One-time bridge for an installation that existed before Phase 41.4.
+     * The secret arrives only in this response and is intentionally never
+     * persisted by the browser.
+     */
+    async issueExistingInstallationTrust(): Promise<CentralInstallationTrustCredential> {
+        const response = await fetch(getProxyUrl('manage-user-installations'), {
+            method: 'POST',
+            headers: await getHeaders(),
+            body: JSON.stringify({ action: 'issue_installation_trust_credential' }),
+        });
+
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(payload?.error || 'Unable to issue private Central credential');
+        }
+
+        const trust = payload?.installation_trust;
+        if (
+            !trust
+            || typeof trust.installation_id !== 'string'
+            || typeof trust.credential_id !== 'string'
+            || typeof trust.credential_secret !== 'string'
+        ) {
+            throw new Error('Invalid private Central credential response');
+        }
+
+        return {
+            installationId: trust.installation_id,
+            credentialId: trust.credential_id,
+            credentialSecret: trust.credential_secret,
+        };
     },
 
     async getLicenseFeatures(licenseKey: string): Promise<LicenseFeature[]> {
