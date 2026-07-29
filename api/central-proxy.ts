@@ -9,6 +9,10 @@ import {
     type CentralInstallationTrustScope,
 } from '../src/core/api/_central-installation-trust.js';
 import {
+    buildCentralControlPlaneTrustHeaders,
+    getCentralControlPlaneHmacKey,
+} from '../src/core/api/_central-control-plane-trust.js';
+import {
     consumeSensitiveActionApproval,
     recordSensitiveActionAudit,
     type SensitiveActionPurpose,
@@ -835,6 +839,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // --- 2. Validate required env vars ---
     const centralApiUrl = getCentralApiUrl();
     const centralSecret = process.env.CENTRAL_SHARED_SECRET || process.env.SHARED_SECRET;
+    let controlPlaneHmacKey: string | null = null;
+    try {
+        controlPlaneHmacKey = getCentralControlPlaneHmacKey();
+    } catch (error: any) {
+        console.error(`[Central Proxy] Invalid CENTRAL_CONTROL_PLANE_HMAC_KEY: ${error?.message || error}`);
+        return res.status(500).json({ error: 'Server configuration error: invalid control-plane HMAC key.' });
+    }
     const centralInvokeKeyEnv = getCentralSupabaseInvokeKey();
     if (!centralApiUrl || !centralInvokeKeyEnv) {
         console.error('[Central Proxy] Missing CENTRAL_API_URL or CENTRAL_SUPABASE_SECRET_KEY/CENTRAL_SUPABASE_PUBLISHABLE_KEY');
@@ -1170,10 +1181,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             });
         }
 
-        if (shouldSendAdminSecret && !installationTrustScope && !centralSecret) {
+        if (shouldSendAdminSecret && !installationTrustScope && !controlPlaneHmacKey && !centralSecret) {
             console.error(`[Central Proxy] Missing CENTRAL_SHARED_SECRET for trusted endpoint ${endpoint}`);
             return res.status(500).json({
-                error: 'Server configuration error: missing CENTRAL_SHARED_SECRET for trusted central action.',
+                error: 'Server configuration error: missing control-plane trust configuration.',
             });
         }
 
@@ -1306,7 +1317,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 endpoint,
                 rawBody,
             }));
+        } else if (shouldSendAdminSecret && controlPlaneHmacKey) {
+            const rawBody = typeof fetchOptions.body === 'string' ? fetchOptions.body : '';
+            Object.assign(forwardHeaders, buildCentralControlPlaneTrustHeaders({
+                key: controlPlaneHmacKey,
+                method: req.method || 'POST',
+                endpoint,
+                rawBody,
+                queryString,
+            }));
         } else if (shouldSendAdminSecret && centralSecret) {
+            // Transitional fallback. It is used only while the control-plane
+            // HMAC key is not configured on both server-side deployments.
             forwardHeaders['x-admin-secret'] = centralSecret;
         }
 
