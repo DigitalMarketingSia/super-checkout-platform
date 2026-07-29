@@ -42,6 +42,24 @@
             "permanent": false
         },
         {
+            "source": "/register",
+            "has": [{ "type": "host", "value": "app.supercheckout.app" }],
+            "destination": "https://portal.supercheckout.app/register",
+            "permanent": false
+        },
+        {
+            "source": "/activate",
+            "has": [{ "type": "host", "value": "app.supercheckout.app" }],
+            "destination": "https://portal.supercheckout.app/activate",
+            "permanent": false
+        },
+        {
+            "source": "/activate/setup",
+            "has": [{ "type": "host", "value": "app.supercheckout.app" }],
+            "destination": "https://portal.supercheckout.app/activate/setup",
+            "permanent": false
+        },
+        {
             "source": "/activate",
             "has": [{ "type": "host", "value": "install.supercheckout.app" }],
             "destination": "https://portal.supercheckout.app/activate",
