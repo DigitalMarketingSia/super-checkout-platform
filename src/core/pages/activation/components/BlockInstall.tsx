@@ -6,6 +6,8 @@ import { getInstallerUrl } from '../../../config/platformUrls';
 import { GenerateLicenseGate } from './GenerateLicenseGate';
 import { Product } from '../../../types';
 import { openUpgradeCheckout } from '../../../services/upgradeCheckout';
+import { centralSupabase } from '../../../services/centralClient';
+import { getApiUrl } from '../../../utils/apiUtils';
 
 interface BlockInstallProps {
     license: License | null;
@@ -23,6 +25,7 @@ export const BlockInstall: React.FC<BlockInstallProps> = ({ license, installatio
     const [installUrl, setInstallUrl] = useState<string | null>(null);
     const [error, setError] = useState('');
     const [showConfirmReinstall, setShowConfirmReinstall] = useState(false);
+    const [twoFactorCode, setTwoFactorCode] = useState('');
 
     useEffect(() => {
         // If we just revoked (installations went to empty) AND we have a new URL, keep showing it.
@@ -39,7 +42,7 @@ export const BlockInstall: React.FC<BlockInstallProps> = ({ license, installatio
     // If there is ANY installation (active, pending, failed), we might need to revoke it
     const activeInstall = installations.find(i => i.status === 'active');
     const hasActiveInstall = !!activeInstall;
-    const generateLink = async (options: { resetExisting?: boolean } = {}) => {
+    const generateLink = async (options: { resetExisting?: boolean; sensitiveActionToken?: string } = {}) => {
         setGenerating(true);
         setError('');
         try {
@@ -48,23 +51,62 @@ export const BlockInstall: React.FC<BlockInstallProps> = ({ license, installatio
                 const url = getInstallerUrl(data.token);
                 setInstallUrl(url);
                 sessionStorage.setItem('activation_install_url', url);
+                return true;
             } else {
                 throw new Error(t('install.token_error'));
             }
         } catch (err: any) {
             setError(err.message || t('install.generic_error'));
+            return false;
         } finally {
             setGenerating(false);
         }
     };
 
+    const requestSensitiveApproval = async () => {
+        const code = twoFactorCode.replace(/[^\d]/g, '');
+        if (code.length !== 6) {
+            throw new Error('Digite o código de 6 dígitos do seu aplicativo autenticador.');
+        }
+
+        const { data: { session } } = await centralSupabase.auth.getSession();
+        if (!session?.access_token) {
+            throw new Error('Sua sessão do Portal expirou. Entre novamente antes de resetar a instalação.');
+        }
+
+        const response = await fetch(getApiUrl('/api/auth?route=2fa&action=verify-sensitive&target=central'), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({
+                action: 'verify-sensitive',
+                target: 'central',
+                purpose: 'installation_reset',
+                code,
+            }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload?.approval) {
+            throw new Error(payload?.error || 'Não foi possível confirmar a segurança da ação.');
+        }
+
+        return String(payload.approval);
+    };
+
     const handleReinstall = async () => {
-        // Emergency reset is intentionally database-backed: revoke old installs/tokens, then mint a fresh link.
+        // A reset revokes the previous installation and tokens, so it needs fresh owner TOTP.
         setRevoking(true);
+        setError('');
         try {
-            await generateLink({ resetExisting: true });
-            setShowConfirmReinstall(false);
-            if (onRefresh) onRefresh(); // Refresh parent to clear "active" state
+            const approval = await requestSensitiveApproval();
+            const generated = await generateLink({ resetExisting: true, sensitiveActionToken: approval });
+            if (generated) {
+                setShowConfirmReinstall(false);
+                setTwoFactorCode('');
+                if (onRefresh) onRefresh(); // Refresh parent to clear "active" state
+            }
         } catch (err: any) {
             setError(err.message || t('install.revoke_error'));
         } finally {
@@ -133,6 +175,22 @@ export const BlockInstall: React.FC<BlockInstallProps> = ({ license, installatio
                         {showConfirmReinstall && (
                             <div className="flex flex-col gap-4 bg-red-500/10 border border-red-500/20 p-6 rounded-[1.5rem] w-full md:w-80 animate-in zoom-in-95 duration-300">
                                 <p className="text-red-200 text-sm font-bold leading-relaxed italic">{t('install.reinstall_confirm', { domain: activeInstall?.domain })}</p>
+                                <div className="space-y-2">
+                                    <label className="block text-[10px] uppercase tracking-[0.16em] font-black text-red-200/80">
+                                        Código 2FA do Portal
+                                    </label>
+                                    <input
+                                        value={twoFactorCode}
+                                        onChange={(event) => setTwoFactorCode(event.target.value.replace(/[^\d]/g, '').slice(0, 6))}
+                                        inputMode="numeric"
+                                        autoComplete="one-time-code"
+                                        placeholder="000000"
+                                        className="w-full rounded-xl border border-red-400/30 bg-black/20 px-4 py-3 text-center text-lg tracking-[0.35em] font-black text-white outline-none focus:border-red-300"
+                                    />
+                                    <p className="text-xs text-red-100/70 leading-relaxed">
+                                        Esta confirmação vale uma única vez e expira em 5 minutos.
+                                    </p>
+                                </div>
                                 <div className="flex gap-3">
                                     <button
                                         onClick={handleReinstall}
@@ -142,7 +200,10 @@ export const BlockInstall: React.FC<BlockInstallProps> = ({ license, installatio
                                         {revoking ? <Loader2 className="w-4 h-4 animate-spin" /> : t('install.confirm_yes')}
                                     </button>
                                     <button
-                                        onClick={() => setShowConfirmReinstall(false)}
+                                        onClick={() => {
+                                            setShowConfirmReinstall(false);
+                                            setTwoFactorCode('');
+                                        }}
                                         disabled={revoking}
                                         className="px-5 bg-white/5 text-white rounded-xl text-xs font-bold hover:bg-white/10 transition-all border border-white/5"
                                     >
@@ -190,7 +251,7 @@ export const BlockInstall: React.FC<BlockInstallProps> = ({ license, installatio
                                             </button>
                                         </div>
                                         <button
-                                            onClick={handleReinstall}
+                                            onClick={() => setShowConfirmReinstall(true)}
                                             disabled={generating || revoking}
                                             className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-400/5 hover:bg-red-400/10 text-red-400/60 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-colors border border-red-400/10"
                                         >

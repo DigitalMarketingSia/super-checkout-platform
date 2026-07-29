@@ -1105,6 +1105,23 @@ CREATE INDEX IF NOT EXISTS idx_security_events_ip_created
 CREATE INDEX IF NOT EXISTS idx_security_events_type_severity
     ON public.security_events(event_type, severity);
 
+CREATE TABLE IF NOT EXISTS public.sensitive_action_grants (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    token_hash TEXT NOT NULL UNIQUE,
+    actor_fingerprint TEXT NOT NULL CHECK (actor_fingerprint ~ '^[a-f0-9]{64}$'),
+    purpose TEXT NOT NULL CHECK (purpose IN ('installation_reset', 'installation_revoke')),
+    issued_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc'::text, now()),
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    consumed_at TIMESTAMP WITH TIME ZONE,
+    consumed_by_endpoint TEXT,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    CONSTRAINT sensitive_action_grants_expiry_check CHECK (expires_at > issued_at)
+);
+
+CREATE INDEX IF NOT EXISTS idx_sensitive_action_grants_pending_expiry
+    ON public.sensitive_action_grants(expires_at)
+    WHERE consumed_at IS NULL;
+
 -- 2.16 Installations (Agency/Multi-Tenant License Logic)
 CREATE TABLE IF NOT EXISTS installations(
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -1466,7 +1483,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- 4.3 Check if Setup is Required
 CREATE OR REPLACE FUNCTION public.is_setup_required()
-RETURNS BOOLEAN
+RETURNS TEXT
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
@@ -1776,6 +1793,7 @@ ALTER TABLE gateways ENABLE ROW LEVEL SECURITY;
 ALTER TABLE licenses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE validation_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.security_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.sensitive_action_grants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.accounts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.business_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.business_legal_document_versions ENABLE ROW LEVEL SECURITY;
@@ -2271,6 +2289,96 @@ GRANT SELECT ON public.security_events TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.security_events TO service_role;
 CREATE POLICY "Admins can view security events" ON public.security_events FOR SELECT TO authenticated USING(public.is_admin());
 CREATE POLICY "Service role can manage security events" ON public.security_events FOR ALL TO service_role USING(true) WITH CHECK(true);
+
+REVOKE ALL ON public.sensitive_action_grants FROM anon, authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.sensitive_action_grants TO service_role;
+CREATE POLICY "Service role can manage sensitive action grants" ON public.sensitive_action_grants FOR ALL TO service_role USING(true) WITH CHECK(true);
+
+CREATE OR REPLACE FUNCTION public.consume_sensitive_action_grant(
+    p_token_hash TEXT,
+    p_actor_fingerprint TEXT,
+    p_purpose TEXT,
+    p_endpoint TEXT,
+    p_ip_address TEXT DEFAULT NULL
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    grant_id UUID;
+    outcome TEXT;
+BEGIN
+    SELECT id INTO grant_id
+    FROM public.sensitive_action_grants
+    WHERE token_hash = p_token_hash
+      AND actor_fingerprint = p_actor_fingerprint
+      AND purpose = p_purpose
+      AND consumed_at IS NULL
+      AND expires_at > timezone('utc'::text, now())
+    FOR UPDATE;
+
+    IF grant_id IS NULL THEN
+        SELECT CASE
+            WHEN EXISTS (
+                SELECT 1 FROM public.sensitive_action_grants
+                WHERE token_hash = p_token_hash
+                  AND actor_fingerprint = p_actor_fingerprint
+                  AND purpose = p_purpose
+                  AND consumed_at IS NULL
+                  AND expires_at <= timezone('utc'::text, now())
+            ) THEN 'expired'
+            WHEN EXISTS (
+                SELECT 1 FROM public.sensitive_action_grants
+                WHERE token_hash = p_token_hash
+                  AND actor_fingerprint = p_actor_fingerprint
+                  AND purpose = p_purpose
+                  AND consumed_at IS NOT NULL
+            ) THEN 'replayed'
+            ELSE 'rejected'
+        END INTO outcome;
+
+        INSERT INTO public.security_events(event_type, severity, ip_address, metadata)
+        VALUES (
+            CASE WHEN outcome = 'expired' THEN 'sensitive_action_approval_expired' ELSE 'sensitive_action_approval_rejected' END,
+            'WARNING',
+            NULLIF(left(coalesce(p_ip_address, ''), 120), ''),
+            jsonb_build_object(
+                'purpose', p_purpose,
+                'endpoint', left(coalesce(p_endpoint, ''), 120),
+                'actor_fingerprint', p_actor_fingerprint,
+                'outcome', outcome,
+                'source', 'central_proxy'
+            )
+        );
+        RETURN outcome;
+    END IF;
+
+    UPDATE public.sensitive_action_grants
+    SET consumed_at = timezone('utc'::text, now()),
+        consumed_by_endpoint = left(coalesce(p_endpoint, ''), 120)
+    WHERE id = grant_id;
+
+    INSERT INTO public.security_events(event_type, severity, ip_address, metadata)
+    VALUES (
+        'sensitive_action_approval_consumed',
+        'WARNING',
+        NULLIF(left(coalesce(p_ip_address, ''), 120), ''),
+        jsonb_build_object(
+            'purpose', p_purpose,
+            'endpoint', left(coalesce(p_endpoint, ''), 120),
+            'actor_fingerprint', p_actor_fingerprint,
+            'source', 'central_proxy'
+        )
+    );
+
+    RETURN 'consumed';
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.consume_sensitive_action_grant(TEXT, TEXT, TEXT, TEXT, TEXT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.consume_sensitive_action_grant(TEXT, TEXT, TEXT, TEXT, TEXT) TO service_role;
 
 -- Product Contents
 CREATE POLICY "Users can manage product contents" ON product_contents FOR ALL USING(

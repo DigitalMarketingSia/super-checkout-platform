@@ -21,6 +21,10 @@ import {
   TWO_FACTOR_ISSUER,
 } from './2fa/_shared.js';
 import { decrypt } from '../../core/utils/cryptoUtils.js';
+import {
+  issueSensitiveActionApproval,
+  type SensitiveActionPurpose,
+} from '../../core/api/_sensitive-action-approval.js';
 
 type TwoFactorChallengeRow = {
   id: string;
@@ -290,6 +294,109 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
       return admin;
     };
+
+    if (action === 'verify-sensitive') {
+      const target = getDirectAccountTarget(req);
+      const { code, purpose } = req.body || {};
+      const normalizedCode = normalizeTotpCode(code);
+      const normalizedPurpose = String(purpose || '').trim() as SensitiveActionPurpose;
+
+      if (target !== 'central') {
+        return res.status(400).json({ error: 'A confirmacao reforcada deve usar a conta do Portal Central.' });
+      }
+      if (!['installation_reset', 'installation_revoke'].includes(normalizedPurpose)) {
+        return res.status(400).json({ error: 'Acao sensivel invalida.' });
+      }
+      if (!normalizedCode || normalizedCode.length < 6) {
+        return res.status(400).json({ error: 'Digite o codigo TOTP de 6 digitos.' });
+      }
+      if (!useDirectAccountTarget(target) || !requireDefaultAdmin()) return;
+
+      const token = getAuthToken(req);
+      if (!token) return res.status(401).json({ error: 'Missing authorization token.' });
+
+      const { data: userData, error: userError } = await admin.auth.getUser(token);
+      if (userError || !userData.user) return res.status(401).json({ error: 'Invalid session.' });
+
+      const user = userData.user;
+      const { data: profile, error: profileError } = await admin
+        .from('profiles')
+        .select('id, email, totp_secret_encrypted, totp_enabled')
+        .eq('id', user.id)
+        .single();
+
+      if (profileError || !profile) {
+        return res.status(404).json({ error: 'Perfil nao encontrado.' });
+      }
+      if (!profile.totp_enabled || !profile.totp_secret_encrypted) {
+        return res.status(403).json({ error: 'Ative a 2FA do Portal antes de confirmar uma acao destrutiva.' });
+      }
+
+      let secret = '';
+      try {
+        secret = resolveTotpSecret(profile.totp_secret_encrypted);
+      } catch (secretError: any) {
+        if (secretError?.message === 'TOTP_DECRYPTION_FAILED') {
+          return res.status(500).json({
+            error: 'A configuracao de 2FA da Central nao pode ser validada. Verifique a chave de criptografia da Central.',
+            error_code: 'totp_secret_decryption_failed',
+          });
+        }
+        throw secretError;
+      }
+
+      const totpCheck = checkTotpCode(secret, normalizedCode);
+      if (totpCheck.error) {
+        return res.status(500).json({
+          error: `Nao foi possivel validar o codigo. ${totpCheck.error}`,
+          error_code: 'two_factor_runtime_validation_failed',
+        });
+      }
+      if (!totpCheck.ok) {
+        await logSecurityEvent({
+          supabaseUrl,
+          serviceKey,
+          eventType: 'sensitive_action_approval_rejected',
+          severity: 'WARNING',
+          ip: getIp(req),
+          userAgent: getUserAgent(req),
+          userId: user.id,
+          metadata: {
+            purpose: normalizedPurpose,
+            source: 'central_portal_totp_step_up',
+            target,
+          },
+        });
+        return res.status(401).json({ error: 'Codigo TOTP invalido.' });
+      }
+
+      const issued = await issueSensitiveActionApproval({
+        req,
+        actorUserId: user.id,
+        purpose: normalizedPurpose,
+      });
+
+      await logSecurityEvent({
+        supabaseUrl,
+        serviceKey,
+        eventType: 'sensitive_action_approval_verified',
+        severity: 'WARNING',
+        ip: getIp(req),
+        userAgent: getUserAgent(req),
+        userId: user.id,
+        metadata: {
+          purpose: normalizedPurpose,
+          source: 'central_portal_totp_step_up',
+          target,
+          expires_at: issued.expiresAt,
+        },
+      });
+
+      return res.status(200).json({
+        approval: issued.approval,
+        expires_at: issued.expiresAt,
+      });
+    }
 
     if (action === 'setup') {
     const target = getDirectAccountTarget(req);
@@ -1014,7 +1121,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const user = userData.user;
     const { data: profile, error: profileError } = await admin
       .from('profiles')
-      .select('id, email, totp_secret_encrypted, totp_enabled')
+      .select('id, email, role, totp_secret_encrypted, totp_enabled')
       .eq('id', user.id)
       .single();
 
@@ -1030,6 +1137,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (!profile.totp_secret_encrypted || !profile.totp_enabled) {
       return res.status(400).json({ error: '2FA já está desativado.' });
+    }
+
+    if (target === 'central' && profile.role === 'owner') {
+      await logSecurityEvent({
+        supabaseUrl,
+        serviceKey,
+        eventType: 'owner_two_factor_disable_blocked',
+        severity: 'CRITICAL',
+        ip: getIp(req),
+        userAgent: getUserAgent(req),
+        userId: user.id,
+        metadata: {
+          source: 'auth_2fa_disable',
+          target,
+        },
+      });
+      return res.status(403).json({
+        error: 'A 2FA do owner do Portal nao pode ser desativada pela aplicacao. Use o procedimento break-glass documentado se houver perda do autenticador.',
+      });
     }
 
     let secret = '';

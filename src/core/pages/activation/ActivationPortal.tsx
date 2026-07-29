@@ -16,6 +16,7 @@ import { BlockPartner } from './components/BlockPartner';
 import { BlockProfile } from './components/BlockProfile';
 import { BlockEarningsSimulator } from './components/BlockEarningsSimulator';
 import { BlockBasicDashboard, DemoExperienceCard } from './components/BlockBasicDashboard';
+import { BlockPortalSecurity } from './components/BlockPortalSecurity';
 import { EmailVerificationGate } from './components/EmailVerificationGate';
 import { getPlatformPrivacyUrl, getPlatformTermsUrl } from '../../config/platformUrls';
 import { useTranslation } from 'react-i18next';
@@ -98,6 +99,8 @@ export const ActivationPortal: React.FC = () => {
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [termsAccepted, setTermsAccepted] = useState(false);
     const [isEmailUnconfirmed, setIsEmailUnconfirmed] = useState(false);
+    const [isPortalOwner, setIsPortalOwner] = useState(false);
+    const [ownerTwoFactorEnabled, setOwnerTwoFactorEnabled] = useState(false);
     const [approvalState, setApprovalState] = useState<{ status: 'pending_approval' | 'rejected' | 'blocked'; notes?: string | null; blockedAt?: string | null } | null>(null);
     const [partnerOpportunityEnabled, setPartnerOpportunityEnabled] = useState(false);
     const [demoLoading, setDemoLoading] = useState(false);
@@ -223,9 +226,12 @@ export const ActivationPortal: React.FC = () => {
 
             const { data: profile } = await centralSupabase
                 .from('profiles')
-                .select('account_status, approval_notes, is_blocked, blocked_at')
+                .select('account_status, approval_notes, is_blocked, blocked_at, role, totp_enabled')
                 .eq('id', user.id)
                 .maybeSingle();
+
+            setIsPortalOwner(profile?.role === 'owner');
+            setOwnerTwoFactorEnabled(profile?.totp_enabled === true);
 
             if (profile?.is_blocked) {
                 setApprovalState({
@@ -485,6 +491,11 @@ export const ActivationPortal: React.FC = () => {
                                 {t('welcome.desc')}
                             </p>
                         </div>
+                        <BlockPortalSecurity
+                            enabled={ownerTwoFactorEnabled}
+                            isOwner={isPortalOwner}
+                            onEnabled={() => setOwnerTwoFactorEnabled(true)}
+                        />
                         {!isPartnerExperienceVisible && (
                             <BlockBasicDashboard
                                 license={license}

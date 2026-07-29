@@ -8,6 +8,11 @@ import {
     type CentralInstallationTrustConfig,
     type CentralInstallationTrustScope,
 } from '../src/core/api/_central-installation-trust.js';
+import {
+    consumeSensitiveActionApproval,
+    recordSensitiveActionAudit,
+    type SensitiveActionPurpose,
+} from '../src/core/api/_sensitive-action-approval.js';
 
 const CRM_READ_ACTIONS = new Set([
     'get_partners',
@@ -692,6 +697,85 @@ function getInstallationTrustScope(
     return null;
 }
 
+export function getSensitiveActionRequirement(
+    endpoint: string,
+    requestBody: Record<string, any>,
+): SensitiveActionPurpose | null {
+    if (
+        endpoint === 'generate-install-token'
+        && (requestBody?.reset_existing === true || requestBody?.emergency_reset === true)
+    ) {
+        return 'installation_reset';
+    }
+
+    if (endpoint === 'manage-user-installations') {
+        if (requestBody?.action === 'reset') return 'installation_reset';
+        if (requestBody?.action === 'revoke') return 'installation_revoke';
+    }
+
+    if (endpoint === 'manage-licenses') {
+        if (requestBody?.action === 'reinstall') return 'installation_reset';
+        if (requestBody?.action === 'revoke_installation') return 'installation_revoke';
+    }
+
+    return null;
+}
+
+async function queueSensitiveActionAlert(params: {
+    centralSupabaseUrl: string;
+    centralServiceKey: string;
+    recipient: string;
+    purpose: SensitiveActionPurpose;
+    ipAddress: string | string[] | undefined;
+}) {
+    if (!params.centralSupabaseUrl || !params.centralServiceKey || !params.recipient) return false;
+
+    try {
+        const central = createClient(params.centralSupabaseUrl, params.centralServiceKey, {
+            auth: { autoRefreshToken: false, persistSession: false },
+        });
+        const { data: integrations, error: integrationError } = await central
+            .from('integrations')
+            .select('config')
+            .eq('name', 'resend')
+            .eq('active', true)
+            .limit(1);
+        if (integrationError) return false;
+
+        const config = integrations?.[0]?.config || {};
+        const apiKey = String(config?.apiKey || config?.api_key || '').trim();
+        const from = String(config?.senderEmail || config?.from_email || '').trim();
+        if (!apiKey || !from) return false;
+
+        const operation = params.purpose === 'installation_reset' ? 'reset da instalacao' : 'revogacao da instalacao';
+        const rawIp = Array.isArray(params.ipAddress) ? params.ipAddress[0] : params.ipAddress;
+        const ip = String(rawIp || 'nao disponivel').split(',')[0].trim();
+        const response = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+                from,
+                to: [params.recipient],
+                subject: 'Alerta de seguranca: operacao destrutiva aprovada',
+                text: [
+                    `Uma confirmacao 2FA aprovou uma solicitacao de ${operation} no Portal Super Checkout.`,
+                    `Origem: ${ip}.`,
+                    'A operacao so prossegue apos esta notificacao ser aceita pelo servico de e-mail.',
+                    'Se nao foi voce, altere a senha do Portal, preserve o autenticador e revise os eventos de seguranca imediatamente.',
+                ].join('\n'),
+            }),
+        });
+
+        return response.ok;
+    } catch (error: any) {
+        console.warn('[Central Proxy] Sensitive action alert could not be queued:', error?.message || error);
+        return false;
+    }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     // CORS Whitelist (Fase 15.1 — substitui wildcard '*')
     const origin = req.headers.origin;
@@ -988,6 +1072,59 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
         }
 
+        const sensitiveActionPurpose = getSensitiveActionRequirement(endpoint, requestBody);
+        if (sensitiveActionPurpose) {
+            const approval = String(requestBody?.sensitive_action_token || '').trim();
+            if (!approval) {
+                await recordSensitiveActionAudit({
+                    req,
+                    eventType: 'sensitive_action_approval_missing',
+                    severity: 'WARNING',
+                    actorUserId: user.id,
+                    purpose: sensitiveActionPurpose,
+                });
+                return res.status(403).json({
+                    error: 'Confirmação de 2FA recente obrigatória para resetar ou revogar uma instalação.',
+                });
+            }
+
+            const approvalOutcome = await consumeSensitiveActionApproval({
+                req,
+                approval,
+                actorUserId: user.id,
+                purpose: sensitiveActionPurpose,
+                endpoint,
+            });
+            if (approvalOutcome !== 'consumed') {
+                return res.status(403).json({
+                    error: 'A confirmação de 2FA expirou, já foi usada ou não corresponde a esta ação.',
+                });
+            }
+
+            const alertQueued = await queueSensitiveActionAlert({
+                centralSupabaseUrl: centralSupUrl as string,
+                centralServiceKey: centralServiceKey || '',
+                recipient: userEmail,
+                purpose: sensitiveActionPurpose,
+                ipAddress: req.headers['x-forwarded-for'],
+            });
+            await recordSensitiveActionAudit({
+                req,
+                eventType: alertQueued ? 'sensitive_action_alert_queued' : 'sensitive_action_alert_failed',
+                severity: alertQueued ? 'INFO' : 'CRITICAL',
+                actorUserId: user.id,
+                purpose: sensitiveActionPurpose,
+            });
+            if (!alertQueued) {
+                return res.status(503).json({
+                    error: 'A notificacao de seguranca nao pode ser enviada. A instalacao nao foi alterada.',
+                });
+            }
+
+            // The opaque approval is consumed locally and must never be forwarded to Central.
+            delete requestBody.sensitive_action_token;
+        }
+
         const shouldSendAdminSecret = shouldForwardAdminSecret(
             endpoint,
             req.method,
@@ -1086,6 +1223,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (req.method !== 'GET' && req.method !== 'HEAD') {
             try {
                 const bodyObj = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+                // A step-up approval is valid only at this BFF and must never leave the installation.
+                delete bodyObj.sensitive_action_token;
                 // Inject verified user identity (trusted by proxy)
                 bodyObj._user_id = user.id;
                 bodyObj._user_email = user.email;
