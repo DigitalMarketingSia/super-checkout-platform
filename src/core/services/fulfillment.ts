@@ -1,4 +1,8 @@
 import crypto from 'crypto';
+import {
+  buildCentralInstallationTrustHeaders,
+  getCentralInstallationTrustConfig,
+} from '../api/_central-installation-trust.js';
 import { buildOrderDeliverables, stripSensitiveDeliverableFields } from './orderDeliverables.js';
 import { mergeOrderMetadata, normalizeOrderMetadata } from './orderMetadata.js';
 import { dispatchSaleApprovedPush } from './pushAutomation.js';
@@ -161,11 +165,33 @@ async function consumeUpgradeIntent(params: {
     process.env.VITE_CENTRAL_SUPABASE_ANON_KEY ||
     process.env.CENTRAL_SERVICE_ROLE_KEY ||
     '';
+  const installationTrust = getCentralInstallationTrustConfig();
   const sharedSecret = process.env.CENTRAL_SHARED_SECRET || process.env.SHARED_SECRET || '';
 
-  if (!centralInvokeKey || !sharedSecret) {
+  if (!centralInvokeKey || (!installationTrust && !sharedSecret)) {
     throw new Error('Missing Central credentials for upgrade intent consumption.');
   }
+
+  const rawBody = JSON.stringify({
+    action: 'consume_upgrade_intent',
+    token: params.token,
+    order_id: params.orderId,
+    purchased_plan_slugs: params.purchasedPlanSlugs,
+    payer_email: params.payerEmail,
+    payer_name: params.payerName,
+    payer_phone: params.payerPhone,
+    payer_cpf: params.payerCpf,
+    order_created_at: params.orderCreatedAt,
+    order_paid_at: params.orderPaidAt,
+  });
+  const trustHeaders = installationTrust
+    ? buildCentralInstallationTrustHeaders({
+      config: installationTrust,
+      method: 'POST',
+      endpoint: 'upgrade-intents',
+      rawBody,
+    })
+    : {};
 
   const response = await fetch(`${centralUrl}/functions/v1/upgrade-intents`, {
     method: 'POST',
@@ -173,20 +199,9 @@ async function consumeUpgradeIntent(params: {
       'Content-Type': 'application/json',
       apikey: centralInvokeKey,
       Authorization: `Bearer ${centralInvokeKey}`,
-      'x-admin-secret': sharedSecret,
+      ...(installationTrust ? trustHeaders : { 'x-admin-secret': sharedSecret }),
     },
-    body: JSON.stringify({
-      action: 'consume_upgrade_intent',
-      token: params.token,
-      order_id: params.orderId,
-      purchased_plan_slugs: params.purchasedPlanSlugs,
-      payer_email: params.payerEmail,
-      payer_name: params.payerName,
-      payer_phone: params.payerPhone,
-      payer_cpf: params.payerCpf,
-      order_created_at: params.orderCreatedAt,
-      order_paid_at: params.orderPaidAt,
-    }),
+    body: rawBody,
   });
 
   const responseText = await response.text();
