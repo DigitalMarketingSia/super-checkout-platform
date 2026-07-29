@@ -94,6 +94,8 @@ const eventLabels: Record<string, string> = {
   gateway_credentials_change_failed: 'Falha ao alterar gateway',
   two_factor_enabled: '2FA ativado',
   two_factor_disabled: '2FA desativado',
+  local_totp_reenrollment_rejected: 'Troca do 2FA local recusada',
+  central_totp_reenrollment_rejected: 'Troca do 2FA do Portal recusada',
 };
 
 function formatDate(value: string) {

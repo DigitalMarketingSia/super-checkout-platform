@@ -418,14 +418,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(404).json({ error: 'Perfil nao encontrado.' });
     }
 
-    // Replacing the Central authenticator is a privileged operation. A stolen
-    // Portal session alone must never be enough to overwrite the owner's TOTP
-    // secret or to create a window without MFA.
-    const isCentralReenrollment = target === 'central' && Boolean(profile.totp_enabled && profile.totp_secret_encrypted);
-    if (isCentralReenrollment) {
+    // Replacing an already active authenticator is a privileged operation for
+    // both account targets. A stolen session must never be enough to overwrite
+    // the current TOTP secret or to create a window without MFA.
+    const isTotpReenrollment = Boolean(profile.totp_enabled && profile.totp_secret_encrypted);
+    const targetLabel = target === 'central' ? 'Portal' : 'painel administrativo';
+    const reenrollmentRejectedEvent = target === 'central'
+      ? 'central_totp_reenrollment_rejected'
+      : 'local_totp_reenrollment_rejected';
+    if (isTotpReenrollment) {
       const currentCode = normalizeTotpCode(req.body?.current_code);
       if (!currentCode || currentCode.length !== 6) {
-        return res.status(403).json({ error: 'Digite o código atual do autenticador do Portal para trocar o aplicativo.' });
+        return res.status(403).json({ error: `Digite o código atual do autenticador do ${targetLabel} para trocar o aplicativo.` });
       }
 
       let currentSecret = '';
@@ -435,14 +439,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         await logSecurityEvent({
           supabaseUrl,
           serviceKey,
-          eventType: 'central_totp_reenrollment_rejected',
+          eventType: reenrollmentRejectedEvent,
           severity: 'WARNING',
           ip: getIp(req),
           userAgent: getUserAgent(req),
           userId: user.id,
           metadata: { reason: secretError?.message || 'secret_unavailable', source: 'settings_2fa_setup', target },
         });
-        return res.status(500).json({ error: 'Não foi possível validar a proteção atual do Portal.' });
+        return res.status(500).json({ error: `Não foi possível validar a proteção atual do ${targetLabel}.` });
       }
 
       const currentCheck = checkTotpCode(currentSecret, currentCode);
@@ -450,14 +454,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         await logSecurityEvent({
           supabaseUrl,
           serviceKey,
-          eventType: 'central_totp_reenrollment_rejected',
+          eventType: reenrollmentRejectedEvent,
           severity: 'WARNING',
           ip: getIp(req),
           userAgent: getUserAgent(req),
           userId: user.id,
           metadata: { reason: currentCheck.error ? 'validation_error' : 'invalid_current_code', source: 'settings_2fa_setup', target },
         });
-        return res.status(401).json({ error: 'O código atual do autenticador do Portal não foi aceito.' });
+        return res.status(401).json({ error: `O código atual do autenticador do ${targetLabel} não foi aceito.` });
       }
     }
 
@@ -477,9 +481,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .from('profiles')
       .update({
         totp_secret_encrypted: encryptChallenge({ secret }),
-        // Central re-enrollment keeps MFA mandatory. The new secret replaces
-        // the old one only after its code has been validated above.
-        ...(isCentralReenrollment ? {} : { totp_enabled: false, totp_verified_at: null }),
+        // Re-enrollment keeps MFA mandatory. The current authenticator code
+        // was validated above before a new secret can replace it.
+        ...(isTotpReenrollment ? {} : { totp_enabled: false, totp_verified_at: null }),
         updated_at: new Date().toISOString(),
       })
       .eq('id', user.id);
@@ -505,7 +509,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       metadata: {
         email: maskEmail(user.email || ''),
         issuer,
-        re_enrollment: isCentralReenrollment,
+        re_enrollment: isTotpReenrollment,
         source: 'settings_2fa_setup',
         target,
       },
