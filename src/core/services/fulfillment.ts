@@ -166,10 +166,9 @@ async function consumeUpgradeIntent(params: {
     process.env.CENTRAL_SERVICE_ROLE_KEY ||
     '';
   const installationTrust = getCentralInstallationTrustConfig();
-  const sharedSecret = process.env.CENTRAL_SHARED_SECRET || process.env.SHARED_SECRET || '';
 
-  if (!centralInvokeKey || (!installationTrust && !sharedSecret)) {
-    throw new Error('Missing Central credentials for upgrade intent consumption.');
+  if (!centralInvokeKey || !installationTrust) {
+    throw new Error('Missing private Central installation credential for upgrade intent consumption.');
   }
 
   const rawBody = JSON.stringify({
@@ -184,14 +183,12 @@ async function consumeUpgradeIntent(params: {
     order_created_at: params.orderCreatedAt,
     order_paid_at: params.orderPaidAt,
   });
-  const trustHeaders = installationTrust
-    ? buildCentralInstallationTrustHeaders({
-      config: installationTrust,
-      method: 'POST',
-      endpoint: 'upgrade-intents',
-      rawBody,
-    })
-    : {};
+  const trustHeaders = buildCentralInstallationTrustHeaders({
+    config: installationTrust,
+    method: 'POST',
+    endpoint: 'upgrade-intents',
+    rawBody,
+  });
 
   const response = await fetch(`${centralUrl}/functions/v1/upgrade-intents`, {
     method: 'POST',
@@ -199,7 +196,7 @@ async function consumeUpgradeIntent(params: {
       'Content-Type': 'application/json',
       apikey: centralInvokeKey,
       Authorization: `Bearer ${centralInvokeKey}`,
-      ...(installationTrust ? trustHeaders : { 'x-admin-secret': sharedSecret }),
+      ...trustHeaders,
     },
     body: rawBody,
   });

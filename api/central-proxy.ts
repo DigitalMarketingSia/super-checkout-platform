@@ -1158,7 +1158,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
         }
 
-        if (shouldSendAdminSecret && !installationTrustConfig && !centralSecret) {
+        // Every endpoint covered by an installation-trust scope must use the
+        // private credential. Falling back to a global secret here would let a
+        // client installation keep the legacy trust boundary indefinitely.
+        if (installationTrustScope && !installationTrustConfig) {
+            console.error(`[Central Proxy] Missing private installation credential for ${endpoint}`);
+            return res.status(503).json({
+                error: 'Server configuration error: missing private Central installation credential.',
+            });
+        }
+
+        if (shouldSendAdminSecret && !installationTrustScope && !centralSecret) {
             console.error(`[Central Proxy] Missing CENTRAL_SHARED_SECRET for trusted endpoint ${endpoint}`);
             return res.status(500).json({
                 error: 'Server configuration error: missing CENTRAL_SHARED_SECRET for trusted central action.',
@@ -1321,7 +1331,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const centralError = String(centralPayload?.error || centralPayload?.message || responseData || '');
 
             if (/unauthorized/i.test(centralError)) {
-                console.error('[Central Proxy] system-update-runner rejected x-admin-secret. Check CENTRAL_SHARED_SECRET in the installation Vercel project and Central Supabase secrets.');
+                console.error('[Central Proxy] system-update-runner rejected the installation HMAC credential. Check CENTRAL_INSTALLATION_* in the installation Vercel project and the Central trust records.');
                 return res.status(502).json({
                     success: false,
                     code: 'CENTRAL_AUTH_FAILED',
