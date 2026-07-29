@@ -85,6 +85,10 @@ export function maskEmail(email: string): string {
   return `${name.slice(0, 2)}***@${domain}`;
 }
 
+export function getTotpIssuer(target?: string): string {
+  return target === 'central' ? `${TWO_FACTOR_ISSUER} Portal` : TWO_FACTOR_ISSUER;
+}
+
 export async function logSecurityEvent(params: {
   supabaseUrl: string;
   serviceKey: string;
@@ -96,8 +100,15 @@ export async function logSecurityEvent(params: {
   metadata?: Record<string, any>;
 }) {
   try {
-    if (!params.supabaseUrl || !params.serviceKey) return;
-    const admin = createClient(params.supabaseUrl, params.serviceKey, {
+    const isCentralAccountEvent = params.metadata?.target === 'central';
+    const auditSupabaseUrl = isCentralAccountEvent ? getSupabaseUrl('local') : params.supabaseUrl;
+    const auditServiceKey = isCentralAccountEvent ? getSupabaseServiceKey('local') : params.serviceKey;
+    if (!auditSupabaseUrl || !auditServiceKey) return;
+
+    const centralActorFingerprint = isCentralAccountEvent && params.userId
+      ? createHash('sha256').update(String(params.userId)).digest('hex')
+      : undefined;
+    const admin = createClient(auditSupabaseUrl, auditServiceKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
@@ -105,9 +116,11 @@ export async function logSecurityEvent(params: {
       event_type: params.eventType,
       severity: params.severity,
       ip_address: params.ip,
-      user_id: params.userId || null,
+      // A Central auth UUID is not an auth.users row in the official app.
+      user_id: isCentralAccountEvent ? null : (params.userId || null),
       metadata: {
         ...(params.metadata || {}),
+        ...(centralActorFingerprint ? { central_actor_fingerprint: centralActorFingerprint } : {}),
         user_agent: params.userAgent || undefined,
         source: params.metadata?.source || 'auth_2fa',
       },

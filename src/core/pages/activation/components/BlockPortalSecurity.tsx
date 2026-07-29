@@ -21,6 +21,7 @@ export const BlockPortalSecurity: React.FC<BlockPortalSecurityProps> = ({ enable
   const [loading, setLoading] = useState(false);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
   const [code, setCode] = useState('');
+  const [currentCode, setCurrentCode] = useState('');
   const [message, setMessage] = useState('');
 
   const prepare = async () => {
@@ -34,7 +35,7 @@ export const BlockPortalSecurity: React.FC<BlockPortalSecurityProps> = ({ enable
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ action: 'setup', target: 'central' }),
+        body: JSON.stringify({ action: 'setup', target: 'central', current_code: currentCode }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload?.qr_code_data_url) {
@@ -42,6 +43,7 @@ export const BlockPortalSecurity: React.FC<BlockPortalSecurityProps> = ({ enable
       }
       setQrCodeDataUrl(String(payload.qr_code_data_url));
       setCode('');
+      setCurrentCode('');
     } catch (error: any) {
       setMessage(error?.message || 'Não foi possível preparar a 2FA do Portal.');
     } finally {
@@ -82,7 +84,7 @@ export const BlockPortalSecurity: React.FC<BlockPortalSecurityProps> = ({ enable
     }
   };
 
-  if (enabled) {
+  if (enabled && !qrCodeDataUrl) {
     return (
       <section className="rounded-[2rem] border border-emerald-400/20 bg-emerald-500/[0.07] p-6 text-left">
         <div className="flex items-start gap-4">
@@ -93,6 +95,26 @@ export const BlockPortalSecurity: React.FC<BlockPortalSecurityProps> = ({ enable
             <p className="mt-2 text-sm leading-relaxed text-emerald-100/75">
               Novos logins por senha e operações destrutivas exigem seu aplicativo autenticador.
             </p>
+            <label className="mt-4 block text-xs font-black uppercase tracking-[0.16em] text-emerald-100/80">
+              Código atual do autenticador do Portal
+              <input
+                value={currentCode}
+                onChange={(event) => setCurrentCode(event.target.value.replace(/[^\d]/g, '').slice(0, 6))}
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                placeholder="000000"
+                className="mt-2 block w-full rounded-xl border border-emerald-300/30 bg-black/20 px-4 py-3 text-center text-base font-black tracking-[0.3em] text-white outline-none focus:border-emerald-200"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={prepare}
+              disabled={loading || currentCode.length !== 6}
+              className="mt-4 inline-flex items-center gap-2 rounded-xl border border-emerald-300/30 bg-emerald-300/10 px-4 py-2 text-xs font-black text-emerald-100 transition hover:bg-emerald-300/20 disabled:opacity-60"
+            >
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Smartphone className="h-4 w-4" />}
+              Confirmar e trocar autenticador
+            </button>
           </div>
         </div>
       </section>
@@ -104,10 +126,12 @@ export const BlockPortalSecurity: React.FC<BlockPortalSecurityProps> = ({ enable
       <div className="flex items-start gap-4">
         <div className="rounded-2xl bg-amber-400/15 p-3 text-amber-200"><AlertTriangle className="h-6 w-6" /></div>
         <div className="flex-1">
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-200">{isOwner ? 'Ação obrigatória do owner' : 'Proteção recomendada'}</p>
-          <h2 className="mt-1 text-xl font-black text-white">Proteja o Portal com 2FA</h2>
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-200">{enabled ? 'Troca protegida de autenticador' : (isOwner ? 'Ação obrigatória do owner' : 'Proteção recomendada')}</p>
+          <h2 className="mt-1 text-xl font-black text-white">{enabled ? 'Cadastre o novo autenticador' : 'Proteja o Portal com 2FA'}</h2>
           <p className="mt-2 text-sm leading-relaxed text-amber-50/75">
-            {isOwner
+            {enabled
+              ? 'A 2FA permanece obrigatória. Escaneie e confirme o novo QR Code nesta mesma tela; o código antigo deixa de valer quando o novo QR for preparado.'
+              : isOwner
               ? 'Sem 2FA, uma sessão recuperada por e-mail poderia solicitar o reset da instalação. Ative agora para que essa ação passe a pedir seu código temporário.'
               : 'Ações como reset ou revogação da sua instalação pedem um código temporário. Ative agora para manter esse recurso disponível com proteção adicional.'}
           </p>

@@ -5,6 +5,7 @@ import {
   applyCors,
   encryptChallenge,
   getIp,
+  getTotpIssuer,
   getStatelessChallengeState,
   getSupabaseAnonKey,
   getSupabaseServiceKey,
@@ -18,7 +19,6 @@ import {
   normalizeTotpCode,
   readStatelessLoginChallengeToken,
   setStatelessChallengeState,
-  TWO_FACTOR_ISSUER,
 } from './2fa/_shared.js';
 import { decrypt } from '../../core/utils/cryptoUtils.js';
 import {
@@ -408,9 +408,63 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (userError || !userData.user) return res.status(401).json({ error: 'Invalid session.' });
 
     const user = userData.user;
+    const { data: profile, error: profileError } = await admin
+      .from('profiles')
+      .select('id, email, totp_secret_encrypted, totp_enabled')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError || !profile) {
+      return res.status(404).json({ error: 'Perfil nao encontrado.' });
+    }
+
+    // Replacing the Central authenticator is a privileged operation. A stolen
+    // Portal session alone must never be enough to overwrite the owner's TOTP
+    // secret or to create a window without MFA.
+    const isCentralReenrollment = target === 'central' && Boolean(profile.totp_enabled && profile.totp_secret_encrypted);
+    if (isCentralReenrollment) {
+      const currentCode = normalizeTotpCode(req.body?.current_code);
+      if (!currentCode || currentCode.length !== 6) {
+        return res.status(403).json({ error: 'Digite o código atual do autenticador do Portal para trocar o aplicativo.' });
+      }
+
+      let currentSecret = '';
+      try {
+        currentSecret = resolveTotpSecret(profile.totp_secret_encrypted as string);
+      } catch (secretError: any) {
+        await logSecurityEvent({
+          supabaseUrl,
+          serviceKey,
+          eventType: 'central_totp_reenrollment_rejected',
+          severity: 'WARNING',
+          ip: getIp(req),
+          userAgent: getUserAgent(req),
+          userId: user.id,
+          metadata: { reason: secretError?.message || 'secret_unavailable', source: 'settings_2fa_setup', target },
+        });
+        return res.status(500).json({ error: 'Não foi possível validar a proteção atual do Portal.' });
+      }
+
+      const currentCheck = checkTotpCode(currentSecret, currentCode);
+      if (currentCheck.error || !currentCheck.ok) {
+        await logSecurityEvent({
+          supabaseUrl,
+          serviceKey,
+          eventType: 'central_totp_reenrollment_rejected',
+          severity: 'WARNING',
+          ip: getIp(req),
+          userAgent: getUserAgent(req),
+          userId: user.id,
+          metadata: { reason: currentCheck.error ? 'validation_error' : 'invalid_current_code', source: 'settings_2fa_setup', target },
+        });
+        return res.status(401).json({ error: 'O código atual do autenticador do Portal não foi aceito.' });
+      }
+    }
+
     const secret = authenticator.generateSecret();
     const label = user.email || user.id;
-    const otpauthUrl = authenticator.keyuri(label, TWO_FACTOR_ISSUER, secret);
+    const issuer = getTotpIssuer(target);
+    const otpauthUrl = authenticator.keyuri(label, issuer, secret);
     const qrCodeDataUrl = await import('qrcode').then((mod) =>
       mod.toDataURL(otpauthUrl, {
         errorCorrectionLevel: 'M',
@@ -423,8 +477,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .from('profiles')
       .update({
         totp_secret_encrypted: encryptChallenge({ secret }),
-        totp_enabled: false,
-        totp_verified_at: null,
+        // Central re-enrollment keeps MFA mandatory. The new secret replaces
+        // the old one only after its code has been validated above.
+        ...(isCentralReenrollment ? {} : { totp_enabled: false, totp_verified_at: null }),
         updated_at: new Date().toISOString(),
       })
       .eq('id', user.id);
@@ -449,7 +504,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       userId: user.id,
       metadata: {
         email: maskEmail(user.email || ''),
-        issuer: TWO_FACTOR_ISSUER,
+        issuer,
+        re_enrollment: isCentralReenrollment,
         source: 'settings_2fa_setup',
         target,
       },
@@ -459,7 +515,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       secret,
       otpauth_url: otpauthUrl,
       qr_code_data_url: qrCodeDataUrl,
-      issuer: TWO_FACTOR_ISSUER,
+      issuer,
       account_label: label,
     });
   }
