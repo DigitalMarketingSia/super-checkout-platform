@@ -692,7 +692,10 @@ function getInstallationTrustScope(
         && requestBody?.action !== 'issue_installation_trust_credential'
     ) return 'installation:self_service';
     if (endpoint === 'check-entitlement' || endpoint === 'account-flags') return 'installation:read';
-    if (endpoint === 'upgrade-intents' && requestBody?.action === 'create_upgrade_intent') return 'upgrade:intents';
+    if (
+        endpoint === 'upgrade-intents'
+        && ['create_upgrade_intent', 'consume_upgrade_intent'].includes(requestBody?.action)
+    ) return 'upgrade:intents';
     if (endpoint === 'system-update-runner') return 'system:update';
     return null;
 }
