@@ -721,30 +721,36 @@ export function getSensitiveActionRequirement(
     return null;
 }
 
+export function getSensitiveActionAlertMailConfig(
+    environment: Record<string, string | undefined> = process.env,
+) {
+    const apiKey = String(
+        environment.CENTRAL_SECURITY_ALERT_RESEND_API_KEY
+        || environment.RESEND_API_KEY
+        || '',
+    ).trim();
+    const from = String(
+        environment.CENTRAL_SECURITY_ALERT_FROM_EMAIL
+        || environment.RESEND_FROM_EMAIL
+        || '',
+    ).trim();
+
+    // Alert delivery is fail-closed: a partially configured sender is never used.
+    return apiKey && from ? { apiKey, from } : { apiKey: '', from: '' };
+}
+
 async function queueSensitiveActionAlert(params: {
-    centralSupabaseUrl: string;
-    centralServiceKey: string;
     recipient: string;
     purpose: SensitiveActionPurpose;
     ipAddress: string | string[] | undefined;
 }) {
-    if (!params.centralSupabaseUrl || !params.centralServiceKey || !params.recipient) return false;
+    if (!params.recipient) return false;
 
     try {
-        const central = createClient(params.centralSupabaseUrl, params.centralServiceKey, {
-            auth: { autoRefreshToken: false, persistSession: false },
-        });
-        const { data: integrations, error: integrationError } = await central
-            .from('integrations')
-            .select('config')
-            .eq('name', 'resend')
-            .eq('active', true)
-            .limit(1);
-        if (integrationError) return false;
-
-        const config = integrations?.[0]?.config || {};
-        const apiKey = String(config?.apiKey || config?.api_key || '').trim();
-        const from = String(config?.senderEmail || config?.from_email || '').trim();
+        // This alert is sent by the Vercel BFF. Its credentials must therefore
+        // come from private Vercel variables, never from a Central database row
+        // that may not exist even when Central Edge Functions can send e-mail.
+        const { apiKey, from } = getSensitiveActionAlertMailConfig();
         if (!apiKey || !from) return false;
 
         const operation = params.purpose === 'installation_reset' ? 'reset da instalacao' : 'revogacao da instalacao';
@@ -1102,8 +1108,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             const alertQueued = await queueSensitiveActionAlert({
-                centralSupabaseUrl: centralSupUrl as string,
-                centralServiceKey: centralServiceKey || '',
                 recipient: userEmail,
                 purpose: sensitiveActionPurpose,
                 ipAddress: req.headers['x-forwarded-for'],
