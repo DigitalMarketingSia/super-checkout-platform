@@ -139,7 +139,9 @@ async function resolveServerLicenseKey(): Promise<string> {
  * Central Proxy — Backend-for-Frontend (BFF)
  * 
  * Encaminha chamadas do frontend para a Central de Licenciamento,
- * adicionando o `x-admin-secret` server-side (nunca expondo ao browser).
+ * adicionando headers de confianca apenas no servidor (HMAC por instalacao
+ * ou, exclusivamente no control plane, o segredo administrativo), sem nunca
+ * expor qualquer credencial ao browser.
  * 
  * Segurança:
  * 1. Valida JWT do usuário (Supabase Auth)

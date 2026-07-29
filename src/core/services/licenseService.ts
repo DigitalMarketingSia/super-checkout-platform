@@ -116,7 +116,7 @@ export interface PassportTicketLinkResponse {
 
 /**
  * Get JWT-only headers for Central API calls.
- * The x-admin-secret is now added server-side by /api/central-proxy.
+ * The proxy adds the appropriate server-side trust header.
  */
 const getHeaders = async () => {
     // Check both central and local sessions
@@ -152,7 +152,8 @@ const getControlPlaneAdminHeaders = async () => {
 
 /**
  * Routes admin-protected endpoints through the secure BFF proxy.
- * The proxy (api/central-proxy.ts) validates JWT+admin role and adds x-admin-secret server-side.
+ * The proxy (api/central-proxy.ts) validates access and applies the appropriate
+ * server-side trust header; installation routes use private HMAC credentials.
  * The vercel.json rewrite maps /api/central/:endpoint to /api/central-proxy?endpoint=:endpoint
  */
 const getProxyUrl = (endpoint: string) => `/api/central/${endpoint}`;

@@ -4,7 +4,8 @@ import { centralSupabase } from './centralClient';
 export class SubscriptionService {
     /**
      * Promotes a user to the Vitalícia (Unlimited) plan.
-     * Routes through /api/central-proxy which adds x-admin-secret server-side.
+     * Routes through /api/central-proxy, which applies the appropriate
+     * server-side trust header without exposing credentials to the browser.
      */
     async promoteToVitalicia(userId: string) {
         try {

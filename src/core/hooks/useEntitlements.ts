@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { centralSupabase } from '../services/centralClient'; // Adjust path as needed
-import { CENTRAL_CONFIG } from '../config/central';
+import { supabase } from '../services/supabase';
+import { getApiUrl } from '../utils/apiUtils';
 
 export interface EntitlementCheck {
     allowed: boolean;
@@ -22,12 +22,12 @@ export const useEntitlements = () => {
     ): Promise<EntitlementCheck> => {
         setLoading(true);
         try {
-            const { data: { session } } = await centralSupabase.auth.getSession();
+            const { data: { session } } = await supabase.auth.getSession();
             if (!session?.access_token) {
                 return { allowed: false, limit: 0, message: 'Not authenticated', upsell_offer: null };
             }
 
-            const response = await fetch(`${CENTRAL_CONFIG.API_URL}/check-entitlement`, {
+            const response = await fetch(getApiUrl('/api/central/check-entitlement'), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
