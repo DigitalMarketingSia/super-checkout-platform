@@ -4,6 +4,74 @@
             "includeFiles": "src/migrations/**"
         }
     },
+    "redirects": [
+        {
+            "source": "/admin",
+            "has": [{ "type": "host", "value": "portal.supercheckout.app" }],
+            "destination": "https://app.supercheckout.app/admin",
+            "permanent": false
+        },
+        {
+            "source": "/admin/:path*",
+            "has": [{ "type": "host", "value": "portal.supercheckout.app" }],
+            "destination": "https://app.supercheckout.app/admin/:path*",
+            "permanent": false
+        },
+        {
+            "source": "/admin",
+            "has": [{ "type": "host", "value": "install.supercheckout.app" }],
+            "destination": "https://app.supercheckout.app/admin",
+            "permanent": false
+        },
+        {
+            "source": "/admin/:path*",
+            "has": [{ "type": "host", "value": "install.supercheckout.app" }],
+            "destination": "https://app.supercheckout.app/admin/:path*",
+            "permanent": false
+        },
+        {
+            "source": "/installer",
+            "has": [{ "type": "host", "value": "app.supercheckout.app" }],
+            "destination": "https://install.supercheckout.app/installer",
+            "permanent": false
+        },
+        {
+            "source": "/installer",
+            "has": [{ "type": "host", "value": "portal.supercheckout.app" }],
+            "destination": "https://install.supercheckout.app/installer",
+            "permanent": false
+        },
+        {
+            "source": "/activate",
+            "has": [{ "type": "host", "value": "install.supercheckout.app" }],
+            "destination": "https://portal.supercheckout.app/activate",
+            "permanent": false
+        },
+        {
+            "source": "/activate/setup",
+            "has": [{ "type": "host", "value": "install.supercheckout.app" }],
+            "destination": "https://portal.supercheckout.app/activate/setup",
+            "permanent": false
+        },
+        {
+            "source": "/register",
+            "has": [{ "type": "host", "value": "install.supercheckout.app" }],
+            "destination": "https://portal.supercheckout.app/register",
+            "permanent": false
+        },
+        {
+            "source": "/passport",
+            "has": [{ "type": "host", "value": "install.supercheckout.app" }],
+            "destination": "https://portal.supercheckout.app/passport",
+            "permanent": false
+        },
+        {
+            "source": "/update-password",
+            "has": [{ "type": "host", "value": "install.supercheckout.app" }],
+            "destination": "https://portal.supercheckout.app/update-password",
+            "permanent": false
+        }
+    ],
     "rewrites": [
         { "source": "/api/check-status", "destination": "/api/system?action=check-status" },
         { "source": "/api/health", "destination": "/api/system?action=health" },
