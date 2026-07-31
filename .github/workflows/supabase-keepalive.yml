@@ -32,15 +32,23 @@ jobs:
             exit 1
           fi
 
-          CONFIG_JSON="$(curl --fail --silent --show-error --max-time 20 "$APP_URL/api/config")"
+          KEEPALIVE_USER_AGENT="Super-Checkout-Keepalive/1.0"
+          CONFIG_JSON="$(curl --fail-with-body --silent --show-error --retry 3 --retry-delay 2 --retry-all-errors --max-time 20 \
+            --header "Accept: application/json" \
+            --header "Origin: https://app.supercheckout.app" \
+            --header "User-Agent: $KEEPALIVE_USER_AGENT" \
+            "$APP_URL/api/config")"
           SUPABASE_URL="$(jq -er '.url | strings | select(test("^https://[a-z0-9-]+\\.supabase\\.co$"))' <<<"$CONFIG_JSON")"
           SUPABASE_ANON_KEY="$(jq -er '.anon | strings | select(length > 20)' <<<"$CONFIG_JSON")"
 
-          curl --fail --silent --show-error --output /dev/null --max-time 20 \
+          curl --fail-with-body --silent --show-error --retry 3 --retry-delay 2 --retry-all-errors --max-time 20 \
             --request POST "$SUPABASE_URL/rest/v1/rpc/super_checkout_keepalive" \
             --header "apikey: $SUPABASE_ANON_KEY" \
             --header "Authorization: Bearer $SUPABASE_ANON_KEY" \
             --header "Content-Type: application/json" \
+            --header "Accept: application/json" \
+            --header "Origin: https://app.supercheckout.app" \
+            --header "User-Agent: $KEEPALIVE_USER_AGENT" \
             --data '{}'
 
           echo "Supabase keepalive completed."
