@@ -12,7 +12,7 @@ export interface ApprovedMigrationRecord {
   reason?: string;
 }
 
-export const CURRENT_SCHEMA_VERSION = '1.0.39';
+export const CURRENT_SCHEMA_VERSION = '1.0.40';
 export const UNKNOWN_SCHEMA_VERSION = '0.0.0';
 
 export const APPROVED_MIGRATION_ALLOWLIST: Record<string, ApprovedMigrationRecord> = {
@@ -175,6 +175,10 @@ export const APPROVED_MIGRATION_ALLOWLIST: Record<string, ApprovedMigrationRecor
   '1.0.39': {
     file: 'v1.0.39.sql',
     sha256: '8da6dd593e3100d0fdfcfef4d32a693782258cd90564d0799b9695426b91b403'
+  },
+  '1.0.40': {
+    file: 'v1.0.40.sql',
+    sha256: '38d92a87bbdf27d5288d61080631df919cd0f84a321c2c81cc829c3c06d48157'
   }
 };
 
