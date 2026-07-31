@@ -62,6 +62,22 @@ const TRUSTED_PROXY_ENDPOINTS = new Set([
     'revoke-passport-ticket',
 ]);
 
+// These control-plane routes no longer accept the legacy x-admin-secret
+// transport proof. Other endpoints keep their existing compatibility path
+// until their own HMAC migration is completed.
+const CONTROL_PLANE_HMAC_ENDPOINTS = new Set([
+    'manage-licenses',
+    'create-commercial-license',
+    'create-passport-ticket',
+    'revoke-passport-ticket',
+]);
+
+function requiresControlPlaneHmac(endpoint: string, requestBody: Record<string, any>) {
+    if (CONTROL_PLANE_HMAC_ENDPOINTS.has(endpoint)) return true;
+    return endpoint === 'upgrade-intents'
+        && ['consume_upgrade_intent', 'list_recent_upgrade_intents'].includes(requestBody?.action);
+}
+
 function isSystemOwnerEmail(email?: string | null): boolean {
     const normalized = String(email || '').trim().toLowerCase();
     if (!normalized) return false;
@@ -1151,6 +1167,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             requestBody,
             hasOwnerGradeControlPlaneAccess
         );
+        const requiresHmac = requiresControlPlaneHmac(endpoint, requestBody);
 
         const installationTrustScope = getInstallationTrustScope(endpoint, req.method, requestBody);
         let installationTrustConfig: CentralInstallationTrustConfig | null = null;
@@ -1181,8 +1198,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             });
         }
 
+        if (requiresHmac && !controlPlaneHmacKey) {
+            console.error(`[Central Proxy] Missing CENTRAL_CONTROL_PLANE_HMAC_KEY for migrated endpoint ${endpoint}`);
+            return res.status(503).json({
+                error: 'Server configuration error: missing control-plane HMAC key.',
+            });
+        }
+
         if (shouldSendAdminSecret && !installationTrustScope && !controlPlaneHmacKey && !centralSecret) {
-            console.error(`[Central Proxy] Missing CENTRAL_SHARED_SECRET for trusted endpoint ${endpoint}`);
+            console.error(`[Central Proxy] Missing control-plane trust configuration for endpoint ${endpoint}`);
             return res.status(500).json({
                 error: 'Server configuration error: missing control-plane trust configuration.',
             });
@@ -1326,9 +1350,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 rawBody,
                 queryString,
             }));
-        } else if (shouldSendAdminSecret && centralSecret) {
+        } else if (shouldSendAdminSecret && centralSecret && !requiresHmac) {
             // Transitional fallback. It is used only while the control-plane
-            // HMAC key is not configured on both server-side deployments.
+            // HMAC migration is incomplete for this endpoint.
             forwardHeaders['x-admin-secret'] = centralSecret;
         }
 
