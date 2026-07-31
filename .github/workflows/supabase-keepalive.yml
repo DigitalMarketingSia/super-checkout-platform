@@ -1,0 +1,46 @@
+name: Supabase Keepalive
+
+on:
+  schedule:
+    # UTC. The non-zero minute avoids the busiest GitHub Actions schedule window.
+    - cron: '17 7 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  keepalive:
+    name: Touch private Supabase heartbeat
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    env:
+      SUPER_CHECKOUT_APP_URL: ${{ vars.SUPER_CHECKOUT_APP_URL }}
+    steps:
+      - name: Call the local Supabase heartbeat
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${SUPER_CHECKOUT_APP_URL:-}" ]]; then
+            echo "::notice title=Keepalive not configured::Set repository variable SUPER_CHECKOUT_APP_URL to enable this optional workflow."
+            exit 0
+          fi
+
+          APP_URL="${SUPER_CHECKOUT_APP_URL%/}"
+          if [[ ! "$APP_URL" =~ ^https://[^[:space:]/]+$ ]]; then
+            echo "SUPER_CHECKOUT_APP_URL must be a complete HTTPS app URL without a path."
+            exit 1
+          fi
+
+          CONFIG_JSON="$(curl --fail --silent --show-error --max-time 20 "$APP_URL/api/config")"
+          SUPABASE_URL="$(jq -er '.url | strings | select(test("^https://[a-z0-9-]+\\.supabase\\.co$"))' <<<"$CONFIG_JSON")"
+          SUPABASE_ANON_KEY="$(jq -er '.anon | strings | select(length > 20)' <<<"$CONFIG_JSON")"
+
+          curl --fail --silent --show-error --output /dev/null --max-time 20 \
+            --request POST "$SUPABASE_URL/rest/v1/rpc/super_checkout_keepalive" \
+            --header "apikey: $SUPABASE_ANON_KEY" \
+            --header "Authorization: Bearer $SUPABASE_ANON_KEY" \
+            --header "Content-Type: application/json" \
+            --data '{}'
+
+          echo "Supabase keepalive completed."

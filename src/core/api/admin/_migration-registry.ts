@@ -12,7 +12,7 @@ export interface ApprovedMigrationRecord {
   reason?: string;
 }
 
-export const CURRENT_SCHEMA_VERSION = '1.0.38';
+export const CURRENT_SCHEMA_VERSION = '1.0.39';
 export const UNKNOWN_SCHEMA_VERSION = '0.0.0';
 
 export const APPROVED_MIGRATION_ALLOWLIST: Record<string, ApprovedMigrationRecord> = {
@@ -171,6 +171,10 @@ export const APPROVED_MIGRATION_ALLOWLIST: Record<string, ApprovedMigrationRecor
     sha256: '8abba84f047917b30351aa5c6fc7500344f9ba96e3ee7f44f6171551d4240a7b',
     execution: 'owner_manual',
     reason: 'Migration de seguranca cria RPC SECURITY DEFINER e politicas RLS. Deve ser aplicada pelo owner no SQL Editor antes do deploy que passa a exigir a aprovacao TOTP.'
+  },
+  '1.0.39': {
+    file: 'v1.0.39.sql',
+    sha256: '8da6dd593e3100d0fdfcfef4d32a693782258cd90564d0799b9695426b91b403'
   }
 };
 

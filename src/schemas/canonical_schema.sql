@@ -3742,4 +3742,56 @@ COMMENT ON VIEW public.public_domains IS
 COMMENT ON VIEW public.public_member_areas IS
   'Public member-area branding projection. Owner identifiers are intentionally absent.';
 
+-- Optional Supabase Free keepalive (v1.0.39). The table has exactly one
+-- private row. The no-argument RPC may update it at most once every 12 hours.
+CREATE TABLE IF NOT EXISTS public.system_keepalive (
+  id BOOLEAN PRIMARY KEY DEFAULT true CHECK (id = true),
+  last_seen_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc'::text, now()),
+  source TEXT NOT NULL DEFAULT 'github_actions',
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.system_keepalive
+  ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc'::text, now()),
+  ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'github_actions',
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc'::text, now());
+
+ALTER TABLE public.system_keepalive ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.system_keepalive FROM PUBLIC, anon, authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.system_keepalive TO service_role;
+
+DROP POLICY IF EXISTS "Service role can manage system keepalive" ON public.system_keepalive;
+CREATE POLICY "Service role can manage system keepalive"
+  ON public.system_keepalive
+  FOR ALL TO service_role
+  USING (true)
+  WITH CHECK (true);
+
+CREATE OR REPLACE FUNCTION public.super_checkout_keepalive()
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  INSERT INTO public.system_keepalive (id, last_seen_at, source)
+  VALUES (true, timezone('utc'::text, now()), 'github_actions')
+  ON CONFLICT (id) DO UPDATE
+  SET last_seen_at = EXCLUDED.last_seen_at,
+      source = EXCLUDED.source
+  WHERE public.system_keepalive.last_seen_at < EXCLUDED.last_seen_at - INTERVAL '12 hours';
+
+  RETURN jsonb_build_object('ok', true);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.super_checkout_keepalive() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.super_checkout_keepalive() TO anon, service_role;
+
+COMMENT ON TABLE public.system_keepalive IS
+  'Private singleton touched by the optional GitHub Actions keepalive. It contains no business or user data.';
+
+COMMENT ON FUNCTION public.super_checkout_keepalive() IS
+  'Safe no-argument heartbeat. Anonymous callers can touch only the private singleton at most once per 12 hours.';
+
 NOTIFY pgrst, 'reload schema';
