@@ -7,6 +7,8 @@ import { GITHUB_UPDATE_CONFIG } from '../config/github';
 // We use eager: true to have the content immediately available
 const migrations = import.meta.glob('../../migrations/*.sql', { query: '?raw', import: 'default', eager: true });
 
+export const SYSTEM_SCHEMA_STATE_CHANGED_EVENT = 'super-checkout:schema-state-changed';
+
 export const SystemManager = {
   async invokeCentralUpdateRunner(action: 'test' | 'sync' | 'rollback', payload: Record<string, any> = {}) {
     const info = await this.getSystemInfo();
@@ -158,8 +160,9 @@ export const SystemManager = {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.access_token) {
-        const response = await fetch('/api/admin/system-info', {
+        const response = await fetch(`/api/admin/system-info?fresh=${Date.now()}`, {
           method: 'GET',
+          cache: 'no-store',
           headers: {
             Authorization: `Bearer ${session.access_token}`
           }
@@ -604,6 +607,27 @@ export const SystemManager = {
         applied.push(migration.version);
       }
 
+      // Re-read the authoritative API response after the writes complete.
+      // The UI must never keep a prior schema version until the user presses F5.
+      const verifiedInfo = await this.getSystemInfo();
+      if (!verifiedInfo) {
+        return {
+          success: false,
+          applied,
+          error: 'A migration foi enviada, mas nao foi possivel confirmar a versao atual do banco. Tente novamente.'
+        };
+      }
+
+      const verifiedPendingVersions = this.getPendingMigrationVersions(verifiedInfo);
+      if (verifiedInfo.database_status === 'unverified' || verifiedPendingVersions.length > 0) {
+        return {
+          success: false,
+          applied,
+          error: 'O banco ainda informa migrations pendentes. Nenhuma atualizacao sera marcada como concluida ate a confirmacao do schema.'
+        };
+      }
+
+      this.notifySchemaStateChanged();
       return { success: true, applied };
     } catch (err: any) {
       console.error('[SystemManager] runPendingMigrations failed:', err);
@@ -623,6 +647,12 @@ export const SystemManager = {
       });
     } catch (err) {
       console.error('[SystemManager] Failed to log migration:', err);
+    }
+  },
+
+  notifySchemaStateChanged() {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event(SYSTEM_SCHEMA_STATE_CHANGED_EVENT));
     }
   },
 

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { ArrowRight, Database } from 'lucide-react';
 import { SCHEMA_VERSION } from '../../config/version';
-import { SystemManager } from '../../services/systemManager';
+import { SYSTEM_SCHEMA_STATE_CHANGED_EVENT, SystemManager } from '../../services/systemManager';
 
 export const MigrationRunner: React.FC = () => {
   const navigate = useNavigate();
@@ -10,19 +10,31 @@ export const MigrationRunner: React.FC = () => {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    let active = true;
+
     const check = async () => {
       try {
         const required = await SystemManager.checkMigrationsRequired();
-        setStatus(required ? 'pending' : 'idle');
+        if (active) setStatus(required ? 'pending' : 'idle');
       } catch (err) {
         console.error('[MigrationRunner] Check failed:', err);
-        setStatus('idle');
+        if (active) setStatus('idle');
       } finally {
-        setReady(true);
+        if (active) setReady(true);
       }
     };
 
-    check();
+    const refreshAfterMigration = () => {
+      setReady(false);
+      void check();
+    };
+
+    void check();
+    window.addEventListener(SYSTEM_SCHEMA_STATE_CHANGED_EVENT, refreshAfterMigration);
+    return () => {
+      active = false;
+      window.removeEventListener(SYSTEM_SCHEMA_STATE_CHANGED_EVENT, refreshAfterMigration);
+    };
   }, []);
 
   if (!ready || status === 'idle') return null;

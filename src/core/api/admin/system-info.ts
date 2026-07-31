@@ -86,6 +86,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST' && req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
+  // Schema state changes during an admin session. Never allow the browser or
+  // an intermediary to reuse an earlier version after a migration is applied.
+  res.setHeader('Cache-Control', 'no-store, max-age=0');
+  res.setHeader('Pragma', 'no-cache');
+
   const parsedBody = parseBody(req);
   const rateLimit = enforceApiRateLimit(req, res, {
     scope: 'admin_system_info',

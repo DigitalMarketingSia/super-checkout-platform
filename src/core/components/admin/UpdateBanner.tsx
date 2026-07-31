@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { ArrowRight, Database } from 'lucide-react';
-import { SystemManager } from '../../services/systemManager';
+import { SYSTEM_SCHEMA_STATE_CHANGED_EVENT, SystemManager } from '../../services/systemManager';
 import { SCHEMA_VERSION } from '../../config/version';
 
 export const UpdateBanner: React.FC = () => {
@@ -10,18 +10,30 @@ export const UpdateBanner: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let active = true;
+
     const checkUpdate = async () => {
       try {
         const required = await SystemManager.checkMigrationsRequired();
-        setUpdateRequired(required);
+        if (active) setUpdateRequired(required);
       } catch (err) {
         console.error('[UpdateBanner] Check failed:', err);
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     };
 
-    checkUpdate();
+    const refreshAfterMigration = () => {
+      setLoading(true);
+      void checkUpdate();
+    };
+
+    void checkUpdate();
+    window.addEventListener(SYSTEM_SCHEMA_STATE_CHANGED_EVENT, refreshAfterMigration);
+    return () => {
+      active = false;
+      window.removeEventListener(SYSTEM_SCHEMA_STATE_CHANGED_EVENT, refreshAfterMigration);
+    };
   }, []);
 
   if (loading || !updateRequired) return null;
