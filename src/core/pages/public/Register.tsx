@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router';
 import { Mail, Lock, User, Loader2, ArrowRight, AlertCircle, CheckCircle, Sparkles, RefreshCw, PencilLine, Zap, Globe, Fingerprint, Shield } from 'lucide-react';
 
 import { useTranslation } from 'react-i18next';
+import { centralSupabase } from '../../services/centralClient';
 import { sanitizeTranslationHtml } from '../../utils/sanitize';
 import { openInboxForEmail } from '../../utils/emailInbox';
 import { AuthCaptchaPanel } from '../../components/auth/AuthCaptchaPanel';
@@ -315,6 +316,13 @@ export const Register = () => {
             });
 
             if (response.success) {
+                // Registration can be started while another account is logged
+                // into the Portal. Remove only this origin's Central session
+                // before the confirmation link is opened, so that link cannot
+                // render the previous account's Portal data.
+                await centralSupabase.auth.signOut({ scope: 'local' }).catch((signOutError) => {
+                    console.warn('Could not clear the previous Portal session after registration:', signOutError);
+                });
                 setRequiresCaptcha(false);
                 setCaptchaSiteKey(null);
                 resetCaptcha();

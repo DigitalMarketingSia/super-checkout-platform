@@ -585,7 +585,7 @@ async function ensureSignupPersistence(params: SignupPersistenceParams) {
         email: params.email,
         full_name: params.name,
         whatsapp: params.whatsapp,
-        role: 'admin',
+        role: 'member',
         signup_source: 'register_page',
         referred_by_partner_id: params.partnerId,
         partner_consent: params.partnerId ? params.partnerConsent : false,
@@ -1630,7 +1630,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         full_name: name,
                         whatsapp: whatsapp,
                         phone: whatsapp,
-                        role: 'admin',
+                        // Public registration must never assign a privileged
+                        // Central profile role through client-controlled
+                        // metadata. Privileged roles are granted separately.
+                        role: 'member',
                         source: 'register_page',
                         platform_legal_acceptance: {
                             surface: 'register',

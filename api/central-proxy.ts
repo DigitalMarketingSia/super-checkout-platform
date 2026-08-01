@@ -285,12 +285,17 @@ function centralApiKeyFailureResponse(endpoint: string, res: VercelResponse) {
 }
 
 function withCentralInvokeAuthHeaders(fetchOptions: RequestInit, invokeKey: string): RequestInit {
+    const existingHeaders = (fetchOptions.headers as Record<string, string>) || {};
+
     return {
         ...fetchOptions,
         headers: {
-            ...((fetchOptions.headers as Record<string, string>) || {}),
+            ...existingHeaders,
             apikey: invokeKey,
-            Authorization: `Bearer ${invokeKey}`,
+            // Browser calls to get-license-status carry the Central user's JWT.
+            // Preserve it so the Central function can bind the lookup to that
+            // user instead of treating the caller as the app installation.
+            Authorization: existingHeaders.Authorization || `Bearer ${invokeKey}`,
         },
     };
 }
@@ -468,6 +473,14 @@ const CONTROL_PLANE_HOSTS = new Set(
     ].filter(Boolean) as string[]
 );
 
+const PORTAL_HOSTS = new Set(
+    [
+        'portal.supercheckout.app',
+        getHostnameFromUrl(process.env.SUPER_CHECKOUT_PORTAL_URL),
+        getHostnameFromUrl(process.env.VITE_SUPER_CHECKOUT_PORTAL_URL),
+    ].filter(Boolean) as string[]
+);
+
 const isLocalHost = (host?: string | null) => {
     const hostname = normalizeHost(host);
     return hostname === 'localhost' || hostname === '127.0.0.1';
@@ -529,6 +542,16 @@ const getRequestOrigin = (req: VercelRequest, fallback?: string | null) => {
         : forwardedProto || 'https';
 
     return `${proto}://${host}`;
+};
+
+const isPortalRequest = (req: VercelRequest) => {
+    const requestHosts = [
+        getRequestDomain(req),
+        getHostnameFromUrl(req.headers.origin as string | undefined),
+        getHostnameFromUrl(req.headers.referer as string | undefined),
+    ].filter(Boolean) as string[];
+
+    return requestHosts.some((host) => PORTAL_HOSTS.has(host));
 };
 
 async function validateJwtWithSupabase(url: string, key: string, jwt: string, label: string) {
@@ -701,21 +724,29 @@ function shouldForwardAdminSecret(
 }
 
 function getInstallationTrustScope(
+    req: VercelRequest,
     endpoint: string,
     method: string | undefined,
     requestBody: Record<string, any>,
 ): CentralInstallationTrustScope | null {
-    if (endpoint === 'get-license-status' && method === 'GET') return 'installation:read';
-    if (endpoint === 'manage-user-installations' && method === 'GET') return 'installation:self_service';
+    // Portal requests operate on the authenticated Central user. Attaching the
+    // official deployment credential would instead resolve this deployment's
+    // license for every Portal account. Customer installations keep their
+    // per-installation credential for their own self-service surface.
+    const portalRequest = isPortalRequest(req);
+    if (endpoint === 'get-license-status' && method === 'GET' && !portalRequest) return 'installation:read';
+    if (endpoint === 'manage-user-installations' && method === 'GET' && !portalRequest) return 'installation:self_service';
     if (method !== 'POST') return null;
-    if (endpoint === 'generate-install-token') return 'installation:self_service';
+    if (endpoint === 'generate-install-token' && !portalRequest) return 'installation:self_service';
     if (
         endpoint === 'manage-user-installations'
+        && !portalRequest
         && requestBody?.action !== 'issue_installation_trust_credential'
     ) return 'installation:self_service';
-    if (endpoint === 'check-entitlement' || endpoint === 'account-flags') return 'installation:read';
+    if ((endpoint === 'check-entitlement' || endpoint === 'account-flags') && !portalRequest) return 'installation:read';
     if (
         endpoint === 'upgrade-intents'
+        && !portalRequest
         && ['create_upgrade_intent', 'consume_upgrade_intent'].includes(requestBody?.action)
     ) return 'upgrade:intents';
     if (endpoint === 'system-update-runner') return 'system:update';
@@ -1169,7 +1200,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         );
         const requiresHmac = requiresControlPlaneHmac(endpoint, requestBody);
 
-        const installationTrustScope = getInstallationTrustScope(endpoint, req.method, requestBody);
+        const installationTrustScope = getInstallationTrustScope(req, endpoint, req.method, requestBody);
         let installationTrustConfig: CentralInstallationTrustConfig | null = null;
         let serverInstallationContext: ServerInstallationContext | null = null;
 
@@ -1267,6 +1298,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const forwardHeaders: Record<string, string> = {
             'Content-Type': 'application/json',
         };
+
+        if (endpoint === 'get-license-status' || endpoint === 'manage-user-installations') {
+            // The Central function validates this token and ignores any
+            // user_id/email supplied by the browser unless a trusted
+            // installation or control-plane proof is present.
+            forwardHeaders.Authorization = `Bearer ${jwt}`;
+        }
 
         const fetchOptions: RequestInit = {
             method: req.method || 'GET',
