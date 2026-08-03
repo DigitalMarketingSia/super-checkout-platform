@@ -5,7 +5,7 @@ import { MemberArea } from '../../types';
 import { ArrowLeft, BookOpen, Settings, Globe, Package, ExternalLink, Layers, Users, Activity, Terminal, Lock } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router';
 import { Contents } from './Contents';
-import { MemberSettings } from './MemberSettings';
+import { MemberSettings, type PendingMemberAreaAssets } from './MemberSettings';
 import { MemberDomains } from './MemberDomains';
 import { MemberAreaTracks } from './MemberAreaTracks';
 import { MemberAreaMembers } from './MemberAreaMembers';
@@ -96,30 +96,60 @@ export const MemberAreaDashboard = () => {
         }
     };
 
-    const handleSave = async (updatedArea: MemberArea) => {
+    const uploadPendingAssets = async (savedArea: MemberArea, pendingAssets: PendingMemberAreaAssets) => {
+        const imageUpdates: Partial<MemberArea> = {};
+
+        if (pendingAssets.logo) {
+            imageUpdates.logo_url = await storage.uploadMemberAreaLogo(pendingAssets.logo, savedArea.id);
+        }
+        if (pendingAssets.favicon) {
+            imageUpdates.favicon_url = await storage.uploadMemberAreaFavicon(pendingAssets.favicon, savedArea.id);
+        }
+        if (pendingAssets.banner) {
+            imageUpdates.banner_url = await storage.uploadMemberAreaBanner(pendingAssets.banner, savedArea.id);
+        }
+
+        return imageUpdates;
+    };
+
+    const handleSave = async (updatedArea: MemberArea, pendingAssets: PendingMemberAreaAssets = {}): Promise<MemberArea> => {
         try {
             if (isNew) {
                 if (!canCreateNewArea) {
                     setIsUpsellModalOpen(true);
-                    return;
+                    throw new Error('O limite de areas de membros deste plano foi atingido.');
                 }
 
                 const { created_at, ...areaData } = updatedArea;
+                const areaForCreate = {
+                    ...areaData,
+                    ...(pendingAssets.logo ? { logo_url: undefined } : {}),
+                    ...(pendingAssets.favicon ? { favicon_url: undefined } : {}),
+                    ...(pendingAssets.banner ? { banner_url: undefined } : {}),
+                };
                 // @ts-ignore
-                const newArea = await storage.createMemberArea(areaData);
-                navigate(`/admin/members/${newArea.id}`, { replace: true });
+                const newArea = await storage.createMemberArea(areaForCreate);
+                const imageUpdates = await uploadPendingAssets(newArea, pendingAssets);
+                const savedArea = Object.keys(imageUpdates).length > 0
+                    ? await storage.updateMemberArea({ ...newArea, ...imageUpdates })
+                    : newArea;
+
+                setArea(savedArea);
+                navigate(`/admin/members/${savedArea.id}`, { replace: true });
+                return savedArea;
             } else {
-                await storage.updateMemberArea(updatedArea);
+                const imageUpdates = await uploadPendingAssets(updatedArea, pendingAssets);
+                const savedArea = await storage.updateMemberArea({ ...updatedArea, ...imageUpdates });
+                setArea(savedArea);
+                return savedArea;
             }
-            setArea(updatedArea);
         } catch (error: any) {
             console.error('Error saving area:', error);
             if (isPlanLimitError(error, 'member_areas')) {
                 setCanCreateNewArea(false);
                 setIsUpsellModalOpen(true);
-                return;
             }
-            alert(`${t('member_area_details.error_save', 'Erro ao salvar:')} ${error.message}`);
+            throw error;
         }
     };
 

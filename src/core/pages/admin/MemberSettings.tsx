@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { storage } from '../../services/storageService';
 import { MemberArea } from '../../types';
 import { Button } from '../../components/ui/Button';
@@ -24,9 +24,12 @@ import { LinksManager } from '../../components/admin/LinksManager';
 import { FAQManager } from '../../components/admin/FAQManager';
 import { useTranslation } from 'react-i18next';
 
+export type MemberAreaAssetType = 'logo' | 'favicon' | 'banner';
+export type PendingMemberAreaAssets = Partial<Record<MemberAreaAssetType, File>>;
+
 interface MemberSettingsProps {
     area: MemberArea;
-    onSave: (area: MemberArea) => Promise<void>;
+    onSave: (area: MemberArea, pendingAssets: PendingMemberAreaAssets) => Promise<MemberArea>;
     isNew: boolean;
 }
 
@@ -35,6 +38,8 @@ export const MemberSettings: React.FC<MemberSettingsProps> = ({ area, onSave, is
     const [settings, setSettings] = useState<MemberArea>(area);
     const [saving, setSaving] = useState(false);
     const [previewMode, setPreviewMode] = useState<'desktop' | 'mobile'>('desktop');
+    const [pendingAssets, setPendingAssets] = useState<PendingMemberAreaAssets>({});
+    const stagedPreviewUrls = useRef<Partial<Record<MemberAreaAssetType, string>>>({});
     
     const [alertState, setAlertState] = useState<{ isOpen: boolean; title: string; message: string; variant: 'success' | 'error' | 'info' }>({
         isOpen: false, title: '', message: '', variant: 'info'
@@ -96,6 +101,20 @@ export const MemberSettings: React.FC<MemberSettingsProps> = ({ area, onSave, is
         });
     }, [area.domain_id]);
 
+    useEffect(() => () => {
+        (Object.values(stagedPreviewUrls.current) as string[]).forEach((url) => {
+            if (url) URL.revokeObjectURL(url);
+        });
+    }, []);
+
+    const clearStagedAssets = () => {
+        (Object.values(stagedPreviewUrls.current) as string[]).forEach((url) => {
+            if (url) URL.revokeObjectURL(url);
+        });
+        stagedPreviewUrls.current = {};
+        setPendingAssets({});
+    };
+
     const handleSaveClick = async () => {
         setSaving(true);
         try {
@@ -104,8 +123,9 @@ export const MemberSettings: React.FC<MemberSettingsProps> = ({ area, onSave, is
                 domain_id: area.domain_id ?? settings.domain_id ?? null,
             };
 
-            await onSave(nextSettings);
-            setSettings(nextSettings);
+            const savedArea = await onSave(nextSettings, pendingAssets);
+            clearStagedAssets();
+            setSettings(savedArea);
             setAlertState({ 
                 isOpen: true, 
                 title: t('common.success', 'Sucesso'), 
@@ -124,8 +144,19 @@ export const MemberSettings: React.FC<MemberSettingsProps> = ({ area, onSave, is
         }
     };
 
-    const handleUpload = async (type: 'logo' | 'favicon' | 'banner', file: File) => {
+    const handleUpload = async (type: MemberAreaAssetType, file: File) => {
         try {
+            if (isNew) {
+                const previousPreviewUrl = stagedPreviewUrls.current[type];
+                if (previousPreviewUrl) URL.revokeObjectURL(previousPreviewUrl);
+
+                const previewUrl = URL.createObjectURL(file);
+                stagedPreviewUrls.current[type] = previewUrl;
+                setPendingAssets((current) => ({ ...current, [type]: file }));
+                setSettings((current) => ({ ...current, [`${type}_url`]: previewUrl }));
+                return;
+            }
+
             const areaId = settings.id || 'temp';
             let publicUrl = '';
             
@@ -133,7 +164,7 @@ export const MemberSettings: React.FC<MemberSettingsProps> = ({ area, onSave, is
             else if (type === 'favicon') publicUrl = await storage.uploadMemberAreaFavicon(file, areaId);
             else if (type === 'banner') publicUrl = await storage.uploadMemberAreaBanner(file, areaId);
             
-            setSettings({ ...settings, [`${type}_url`]: publicUrl });
+            setSettings((current) => ({ ...current, [`${type}_url`]: publicUrl }));
         } catch (error: any) {
             console.error(`${type} upload error:`, error);
             setAlertState({

@@ -266,7 +266,21 @@ export const CheckoutEditor = () => {
    const [loading, setLoading] = useState(true);
 
    const [isUploadingBanner, setIsUploadingBanner] = useState(false);
+   const [pendingBannerFile, setPendingBannerFile] = useState<File | null>(null);
+   const stagedBannerPreviewUrl = useRef<string | null>(null);
    const [showAdvancedRouting, setShowAdvancedRouting] = useState(false);
+
+   const clearStagedBanner = () => {
+      if (stagedBannerPreviewUrl.current) {
+         URL.revokeObjectURL(stagedBannerPreviewUrl.current);
+         stagedBannerPreviewUrl.current = null;
+      }
+      setPendingBannerFile(null);
+   };
+
+   useEffect(() => () => {
+      if (stagedBannerPreviewUrl.current) URL.revokeObjectURL(stagedBannerPreviewUrl.current);
+   }, []);
 
    const updateUpsellBenefits = (nextBenefits: string[]) => {
       setConfig(current => (
@@ -570,6 +584,7 @@ export const CheckoutEditor = () => {
 
          const sanitizedConfig = {
             ...config,
+            header_image: pendingBannerFile ? '' : config.header_image,
             payment_methods: sanitizedPaymentMethods,
             payment_routing: serializedPaymentRouting,
             pixels: sanitizedPixels,
@@ -615,6 +630,16 @@ export const CheckoutEditor = () => {
                ...checkoutData
             });
          }
+
+         if (pendingBannerFile) {
+            const bannerUrl = await storage.uploadCheckoutBanner(pendingBannerFile, checkoutId);
+            await storage.updateCheckout({
+               id: checkoutId,
+               ...checkoutData,
+               config: { ...sanitizedConfig, header_image: bannerUrl },
+            });
+            clearStagedBanner();
+         }
          navigate('/admin/checkouts');
       } catch (error) {
          console.error('Error saving checkout:', error);
@@ -636,14 +661,24 @@ export const CheckoutEditor = () => {
    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.files && e.target.files[0]) {
          try {
+            const file = e.target.files[0];
+            if (isNew) {
+               if (stagedBannerPreviewUrl.current) URL.revokeObjectURL(stagedBannerPreviewUrl.current);
+               const previewUrl = URL.createObjectURL(file);
+               stagedBannerPreviewUrl.current = previewUrl;
+               setPendingBannerFile(file);
+               setConfig((current) => ({ ...current, header_image: previewUrl }));
+               return;
+            }
+
             setIsUploadingBanner(true);
-            // Pass checkoutId to upload function
-            const url = await storage.uploadCheckoutBanner(e.target.files[0], checkoutId);
-            setConfig({ ...config, header_image: url });
+            const url = await storage.uploadCheckoutBanner(file, checkoutId);
+            setConfig((current) => ({ ...current, header_image: url }));
          } catch (error) {
             console.error('Error uploading banner:', error);
             showAlert(t('common.error', 'Erro'), t('common.upload_error', 'Erro ao fazer upload da imagem. Tente novamente.'), 'error');
          } finally {
+            if (fileInputRef.current) fileInputRef.current.value = '';
             setIsUploadingBanner(false);
          }
       }
@@ -1695,7 +1730,7 @@ export const CheckoutEditor = () => {
                                        className="w-full bg-white/[0.02] border-2 border-white/5 rounded-xl px-5 py-3 text-white text-xs font-bold focus:border-primary/50 outline-none"
                                        placeholder={t('checkout_editor.banner_placeholder')}
                                        value={config.header_image || ''}
-                                       onChange={e => setConfig({ ...config, header_image: e.target.value })}
+                                       onChange={e => { clearStagedBanner(); setConfig({ ...config, header_image: e.target.value }); }}
                                     />
                                     <Button
                                        variant="secondary"
@@ -1711,7 +1746,7 @@ export const CheckoutEditor = () => {
                                     <div className="mt-4 relative group rounded-[1.5rem] overflow-hidden border border-white/10 aspect-video shadow-2xl">
                                        <img src={config.header_image} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" alt={t('checkout_editor.banner_preview_alt')} />
                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                          <button onClick={() => setConfig({ ...config, header_image: '' })} className="bg-rose-500 p-3 rounded-full text-white shadow-xl hover:scale-110 active:scale-95 transition-all">
+                                          <button onClick={() => { clearStagedBanner(); setConfig({ ...config, header_image: '' }); }} className="bg-rose-500 p-3 rounded-full text-white shadow-xl hover:scale-110 active:scale-95 transition-all">
                                              <X className="w-5 h-5" />
                                           </button>
                                        </div>

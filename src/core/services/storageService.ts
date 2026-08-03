@@ -29,6 +29,35 @@ const debugLog = (...args: unknown[]) => {
   }
 };
 
+type ManagedImageUploadResource = 'product' | 'member_area' | 'checkout';
+
+type ManagedImageUploadTarget = {
+  bucket: 'products' | 'member-areas' | 'checkouts';
+  path: string;
+  token: string;
+  public_url: string;
+};
+
+const MAX_PUBLIC_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024;
+
+function resolveImageContentType(file: File) {
+  const declaredType = String(file.type || '').trim().toLowerCase();
+  if (/^image\/[a-z0-9.+-]+$/i.test(declaredType)) return declaredType;
+
+  const extension = String(file.name || '').split('.').pop()?.trim().toLowerCase();
+  const typeByExtension: Record<string, string> = {
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    webp: 'image/webp',
+    gif: 'image/gif',
+    avif: 'image/avif',
+    svg: 'image/svg+xml',
+  };
+
+  return extension ? typeByExtension[extension] || '' : '';
+}
+
 function mapProductRecord(record: any, overrides: Partial<Product> = {}): Product {
   const priceReal = record.price_real ?? record.price;
   const normalizedPriceReal = priceReal === null || priceReal === undefined || priceReal === ''
@@ -449,32 +478,64 @@ class StorageService {
     }
   }
 
-  async uploadProductImage(file: File, productId: string): Promise<string> {
-    if (isDemoDataRuntime()) return demoDataService.uploadProductImage(file);
+  private async uploadManagedPublicImage(
+    file: File,
+    resourceType: ManagedImageUploadResource,
+    resourceId: string,
+    assetKind: string,
+  ): Promise<string> {
+    const contentType = resolveImageContentType(file);
+    if (!contentType) {
+      throw new Error('Selecione um arquivo de imagem valido.');
+    }
+    if (file.size <= 0 || file.size > MAX_PUBLIC_IMAGE_UPLOAD_BYTES) {
+      throw new Error('A imagem deve ter no maximo 10 MB.');
+    }
 
-    const user = await this.getUser();
-    if (!user) throw new Error('No user logged in');
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) throw sessionError;
 
-    const fileExt = file.name.split('.').pop();
+    const accessToken = sessionData.session?.access_token;
+    if (!accessToken) throw new Error('Sua sessao expirou. Entre novamente e tente enviar a imagem.');
 
-    // REGRA 2: Caminho deve ser APENAS ${productId}/${fileName}
-    // Usando timestamp para garantir unicidade dentro da pasta do produto
-    const fileName = `${productId}/${Date.now()}.${fileExt}`;
+    const response = await fetch('/api/admin?action=create-upload-url', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        resource_type: resourceType,
+        resource_id: resourceId,
+        asset_kind: assetKind,
+        file_name: file.name,
+        content_type: contentType,
+      }),
+    });
+
+    const payload = await response.json().catch(() => ({})) as Partial<ManagedImageUploadTarget> & { error?: string };
+    if (!response.ok || !payload.bucket || !payload.path || !payload.token || !payload.public_url) {
+      throw new Error(payload.error || 'Nao foi possivel autorizar o envio desta imagem.');
+    }
 
     const { error: uploadError } = await supabase.storage
-      .from('products')
-      .upload(fileName, file);
+      .from(payload.bucket)
+      .uploadToSignedUrl(payload.path, payload.token, file, {
+        cacheControl: '3600',
+        contentType,
+      });
 
     if (uploadError) {
-      console.error('Error uploading image:', uploadError.message);
+      console.error('Error uploading managed image:', uploadError.message);
       throw uploadError;
     }
 
-    const { data } = supabase.storage
-      .from('products')
-      .getPublicUrl(fileName);
+    return payload.public_url;
+  }
 
-    return data.publicUrl;
+  async uploadProductImage(file: File, productId: string): Promise<string> {
+    if (isDemoDataRuntime()) return demoDataService.uploadProductImage(file);
+    return this.uploadManagedPublicImage(file, 'product', productId, 'image');
   }
 
   async uploadProductDeliverable(file: File, productId: string, previousPath?: string | null) {
@@ -548,29 +609,7 @@ class StorageService {
 
   async uploadCheckoutBanner(file: File, checkoutId: string): Promise<string> {
     if (isDemoDataRuntime()) return demoDataService.uploadCheckoutBanner(file);
-
-    const user = await this.getUser();
-    if (!user) throw new Error('No user logged in');
-
-    const fileExt = file.name.split('.').pop();
-    // NOVA ESTRUTURA: checkouts/{checkoutId}/{timestamp}.{ext}
-    const fileName = `${checkoutId}/${Date.now()}.${fileExt}`;
-
-    // Usando o novo bucket 'checkouts'
-    const { error: uploadError } = await supabase.storage
-      .from('checkouts')
-      .upload(fileName, file);
-
-    if (uploadError) {
-      console.error('Error uploading banner:', uploadError.message);
-      throw uploadError;
-    }
-
-    const { data } = supabase.storage
-      .from('checkouts')
-      .getPublicUrl(fileName);
-
-    return data.publicUrl;
+    return this.uploadManagedPublicImage(file, 'checkout', checkoutId, 'banner');
   }
 
   // @deprecated Use createProduct or updateProduct instead
@@ -2705,74 +2744,22 @@ class StorageService {
 
   async uploadMemberAreaLogo(file: File, areaId: string): Promise<string> {
     if (isDemoDataRuntime()) return demoDataService.uploadMemberAreaLogo(file);
-
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${areaId}/logo_${Date.now()}.${fileExt}`; // Removed 'member-areas/' prefix as it's now the bucket name
-
-    const { error: uploadError } = await supabase.storage
-      .from('member-areas') // Use dedicated bucket
-      .upload(fileName, file, {
-        upsert: true
-      });
-
-    if (uploadError) throw uploadError;
-
-    const { data } = supabase.storage.from('member-areas').getPublicUrl(fileName);
-    return data.publicUrl;
+    return this.uploadManagedPublicImage(file, 'member_area', areaId, 'logo');
   }
 
   async uploadMemberAreaFavicon(file: File, areaId: string): Promise<string> {
     if (isDemoDataRuntime()) return demoDataService.uploadMemberAreaFavicon(file);
-
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${areaId}/favicon_${Date.now()}.${fileExt}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from('member-areas')
-      .upload(fileName, file, {
-        upsert: true
-      });
-
-    if (uploadError) throw uploadError;
-
-    const { data } = supabase.storage.from('member-areas').getPublicUrl(fileName);
-    return data.publicUrl;
+    return this.uploadManagedPublicImage(file, 'member_area', areaId, 'favicon');
   }
 
   async uploadMemberAreaLoginImage(file: File, areaId: string): Promise<string> {
     if (isDemoDataRuntime()) return demoDataService.uploadMemberAreaLoginImage(file);
-
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${areaId}/login_${Date.now()}.${fileExt}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from('member-areas')
-      .upload(fileName, file, {
-        upsert: true
-      });
-
-    if (uploadError) throw uploadError;
-
-    const { data } = supabase.storage.from('member-areas').getPublicUrl(fileName);
-    return data.publicUrl;
+    return this.uploadManagedPublicImage(file, 'member_area', areaId, 'login');
   }
 
   async uploadMemberAreaBanner(file: File, areaId: string): Promise<string> {
     if (isDemoDataRuntime()) return demoDataService.uploadMemberAreaBanner(file);
-
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${areaId}/banner_${Date.now()}.${fileExt}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from('member-areas')
-      .upload(fileName, file, {
-        upsert: true
-      });
-
-    if (uploadError) throw uploadError;
-
-    const { data } = supabase.storage.from('member-areas').getPublicUrl(fileName);
-    return data.publicUrl;
+    return this.uploadManagedPublicImage(file, 'member_area', areaId, 'banner');
   }
 
 
