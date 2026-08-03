@@ -108,6 +108,11 @@ export const Products = () => {
   const [formData, setFormData] = useState(initialFormState);
   const [uploading, setUploading] = useState(false);
   const [uploadingDeliverable, setUploadingDeliverable] = useState(false);
+  // A new product does not exist in the database until it is saved. Keep an
+  // image selected during creation in memory and upload it after the row is
+  // created, otherwise Storage RLS correctly rejects the upload.
+  const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const deliverableInputRef = useRef<HTMLInputElement>(null);
@@ -147,6 +152,12 @@ export const Products = () => {
   useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery]);
+
+  useEffect(() => {
+    return () => {
+      if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
+    };
+  }, [imagePreviewUrl]);
 
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -256,11 +267,27 @@ export const Products = () => {
         return;
       }
 
+      const productId = editingId || currentProductId;
+      if (!productId) {
+        throw new Error('No product ID available');
+      }
+
       if (editingId) {
         const productToUpdate = { id: editingId, ...sanitizedFormData } as Product;
         await storage.updateProduct(productToUpdate);
       } else {
-        await storage.createProduct({ id: currentProductId!, ...sanitizedFormData } as Product);
+        await storage.createProduct({ id: productId, ...sanitizedFormData } as Product);
+      }
+
+      let imageWarning = '';
+      if (pendingImageFile) {
+        try {
+          const publicUrl = await storage.uploadProductImage(pendingImageFile, productId);
+          await storage.updateProduct({ id: productId, ...sanitizedFormData, imageUrl: publicUrl } as Product);
+        } catch (imageError) {
+          console.error('Error uploading pending product image:', imageError);
+          imageWarning = 'O produto foi salvo, mas a imagem nao pode ser enviada. Edite o produto e tente novamente.';
+        }
       }
 
       if (currentProductId) {
@@ -280,9 +307,15 @@ export const Products = () => {
       setViewMode('grid');
       setEditingId(null);
       setCurrentProductId(null);
+      setPendingImageFile(null);
+      setImagePreviewUrl(null);
 
-      if (syncWarning) {
-        showAlert('Plano central nao sincronizado', syncWarning, 'error');
+      if (syncWarning || imageWarning) {
+        showAlert(
+          imageWarning ? 'Produto salvo com ressalva' : 'Plano central nao sincronizado',
+          [imageWarning, syncWarning].filter(Boolean).join(' '),
+          'error',
+        );
       }
     } catch (error) {
       console.error('Error saving product:', error);
@@ -315,14 +348,23 @@ export const Products = () => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       try {
-        setUploading(true);
         if (!currentProductId) throw new Error("No product ID available");
+
+        if (!editingId) {
+          setPendingImageFile(file);
+          setImagePreviewUrl(URL.createObjectURL(file));
+          setFormData(prev => ({ ...prev, imageUrl: '' }));
+          return;
+        }
+
+        setUploading(true);
         const publicUrl = await storage.uploadProductImage(file, currentProductId);
-        setFormData({ ...formData, imageUrl: publicUrl });
+        setFormData(prev => ({ ...prev, imageUrl: publicUrl }));
       } catch (error) {
         console.error('Error uploading image:', error);
         showAlert(t('common.error'), t('common.upload_error'), 'error');
       } finally {
+        if (fileInputRef.current) fileInputRef.current.value = '';
         setUploading(false);
       }
     }
@@ -391,6 +433,8 @@ export const Products = () => {
 
   const openEdit = (product?: Product) => {
     if (product) {
+      setPendingImageFile(null);
+      setImagePreviewUrl(null);
       setEditingId(product.id);
       setCurrentProductId(product.id);
       setFormData({
@@ -418,6 +462,8 @@ export const Products = () => {
       });
       storage.getProductContents(product.id).then(ids => setSelectedContentIds(ids));
     } else {
+      setPendingImageFile(null);
+      setImagePreviewUrl(null);
       setEditingId(null);
       const newId = crypto.randomUUID();
       setCurrentProductId(newId);
@@ -638,7 +684,7 @@ export const Products = () => {
     <div className="animate-in slide-in-from-right duration-500">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-12 gap-8">
         <div className="flex items-center gap-6">
-          <button onClick={() => setViewMode('grid')} className="w-14 h-14 rounded-[1.5rem] bg-black/40 border border-white/5 flex items-center justify-center text-gray-500 hover:text-white transition-all shadow-xl">
+          <button onClick={() => { setViewMode('grid'); setPendingImageFile(null); setImagePreviewUrl(null); }} className="w-14 h-14 rounded-[1.5rem] bg-black/40 border border-white/5 flex items-center justify-center text-gray-500 hover:text-white transition-all shadow-xl">
             <ArrowLeft className="w-6 h-6" />
           </button>
           <div>
@@ -656,9 +702,9 @@ export const Products = () => {
           <Card className="p-8">
             <h3 className="text-[10px] font-black text-gray-600 uppercase tracking-widest mb-6">{t('products.image_label')}</h3>
             <div className="relative w-full aspect-square rounded-[2rem] bg-black/40 border-2 border-dashed border-white/5 overflow-hidden mb-8 group">
-              {formData.imageUrl ? (
+              {(formData.imageUrl || imagePreviewUrl) ? (
                 <>
-                  <img src={formData.imageUrl} className="w-full h-full object-cover" />
+                  <img src={formData.imageUrl || imagePreviewUrl || undefined} className="w-full h-full object-cover" />
                   <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                     <button onClick={() => fileInputRef.current?.click()} className="px-6 py-3 bg-white text-black rounded-xl text-xs font-black uppercase tracking-widest">{t('common.change')}</button>
                   </div>
@@ -682,7 +728,7 @@ export const Products = () => {
             <div className="space-y-4">
                <div>
                   <label className="text-[10px] text-gray-600 font-black uppercase tracking-widest mb-2 block">{t('products.external_url_label')}</label>
-                  <input type="text" className="w-full bg-black/40 border border-white/5 rounded-2xl px-5 py-4 text-sm text-white focus:border-white/20 outline-none transition-all placeholder:text-gray-800" placeholder="https://..." value={formData.imageUrl} onChange={e => setFormData({ ...formData, imageUrl: e.target.value })} />
+                  <input type="text" className="w-full bg-black/40 border border-white/5 rounded-2xl px-5 py-4 text-sm text-white focus:border-white/20 outline-none transition-all placeholder:text-gray-800" placeholder="https://..." value={formData.imageUrl} onChange={e => { setPendingImageFile(null); setImagePreviewUrl(null); setFormData(prev => ({ ...prev, imageUrl: e.target.value })); }} />
                </div>
             </div>
           </Card>
