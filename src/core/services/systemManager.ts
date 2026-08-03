@@ -794,7 +794,7 @@ export const SystemManager = {
       { table: 'data_retention_policies', columns: ['table_name', 'retention_days', 'run_mode', 'active'] },
       { table: 'data_retention_runs', columns: ['table_name', 'rows_affected', 'cutoff_at', 'created_at'] },
       { table: 'email_templates', columns: ['event_type', 'language', 'html_body'] },
-      { table: 'system_email_templates', columns: ['event_type', 'language', 'html_body'] },
+      { table: 'system_email_templates', columns: ['event_type', 'template_key', 'language', 'template_version', 'audience', 'sender_profile', 'html_body', 'updated_at'] },
       { table: 'system_updates_log', columns: ['action', 'status', 'files_affected'] }
     ];
 

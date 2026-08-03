@@ -19,7 +19,13 @@ BEGIN
   SET signature_mode = CASE
     WHEN signature_mode = 'hmac_sha256' THEN 'hmac_sha256'
     ELSE 'legacy'
-  END;
+  END
+  WHERE signature_mode IS DISTINCT FROM (
+    CASE
+      WHEN signature_mode = 'hmac_sha256' THEN 'hmac_sha256'
+      ELSE 'legacy'
+    END
+  );
 
   ALTER TABLE public.webhooks
     ALTER COLUMN signature_mode SET DEFAULT 'hmac_sha256',

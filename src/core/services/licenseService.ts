@@ -361,7 +361,13 @@ export const licenseService = {
     async generateInstallToken(
         licenseKey: string,
         options: { resetExisting?: boolean; sensitiveActionToken?: string } = {}
-    ): Promise<{ token: string, expires_at: string, revoked_existing?: boolean }> {
+    ): Promise<{
+        token: string;
+        expires_at: string;
+        revoked_existing?: boolean;
+        revoked_tokens?: number;
+        superseded_tokens?: number;
+    }> {
         const response = await fetch(getProxyUrl('generate-install-token'), {
             method: 'POST',
             headers: await getHeaders(),

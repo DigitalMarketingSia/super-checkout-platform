@@ -60,14 +60,74 @@ DROP POLICY IF EXISTS "Authenticated users can manage system update logs" ON pub
 CREATE TABLE IF NOT EXISTS public.system_email_templates(
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     event_type TEXT NOT NULL,
+    template_key TEXT,
     name TEXT NOT NULL,
     subject TEXT NOT NULL,
     html_body TEXT NOT NULL,
     active BOOLEAN DEFAULT true,
     language TEXT DEFAULT 'pt',
+    audience TEXT DEFAULT 'beneficiary',
+    template_version INTEGER DEFAULT 1,
+    sender_profile TEXT DEFAULT 'platform',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
     UNIQUE(event_type, language)
 );
+
+DO $$
+BEGIN
+    ALTER TABLE public.system_email_templates ADD COLUMN IF NOT EXISTS template_key TEXT;
+    ALTER TABLE public.system_email_templates ADD COLUMN IF NOT EXISTS audience TEXT DEFAULT 'beneficiary';
+    ALTER TABLE public.system_email_templates ADD COLUMN IF NOT EXISTS template_version INTEGER DEFAULT 1;
+    ALTER TABLE public.system_email_templates ADD COLUMN IF NOT EXISTS sender_profile TEXT DEFAULT 'platform';
+    ALTER TABLE public.system_email_templates ADD COLUMN IF NOT EXISTS language TEXT DEFAULT 'pt';
+    ALTER TABLE public.system_email_templates ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
+
+    UPDATE public.system_email_templates
+    SET template_key = event_type
+    WHERE NULLIF(BTRIM(template_key), '') IS NULL;
+
+    UPDATE public.system_email_templates
+    SET audience = COALESCE(NULLIF(BTRIM(audience), ''), 'beneficiary'),
+        template_version = COALESCE(template_version, 1),
+        sender_profile = COALESCE(NULLIF(BTRIM(sender_profile), ''), 'platform'),
+        language = COALESCE(NULLIF(BTRIM(language), ''), 'pt'),
+        updated_at = COALESCE(updated_at, timezone('utc'::text, now()));
+END $$;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_system_email_templates_template_key_language
+ON public.system_email_templates(template_key, language)
+WHERE template_key IS NOT NULL;
+
+CREATE OR REPLACE FUNCTION public.sync_system_email_template_key()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+BEGIN
+    IF TG_OP = 'UPDATE'
+       AND NULLIF(BTRIM(OLD.template_key), '') IS NOT NULL
+       AND NULLIF(BTRIM(NEW.template_key), '') IS DISTINCT FROM NULLIF(BTRIM(OLD.template_key), '') THEN
+        RAISE EXCEPTION 'system email template_key is immutable';
+    END IF;
+
+    IF NULLIF(BTRIM(NEW.template_key), '') IS NULL THEN
+        NEW.template_key := NEW.event_type;
+    END IF;
+    NEW.audience := COALESCE(NULLIF(BTRIM(NEW.audience), ''), 'beneficiary');
+    NEW.template_version := COALESCE(NEW.template_version, 1);
+    NEW.sender_profile := COALESCE(NULLIF(BTRIM(NEW.sender_profile), ''), 'platform');
+    NEW.language := COALESCE(NULLIF(BTRIM(NEW.language), ''), 'pt');
+    NEW.updated_at := timezone('utc'::text, now());
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS sync_system_email_template_metadata ON public.system_email_templates;
+CREATE TRIGGER sync_system_email_template_metadata
+    BEFORE INSERT OR UPDATE ON public.system_email_templates
+    FOR EACH ROW
+    EXECUTE FUNCTION public.sync_system_email_template_key();
 
 -- ==========================================
 -- 1. EXTENSIONS & CONFIGURATION
@@ -95,6 +155,27 @@ BEGIN
     RETURN false;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION public.is_platform_owner()
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1
+    FROM public.profiles
+    WHERE id = auth.uid()
+      AND role = 'master_admin'
+      AND COALESCE(is_blocked, false) = false
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.is_platform_owner() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.is_platform_owner() TO authenticated, service_role;
 
 -- ==========================================
 -- 2. CORE TABLES (Idempotent Creation)
@@ -488,6 +569,8 @@ CREATE TABLE IF NOT EXISTS products(
     currency TEXT DEFAULT 'BRL',
     image_url TEXT,
     active BOOLEAN DEFAULT true,
+    product_type TEXT NOT NULL DEFAULT 'regular',
+    service_type TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -507,6 +590,8 @@ BEGIN
     ALTER TABLE products ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'BRL';
     ALTER TABLE products ADD COLUMN IF NOT EXISTS member_area_id UUID;
     ALTER TABLE products ADD COLUMN IF NOT EXISTS saas_plan_slug TEXT;
+    ALTER TABLE products ADD COLUMN IF NOT EXISTS product_type TEXT NOT NULL DEFAULT 'regular';
+    ALTER TABLE products ADD COLUMN IF NOT EXISTS service_type TEXT;
     ALTER TABLE products ADD COLUMN IF NOT EXISTS delivery_file_path TEXT;
     ALTER TABLE products ADD COLUMN IF NOT EXISTS delivery_file_name TEXT;
     ALTER TABLE products ADD COLUMN IF NOT EXISTS delivery_file_mime_type TEXT;
@@ -527,6 +612,138 @@ ALTER TABLE public.products
         member_area_action IS NULL
         OR member_area_action IN ('none', 'checkout', 'sales_page', 'file')
     );
+
+ALTER TABLE public.products
+    DROP CONSTRAINT IF EXISTS products_product_type_check,
+    DROP CONSTRAINT IF EXISTS products_catalog_metadata_check;
+
+UPDATE public.products
+SET saas_plan_slug = CASE LOWER(BTRIM(saas_plan_slug))
+    WHEN 'unlimited' THEN 'upgrade_domains'
+    WHEN 'partner' THEN 'saas'
+    WHEN 'upgrade_partner' THEN 'saas'
+    ELSE NULLIF(BTRIM(saas_plan_slug), '')
+END
+WHERE saas_plan_slug IS NOT NULL;
+
+UPDATE public.products
+SET product_type = CASE
+    WHEN NULLIF(BTRIM(saas_plan_slug), '') IS NOT NULL THEN 'system_upgrade'
+    WHEN NULLIF(BTRIM(service_type), '') IS NOT NULL THEN 'installation_service'
+    ELSE 'regular'
+END
+WHERE product_type IS NULL
+   OR NULLIF(BTRIM(product_type), '') IS NULL
+   OR product_type = 'regular';
+
+ALTER TABLE public.products
+    ADD CONSTRAINT products_product_type_check
+    CHECK (product_type IN ('regular', 'system_upgrade', 'installation_service'));
+
+CREATE OR REPLACE FUNCTION public.can_manage_product_catalog_type(p_product_type TEXT)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_type TEXT := LOWER(BTRIM(COALESCE(NULLIF(p_product_type, ''), 'regular')));
+BEGIN
+  IF auth.role() = 'service_role' THEN
+    RETURN true;
+  END IF;
+
+  IF v_type = 'system_upgrade' THEN
+    RETURN public.is_platform_owner();
+  END IF;
+
+  IF v_type = 'installation_service' THEN
+    IF EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = auth.uid()
+        AND COALESCE(is_blocked, false) = false
+        AND role IN ('master_admin', 'partner')
+    ) THEN
+      RETURN true;
+    END IF;
+
+    RETURN EXISTS (
+      SELECT 1 FROM public.accounts
+      WHERE owner_user_id = auth.uid()
+        AND LOWER(COALESCE(plan_type, '')) = 'saas'
+        AND LOWER(COALESCE(status, 'active')) = 'active'
+    );
+  END IF;
+
+  RETURN true;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.can_manage_product_catalog_type(TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.can_manage_product_catalog_type(TEXT) TO authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION public.normalize_product_catalog_metadata()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+    NEW.product_type := LOWER(BTRIM(COALESCE(NEW.product_type, 'regular')));
+    NEW.service_type := NULLIF(LOWER(BTRIM(COALESCE(NEW.service_type, ''))), '');
+    NEW.saas_plan_slug := NULLIF(LOWER(BTRIM(COALESCE(NEW.saas_plan_slug, ''))), '');
+
+    IF NEW.product_type = 'regular' AND NEW.saas_plan_slug IS NOT NULL THEN
+        NEW.product_type := 'system_upgrade';
+    ELSIF NEW.product_type = 'regular' AND NEW.service_type IS NOT NULL THEN
+        NEW.product_type := 'installation_service';
+    END IF;
+
+    IF NEW.product_type = 'system_upgrade' THEN
+        IF NEW.saas_plan_slug IS NULL THEN
+            RAISE EXCEPTION 'system_upgrade products require saas_plan_slug';
+        END IF;
+        NEW.service_type := NULL;
+    ELSIF NEW.product_type = 'installation_service' THEN
+        IF NEW.service_type IS NULL THEN
+            RAISE EXCEPTION 'installation_service products require service_type';
+        END IF;
+        NEW.saas_plan_slug := NULL;
+    ELSE
+        NEW.product_type := 'regular';
+        NEW.service_type := NULL;
+        NEW.saas_plan_slug := NULL;
+    END IF;
+
+    IF NOT public.can_manage_product_catalog_type(NEW.product_type) THEN
+        RAISE EXCEPTION 'product type % is not allowed for this account', NEW.product_type
+          USING ERRCODE = '42501';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS normalize_product_catalog_metadata_trigger ON public.products;
+CREATE TRIGGER normalize_product_catalog_metadata_trigger
+BEFORE INSERT OR UPDATE OF product_type, service_type, saas_plan_slug ON public.products
+FOR EACH ROW
+EXECUTE FUNCTION public.normalize_product_catalog_metadata();
+
+ALTER TABLE public.products
+    ADD CONSTRAINT products_catalog_metadata_check
+    CHECK (
+        (product_type = 'regular' AND service_type IS NULL AND saas_plan_slug IS NULL)
+        OR (product_type = 'system_upgrade' AND service_type IS NULL AND saas_plan_slug IS NOT NULL)
+        OR (product_type = 'installation_service' AND service_type IS NOT NULL AND saas_plan_slug IS NULL)
+    );
+
+ALTER TABLE public.products
+    DROP CONSTRAINT IF EXISTS products_service_type_check;
+
+ALTER TABLE public.products
+    ADD CONSTRAINT products_service_type_check
+    CHECK (service_type IS NULL OR service_type IN ('system_installation'));
 
 -- 2.4 Gateways (Essential for checkout)
 CREATE TABLE IF NOT EXISTS gateways(
@@ -1832,10 +2049,21 @@ CREATE POLICY "Users can update own member areas" ON member_areas FOR UPDATE USI
 CREATE POLICY "Users can delete own member areas" ON member_areas FOR DELETE USING(auth.uid() = owner_id);
 
 -- Products
-CREATE POLICY "Users can manage their own products" ON products FOR ALL USING(auth.uid() = user_id);
+CREATE POLICY "Users can manage their own products"
+    ON products FOR ALL TO authenticated
+    USING (auth.uid() = user_id)
+    WITH CHECK (
+        auth.uid() = user_id
+        AND public.can_manage_product_catalog_type(product_type)
+    );
 CREATE POLICY "Public can view products" ON products FOR SELECT USING(true);
 -- Explicit INSERT policy to ensure creation works (Fix for System Locked/RLS error)
-CREATE POLICY "Users can create products" ON products FOR INSERT WITH CHECK(auth.uid() = user_id);
+CREATE POLICY "Users can create products"
+    ON products FOR INSERT TO authenticated
+    WITH CHECK (
+        auth.uid() = user_id
+        AND public.can_manage_product_catalog_type(product_type)
+    );
 
 
 -- Gateways
@@ -2244,17 +2472,17 @@ FOR UPDATE TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admi
 
 ALTER TABLE public.system_email_templates ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Admins can read system email templates" ON public.system_email_templates
-FOR SELECT TO authenticated USING (public.is_admin());
+CREATE POLICY "Platform owners can read system email templates" ON public.system_email_templates
+FOR SELECT TO authenticated USING (public.is_platform_owner());
 
-CREATE POLICY "Admins can insert system email templates" ON public.system_email_templates
-FOR INSERT TO authenticated WITH CHECK (public.is_admin());
+CREATE POLICY "Platform owners can insert system email templates" ON public.system_email_templates
+FOR INSERT TO authenticated WITH CHECK (public.is_platform_owner());
 
-CREATE POLICY "Admins can update system email templates" ON public.system_email_templates
-FOR UPDATE TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+CREATE POLICY "Platform owners can update system email templates" ON public.system_email_templates
+FOR UPDATE TO authenticated USING (public.is_platform_owner()) WITH CHECK (public.is_platform_owner());
 
-CREATE POLICY "Admins can delete system email templates" ON public.system_email_templates
-FOR DELETE TO authenticated USING (public.is_admin());
+CREATE POLICY "Platform owners can delete system email templates" ON public.system_email_templates
+FOR DELETE TO authenticated USING (public.is_platform_owner());
 
 CREATE POLICY "Admins can manage member notes" ON public.member_notes FOR ALL USING(EXISTS(SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'));
 CREATE POLICY "Admins can manage member tags" ON public.member_tags FOR ALL USING(EXISTS(SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'));
@@ -3297,15 +3525,15 @@ BEGIN
               p.status,
               p.last_seen_at,
               p.created_at AS joined_at,
-              (SELECT COUNT(*) FROM public.access_grants ag WHERE ag.user_id = p.id AND ag.status = ''active'') AS active_products_count,
+              (SELECT COUNT(*) FROM public.access_grants ag WHERE ag.user_id = p.id AND ag.status = 'active') AS active_products_count,
               (SELECT COUNT(*) FROM public.orders o WHERE o.customer_user_id = p.id) AS orders_count
             FROM public.profiles p
             WHERE EXISTS (
               SELECT 1
               FROM public.profiles admin_profile
               WHERE admin_profile.id = auth.uid()
-                AND admin_profile.role IN (''admin'', ''owner'', ''master_admin'')
-            ) OR auth.role() = ''service_role''
+                AND admin_profile.role IN ('admin', 'owner', 'master_admin')
+            ) OR auth.role() = 'service_role'
         $view$;
         EXECUTE 'REVOKE ALL ON public.admin_members_view FROM PUBLIC, anon';
         EXECUTE 'GRANT SELECT ON public.admin_members_view TO authenticated, service_role';
@@ -3350,10 +3578,10 @@ BEGIN
     END IF;
 
     IF to_regclass('public.system_email_templates') IS NOT NULL THEN
-        EXECUTE 'CREATE POLICY "Admins can read system email templates" ON public.system_email_templates FOR SELECT TO authenticated USING (public.is_admin())';
-        EXECUTE 'CREATE POLICY "Admins can insert system email templates" ON public.system_email_templates FOR INSERT TO authenticated WITH CHECK (public.is_admin())';
-        EXECUTE 'CREATE POLICY "Admins can update system email templates" ON public.system_email_templates FOR UPDATE TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin())';
-        EXECUTE 'CREATE POLICY "Admins can delete system email templates" ON public.system_email_templates FOR DELETE TO authenticated USING (public.is_admin())';
+        EXECUTE 'CREATE POLICY "Platform owners can read system email templates" ON public.system_email_templates FOR SELECT TO authenticated USING (public.is_platform_owner())';
+        EXECUTE 'CREATE POLICY "Platform owners can insert system email templates" ON public.system_email_templates FOR INSERT TO authenticated WITH CHECK (public.is_platform_owner())';
+        EXECUTE 'CREATE POLICY "Platform owners can update system email templates" ON public.system_email_templates FOR UPDATE TO authenticated USING (public.is_platform_owner()) WITH CHECK (public.is_platform_owner())';
+        EXECUTE 'CREATE POLICY "Platform owners can delete system email templates" ON public.system_email_templates FOR DELETE TO authenticated USING (public.is_platform_owner())';
     END IF;
 END $$;
 
@@ -3635,22 +3863,50 @@ NOTIFY pgrst, 'reload schema';
 
 -- Public data hardening (v1.0.36): browser clients read only the projections
 -- below. Direct tables retain owner/member/server access but no broad anon read.
-DROP POLICY IF EXISTS "Public read app_config" ON public.app_config;
-DROP POLICY IF EXISTS "Public can read installation id" ON public.app_config;
-CREATE POLICY "Public can read installation id"
-ON public.app_config FOR SELECT TO anon, authenticated
-USING (key = 'installation_id');
+DO $$
+BEGIN
+  -- The canonical installer supports both current and legacy schemas. Some
+  -- legacy tables such as order_items are intentionally not created by a new
+  -- installation, so every cleanup must first verify that its target exists.
+  IF to_regclass('public.app_config') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "Public read app_config" ON public.app_config;
+    DROP POLICY IF EXISTS "Public can read installation id" ON public.app_config;
+    CREATE POLICY "Public can read installation id"
+    ON public.app_config FOR SELECT TO anon, authenticated
+    USING (key = 'installation_id');
+  END IF;
 
-DROP POLICY IF EXISTS "Public can view order items" ON public.order_items;
-DROP POLICY IF EXISTS "Public read order items" ON public.order_items;
-DROP POLICY IF EXISTS "Public can view products" ON public.products;
-DROP POLICY IF EXISTS "Public read products" ON public.products;
-DROP POLICY IF EXISTS "Public read access for domains" ON public.domains;
-DROP POLICY IF EXISTS "Public can view active domains" ON public.domains;
-DROP POLICY IF EXISTS "Public can read business settings" ON public.business_settings;
-DROP POLICY IF EXISTS "Public can view member areas for access" ON public.member_areas;
-DROP POLICY IF EXISTS "Public can view offers" ON public.offers;
-DROP POLICY IF EXISTS "Public can view product contents" ON public.product_contents;
+  IF to_regclass('public.order_items') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "Public can view order items" ON public.order_items;
+    DROP POLICY IF EXISTS "Public read order items" ON public.order_items;
+  END IF;
+
+  IF to_regclass('public.products') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "Public can view products" ON public.products;
+    DROP POLICY IF EXISTS "Public read products" ON public.products;
+  END IF;
+
+  IF to_regclass('public.domains') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "Public read access for domains" ON public.domains;
+    DROP POLICY IF EXISTS "Public can view active domains" ON public.domains;
+  END IF;
+
+  IF to_regclass('public.business_settings') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "Public can read business settings" ON public.business_settings;
+  END IF;
+
+  IF to_regclass('public.member_areas') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "Public can view member areas for access" ON public.member_areas;
+  END IF;
+
+  IF to_regclass('public.offers') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "Public can view offers" ON public.offers;
+  END IF;
+
+  IF to_regclass('public.product_contents') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "Public can view product contents" ON public.product_contents;
+  END IF;
+END $$;
 
 CREATE OR REPLACE FUNCTION public.can_access_granted_product(target_product_id UUID)
 RETURNS BOOLEAN

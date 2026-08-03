@@ -4,7 +4,6 @@ import { storage } from './storageService';
 import { demoDataService, isDemoDataRuntime } from './demoDataService';
 import { MercadoPagoAdapter } from './adapters/MercadoPagoAdapter';
 import { StripeAdapter } from './adapters/StripeAdapter';
-import { emailService } from './emailService';
 import { getApiUrl } from '../utils/apiUtils';
 import { translatePaymentError } from '../utils/errorTranslator';
 import i18n from '../i18n/config';
@@ -1973,16 +1972,6 @@ class PaymentService {
     // 3. Grant Access for each product
     for (const productId of uniqueProductIds) {
       console.log(`[PaymentService] Processing grants for Product ID: ${productId}`);
-
-      // --- NEW: System Notification Trigger ---
-      // Check if product is a SaaS Plan Upgrade
-      storage.getPublicProduct(productId).then(product => {
-        if (product?.saas_plan_slug === 'unlimited') {
-          emailService.sendUpgradeUnlimited(order.customer_email, order.customer_name).catch(console.error);
-        } else if (product?.saas_plan_slug === 'partner') {
-          emailService.sendUpgradePartner(order.customer_email, order.customer_name).catch(console.error);
-        }
-      }).catch(err => console.error('[PaymentService] Error checking product for system email:', err));
 
       // A. Product-Level Grant (Always grant base access to the product)
       // This ensures it appears in "My Products" even if no content is linked yet.

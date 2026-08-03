@@ -384,7 +384,7 @@ export default function InstallerWizard() {
                     license_key: checkValue,
                     installation_id: installationId,
                     current_domain: getLicenseValidationDomain(),
-                    activate: true // Register this installation ID with the license
+                    preflight: true // Validate only; activation happens after the target deploy is ready.
                 })
             });
 
@@ -604,7 +604,10 @@ export default function InstallerWizard() {
         return 'pending';
     };
 
-    const deployUrl = `https://vercel.com/new/clone?repository-url=${encodeURIComponent(DISTRIBUTION_REPOSITORY_URL)}&env=VITE_SUPABASE_URL,VITE_SUPABASE_ANON_KEY,VITE_CENTRAL_API_URL,VITE_CENTRAL_SUPABASE_ANON_KEY&envDescription=Configuracao%20publica%20do%20Super%20Checkout&project-name=super-checkout&repository-name=super-checkout`;
+    // Keep the Vercel clone form aligned with the six variables shown by the
+    // installer. The last two are server-only, but Vercel safely stores them as
+    // private runtime environment variables; they must never receive VITE_.
+    const deployUrl = `https://vercel.com/new/clone?repository-url=${encodeURIComponent(DISTRIBUTION_REPOSITORY_URL)}&env=VITE_SUPABASE_URL,VITE_SUPABASE_ANON_KEY,SUPABASE_SERVICE_ROLE_KEY,VITE_CENTRAL_API_URL,VITE_CENTRAL_SUPABASE_ANON_KEY,PAYMENT_ENCRYPTION_KEY&envDescription=Configuracao%20do%20Super%20Checkout&project-name=super-checkout&repository-name=super-checkout`;
 
     // Navigation Helper
     const stepsOrder = ['check_subscription', 'supabase_setup', 'supabase_migrations', 'supabase_keys', 'deploy', 'vercel_config', 'success'];
@@ -935,7 +938,7 @@ export default function InstallerWizard() {
                                                     license_key: licenseKey,
                                                     installation_id: currentInstallId,
                                                     current_domain: getLicenseValidationDomain(vercelDomain),
-                                                    register: true // Always register on explicit setup
+                                                    preflight: true // The Central record is created only during final activation.
                                                 })
                                             });
 

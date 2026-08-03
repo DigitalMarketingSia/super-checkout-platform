@@ -4,9 +4,12 @@ import { getActivationSetupUrl, getActivationUrl } from '../config/platformUrls'
 
 interface EmailData {
     to: string;
-    subject: string;
-    html: string;
+    subject?: string;
+    html?: string;
     from_name?: string;
+    template_key?: string;
+    language?: string;
+    variables?: Record<string, string>;
     flow: 'ORDER_COMPLETED' | 'ACCESS_GRANTED' | 'BOLETO_GENERATED' | 'SYSTEM_EMAIL' | 'INTEGRATION_TEST';
 }
 
@@ -297,33 +300,13 @@ class EmailService {
         try {
             const lang = this.getLang();
 
-            const { data: template } = await supabase
-                .from('system_email_templates')
-                .select('*')
-                .eq('event_type', eventType)
-                .eq('language', lang)
-                .eq('active', true)
-                .maybeSingle();
-
-            if (!template) {
-                console.warn(`[EmailService] System template not found or inactive for: ${eventType} [${lang}]`);
-                return false;
-            }
-
-            let subject = template.subject;
-            let html = template.html_body;
-
-            for (const [key, value] of Object.entries(variables)) {
-                subject = subject.replace(new RegExp(key, 'g'), value);
-                html = html.replace(new RegExp(key, 'g'), value);
-            }
-
             return await this.sendEmail({
                 to,
-                subject,
-                html,
                 flow: 'SYSTEM_EMAIL',
-                from_name: 'Super Checkout'
+                from_name: 'Super Checkout',
+                template_key: eventType,
+                language: lang,
+                variables,
             });
         } catch (error) {
             console.error(`[EmailService] Error sending system email ${eventType}:`, error);

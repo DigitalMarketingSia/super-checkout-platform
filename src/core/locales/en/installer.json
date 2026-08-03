@@ -50,9 +50,9 @@
   "deploy": {
     "title": "Publish on Vercel",
     "desc": "Create your site automatically on Vercel.",
-    "step1": "1. Copy these variables to the Vercel deployment:",
-    "server_only_title": "Temporary server keys",
-    "server_only_desc": "Copy both private keys directly into Vercel. They exist only on this screen and are erased when you continue.",
+    "step1": "1. Fill in the six variables below in the Vercel deployment form:",
+    "server_only_title": "Required private server keys",
+    "server_only_desc": "SUPABASE_SERVICE_ROLE_KEY and PAYMENT_ENCRYPTION_KEY also go into Vercel, but stay server-only. Never rename them with VITE_ or expose them to the frontend. They exist only on this screen and are erased when you continue.",
     "copy_success": "Copied!",
     "copy_btn": "Copy",
     "domain_activated": "Domain Activated!",

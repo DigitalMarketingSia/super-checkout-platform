@@ -96,10 +96,15 @@ export interface Product {
   visible_in_member_area?: boolean;
   for_sale?: boolean;
   currency?: string; // New: Currency support (BRL, USD, EUR)
+  product_type?: ProductType;
+  service_type?: ProductServiceType | string;
   saas_plan_slug?: string;
   member_area_id?: string; // Links product to a specific member area
   created_at?: string;
 }
+
+export type ProductType = 'regular' | 'system_upgrade' | 'installation_service';
+export type ProductServiceType = 'system_installation';
 
 export interface Offer {
   id: string;

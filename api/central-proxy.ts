@@ -72,10 +72,13 @@ const CONTROL_PLANE_HMAC_ENDPOINTS = new Set([
     'revoke-passport-ticket',
 ]);
 
-function requiresControlPlaneHmac(endpoint: string, requestBody: Record<string, any>) {
+function requiresControlPlaneHmac(endpoint: string, requestBody: Record<string, any>, portalRequest = false) {
     if (CONTROL_PLANE_HMAC_ENDPOINTS.has(endpoint)) return true;
     return endpoint === 'upgrade-intents'
-        && ['consume_upgrade_intent', 'list_recent_upgrade_intents'].includes(requestBody?.action);
+        && (
+            ['consume_upgrade_intent', 'list_recent_upgrade_intents'].includes(requestBody?.action)
+            || (portalRequest && requestBody?.action === 'create_upgrade_intent')
+        );
 }
 
 function isSystemOwnerEmail(email?: string | null): boolean {
@@ -688,12 +691,18 @@ function shouldForwardAdminSecret(
     endpoint: string,
     method: string | undefined,
     requestBody: Record<string, any>,
-    hasOwnerGradeControlPlaneAccess: boolean
+    hasOwnerGradeControlPlaneAccess: boolean,
+    portalRequest = false,
 ) {
     const action = requestBody?.action;
 
     if (endpoint === 'get-license-status') {
-        return true;
+        // The Portal must reach Central as its authenticated account holder.
+        // Sending the global control-plane proof here makes Central classify
+        // the request as an internal lookup and suppress the account's own
+        // activation key. Non-Portal installation reads keep their private
+        // installation credential through getInstallationTrustScope().
+        return !portalRequest;
     }
 
     if (endpoint === 'create-commercial-license') {
@@ -706,7 +715,8 @@ function shouldForwardAdminSecret(
 
     if (endpoint === 'upgrade-intents') {
         return action === 'consume_upgrade_intent'
-            || (action === 'list_recent_upgrade_intents' && hasOwnerGradeControlPlaneAccess);
+            || (action === 'list_recent_upgrade_intents' && hasOwnerGradeControlPlaneAccess)
+            || (portalRequest && action === 'create_upgrade_intent');
     }
 
     if (endpoint === 'manage-licenses') {
@@ -1196,9 +1206,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             endpoint,
             req.method,
             requestBody,
-            hasOwnerGradeControlPlaneAccess
+            hasOwnerGradeControlPlaneAccess,
+            isPortalRequest(req),
         );
-        const requiresHmac = requiresControlPlaneHmac(endpoint, requestBody);
+        const requiresHmac = requiresControlPlaneHmac(endpoint, requestBody, isPortalRequest(req));
 
         const installationTrustScope = getInstallationTrustScope(req, endpoint, req.method, requestBody);
         let installationTrustConfig: CentralInstallationTrustConfig | null = null;
@@ -1299,10 +1310,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             'Content-Type': 'application/json',
         };
 
-        if (endpoint === 'get-license-status' || endpoint === 'manage-user-installations') {
+        if (
+            endpoint === 'get-license-status'
+            || endpoint === 'manage-user-installations'
+            || endpoint === 'generate-install-token'
+        ) {
             // The Central function validates this token and ignores any
             // user_id/email supplied by the browser unless a trusted
             // installation or control-plane proof is present.
+            // The pre-installation Portal flow has no installation HMAC yet,
+            // so generate-install-token must receive the authenticated
+            // Central JWT as well.
             forwardHeaders.Authorization = `Bearer ${jwt}`;
         }
 
@@ -1350,7 +1368,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     || endpoint === 'check-entitlement'
                     || endpoint === 'pagbank-oauth'
                     || (endpoint === 'manage-licenses' && CRM_READ_ACTIONS.has(bodyObj.action))
-                    || (endpoint === 'upgrade-intents' && bodyObj.action === 'create_upgrade_intent')
+                    || (endpoint === 'upgrade-intents' && bodyObj.action === 'create_upgrade_intent' && !isPortalRequest(req))
                 ) {
                     const serverLicenseKey = serverInstallationContext?.licenseKey || await resolveServerLicenseKey();
                     if (!serverLicenseKey) {

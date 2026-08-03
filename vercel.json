@@ -93,6 +93,7 @@
     "rewrites": [
         { "source": "/api/check-status", "destination": "/api/system?action=check-status" },
         { "source": "/api/health", "destination": "/api/system?action=health" },
+        { "source": "/api/platform-email-dispatcher", "destination": "/api/system?action=platform-email-dispatcher" },
         { "source": "/api/pagbank-callback", "destination": "/api/system?action=pagbank-oauth-callback" },
         { "source": "/api/auth/login", "destination": "/api/auth?route=login" },
         { "source": "/api/auth/register", "destination": "/api/auth?route=register" },
@@ -164,6 +165,10 @@
     "crons": [
         {
             "path": "/api/health",
+            "schedule": "0 6 * * *"
+        },
+        {
+            "path": "/api/platform-email-dispatcher",
             "schedule": "0 6 * * *"
         }
     ]

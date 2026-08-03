@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Layout } from '../../components/Layout';
 import { storage } from '../../services/storageService';
 import { supabase } from '../../services/supabase';
-import { Product, Content, Checkout, MemberArea } from '../../types';
+import { Product, ProductType, Content, Checkout, MemberArea } from '../../types';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { ConfirmModal, AlertModal } from '../../components/ui/Modal';
@@ -20,6 +20,14 @@ import {
   PRODUCT_DELIVERABLE_MAX_BYTES,
   formatProductDeliverableSize,
 } from '../../config/productDeliverables';
+import {
+  deriveProductType,
+  normalizeProductCatalogPayload,
+  PRODUCT_TYPE_INSTALLATION_SERVICE,
+  PRODUCT_TYPE_REGULAR,
+  PRODUCT_TYPE_SYSTEM_UPGRADE,
+  SYSTEM_INSTALLATION_SERVICE,
+} from '../../services/productCatalog';
 
 // Initial Form State
 const initialFormState = {
@@ -36,6 +44,8 @@ const initialFormState = {
   active: true,
   member_area_action: 'checkout' as 'checkout' | 'sales_page' | 'file',
   member_area_checkout_id: '',
+  product_type: PRODUCT_TYPE_REGULAR as ProductType,
+  service_type: '',
   saas_plan_slug: '',
   member_area_id: null as string | null,
   delivery_file_path: null as string | null,
@@ -71,12 +81,17 @@ const isControlPlaneHost = () => {
 
 export const Products = () => {
   const { t, i18n } = useTranslation(['admin', 'common']);
-  const { profile, compliance, isWhiteLabel } = useAuth();
+  const { profile, account, compliance, isWhiteLabel } = useAuth();
   const { getLimit, loading: checkingFeatures } = useFeatures();
   const effectiveRole = profile?.effective_role || profile?.role;
   const canManageSaasPlanMapping =
     (effectiveRole === 'master_admin' || effectiveRole === 'owner') &&
     isControlPlaneHost();
+  const canManageInstallationService =
+    canManageSaasPlanMapping
+    || effectiveRole === 'partner'
+    || profile?.role === 'partner'
+    || String(account?.plan_type || '').toLowerCase() === 'saas';
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'grid' | 'edit'>('grid');
@@ -198,6 +213,27 @@ export const Products = () => {
 
     try {
       const sanitizedFormData = { ...formData };
+      const selectedProductType = deriveProductType(sanitizedFormData);
+
+      if (selectedProductType === PRODUCT_TYPE_SYSTEM_UPGRADE && !canManageSaasPlanMapping) {
+        throw new Error('Somente o Proprietario do Sistema pode criar ou editar produtos de upgrade.');
+      }
+
+      if (selectedProductType === PRODUCT_TYPE_INSTALLATION_SERVICE && !canManageInstallationService) {
+        throw new Error('Seu plano nao possui permissao para criar produtos de servico de instalacao.');
+      }
+
+      const catalog = normalizeProductCatalogPayload({
+        ...sanitizedFormData,
+        product_type: selectedProductType,
+        service_type: selectedProductType === PRODUCT_TYPE_INSTALLATION_SERVICE
+          ? (sanitizedFormData.service_type || SYSTEM_INSTALLATION_SERVICE)
+          : '',
+        saas_plan_slug: selectedProductType === PRODUCT_TYPE_SYSTEM_UPGRADE
+          ? sanitizedFormData.saas_plan_slug
+          : '',
+      });
+      Object.assign(sanitizedFormData, catalog);
       if (String(sanitizedFormData.member_area_action) === 'sales_page') {
         const deliveryUrl = String(sanitizedFormData.redirect_link || '').trim();
         try {
@@ -372,6 +408,8 @@ export const Products = () => {
         member_area_action: (product.member_area_action || 'checkout') as 'checkout' | 'sales_page' | 'file',
         member_area_checkout_id: product.member_area_checkout_id || '',
         saas_plan_slug: product.saas_plan_slug || '',
+        product_type: deriveProductType(product),
+        service_type: product.service_type || '',
         member_area_id: product.member_area_id || null,
         delivery_file_path: product.delivery_file_path || null,
         delivery_file_name: product.delivery_file_name || null,
@@ -497,6 +535,14 @@ export const Products = () => {
                         <h3 className="text-xl font-portal-display text-white group-hover:text-primary transition-colors truncate mb-1.5">{product.name}</h3>
                         <div className="flex items-center gap-2">
                            <span className="text-[10px] text-gray-500 font-black uppercase tracking-widest font-mono">{product.category || 'General'}</span>
+                           {deriveProductType(product) !== PRODUCT_TYPE_REGULAR && (
+                             <>
+                               <div className="w-1 h-1 rounded-full bg-gray-800" />
+                               <span className="text-[8px] text-primary font-black uppercase tracking-widest">
+                                 {deriveProductType(product) === PRODUCT_TYPE_SYSTEM_UPGRADE ? 'Upgrade do sistema' : 'Servico de instalacao'}
+                               </span>
+                             </>
+                           )}
                            <div className="w-1 h-1 rounded-full bg-gray-800" />
                            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[7px] font-black uppercase tracking-widest border transition-all ${
                              product.active
@@ -711,6 +757,40 @@ export const Products = () => {
                    <textarea className="w-full bg-black/40 border border-white/5 rounded-3xl px-6 py-5 text-white placeholder:text-gray-800 focus:border-white/20 transition-all resize-none font-medium h-40" placeholder={t('products.description_placeholder')} value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} />
                 </div>
 
+                {(canManageSaasPlanMapping || canManageInstallationService) && (
+                  <div className="md:col-span-2">
+                    <div className="rounded-[2rem] border border-amber-500/20 bg-amber-500/5 p-6">
+                      <label className="block text-[10px] font-black text-amber-300 uppercase tracking-widest mb-3">
+                        Tipo comercial do produto
+                      </label>
+                      <select
+                        className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-4 text-white outline-none focus:border-amber-400/50 transition-all font-medium appearance-none cursor-pointer"
+                        value={deriveProductType(formData)}
+                        onChange={e => {
+                          const nextType = e.target.value as ProductType;
+                          setFormData({
+                            ...formData,
+                            product_type: nextType,
+                            service_type: nextType === PRODUCT_TYPE_INSTALLATION_SERVICE ? SYSTEM_INSTALLATION_SERVICE : '',
+                            saas_plan_slug: nextType === PRODUCT_TYPE_SYSTEM_UPGRADE ? formData.saas_plan_slug : '',
+                          });
+                        }}
+                      >
+                        <option value={PRODUCT_TYPE_REGULAR}>Produto regular</option>
+                        {canManageInstallationService && (
+                          <option value={PRODUCT_TYPE_INSTALLATION_SERVICE}>Servico de instalacao do sistema</option>
+                        )}
+                        {canManageSaasPlanMapping && (
+                          <option value={PRODUCT_TYPE_SYSTEM_UPGRADE}>Upgrade de plano do sistema</option>
+                        )}
+                      </select>
+                      <p className="text-[11px] text-gray-400 mt-3">
+                        Produtos de upgrade alteram entitlements; servicos de instalacao geram uma ordem de servico e nao alteram o plano.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {canManageSaasPlanMapping && (
                   <div className="md:col-span-2">
                     <div className="rounded-[2rem] border border-primary/20 bg-primary/5 p-6">
@@ -725,7 +805,6 @@ export const Products = () => {
                         <option value="">{t('products.not_saas_plan')}</option>
                         <option value="upgrade_domains">{t('products.upgrade_domains_plan')}</option>
                         <option value="saas">{t('products.saas_partner_plan')}</option>
-                        <option value="whitelabel">{t('products.whitelabel_plan')}</option>
                       </select>
                       <p className="text-[11px] text-gray-400 mt-3">
                         {t('products.saas_mapping_hint')}

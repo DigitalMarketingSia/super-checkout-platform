@@ -18,6 +18,7 @@ import { getCachedAuthUser, setCachedAuthUser } from './authUserCache';
 import { demoDataService, isDemoDataRuntime } from './demoDataService';
 import { isPublicViewUnavailable } from './publicDataViews';
 import { publicSupabase, supabase } from './supabase';
+import { deriveProductType, normalizeProductCatalogPayload } from './productCatalog';
 export { supabase };
 
 import { User } from '@supabase/supabase-js';
@@ -45,6 +46,8 @@ function mapProductRecord(record: any, overrides: Partial<Product> = {}): Produc
     sku: record.sku,
     category: record.category,
     currency: record.currency,
+    product_type: deriveProductType(record),
+    service_type: record.service_type,
     redirect_link: record.redirect_link,
     checkout_slug: record.checkout_slug,
     checkout_url: record.checkout_url,
@@ -258,7 +261,8 @@ class StorageService {
     const user = await this.getUser();
     if (!user) throw new Error('No user logged in');
 
-    const record = {
+    const catalog = normalizeProductCatalogPayload(product);
+    const record: Record<string, any> = {
       id: product.id,
       user_id: user.id,
       name: product.name,
@@ -281,7 +285,7 @@ class StorageService {
       for_sale: product.for_sale,
       member_area_action: product.member_area_action,
       member_area_checkout_id: product.member_area_checkout_id || null, // Convert empty string to null
-      saas_plan_slug: product.saas_plan_slug || null,
+      ...catalog,
       member_area_id: product.member_area_id || null
     };
 
@@ -304,7 +308,8 @@ class StorageService {
     const user = await this.getUser();
     if (!user) throw new Error('No user logged in');
 
-    const record = {
+    const catalog = normalizeProductCatalogPayload(product);
+    const record: Record<string, any> = {
       name: product.name,
       description: product.description,
       active: product.active,
@@ -325,7 +330,7 @@ class StorageService {
       for_sale: product.for_sale,
       member_area_action: product.member_area_action,
       member_area_checkout_id: product.member_area_checkout_id || null, // Convert empty string to null
-      saas_plan_slug: product.saas_plan_slug || null,
+      ...catalog,
       member_area_id: product.member_area_id || null
     };
 
@@ -1625,6 +1630,34 @@ class StorageService {
   async createOrder(order: Order) {
     if (isDemoDataRuntime()) {
       await demoDataService.createOrder(order);
+      return;
+    }
+
+    // Public checkout sessions are anonymous by design. Creating an order
+    // directly from the browser would therefore depend on the public INSERT
+    // policy and can be rejected by RLS (especially for upgrade checkouts
+    // carrying a beneficiary/customer_user_id). Route this write through the
+    // server payment hub, which derives the merchant and canonical amount from
+    // the checkout instead of trusting browser-provided ownership fields.
+    if (typeof window !== 'undefined') {
+      const response = await fetch('/api/payments?action=create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          order: {
+            ...order,
+            total: order.amount,
+          },
+        }),
+      });
+
+      const result = await response.json().catch(() => null);
+      if (!response.ok || !result?.success) {
+        const message = result?.error || 'Nao foi possivel criar o pedido.';
+        console.error('[StorageService] Server-side order creation failed:', message);
+        throw new Error(`Failed to create order: ${message}`);
+      }
+
       return;
     }
 

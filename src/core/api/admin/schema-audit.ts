@@ -22,6 +22,7 @@ const SCHEMA_CHECKS = [
   { table: 'licenses', columns: ['key', 'account_id', 'max_instances', 'status'] },
   { table: 'installations', columns: ['license_key', 'account_id', 'installation_id', 'status'] },
   { table: 'profiles', columns: ['role', 'status', 'last_login_at', 'is_blocked'] },
+  { table: 'products', columns: ['product_type', 'service_type', 'saas_plan_slug'] },
   { table: 'member_areas', columns: ['banner_description', 'sidebar_config', 'custom_links', 'faqs'] },
   { table: 'gateways', columns: ['provider', 'credentials', 'config', 'is_active'] },
   { table: 'customer_payment_profiles', columns: ['gateway_id', 'gateway_name', 'gateway_customer_id', 'gateway_payment_method_id', 'reusable'] },
@@ -33,7 +34,7 @@ const SCHEMA_CHECKS = [
   { table: 'data_retention_runs', columns: ['table_name', 'rows_affected', 'cutoff_at', 'created_at'] },
   { table: 'public_gateways', columns: ['id', 'provider', 'public_key', 'config'] },
   { table: 'email_templates', columns: ['event_type', 'language', 'html_body'] },
-  { table: 'system_email_templates', columns: ['event_type', 'language', 'html_body'] },
+  { table: 'system_email_templates', columns: ['event_type', 'template_key', 'language', 'template_version', 'audience', 'sender_profile', 'html_body', 'updated_at'] },
   { table: 'system_updates_log', columns: ['action', 'status', 'files_affected'] }
 ];
 

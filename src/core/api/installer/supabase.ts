@@ -125,6 +125,7 @@ async function validateCentralLicense(params: {
   licenseKey: string;
   installationId: string;
   domain: string;
+  register?: boolean;
 }) {
   const centralAnonKey = resolveCentralAnonKey();
   if (!centralAnonKey) {
@@ -142,7 +143,8 @@ async function validateCentralLicense(params: {
       license_key: params.licenseKey,
       installation_id: params.installationId,
       current_domain: params.domain,
-      register: true,
+      register: params.register === true,
+      preflight: params.register !== true,
     }),
   });
 
@@ -377,6 +379,20 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- Stub required before products/policies are created. The definitive
+-- implementation is installed after public.profiles exists below.
+CREATE OR REPLACE FUNCTION public.is_platform_owner()
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  RETURN false;
+END;
+$$;
+
 -- ==========================================
 -- 2. CORE TABLES (Idempotent Creation)
 -- ==========================================
@@ -456,6 +472,8 @@ CREATE TABLE IF NOT EXISTS products (
   currency TEXT DEFAULT 'BRL',
   image_url TEXT,
   active BOOLEAN DEFAULT true,
+  product_type TEXT NOT NULL DEFAULT 'regular',
+  service_type TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -475,6 +493,8 @@ BEGIN
     ALTER TABLE products ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'BRL';
     ALTER TABLE products ADD COLUMN IF NOT EXISTS member_area_id UUID;
     ALTER TABLE products ADD COLUMN IF NOT EXISTS saas_plan_slug TEXT;
+    ALTER TABLE products ADD COLUMN IF NOT EXISTS product_type TEXT NOT NULL DEFAULT 'regular';
+    ALTER TABLE products ADD COLUMN IF NOT EXISTS service_type TEXT;
     ALTER TABLE products ADD COLUMN IF NOT EXISTS delivery_file_path TEXT;
     ALTER TABLE products ADD COLUMN IF NOT EXISTS delivery_file_name TEXT;
     ALTER TABLE products ADD COLUMN IF NOT EXISTS delivery_file_mime_type TEXT;
@@ -495,6 +515,138 @@ ALTER TABLE public.products
     member_area_action IS NULL
     OR member_area_action IN ('none', 'checkout', 'sales_page', 'file')
   );
+
+ALTER TABLE public.products
+  DROP CONSTRAINT IF EXISTS products_product_type_check,
+  DROP CONSTRAINT IF EXISTS products_catalog_metadata_check;
+
+UPDATE public.products
+SET saas_plan_slug = CASE LOWER(BTRIM(saas_plan_slug))
+  WHEN 'unlimited' THEN 'upgrade_domains'
+  WHEN 'partner' THEN 'saas'
+  WHEN 'upgrade_partner' THEN 'saas'
+  ELSE NULLIF(BTRIM(saas_plan_slug), '')
+END
+WHERE saas_plan_slug IS NOT NULL;
+
+UPDATE public.products
+SET product_type = CASE
+  WHEN NULLIF(BTRIM(saas_plan_slug), '') IS NOT NULL THEN 'system_upgrade'
+  WHEN NULLIF(BTRIM(service_type), '') IS NOT NULL THEN 'installation_service'
+  ELSE 'regular'
+END
+WHERE product_type IS NULL
+   OR NULLIF(BTRIM(product_type), '') IS NULL
+   OR product_type = 'regular';
+
+ALTER TABLE public.products
+  ADD CONSTRAINT products_product_type_check
+  CHECK (product_type IN ('regular', 'system_upgrade', 'installation_service'));
+
+CREATE OR REPLACE FUNCTION public.can_manage_product_catalog_type(p_product_type TEXT)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_type TEXT := LOWER(BTRIM(COALESCE(NULLIF(p_product_type, ''), 'regular')));
+BEGIN
+  IF auth.role() = 'service_role' THEN
+    RETURN true;
+  END IF;
+
+  IF v_type = 'system_upgrade' THEN
+    RETURN public.is_platform_owner();
+  END IF;
+
+  IF v_type = 'installation_service' THEN
+    IF EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = auth.uid()
+        AND COALESCE(is_blocked, false) = false
+        AND role IN ('master_admin', 'partner')
+    ) THEN
+      RETURN true;
+    END IF;
+
+    RETURN EXISTS (
+      SELECT 1 FROM public.accounts
+      WHERE owner_user_id = auth.uid()
+        AND LOWER(COALESCE(plan_type, '')) = 'saas'
+        AND LOWER(COALESCE(status, 'active')) = 'active'
+    );
+  END IF;
+
+  RETURN true;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.can_manage_product_catalog_type(TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.can_manage_product_catalog_type(TEXT) TO authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION public.normalize_product_catalog_metadata()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  NEW.product_type := LOWER(BTRIM(COALESCE(NEW.product_type, 'regular')));
+  NEW.service_type := NULLIF(LOWER(BTRIM(COALESCE(NEW.service_type, ''))), '');
+  NEW.saas_plan_slug := NULLIF(LOWER(BTRIM(COALESCE(NEW.saas_plan_slug, ''))), '');
+
+  IF NEW.product_type = 'regular' AND NEW.saas_plan_slug IS NOT NULL THEN
+    NEW.product_type := 'system_upgrade';
+  ELSIF NEW.product_type = 'regular' AND NEW.service_type IS NOT NULL THEN
+    NEW.product_type := 'installation_service';
+  END IF;
+
+  IF NEW.product_type = 'system_upgrade' THEN
+    IF NEW.saas_plan_slug IS NULL THEN
+      RAISE EXCEPTION 'system_upgrade products require saas_plan_slug';
+    END IF;
+    NEW.service_type := NULL;
+  ELSIF NEW.product_type = 'installation_service' THEN
+    IF NEW.service_type IS NULL THEN
+      RAISE EXCEPTION 'installation_service products require service_type';
+    END IF;
+    NEW.saas_plan_slug := NULL;
+  ELSE
+    NEW.product_type := 'regular';
+    NEW.service_type := NULL;
+    NEW.saas_plan_slug := NULL;
+  END IF;
+
+  IF NOT public.can_manage_product_catalog_type(NEW.product_type) THEN
+    RAISE EXCEPTION 'product type % is not allowed for this account', NEW.product_type
+      USING ERRCODE = '42501';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS normalize_product_catalog_metadata_trigger ON public.products;
+CREATE TRIGGER normalize_product_catalog_metadata_trigger
+BEFORE INSERT OR UPDATE OF product_type, service_type, saas_plan_slug ON public.products
+FOR EACH ROW
+EXECUTE FUNCTION public.normalize_product_catalog_metadata();
+
+ALTER TABLE public.products
+  ADD CONSTRAINT products_catalog_metadata_check
+  CHECK (
+    (product_type = 'regular' AND service_type IS NULL AND saas_plan_slug IS NULL)
+    OR (product_type = 'system_upgrade' AND service_type IS NULL AND saas_plan_slug IS NOT NULL)
+    OR (product_type = 'installation_service' AND service_type IS NOT NULL AND saas_plan_slug IS NULL)
+  );
+
+ALTER TABLE public.products
+  DROP CONSTRAINT IF EXISTS products_service_type_check;
+
+ALTER TABLE public.products
+  ADD CONSTRAINT products_service_type_check
+  CHECK (service_type IS NULL OR service_type IN ('system_installation'));
 
 -- 2.4 Contents
 CREATE TABLE IF NOT EXISTS contents (
@@ -1000,6 +1152,28 @@ BEGIN
     UPDATE public.profiles SET is_blocked = false WHERE is_blocked IS NULL;
 END $$;
 
+-- Replace the bootstrap stub now that public.profiles exists.
+CREATE OR REPLACE FUNCTION public.is_platform_owner()
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1
+    FROM public.profiles
+    WHERE id = auth.uid()
+      AND role = 'master_admin'
+      AND COALESCE(is_blocked, false) = false
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.is_platform_owner() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.is_platform_owner() TO authenticated, service_role;
+
 CREATE TABLE IF NOT EXISTS public.member_notes (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
@@ -1357,7 +1531,13 @@ CREATE POLICY "Users can delete their own member areas" ON member_areas FOR DELE
 CREATE POLICY "Public can view member areas by slug" ON member_areas FOR SELECT USING (true);
 
 -- Products
-CREATE POLICY "Users can manage their own products" ON products FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Users can manage their own products"
+  ON products FOR ALL TO authenticated
+  USING (auth.uid() = user_id)
+  WITH CHECK (
+    auth.uid() = user_id
+    AND public.can_manage_product_catalog_type(product_type)
+  );
 CREATE POLICY "Public can view active products" ON products FOR SELECT USING (active = true);
 
 -- Gateways
@@ -1902,6 +2082,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         licenseKey,
         installationId,
         domain: validationDomain,
+        // Verification and project creation need a license check, but must not
+        // create an installation record. Only the target runtime can activate.
+        register: resolvedAction === 'prepare_setup',
       });
     } catch (e) {
       console.error('License Validation Error:', safeErrorMessage(e));

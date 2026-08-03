@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { Boxes, Copy, ExternalLink, Globe, KeyRound, LayoutDashboard, Loader2, Package, RefreshCcw, Sparkles, Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Installation, License } from '../../../services/licenseService';
@@ -33,6 +33,9 @@ const QUICK_ACCESS_ITEMS: QuickAccessItem[] = [
     { key: 'products', icon: Package, path: '/admin/products' },
     { key: 'members', icon: Boxes, path: '/admin/members' },
 ];
+
+const isSetupPendingInstallation = (installation: Installation) =>
+    String(installation?.domain || '').trim().toLowerCase() === 'setup-pending';
 
 export const DemoExperienceCard: React.FC<DemoExperienceCardProps> = ({
     onOpenDemo,
@@ -147,14 +150,10 @@ export const BlockBasicDashboard: React.FC<BlockBasicDashboardProps> = ({
     demoError,
 }) => {
     const { t } = useTranslation('portal');
-    const [savedInstallUrl, setSavedInstallUrl] = useState<string | null>(null);
-
-    useEffect(() => {
-        setSavedInstallUrl(sessionStorage.getItem('activation_install_url'));
-    }, []);
-
     const activeInstall = useMemo(
-        () => installations.find((installation) => installation.status === 'active') || null,
+        () => installations.find(
+            (installation) => installation.status === 'active' && !isSetupPendingInstallation(installation)
+        ) || null,
         [installations]
     );
 
@@ -312,23 +311,12 @@ export const BlockBasicDashboard: React.FC<BlockBasicDashboardProps> = ({
                                         {installationStatusHint}
                                     </p>
                                     <div className="mt-10 flex flex-wrap gap-4">
-                                        {savedInstallUrl && (
-                                            <a
-                                                href={savedInstallUrl}
-                                                target="_blank"
-                                                rel="noreferrer"
-                                                className="inline-flex items-center gap-3 rounded-2xl bg-white px-8 py-4 text-xs font-black uppercase tracking-widest text-black transition-all hover:bg-gray-100 hover:scale-[1.02] shadow-xl"
-                                            >
-                                                <ExternalLink className="h-4.5 w-4.5" />
-                                                {t('basic_dashboard.actions.open_link')}
-                                            </a>
-                                        )}
                                         <button
                                             onClick={() => onNavigate('install')}
                                             className="inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-8 py-4 text-xs font-black uppercase tracking-widest text-white transition-all hover:bg-white/10"
                                         >
                                             <RefreshCcw className="h-4.5 w-4.5" />
-                                            {savedInstallUrl ? t('basic_dashboard.actions.renew_link') : t('basic_dashboard.actions.view_installation')}
+                                            {t('basic_dashboard.actions.view_installation')}
                                         </button>
                                     </div>
                                 </div>

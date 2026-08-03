@@ -1,11 +1,16 @@
 import crypto from 'crypto';
 import {
+  buildCentralControlPlaneTrustHeaders,
+  getCentralControlPlaneHmacKey,
+} from '../api/_central-control-plane-trust.js';
+import {
   buildCentralInstallationTrustHeaders,
   getCentralInstallationTrustConfig,
 } from '../api/_central-installation-trust.js';
 import { buildOrderDeliverables, stripSensitiveDeliverableFields } from './orderDeliverables.js';
 import { mergeOrderMetadata, normalizeOrderMetadata } from './orderMetadata.js';
 import { dispatchSaleApprovedPush } from './pushAutomation.js';
+import { publishPlatformEvent } from './platformEventPublisher.js';
 
 type SupabaseAdmin = any;
 
@@ -165,10 +170,11 @@ async function consumeUpgradeIntent(params: {
     process.env.VITE_CENTRAL_SUPABASE_ANON_KEY ||
     process.env.CENTRAL_SERVICE_ROLE_KEY ||
     '';
+  const controlPlaneHmacKey = getCentralControlPlaneHmacKey();
   const installationTrust = getCentralInstallationTrustConfig();
 
-  if (!centralInvokeKey || !installationTrust) {
-    throw new Error('Missing private Central installation credential for upgrade intent consumption.');
+  if (!centralInvokeKey || (!controlPlaneHmacKey && !installationTrust)) {
+    throw new Error('Missing private Central trust credential for upgrade intent consumption.');
   }
 
   const rawBody = JSON.stringify({
@@ -183,12 +189,19 @@ async function consumeUpgradeIntent(params: {
     order_created_at: params.orderCreatedAt,
     order_paid_at: params.orderPaidAt,
   });
-  const trustHeaders = buildCentralInstallationTrustHeaders({
-    config: installationTrust,
-    method: 'POST',
-    endpoint: 'upgrade-intents',
-    rawBody,
-  });
+  const trustHeaders = controlPlaneHmacKey
+    ? buildCentralControlPlaneTrustHeaders({
+      key: controlPlaneHmacKey,
+      method: 'POST',
+      endpoint: 'upgrade-intents',
+      rawBody,
+    })
+    : buildCentralInstallationTrustHeaders({
+      config: installationTrust!,
+      method: 'POST',
+      endpoint: 'upgrade-intents',
+      rawBody,
+    });
 
   const response = await fetch(`${centralUrl}/functions/v1/upgrade-intents`, {
     method: 'POST',
@@ -480,6 +493,123 @@ export async function fulfillOrder(
   const productNames = items.map((item: any) => item.name).filter(Boolean).join(', ') || 'Produtos';
   const systemRecipientEmail = upgradeBeneficiary?.beneficiary_email || payerEmail;
   const systemRecipientName = upgradeBeneficiary?.beneficiary_name || payerName;
+
+  if (upgradeBeneficiary && systemRecipientEmail) {
+    const planSlugSet = new Set(uniqueSaasPlansToCreate.map((slug) => String(slug || '').trim().toLowerCase()));
+    const isPartnerUpgrade = ['saas', 'partner', 'upgrade_partner'].some((slug) => planSlugSet.has(slug));
+    const isUnlimitedUpgrade = ['upgrade_domains', 'unlimited', 'lifetime', 'upgrade_unlimited'].some((slug) => planSlugSet.has(slug));
+
+    if (isPartnerUpgrade || isUnlimitedUpgrade) {
+      const templateKey = isPartnerUpgrade ? 'PLATFORM_UPGRADE_PARTNER' : 'PLATFORM_UPGRADE_UNLIMITED';
+      const eventLabel = isPartnerUpgrade ? 'Plano Parceiro aplicado' : 'Recursos Ilimitados Vitalicio aplicados';
+      const emailVariables = isPartnerUpgrade
+        ? {
+          '{{name}}': systemRecipientName,
+          '{{partner_portal_url}}': 'https://portal.supercheckout.app/activate',
+        }
+        : {
+          '{{name}}': systemRecipientName,
+          '{{support_url}}': 'mailto:suporte@supercheckout.app',
+        };
+      const emailDeliveries: Array<{
+        deduplication_key: string;
+        template_key: string;
+        language: string;
+        sender_profile: 'upgrade';
+        variables: Record<string, string>;
+        recipient_email: string;
+        recipient_user_id?: string | null;
+        recipient_role?: string | null;
+        scope_type?: string | null;
+        scope_id?: string | null;
+        order_id?: string | null;
+        license_key?: string | null;
+      }> = [{
+        deduplication_key: `upgrade_email:${orderId}:${templateKey}:${systemRecipientEmail.toLowerCase()}`,
+        template_key: templateKey,
+        language: 'pt',
+        sender_profile: 'upgrade' as const,
+        variables: emailVariables,
+        recipient_email: systemRecipientEmail,
+        recipient_user_id: upgradeBeneficiary.target_user_id,
+        recipient_role: 'beneficiary',
+        scope_type: 'license',
+        scope_id: upgradeBeneficiary.target_license_key,
+        order_id: orderId,
+        license_key: upgradeBeneficiary.target_license_key,
+      }];
+
+      const normalizedPayerEmail = String(payerEmail || '').trim().toLowerCase();
+      const normalizedBeneficiaryEmail = String(systemRecipientEmail || '').trim().toLowerCase();
+      if (normalizedPayerEmail && normalizedBeneficiaryEmail && normalizedPayerEmail !== normalizedBeneficiaryEmail) {
+        const paymentCurrency = String(order.currency || order.payment_currency || 'BRL').trim().toUpperCase();
+        const paymentAmount = new Intl.NumberFormat('pt-BR', {
+          style: 'currency',
+          currency: paymentCurrency === 'USD' || paymentCurrency === 'EUR' ? paymentCurrency : 'BRL',
+        }).format(Number(order.total ?? order.amount ?? 0) || 0);
+        emailDeliveries.push({
+          deduplication_key: `upgrade_receipt:${orderId}:${normalizedPayerEmail}`,
+          template_key: 'PLATFORM_UPGRADE_PAYMENT_RECEIPT',
+          language: 'pt',
+          sender_profile: 'upgrade' as const,
+          variables: {
+            '{{payer_name}}': payerName,
+            '{{order_id}}': `#${orderId.slice(0, 8)}`,
+            '{{beneficiary_name}}': systemRecipientName,
+            '{{product_names}}': productNames,
+            '{{amount}}': paymentAmount,
+            '{{portal_url}}': 'https://portal.supercheckout.app/activate',
+          },
+          recipient_email: payerEmail,
+          recipient_user_id: null,
+          recipient_role: 'payer',
+          scope_type: 'order',
+          scope_id: orderId,
+          order_id: orderId,
+          license_key: upgradeBeneficiary.target_license_key,
+        });
+      }
+      try {
+        const eventResult = await publishPlatformEvent({
+          eventType: 'UPGRADE_APPLIED',
+          source: 'vercel-fulfillment',
+          sourceEventId: orderId,
+          deduplicationKey: `upgrade_applied:${orderId}:${templateKey}`,
+          aggregateType: 'order',
+          aggregateId: orderId,
+          payload: {
+            order_id: orderId,
+            plan_slugs: uniqueSaasPlansToCreate,
+            beneficiary_user_id: upgradeBeneficiary.target_user_id,
+            beneficiary_email: systemRecipientEmail,
+            license_key: upgradeBeneficiary.target_license_key,
+          },
+          emailDeliveries,
+          notifications: [{
+            deduplication_key: `upgrade_notification:${orderId}:${templateKey}:${upgradeBeneficiary.target_user_id}`,
+            recipient_user_id: upgradeBeneficiary.target_user_id,
+            recipient_email: systemRecipientEmail,
+            recipient_role: 'beneficiary',
+            scope_type: 'license',
+            scope_id: upgradeBeneficiary.target_license_key,
+            category: 'upgrade',
+            title: eventLabel,
+            message: `O pedido ${orderId.slice(0, 8)} foi concluido e o upgrade ja esta ativo.`,
+            priority: 'high',
+            reference_type: 'order',
+            reference_id: orderId,
+            action_url: 'https://portal.supercheckout.app/activate',
+          }],
+          dispatchNow: true,
+        });
+        if (!eventResult.ok || !eventResult.dispatched) {
+          console.warn('[FulfillmentService] Platform upgrade event queued without immediate dispatch:', eventResult.error || 'dispatcher_unavailable');
+        }
+      } catch (eventError: any) {
+        console.warn('[FulfillmentService] Platform upgrade event failed without blocking fulfillment:', eventError?.message || eventError);
+      }
+    }
+  }
 
   if (accessGrantedCount > 0) {
     await insertAppEventOnce(supabaseAdmin, {

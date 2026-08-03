@@ -12,7 +12,7 @@ export interface ApprovedMigrationRecord {
   reason?: string;
 }
 
-export const CURRENT_SCHEMA_VERSION = '1.0.40';
+export const CURRENT_SCHEMA_VERSION = '1.0.43';
 export const UNKNOWN_SCHEMA_VERSION = '0.0.0';
 
 export const APPROVED_MIGRATION_ALLOWLIST: Record<string, ApprovedMigrationRecord> = {
@@ -156,7 +156,7 @@ export const APPROVED_MIGRATION_ALLOWLIST: Record<string, ApprovedMigrationRecor
   },
   '1.0.35': {
     file: 'v1.0.35.sql',
-    sha256: '9d216d5439137dcaa9794b54d6aa0c6b44d175e3bea31a378fb1688b7894fd4a'
+    sha256: '05c4276e574f7b2857ee13b292c2c4760a9175f062e4390f1145f63cfe53fa23'
   },
   '1.0.36': {
     file: 'v1.0.36.sql',
@@ -179,6 +179,24 @@ export const APPROVED_MIGRATION_ALLOWLIST: Record<string, ApprovedMigrationRecor
   '1.0.40': {
     file: 'v1.0.40.sql',
     sha256: '38d92a87bbdf27d5288d61080631df919cd0f84a321c2c81cc829c3c06d48157'
+  },
+  '1.0.41': {
+    file: 'v1.0.41.sql',
+    sha256: 'ca93d46fbc5eeb835bf5c6c89a977aa594efd5d29162ca766bef4627855567f0',
+    execution: 'owner_manual',
+    reason: 'Migration de contrato e seguranca dos templates de email da plataforma. Deve ser aplicada pelo Proprietario no SQL Editor do Supabase para garantir que o RLS fique restrito a master_admin.'
+  },
+  '1.0.42': {
+    file: 'v1.0.42.sql',
+    sha256: '17332640fb8f703a2707634ee881670ccdfb8ea4d3b651d1af008be6a10772e2',
+    execution: 'owner_manual',
+    reason: 'Migration aditiva do catalogo comercial. Deve ser aplicada pelo Proprietario no SQL Editor para criar product_type/service_type e preservar os aliases legados de upgrade.'
+  },
+  '1.0.43': {
+    file: 'v1.0.43.sql',
+    sha256: '82596eab9439d7edebd2d87b3961127f8e5af04da4bd32d0cb4b24041b39acb2',
+    execution: 'owner_manual',
+    reason: 'Migration de enforcement do catalogo comercial. Deve ser aplicada pelo Proprietario no SQL Editor para impedir que cliente/parceiro criem upgrades e para limitar servicos de instalacao a Proprietario/Parceiro elegivel.'
   }
 };
 

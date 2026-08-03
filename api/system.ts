@@ -13,6 +13,10 @@ import { sendOrderAccessEmail } from '../src/core/services/orderEmail.js';
 import { mergeOrderMetadata, normalizeOrderMetadata } from '../src/core/services/orderMetadata.js';
 import { dispatchPaymentFailedPush } from '../src/core/services/pushAutomation.js';
 import { getAllowedGatewayIdsForPaymentMethod } from '../src/core/config/paymentRouting.js';
+import {
+    buildCentralControlPlaneTrustHeaders,
+    getCentralControlPlaneHmacKey,
+} from '../src/core/api/_central-control-plane-trust.js';
 
 const DEFAULT_ALLOWED_ORIGIN = 'https://app.supercheckout.app';
 const OFFICIAL_CENTRAL_API_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co/functions/v1';
@@ -21,6 +25,65 @@ const DEV_LOCAL_SUPABASE_URL = 'https://vixlzrmhqsbzjhpgfwdn.supabase.co';
 const PAGBANK_OAUTH_STATE_COOKIE = 'sc_pagbank_oauth_state';
 const PAGBANK_OAUTH_SCOPE = 'payments.read payments.create';
 const INTERNAL_SIGNATURE_TTL_MS = 5 * 60 * 1000;
+
+function isAuthorizedCronRequest(req: VercelRequest) {
+    const configuredSecret = String(process.env.CRON_SECRET || '').trim();
+    const authorization = String(req.headers.authorization || '');
+    if (!configuredSecret || !authorization.startsWith('Bearer ')) return false;
+
+    const suppliedSecret = authorization.slice('Bearer '.length).trim();
+    const expected = Buffer.from(configuredSecret, 'utf8');
+    const supplied = Buffer.from(suppliedSecret, 'utf8');
+    return expected.length > 0
+        && expected.length === supplied.length
+        && crypto.timingSafeEqual(expected, supplied);
+}
+
+async function platformEmailDispatcherCronHandler(req: VercelRequest, res: VercelResponse) {
+    if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+    if (!isAuthorizedCronRequest(req)) return res.status(401).json({ error: 'Unauthorized' });
+
+    let controlPlaneKey: string | null = null;
+    try {
+        controlPlaneKey = getCentralControlPlaneHmacKey();
+    } catch {
+        return res.status(503).json({ error: 'Central control-plane key unavailable' });
+    }
+    if (!controlPlaneKey) return res.status(503).json({ error: 'Central control-plane key unavailable' });
+
+    const centralApiUrl = String(
+        process.env.CENTRAL_API_URL
+        || process.env.VITE_CENTRAL_API_URL
+        || process.env.NEXT_PUBLIC_CENTRAL_API_URL
+        || OFFICIAL_CENTRAL_API_URL,
+    ).replace(/\/+$/, '');
+    const rawBody = JSON.stringify({ limit: 20 });
+    const trustHeaders = buildCentralControlPlaneTrustHeaders({
+        key: controlPlaneKey,
+        method: 'POST',
+        endpoint: 'platform-email-dispatcher',
+        rawBody,
+    });
+
+    try {
+        const response = await fetch(`${centralApiUrl}/platform-email-dispatcher`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...trustHeaders },
+            body: rawBody,
+        });
+        const payload = await response.json().catch(() => ({}));
+        return res.status(response.ok ? 200 : 502).json({
+            success: response.ok,
+            claimed: Number(payload?.claimed || 0),
+            sent: Number(payload?.sent || 0),
+            failed: Number(payload?.failed || 0),
+            reconciliation_pending: Number(payload?.reconciliation_pending || 0),
+            error: response.ok ? null : 'platform_email_dispatcher_failed',
+        });
+    } catch {
+        return res.status(502).json({ error: 'platform_email_dispatcher_unreachable' });
+    }
+}
 
 function getDevFallback(value: string) {
     return process.env.NODE_ENV !== 'production' ? value : '';
@@ -320,6 +383,85 @@ function isValidCentralInternalSignature(req: VercelRequest, body: Record<string
             && crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
     } catch {
         return false;
+    }
+}
+
+function isValidAdminInternalSignature(req: VercelRequest, body: Record<string, any>) {
+    const rawTimestamp = getHeaderValue(req.headers['x-admin-timestamp']);
+    const rawSignature = getHeaderValue(req.headers['x-admin-signature']).replace(/^sha256=/i, '');
+
+    const secrets = [
+        process.env.ADMIN_API_SECRET,
+        process.env.CENTRAL_SHARED_SECRET,
+        process.env.SHARED_SECRET,
+    ].map((value) => String(value || '').trim()).filter(Boolean);
+
+    if (secrets.length === 0 || !rawTimestamp || !rawSignature) return false;
+
+    const timestamp = Number(rawTimestamp.length === 10 ? `${rawTimestamp}000` : rawTimestamp);
+    if (!Number.isFinite(timestamp) || Math.abs(Date.now() - timestamp) > INTERNAL_SIGNATURE_TTL_MS) {
+        return false;
+    }
+
+    const payload = `${rawTimestamp}.${JSON.stringify(body)}`;
+    const receivedBuffer = Buffer.from(rawSignature, 'hex');
+    return secrets.some((secret) => {
+        const expected = crypto.createHmac('sha256', secret).update(payload).digest('hex');
+        try {
+            const expectedBuffer = Buffer.from(expected, 'hex');
+            return expectedBuffer.length === receivedBuffer.length
+                && crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
+        } catch {
+            return false;
+        }
+    });
+}
+
+async function reprocessPaidOrderHandler(req: VercelRequest, res: VercelResponse) {
+    if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+    const body = await readJsonBody(req);
+    if (!isValidAdminInternalSignature(req, body)) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const orderId = String(body.orderId || '').trim();
+    if (!UUID_REGEX.test(orderId)) {
+        return res.status(400).json({ error: 'Invalid orderId' });
+    }
+
+    try {
+        const { supabase: supabaseAdmin } = await resolveLocalSupabaseServerClient();
+        if (!supabaseAdmin) {
+            return res.status(500).json({ error: getLocalSupabaseServerKeyErrorMessage() });
+        }
+
+        const { data: order, error: orderError } = await supabaseAdmin
+            .from('orders')
+            .select('id,status,customer_email,customer_name')
+            .eq('id', orderId)
+            .maybeSingle();
+
+        if (orderError) throw orderError;
+        if (!order?.id) return res.status(404).json({ error: 'Order not found' });
+        if (!['paid', 'approved'].includes(String(order.status || '').toLowerCase())) {
+            return res.status(409).json({ error: 'Order is not paid' });
+        }
+
+        let fulfillment;
+        fulfillment = await fulfillOrder(supabaseAdmin, {
+            orderId,
+            email: order.customer_email,
+            name: order.customer_name,
+        });
+
+        return res.status(200).json({ success: true, fulfillment });
+    } catch (error: any) {
+        console.error('[System] reprocess-paid-order failed:', error?.message || error);
+        return res.status(502).json({
+            error: 'Fulfillment failed',
+            detail: String(error?.message || 'Unknown fulfillment error').slice(0, 240),
+        });
     }
 }
 
@@ -2113,6 +2255,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     try {
         switch (action) {
+            case 'reprocess-paid-order':
+                return await reprocessPaidOrderHandler(req, res);
             case 'check-status': {
                 try {
                     const mod = await import('../src/core/api/check-status.js');
@@ -2124,6 +2268,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
             case 'health':
                 return await (await import('../src/core/api/health.js')).default(req, res);
+            case 'platform-email-dispatcher':
+                return await platformEmailDispatcherCronHandler(req, res);
             case 'proxy':
                 return await (await import('../src/core/api/proxy.js')).default(req, res);
             case 'send-email':

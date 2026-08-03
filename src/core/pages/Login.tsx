@@ -447,7 +447,8 @@ export const Login = () => {
           }
         }
       } else if (mode === 'recovery') {
-        if (!installationId) {
+        const canAttemptContextlessRecovery = email.trim().length > 0;
+        if (!installationId && !canAttemptContextlessRecovery) {
           setError('Instalação não identificada. Acesse pelo link correto.');
           return;
         }
@@ -456,7 +457,9 @@ export const Login = () => {
         const { error: fnError } = await supabase.functions.invoke('request-password-reset', {
           body: {
             email,
-            installation_id: installationId,
+            // Regular admins are validated by installation; active owner or
+            // master_admin profiles may recover before this context hydrates.
+            installation_id: installationId || null,
             redirect_url: window.location.origin + '/update-password'
           }
         });

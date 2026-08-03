@@ -50,9 +50,9 @@
   "deploy": {
     "title": "Publicar en Vercel",
     "desc": "Cree su sitio automáticamente en Vercel.",
-    "step1": "1. Copie estas variables para el deploy en Vercel:",
-    "server_only_title": "Claves temporales de servidor",
-    "server_only_desc": "Copie ambas claves privadas directamente en Vercel. Existen solo en esta pantalla y se eliminan al continuar.",
+    "step1": "1. Complete las seis variables a continuaci\u00f3n en el formulario de deploy de Vercel:",
+    "server_only_title": "Claves privadas obligatorias del servidor",
+    "server_only_desc": "SUPABASE_SERVICE_ROLE_KEY y PAYMENT_ENCRYPTION_KEY tambi\u00e9n se agregan a Vercel, pero permanecen solo en el servidor. Nunca las renombre con VITE_ ni las exponga en el frontend. Existen solo en esta pantalla y se eliminan al continuar.",
     "copy_success": "¡Copiado!",
     "copy_btn": "Copiar",
     "domain_activated": "¡Dominio Activado!",

@@ -48,7 +48,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const { supabaseUrl, serverKey: supabaseServiceKey, serverKeySource } = getLocalSupabaseServerConfig();
         const centralAnonKey = String(
             process.env.CENTRAL_SUPABASE_PUBLISHABLE_KEY
+            || process.env.VITE_CENTRAL_SUPABASE_PUBLISHABLE_KEY
+            || process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_PUBLISHABLE_KEY
             || process.env.CENTRAL_SUPABASE_ANON_KEY
+            || process.env.VITE_CENTRAL_SUPABASE_ANON_KEY
+            || process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_ANON_KEY
             || ''
         ).trim();
 
@@ -56,7 +60,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const missing = [
                 !supabaseUrl ? 'VITE_SUPABASE_URL/NEXT_PUBLIC_SUPABASE_URL' : null,
                 !supabaseServiceKey ? 'SUPABASE_SECRET_KEY/SUPABASE_SERVICE_ROLE_KEY' : null,
-                !centralAnonKey ? 'CENTRAL_SUPABASE_PUBLISHABLE_KEY' : null,
+                !centralAnonKey ? 'CENTRAL_SUPABASE_PUBLISHABLE_KEY/VITE_CENTRAL_SUPABASE_ANON_KEY' : null,
             ].filter(Boolean);
 
             console.error('[licenses/validate] Missing server configuration:', missing.join(', '));
