@@ -168,7 +168,7 @@ export const APPROVED_MIGRATION_ALLOWLIST: Record<string, ApprovedMigrationRecor
   },
   '1.0.38': {
     file: 'v1.0.38.sql',
-    sha256: '8abba84f047917b30351aa5c6fc7500344f9ba96e3ee7f44f6171551d4240a7b',
+    sha256: '2b17c5b6112b344831d7fa965ea1abad54ff57fde4cfc5225b61dd9ecdac7d2e',
     execution: 'owner_manual',
     reason: 'Migration de seguranca cria RPC SECURITY DEFINER e politicas RLS. Deve ser aplicada pelo owner no SQL Editor antes do deploy que passa a exigir a aprovacao TOTP.'
   },

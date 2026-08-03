@@ -58,6 +58,7 @@ export const SystemUpdates = () => {
     const [databaseUpdateError, setDatabaseUpdateError] = useState<string | null>(null);
     const [showDatabaseConfirm, setShowDatabaseConfirm] = useState(false);
     const [copyingMigrationSql, setCopyingMigrationSql] = useState(false);
+    const [selectedMigrationVersion, setSelectedMigrationVersion] = useState('');
     const systemUpdateLocale = i18n.language.startsWith('es')
         ? 'es-ES'
         : i18n.language.startsWith('en')
@@ -82,6 +83,15 @@ export const SystemUpdates = () => {
         fetchData();
         checkUrlParams();
     }, []);
+
+    useEffect(() => {
+        const pendingVersions = SystemManager.getPendingMigrationVersions(systemInfo);
+        setSelectedMigrationVersion((currentVersion) => (
+            pendingVersions.includes(currentVersion)
+                ? currentVersion
+                : (pendingVersions[0] || '')
+        ));
+    }, [systemInfo]);
 
     const fetchData = async () => {
         setLoading(true);
@@ -334,17 +344,21 @@ export const SystemUpdates = () => {
 
     const handleCopyPendingMigrationSql = async () => {
         const versions = SystemManager.getPendingMigrationVersions(systemInfo);
-        if (versions.length === 0) {
+        const selectedVersion = versions.includes(selectedMigrationVersion)
+            ? selectedMigrationVersion
+            : versions[0];
+
+        if (!selectedVersion) {
             toast.info(t('system_updates.toasts.db_already_schema', { version: SCHEMA_VERSION }));
             return;
         }
 
         setCopyingMigrationSql(true);
         try {
-            const bundle = await SystemManager.getPendingMigrationSqlBundle(versions);
-            await navigator.clipboard.writeText(bundle.sql);
+            const migration = await SystemManager.getApprovedMigrationSql(selectedVersion);
+            await navigator.clipboard.writeText(migration.sql);
             toast.success(t('system_updates.toasts.sql_copied', {
-                versions: bundle.versions.map((version) => `v${version}`).join(', '),
+                versions: `v${migration.version}`,
             }));
         } catch (error: any) {
             const message = String(error?.message || t('system_updates.toasts.copy_sql_failed')).trim();
@@ -560,9 +574,15 @@ export const SystemUpdates = () => {
                                 {pendingMigrations.length > 0 && (
                                     <div className="flex flex-wrap gap-2">
                                         {pendingMigrations.map((version) => (
-                                            <span key={version} className="px-2 py-1 rounded-lg bg-blue-500/10 border border-blue-500/20 text-[9px] font-black uppercase tracking-widest text-blue-300">
+                                            <button
+                                                key={version}
+                                                type="button"
+                                                onClick={() => setSelectedMigrationVersion(version)}
+                                                aria-pressed={selectedMigrationVersion === version}
+                                                className={`px-2 py-1 rounded-lg border text-[9px] font-black uppercase tracking-widest transition-colors ${selectedMigrationVersion === version ? 'bg-blue-500 text-white border-blue-400' : 'bg-blue-500/10 border-blue-500/20 text-blue-300 hover:bg-blue-500/20'}`}
+                                            >
                                                 v{version}
-                                            </span>
+                                            </button>
                                         ))}
                                     </div>
                                 )}
@@ -578,14 +598,16 @@ export const SystemUpdates = () => {
                                         </button>
                                         <button
                                             onClick={handleCopyPendingMigrationSql}
-                                            disabled={copyingMigrationSql}
+                                            disabled={copyingMigrationSql || !selectedMigrationVersion}
                                             className="w-full px-4 py-3 bg-white/5 hover:bg-white/10 disabled:opacity-50 text-white border border-white/10 rounded-xl active:scale-95 transition-all flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest"
                                         >
                                             <Copy className={`w-4 h-4 ${copyingMigrationSql ? 'animate-pulse' : ''}`} />
-                                            {copyingMigrationSql ? t('system_updates.db_status_card.copying_sql') : t('system_updates.db_status_card.copy_manual_sql')}
+                                            {copyingMigrationSql
+                                                ? t('system_updates.db_status_card.copying_sql')
+                                                : t('system_updates.db_status_card.copy_manual_sql_selected', { version: selectedMigrationVersion })}
                                         </button>
                                         <p className="text-[10px] text-gray-500 leading-relaxed">
-                                            {t('system_updates.db_status_card.copy_manual_sql_desc')}
+                                            {t('system_updates.db_status_card.copy_manual_sql_desc_selected', { version: selectedMigrationVersion })}
                                         </p>
                                     </div>
                                 )}

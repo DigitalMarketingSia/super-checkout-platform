@@ -2522,6 +2522,8 @@ REVOKE ALL ON public.sensitive_action_grants FROM anon, authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.sensitive_action_grants TO service_role;
 CREATE POLICY "Service role can manage sensitive action grants" ON public.sensitive_action_grants FOR ALL TO service_role USING(true) WITH CHECK(true);
 
+DROP FUNCTION IF EXISTS public.consume_sensitive_action_grant(TEXT, TEXT, TEXT, TEXT, TEXT);
+
 CREATE OR REPLACE FUNCTION public.consume_sensitive_action_grant(
     p_token_hash TEXT,
     p_actor_fingerprint TEXT,
@@ -2529,7 +2531,7 @@ CREATE OR REPLACE FUNCTION public.consume_sensitive_action_grant(
     p_endpoint TEXT,
     p_ip_address TEXT DEFAULT NULL
 )
-RETURNS BOOLEAN
+RETURNS TEXT
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public

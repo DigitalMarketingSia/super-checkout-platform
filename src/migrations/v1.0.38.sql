@@ -30,6 +30,12 @@ CREATE POLICY "Service role can manage sensitive action grants"
   USING (true)
   WITH CHECK (true);
 
+-- PostgreSQL does not allow CREATE OR REPLACE to change a function return
+-- type. Installations created by an earlier canonical schema have this
+-- signature returning BOOLEAN, while the security contract below returns the
+-- explicit TEXT outcomes consumed/rejected/expired/replayed.
+DROP FUNCTION IF EXISTS public.consume_sensitive_action_grant(TEXT, TEXT, TEXT, TEXT, TEXT);
+
 CREATE OR REPLACE FUNCTION public.consume_sensitive_action_grant(
   p_token_hash TEXT,
   p_actor_fingerprint TEXT,

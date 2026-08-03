@@ -1626,7 +1626,9 @@
       "update_database": "Update database",
       "copying_sql": "Copying SQL...",
       "copy_manual_sql": "Copy manual SQL",
-      "copy_manual_sql_desc": "If the automatic executor fails, copy the approved SQL and run it manually in the Supabase SQL Editor."
+      "copy_manual_sql_selected": "Copy v{{version}} SQL",
+      "copy_manual_sql_desc": "If the automatic executor fails, copy the approved SQL and run it manually in the Supabase SQL Editor.",
+      "copy_manual_sql_desc_selected": "Select a migration above. The button copies only the approved v{{version}} SQL; it does not change the database."
     },
     "features_panel": {
       "title": "Licensed features",

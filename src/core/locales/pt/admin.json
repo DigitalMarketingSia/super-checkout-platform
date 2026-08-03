@@ -2447,7 +2447,9 @@
       "update_database": "Atualizar banco",
       "copying_sql": "Copiando SQL...",
       "copy_manual_sql": "Copiar SQL manual",
-      "copy_manual_sql_desc": "Se o executor automático falhar, copie o SQL aprovado e rode manualmente no SQL Editor do Supabase."
+      "copy_manual_sql_selected": "Copiar SQL da v{{version}}",
+      "copy_manual_sql_desc": "Se o executor automático falhar, copie o SQL aprovado e rode manualmente no SQL Editor do Supabase.",
+      "copy_manual_sql_desc_selected": "Selecione uma migration acima. O botão copia somente o SQL aprovado da v{{version}}; esta ação não altera o banco."
     },
     "features_panel": {
       "title": "Recursos licenciados",

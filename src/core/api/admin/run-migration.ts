@@ -95,11 +95,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const body = parseBody(req);
   const version = String((req.method === 'GET' ? req.query.version : body.version) || '').trim();
+  const isReadOnlySqlRequest = req.method === 'GET';
   const rateLimit = enforceApiRateLimit(req, res, {
-    scope: 'admin_run_migration',
+    // Reading one approved SQL file is authenticated but does not mutate the
+    // database. It must not exhaust the stricter write bucket used by the
+    // actual migration executor.
+    scope: isReadOnlySqlRequest ? 'admin_read_migration_sql' : 'admin_run_migration',
     identifiers: [version],
-    limit: 10,
-    windowMs: 30 * 60 * 1000,
+    limit: isReadOnlySqlRequest ? 60 : 10,
+    windowMs: isReadOnlySqlRequest ? 15 * 60 * 1000 : 30 * 60 * 1000,
   });
   if (!rateLimit.allowed) {
     return res.status(429).json({ error: 'Too many requests' });

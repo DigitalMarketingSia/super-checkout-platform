@@ -124,35 +124,6 @@ export const SystemManager = {
     return result.migration as { version: string; file: string; sha256: string; sql: string };
   },
 
-  async getPendingMigrationSqlBundle(versions: string[]): Promise<{ versions: string[]; sql: string }> {
-    const uniqueVersions = Array.from(new Set(
-      (versions || []).map((version) => String(version || '').trim()).filter(Boolean)
-    ));
-
-    if (uniqueVersions.length === 0) {
-      throw new Error('No pending migrations available.');
-    }
-
-    const parts: string[] = [];
-    for (const version of uniqueVersions) {
-      const migration = await this.getApprovedMigrationSql(version);
-      parts.push(
-        `-- ==========================================`,
-        `-- Approved migration ${migration.version}`,
-        `-- File: ${migration.file}`,
-        `-- SHA256: ${migration.sha256}`,
-        `-- ==========================================`,
-        migration.sql.trim(),
-        ''
-      );
-    }
-
-    return {
-      versions: uniqueVersions,
-      sql: parts.join('\n')
-    };
-  },
-
   /**
    * Fetches the current system version from the database
    */
