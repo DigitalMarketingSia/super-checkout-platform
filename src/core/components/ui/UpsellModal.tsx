@@ -9,7 +9,7 @@ import { openUpgradeCheckout, UpgradePlanSlug } from '../../services/upgradeChec
 import { matchesUpgradePlanSlug, normalizeUpgradePlanSlug } from '../../services/upgradePlanSlug';
 import { useAuth } from '../../context/AuthContext';
 
-const BLOCKED_CHECKOUT_HOSTS = new Set(['pay.supercheckout.app']);
+const BLOCKED_CHECKOUT_HOSTS = new Set<string>();
 const OFFICIAL_CHECKOUT_FALLBACKS: Partial<Record<UpgradePlanSlug, string>> = {
     upgrade_domains: 'https://portal.supercheckout.app/c/chk-1770902160498',
 };
