@@ -82,7 +82,7 @@ export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) =>
             setCheckoutError(null);
             try {
                 const [officialPlansResult, localProductsResult] = await Promise.allSettled([
-                    isMasterAdmin ? licenseService.getOfficialPlans() : Promise.resolve([]),
+                    licenseService.getOfficialPlans(),
                     storage.getPublicSaaSProducts(),
                 ]);
 
