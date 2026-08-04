@@ -80,7 +80,10 @@ export interface Product {
   // New fields for UI Overhaul
   price_real?: number;    // Preço "Por"
   price_fake?: number;    // Preço "De"
-  member_area_action?: 'checkout' | 'sales_page' | 'file'; // Ação ao clicar na área de membros
+  // `none` is the canonical automatic/no-content delivery state. System
+  // upgrades use it because their fulfillment is an entitlement, not a
+  // member-area, external link or file delivery.
+  member_area_action?: 'none' | 'checkout' | 'sales_page' | 'file';
   member_area_checkout_id?: string; // Checkout específico para redirecionamento
   sku?: string;           // Código
   category?: string;

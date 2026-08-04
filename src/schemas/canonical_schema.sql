@@ -705,6 +705,16 @@ BEGIN
             RAISE EXCEPTION 'system_upgrade products require saas_plan_slug';
         END IF;
         NEW.service_type := NULL;
+        -- A plan upgrade is fulfilled by the platform entitlement flow. It
+        -- cannot also ship regular product content, links or private files.
+        NEW.member_area_action := 'none';
+        NEW.member_area_checkout_id := NULL;
+        NEW.member_area_id := NULL;
+        NEW.redirect_link := NULL;
+        NEW.delivery_file_path := NULL;
+        NEW.delivery_file_name := NULL;
+        NEW.delivery_file_mime_type := NULL;
+        NEW.delivery_file_size_bytes := NULL;
     ELSIF NEW.product_type = 'installation_service' THEN
         IF NEW.service_type IS NULL THEN
             RAISE EXCEPTION 'installation_service products require service_type';
@@ -726,7 +736,7 @@ $$;
 
 DROP TRIGGER IF EXISTS normalize_product_catalog_metadata_trigger ON public.products;
 CREATE TRIGGER normalize_product_catalog_metadata_trigger
-BEFORE INSERT OR UPDATE OF product_type, service_type, saas_plan_slug ON public.products
+BEFORE INSERT OR UPDATE ON public.products
 FOR EACH ROW
 EXECUTE FUNCTION public.normalize_product_catalog_metadata();
 

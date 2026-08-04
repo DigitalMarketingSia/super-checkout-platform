@@ -94,20 +94,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const masterEmails = getMasterAdminEmails();
   const userEmail = normalizeEmail(user.email);
-  if (masterEmails.size > 0 && masterEmails.has(userEmail)) {
-    return res.status(200).json({
-      success: true,
-      role: 'master_admin',
-      is_master_admin: true,
-    });
-  }
+  const isConfiguredPlatformOwner = masterEmails.size > 0 && masterEmails.has(userEmail);
 
   const fallbackSupabaseAdmin = createSupabaseAdminClient();
   if (!fallbackSupabaseAdmin) {
     return res.status(200).json({
       success: true,
-      role: null,
-      is_master_admin: false,
+      // Keep the prior break-glass read behaviour when the server key is
+      // unavailable, but never pretend that the database role was synced.
+      role: isConfiguredPlatformOwner ? 'master_admin' : null,
+      is_master_admin: isConfiguredPlatformOwner,
     });
   }
 
@@ -139,10 +135,52 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(403).json({ error: 'Access denied' });
   }
 
-  const profileEmail = normalizeEmail(profile.email);
+  // The allowlist is server-only and identifies the unique owner of the
+  // official control plane. Persist that authority in the local profile so
+  // database triggers/RLS see the same role as the UI. A plain `owner` of a
+  // customer installation is never promoted by this endpoint.
+  if (isConfiguredPlatformOwner) {
+    const currentRole = normalizeRole(profile.role);
+    if (currentRole !== 'master_admin') {
+      const { error: promoteError } = await supabaseAdmin
+        .from('profiles')
+        .update({ role: 'master_admin' })
+        .eq('id', user.id);
+
+      if (promoteError) {
+        console.error('[session-authz] Failed to synchronize configured platform owner:', promoteError.message);
+        await logAuthzEvent({
+          supabaseAdmin,
+          req,
+          source: 'admin_session_authz',
+          eventType: 'platform_owner_role_sync_failed',
+          severity: 'CRITICAL',
+          userId: user.id,
+          metadata: { previous_role: currentRole || null },
+        });
+        return res.status(500).json({ error: 'Unable to synchronize platform owner authorization.' });
+      }
+
+      await logAuthzEvent({
+        supabaseAdmin,
+        req,
+        source: 'admin_session_authz',
+        eventType: 'platform_owner_role_synchronized',
+        severity: 'INFO',
+        userId: user.id,
+        metadata: { previous_role: currentRole || null },
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      role: 'master_admin',
+      is_master_admin: true,
+    });
+  }
+
   const profileRole = normalizeRole(profile.role);
-  const isMasterAdmin = profileRole === 'master_admin'
-    || (masterEmails.size > 0 && (masterEmails.has(userEmail) || masterEmails.has(profileEmail)));
+  const isMasterAdmin = profileRole === 'master_admin';
   const effectiveRole = isMasterAdmin ? 'master_admin' : profileRole;
 
   return res.status(200).json({

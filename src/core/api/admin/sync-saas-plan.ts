@@ -125,11 +125,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const auth = await requireApiAuth(req, res, {
       source: 'admin_sync_saas_plan',
-      allowedRoles: ['owner', 'master_admin'],
+      allowedRoles: ['master_admin'],
     });
     if (!auth) return;
 
-    const { supabaseAdmin, user, role } = auth;
+    const { supabaseAdmin, user } = auth;
     const body = parseBody(req);
     const productId = String(body.productId || '').trim();
 
@@ -175,7 +175,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(404).json({ error: 'Product not found.' });
     }
 
-    if (product.user_id !== user.id && role !== 'master_admin') {
+    if (product.user_id !== user.id) {
       await logAuthzEvent({
         supabaseAdmin,
         req,

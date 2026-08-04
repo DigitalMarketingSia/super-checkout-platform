@@ -42,7 +42,7 @@ const initialFormState = {
   is_order_bump: false,
   is_upsell: false,
   active: true,
-  member_area_action: 'checkout' as 'checkout' | 'sales_page' | 'file',
+  member_area_action: 'checkout' as 'none' | 'checkout' | 'sales_page' | 'file',
   member_area_checkout_id: '',
   product_type: PRODUCT_TYPE_REGULAR as ProductType,
   service_type: '',
@@ -85,7 +85,7 @@ export const Products = () => {
   const { getLimit, loading: checkingFeatures } = useFeatures();
   const effectiveRole = profile?.effective_role || profile?.role;
   const canManageSaasPlanMapping =
-    (effectiveRole === 'master_admin' || effectiveRole === 'owner') &&
+    effectiveRole === 'master_admin' &&
     isControlPlaneHost();
   const canManageInstallationService =
     canManageSaasPlanMapping
@@ -106,6 +106,8 @@ export const Products = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [currentProductId, setCurrentProductId] = useState<string | null>(null);
   const [formData, setFormData] = useState(initialFormState);
+  const selectedCommercialProductType = deriveProductType(formData);
+  const isSystemUpgradeProduct = selectedCommercialProductType === PRODUCT_TYPE_SYSTEM_UPGRADE;
   const [uploading, setUploading] = useState(false);
   const [uploadingDeliverable, setUploadingDeliverable] = useState(false);
   // A new product does not exist in the database until it is saved. Keep an
@@ -225,6 +227,7 @@ export const Products = () => {
     try {
       const sanitizedFormData = { ...formData };
       const selectedProductType = deriveProductType(sanitizedFormData);
+      const isSystemUpgrade = selectedProductType === PRODUCT_TYPE_SYSTEM_UPGRADE;
 
       if (selectedProductType === PRODUCT_TYPE_SYSTEM_UPGRADE && !canManageSaasPlanMapping) {
         throw new Error('Somente o Proprietario do Sistema pode criar ou editar produtos de upgrade.');
@@ -245,6 +248,21 @@ export const Products = () => {
           : '',
       });
       Object.assign(sanitizedFormData, catalog);
+
+      // A system upgrade is fulfilled by the platform after the approved
+      // payment. It must never inherit a regular product deliverable.
+      if (isSystemUpgrade) {
+        Object.assign(sanitizedFormData, {
+          member_area_action: 'none',
+          member_area_checkout_id: '',
+          member_area_id: null,
+          redirect_link: '',
+          delivery_file_path: null,
+          delivery_file_name: null,
+          delivery_file_mime_type: null,
+          delivery_file_size_bytes: null,
+        });
+      }
       if (String(sanitizedFormData.member_area_action) === 'sales_page') {
         const deliveryUrl = String(sanitizedFormData.redirect_link || '').trim();
         try {
@@ -291,7 +309,7 @@ export const Products = () => {
       }
 
       if (currentProductId) {
-        await storage.setProductContents(currentProductId, selectedContentIds);
+        await storage.setProductContents(currentProductId, isSystemUpgrade ? [] : selectedContentIds);
       }
 
       let syncWarning = '';
@@ -449,7 +467,9 @@ export const Products = () => {
         is_order_bump: product.is_order_bump || false,
         is_upsell: product.is_upsell || false,
         active: product.active,
-        member_area_action: (product.member_area_action || 'checkout') as 'checkout' | 'sales_page' | 'file',
+        member_area_action: (deriveProductType(product) === PRODUCT_TYPE_SYSTEM_UPGRADE
+          ? 'none'
+          : (product.member_area_action || 'checkout')) as 'none' | 'checkout' | 'sales_page' | 'file',
         member_area_checkout_id: product.member_area_checkout_id || '',
         saas_plan_slug: product.saas_plan_slug || '',
         product_type: deriveProductType(product),
@@ -460,7 +480,9 @@ export const Products = () => {
         delivery_file_mime_type: product.delivery_file_mime_type || null,
         delivery_file_size_bytes: product.delivery_file_size_bytes || null,
       });
-      storage.getProductContents(product.id).then(ids => setSelectedContentIds(ids));
+      storage.getProductContents(product.id).then(ids => setSelectedContentIds(
+        deriveProductType(product) === PRODUCT_TYPE_SYSTEM_UPGRADE ? [] : ids,
+      ));
     } else {
       setPendingImageFile(null);
       setImagePreviewUrl(null);
@@ -811,15 +833,27 @@ export const Products = () => {
                       </label>
                       <select
                         className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-4 text-white outline-none focus:border-amber-400/50 transition-all font-medium appearance-none cursor-pointer"
-                        value={deriveProductType(formData)}
+                        value={selectedCommercialProductType}
                         onChange={e => {
                           const nextType = e.target.value as ProductType;
+                          const isUpgrade = nextType === PRODUCT_TYPE_SYSTEM_UPGRADE;
                           setFormData({
                             ...formData,
                             product_type: nextType,
                             service_type: nextType === PRODUCT_TYPE_INSTALLATION_SERVICE ? SYSTEM_INSTALLATION_SERVICE : '',
-                            saas_plan_slug: nextType === PRODUCT_TYPE_SYSTEM_UPGRADE ? formData.saas_plan_slug : '',
+                            saas_plan_slug: isUpgrade ? formData.saas_plan_slug : '',
+                            ...(isUpgrade ? {
+                              member_area_action: 'none' as const,
+                              member_area_checkout_id: '',
+                              member_area_id: null,
+                              redirect_link: '',
+                              delivery_file_path: null,
+                              delivery_file_name: null,
+                              delivery_file_mime_type: null,
+                              delivery_file_size_bytes: null,
+                            } : {}),
                           });
+                          if (isUpgrade) setSelectedContentIds([]);
                         }}
                       >
                         <option value={PRODUCT_TYPE_REGULAR}>Produto regular</option>
@@ -837,7 +871,7 @@ export const Products = () => {
                   </div>
                 )}
 
-                {canManageSaasPlanMapping && (
+                {canManageSaasPlanMapping && isSystemUpgradeProduct && (
                   <div className="md:col-span-2">
                     <div className="rounded-[2rem] border border-primary/20 bg-primary/5 p-6">
                       <label className="block text-[10px] font-black text-primary uppercase tracking-widest mb-3">
@@ -907,8 +941,21 @@ export const Products = () => {
              <div className="space-y-6">
                 <div className="p-8 rounded-[2rem] bg-black/40 border border-white/5">
                    <label className="text-[10px] text-gray-600 font-black uppercase tracking-widest mb-4 block">Entrega do Produto apos Compra</label>
-                   <div className="flex flex-col md:flex-row gap-4 mb-8">
-                      {[
+                   {isSystemUpgradeProduct ? (
+                     <div className="rounded-[1.5rem] border border-primary bg-primary/10 p-5 shadow-lg shadow-primary/10">
+                        <div className="flex items-center gap-4">
+                           <div className="w-5 h-5 rounded-full border border-primary flex items-center justify-center">
+                              <div className="w-2.5 h-2.5 rounded-full bg-primary" />
+                           </div>
+                           <div>
+                              <p className="text-sm font-bold text-white mb-0.5">Upgrade aplicado automaticamente</p>
+                              <p className="text-[10px] text-gray-300">Apos o pagamento aprovado, a plataforma aplica o plano vinculado a conta beneficiaria. Nao entrega area de membros, link ou arquivo.</p>
+                           </div>
+                        </div>
+                     </div>
+                   ) : (
+                     <div className="flex flex-col md:flex-row gap-4 mb-8">
+                        {[
                         {
                           id: 'checkout',
                           title: 'Painel de Membros',
@@ -924,7 +971,7 @@ export const Products = () => {
                           title: 'Arquivo / PDF Privado',
                           description: 'Entrega um arquivo com link assinado temporario.',
                         },
-                      ].map((option) => (
+                        ].map((option) => (
                          <label key={option.id} className={`flex-1 flex items-center gap-4 p-5 rounded-[1.5rem] border transition-all cursor-pointer ${formData.member_area_action === option.id ? 'bg-primary/10 border-primary shadow-lg shadow-primary/10' : 'bg-black/40 border-white/5 hover:border-white/10'}`}>
                             <input type="radio" className="hidden" checked={formData.member_area_action === option.id} onChange={() => setFormData({ ...formData, member_area_action: option.id as any })} />
                             <div className={`w-5 h-5 rounded-full border border-gray-700 flex items-center justify-center ${formData.member_area_action === option.id ? 'border-primary' : ''}`}>
@@ -935,10 +982,11 @@ export const Products = () => {
                                 <p className="text-[10px] text-gray-700 line-clamp-2">{option.description}</p>
                             </div>
                          </label>
-                      ))}
-                   </div>
+                        ))}
+                     </div>
+                   )}
 
-                   {formData.member_area_action === 'checkout' && (
+                   {!isSystemUpgradeProduct && formData.member_area_action === 'checkout' && (
                      <div className="space-y-6">
                         <div>
                            <label className="text-[10px] text-gray-600 font-black uppercase tracking-widest mb-3 block">ConteÃºdos Oferecidos (Multi-seleÃ§Ã£o)</label>
@@ -974,14 +1022,14 @@ export const Products = () => {
                      </div>
                    )}
 
-                   {formData.member_area_action === 'sales_page' && (
+                   {!isSystemUpgradeProduct && formData.member_area_action === 'sales_page' && (
                      <div className="animate-in fade-in slide-in-from-top-2 duration-300">
                          <label className="text-[10px] text-gray-600 font-black uppercase tracking-widest mb-3 block">Link de Entrega</label>
                         <input type="text" className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-4 text-white focus:border-white/20" placeholder="https://..." value={formData.redirect_link || ''} onChange={e => setFormData({ ...formData, redirect_link: e.target.value })} />
                      </div>
                    )}
 
-                   {formData.member_area_action === 'file' && (
+                   {!isSystemUpgradeProduct && formData.member_area_action === 'file' && (
                      <div className="animate-in fade-in slide-in-from-top-2 duration-300 space-y-5">
                         <div className="rounded-[1.5rem] border border-white/5 bg-black/30 p-5">
                            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
