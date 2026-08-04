@@ -7,6 +7,7 @@ import { storage } from '../../services/storageService';
 import { licenseService } from '../../services/licenseService';
 import { openUpgradeCheckout, UpgradePlanSlug } from '../../services/upgradeCheckout';
 import { matchesUpgradePlanSlug, normalizeUpgradePlanSlug } from '../../services/upgradePlanSlug';
+import { useAuth } from '../../context/AuthContext';
 
 const BLOCKED_CHECKOUT_HOSTS = new Set(['pay.supercheckout.app']);
 const OFFICIAL_CHECKOUT_FALLBACKS: Partial<Record<UpgradePlanSlug, string>> = {
@@ -59,6 +60,8 @@ const resolveCurrencyLocale = (language: string) => {
 
 export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) => {
     const { t, i18n } = useTranslation('common');
+    const { profile } = useAuth();
+    const isMasterAdmin = profile?.role === 'master_admin';
     const [products, setProducts] = React.useState<any[]>([]);
     const [loading, setLoading] = React.useState(false);
     const [openingCheckout, setOpeningCheckout] = React.useState(false);
@@ -79,7 +82,7 @@ export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) =>
             setCheckoutError(null);
             try {
                 const [officialPlansResult, localProductsResult] = await Promise.allSettled([
-                    licenseService.getOfficialPlans(),
+                    isMasterAdmin ? licenseService.getOfficialPlans() : Promise.resolve([]),
                     storage.getPublicSaaSProducts(),
                 ]);
 
@@ -123,7 +126,7 @@ export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) =>
         };
 
         void fetchProducts();
-    }, [isOpen, t]);
+    }, [isOpen, t, isMasterAdmin]);
 
     if (!offerSlug) return null;
 
@@ -187,6 +190,11 @@ export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) =>
         setOpeningCheckout(true);
         setCheckoutError(null);
         try {
+            if (!isMasterAdmin) {
+                window.location.assign(checkoutUrl);
+                return;
+            }
+
             await openUpgradeCheckout({
                 checkoutUrl,
                 planSlug,
