@@ -1478,6 +1478,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
         }
 
+        if (endpoint === 'upgrade-intents') {
+            console.error('[Central Proxy] DEBUG TICKET: -> Request to Central upgrade-intents Edge Function:', {
+                endpoint: endpoint,
+                method: fetchOptions.method,
+                headers: fetchOptions.headers,
+                body: typeof fetchOptions.body === 'string' ? JSON.parse(fetchOptions.body) : fetchOptions.body,
+            });
+            console.error('[Central Proxy] DEBUG TICKET: <- Response from Central upgrade-intents Edge Function:', {
+                status: response.status,
+                headers: Object.fromEntries(response.headers.entries()),
+                body: responseData,
+            });
+        }
+
         // --- 7. Return Central's response ---
         res.status(response.status);
         

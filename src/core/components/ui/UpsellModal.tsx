@@ -82,7 +82,7 @@ export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) =>
             setCheckoutError(null);
             try {
                 const [officialPlansResult, localProductsResult] = await Promise.allSettled([
-                    licenseService.getOfficialPlans(),
+                    isMasterAdmin ? licenseService.getOfficialPlans() : Promise.resolve([]),
                     storage.getPublicSaaSProducts(),
                 ]);
 
@@ -190,19 +190,6 @@ export const UpsellModal = ({ isOpen, onClose, offerSlug }: UpsellModalProps) =>
         setOpeningCheckout(true);
         setCheckoutError(null);
         try {
-            if (!isMasterAdmin) {
-                try {
-                    const url = new URL(checkoutUrl, window.location.origin);
-                    if (profile?.email) {
-                        url.searchParams.set('email', profile.email);
-                    }
-                    window.location.assign(url.toString());
-                } catch {
-                    window.location.assign(checkoutUrl);
-                }
-                return;
-            }
-
             await openUpgradeCheckout({
                 checkoutUrl,
                 planSlug,
