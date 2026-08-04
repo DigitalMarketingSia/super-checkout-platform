@@ -9,7 +9,7 @@ import {
   validateLocalUserWithPublicKey,
 } from './_supabase-server.js';
 
-export type ApiRole = 'owner' | 'admin' | 'master_admin' | 'member' | 'client';
+export type ApiRole = 'owner' | 'admin' | 'master_admin' | 'partner' | 'member' | 'client';
 export type AuthzSeverity = 'INFO' | 'WARNING' | 'CRITICAL' | 'FATAL';
 
 export interface ApiProfile {

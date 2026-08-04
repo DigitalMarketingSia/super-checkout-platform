@@ -220,6 +220,36 @@ export const Products = () => {
     return payload;
   };
 
+  const saveSystemUpgradeProduct = async (
+    productId: string,
+    mode: 'create' | 'update',
+    product: Product,
+  ) => {
+    const { data: authData, error: authError } = await supabase.auth.getSession();
+    if (authError) throw authError;
+
+    const accessToken = authData.session?.access_token;
+    if (!accessToken) {
+      throw new Error('Sua sessao expirou. Entre novamente e tente salvar o produto de upgrade.');
+    }
+
+    const response = await fetch('/api/admin?action=save-system-upgrade-product', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ productId, mode, product }),
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload?.error || payload?.message || 'Falha ao salvar o produto de upgrade.');
+    }
+
+    return payload;
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -290,7 +320,10 @@ export const Products = () => {
         throw new Error('No product ID available');
       }
 
-      if (editingId) {
+      const productToSave = { id: productId, ...sanitizedFormData } as Product;
+      if (isSystemUpgrade) {
+        await saveSystemUpgradeProduct(productId, editingId ? 'update' : 'create', productToSave);
+      } else if (editingId) {
         const productToUpdate = { id: editingId, ...sanitizedFormData } as Product;
         await storage.updateProduct(productToUpdate);
       } else {
@@ -301,7 +334,12 @@ export const Products = () => {
       if (pendingImageFile) {
         try {
           const publicUrl = await storage.uploadProductImage(pendingImageFile, productId);
-          await storage.updateProduct({ id: productId, ...sanitizedFormData, imageUrl: publicUrl } as Product);
+          const productWithImage = { id: productId, ...sanitizedFormData, imageUrl: publicUrl } as Product;
+          if (isSystemUpgrade) {
+            await saveSystemUpgradeProduct(productId, 'update', productWithImage);
+          } else {
+            await storage.updateProduct(productWithImage);
+          }
         } catch (imageError) {
           console.error('Error uploading pending product image:', imageError);
           imageWarning = 'O produto foi salvo, mas a imagem nao pode ser enviada. Edite o produto e tente novamente.';

@@ -1,7 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { logAuthzEvent, requireApiAuth } from '../_authz.js';
+import { logAuthzEvent } from '../_authz.js';
 import { enforceApiRateLimit } from '../_rate-limit.js';
+import { requireConfiguredPlatformOwner } from './_platform-owner.js';
 
 const DEFAULT_CONTROL_PLANE_URL = 'https://app.supercheckout.app';
 const LEGACY_UPGRADE_PLAN_SLUG_MAP: Record<string, string> = {
@@ -19,44 +20,6 @@ function parseBody(req: VercelRequest) {
     }
   }
   return req.body;
-}
-
-function getHostnameFromUrl(value?: string | null) {
-  if (!value) return null;
-
-  try {
-    return new URL(value).hostname.toLowerCase();
-  } catch {
-    return null;
-  }
-}
-
-function isControlPlaneRequest(req: VercelRequest) {
-  const allowedHosts = new Set(
-    [
-      'app.supercheckout.app',
-      'super-checkout.vercel.app',
-      getHostnameFromUrl(process.env.APP_URL),
-      getHostnameFromUrl(process.env.NEXT_PUBLIC_APP_URL),
-      getHostnameFromUrl(process.env.VITE_APP_URL),
-      getHostnameFromUrl(process.env.VITE_SUPER_CHECKOUT_APP_URL),
-    ].filter(Boolean) as string[],
-  );
-
-  const candidates = [
-    req.headers.origin,
-    req.headers.referer,
-    req.headers.host ? `https://${req.headers.host}` : '',
-  ];
-
-  return candidates.some((candidate) => {
-    const hostname = getHostnameFromUrl(Array.isArray(candidate) ? candidate[0] : candidate);
-    return Boolean(hostname) && (
-      hostname === 'localhost'
-      || hostname === '127.0.0.1'
-      || allowedHosts.has(hostname as string)
-    );
-  });
 }
 
 function normalizePlanSlug(slug?: string | null) {
@@ -119,14 +82,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    if (!isControlPlaneRequest(req)) {
-      return res.status(403).json({ error: 'This action is only available on the official control plane.' });
-    }
-
-    const auth = await requireApiAuth(req, res, {
-      source: 'admin_sync_saas_plan',
-      allowedRoles: ['master_admin'],
-    });
+    const auth = await requireConfiguredPlatformOwner(req, res, 'admin_sync_saas_plan');
     if (!auth) return;
 
     const { supabaseAdmin, user } = auth;
