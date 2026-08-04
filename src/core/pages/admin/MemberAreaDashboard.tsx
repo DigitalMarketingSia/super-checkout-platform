@@ -25,7 +25,10 @@ export const MemberAreaDashboard = () => {
 
     const [activeTab, setActiveTab] = useState<'contents' | 'settings' | 'domains' | 'products' | 'tracks' | 'members'>('contents');
     const [loading, setLoading] = useState(true);
-    const [createGuardLoading, setCreateGuardLoading] = useState(false);
+    // The browser fires a focus event after its native file picker closes. Do not
+    // unmount the new-area form during subsequent feature refreshes, otherwise
+    // the input change event (and therefore the selected image) is lost.
+    const [createGuardReady, setCreateGuardReady] = useState(false);
     const [canCreateNewArea, setCanCreateNewArea] = useState(true);
     const [currentAreaCount, setCurrentAreaCount] = useState(0);
     const [isUpsellModalOpen, setIsUpsellModalOpen] = useState(false);
@@ -50,16 +53,20 @@ export const MemberAreaDashboard = () => {
     }, [id, isNew]);
 
     useEffect(() => {
-        if (!isNew || checkingFeatures) return;
+        if (!isNew) {
+            setCreateGuardReady(true);
+            return;
+        }
+
+        if (checkingFeatures) return;
 
         if (memberAreaLimit === 'unlimited' || memberAreaLimit === null) {
             setCanCreateNewArea(true);
+            setCreateGuardReady(true);
             return;
         }
 
         let isMounted = true;
-        setCreateGuardLoading(true);
-
         storage.getMemberAreas()
             .then((areas) => {
                 if (!isMounted) return;
@@ -71,7 +78,7 @@ export const MemberAreaDashboard = () => {
             })
             .finally(() => {
                 if (isMounted) {
-                    setCreateGuardLoading(false);
+                    setCreateGuardReady(true);
                 }
             });
 
@@ -166,7 +173,7 @@ export const MemberAreaDashboard = () => {
         );
     }
 
-    if (isNew && (checkingFeatures || createGuardLoading)) {
+    if (isNew && !createGuardReady) {
         return (
             <Layout>
                 <div className="flex flex-col items-center justify-center py-20">
