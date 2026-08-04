@@ -758,7 +758,7 @@ function getInstallationTrustScope(
     if (
         endpoint === 'upgrade-intents'
         && !portalRequest
-        && ['create_upgrade_intent', 'consume_upgrade_intent'].includes(requestBody?.action)
+        && ['consume_upgrade_intent'].includes(requestBody?.action)
     ) return 'upgrade:intents';
     if (endpoint === 'system-update-runner') return 'system:update';
     return null;
