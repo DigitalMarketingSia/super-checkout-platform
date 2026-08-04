@@ -194,6 +194,7 @@ const ALLOWED_ENDPOINTS = [
     'system-update-runner',
     'create-passport-ticket',
     'revoke-passport-ticket',
+    'public-plans',
 ];
 
 // CORS Whitelist (Fase 15.1 — Hardening)
@@ -870,6 +871,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const requestBody = getRequestBody(req.body);
     const action = String(requestBody?.action || req.query.action || req.method || '').trim().toLowerCase();
+
+    // --------------------------------------------------------------------------------
+    // INTERNAL POSTGREST QUERIES (Bypassing Edge Functions)
+    // --------------------------------------------------------------------------------
+    if (endpoint === 'public-plans') {
+        try {
+            const centralSupUrl = getCentralApiUrl().replace('/functions/v1', '');
+            const dbKey = process.env.VITE_CENTRAL_SUPABASE_ANON_KEY || process.env.CENTRAL_SUPABASE_ANON_KEY || getCentralSupabaseInvokeKey();
+            
+            const query = new URLSearchParams({
+                select: '*',
+                'active': 'eq.true',
+            });
+            const response = await fetch(`${centralSupUrl}/rest/v1/plans?${query.toString()}`, {
+                method: 'GET',
+                headers: withCentralDatabaseHeaders(dbKey)
+            });
+            const responseData = await response.text();
+            
+            if (!response.ok) {
+                return res.status(response.status).json({ error: 'Failed to fetch public plans', details: responseData });
+            }
+            
+            return res.status(200).json(JSON.parse(responseData));
+        } catch (error: any) {
+            console.error('[Central Proxy] Error fetching public-plans:', error);
+            return res.status(500).json({ error: error.message });
+        }
+    }
+
+    // --------------------------------------------------------------------------------
+    // SPECIAL HARDENED FLOWS
+    // --------------------------------------------------------------------------------
     const proxyRateLimit = enforceApiRateLimit(req, res, {
         scope: `central_proxy:${endpoint}`,
         identifiers: [

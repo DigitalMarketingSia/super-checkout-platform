@@ -490,18 +490,15 @@ export const licenseService = {
     },
 
     async getOfficialPlans(): Promise<any[]> {
-        const { data, error } = await centralSupabase
-            .from('plans')
-            .select('*')
-            .eq('active', true)
-            .neq('slug', 'free');
+        try {
+            const response = await fetch(getProxyUrl('public-plans'));
+            if (!response.ok) throw new Error('Failed to fetch official plans');
+            const data = await response.json();
 
-        if (error) {
-            console.error('Error fetching official plans:', error.message);
-            return [];
-        }
+            // Filter out 'free' here if needed, or we can just filter it below
+            const filteredData = data.filter((p: any) => p.slug !== 'free');
 
-        return (data || []).map(p => ({
+            return (filteredData || []).map((p: any) => ({
             id: p.id,
             name: p.name,
             description: p.description || '',
@@ -512,27 +509,31 @@ export const licenseService = {
             saas_plan_slug: p.slug,
             limits: p.limits
         }));
+        } catch (e) {
+            return [];
+        }
     },
 
     async getAllPlans(): Promise<any[]> {
-        const { data, error } = await centralSupabase
-            .from('plans')
-            .select('*')
-            .eq('active', true)
-            .order('price', { ascending: true });
+        try {
+            const response = await fetch(getProxyUrl('public-plans'));
+            if (!response.ok) throw new Error('Failed to fetch all plans');
+            const data = await response.json();
+            
+            // Sort by price ascending
+            data.sort((a: any, b: any) => (a.price || 0) - (b.price || 0));
 
-        if (error) {
-            console.error('Error fetching all plans:', error.message);
-            return [];
-        }
-
-        return (data || []).map(p => ({
+            return (data || []).map((p: any) => ({
             id: p.slug,
             label: p.name,
             maxInstallations: p.limits?.max_installations || 0,
             price: p.price ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(p.price) : 'Grátis',
             type: p.type || 'personal'
-        }));
+            }));
+        } catch (e) {
+            console.error('Error fetching all plans:', e);
+            return [];
+        }
     },
 
     async activateFree(data: { termsAccepted: boolean; cpf?: string }): Promise<{ success: boolean; message: string; license?: any }> {
