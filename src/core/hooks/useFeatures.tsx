@@ -85,26 +85,6 @@ export const useFeatures = (): UnifiedFeatures => {
         loadAll();
     }, [loadAll]);
 
-    useEffect(() => {
-        const refreshOnFocus = () => {
-            loadAll();
-        };
-
-        const refreshOnVisibility = () => {
-            if (document.visibilityState === 'visible') {
-                loadAll();
-            }
-        };
-
-        window.addEventListener('focus', refreshOnFocus);
-        document.addEventListener('visibilitychange', refreshOnVisibility);
-
-        return () => {
-            window.removeEventListener('focus', refreshOnFocus);
-            document.removeEventListener('visibilitychange', refreshOnVisibility);
-        };
-    }, [loadAll]);
-
     const isOwner = isOwnerState;
 
     const hasFeature = (key: string): boolean => {
