@@ -11,7 +11,7 @@ import { useAuth } from '../../context/AuthContext';
 
 const BLOCKED_CHECKOUT_HOSTS = new Set<string>();
 const OFFICIAL_CHECKOUT_FALLBACKS: Partial<Record<UpgradePlanSlug, string>> = {
-    upgrade_domains: 'https://portal.supercheckout.app/c/chk-1770902160498',
+    upgrade_domains: 'https://app.supercheckout.app/c/chk-1785816207154',
 };
 
 const resolveSafeCheckoutUrl = (checkoutUrl?: string | null) => {

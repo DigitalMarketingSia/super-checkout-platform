@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { Layout } from '../../components/Layout';
 import { storage } from '../../services/storageService';
+import { supabase } from '../../services/supabase';
 import { Checkout, Product, Gateway, Domain, DomainStatus, CheckoutConfig, CheckoutPaymentRoutingConfig, GatewayProvider, DomainUsage, PaymentMethodType } from '../../types';
 import { Button } from '../../components/ui/Button';
 import { Loading } from '../../components/ui/Loading';
@@ -307,6 +308,33 @@ export const CheckoutEditor = () => {
 
    const showAlert = (title: string, message: string, variant: 'success' | 'error' | 'info' = 'info') => {
       setAlertState({ isOpen: true, title, message, variant });
+   };
+
+   const syncCentralPlanForSystemUpgrade = async (selectedProductId: string) => {
+      const selectedProduct = products.find((product) => product.id === selectedProductId);
+      if (selectedProduct?.product_type !== 'system_upgrade') return;
+
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) {
+         throw new Error('Sua sessao expirou antes da publicacao do checkout no catalogo central. Entre novamente e salve o checkout mais uma vez.');
+      }
+
+      const response = await fetch('/api/admin?action=sync-saas-plan', {
+         method: 'POST',
+         headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+         },
+         body: JSON.stringify({ productId: selectedProductId }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload?.success) {
+         throw new Error(payload?.error || payload?.message || 'Falha ao publicar o checkout de upgrade no catalogo central.');
+      }
    };
 
    const closeAlert = () => {
@@ -639,6 +667,18 @@ export const CheckoutEditor = () => {
                config: { ...sanitizedConfig, header_image: bannerUrl },
             });
             clearStagedBanner();
+         }
+
+         try {
+            await syncCentralPlanForSystemUpgrade(productId);
+         } catch (syncError) {
+            console.error('Central upgrade plan sync failed after checkout save:', syncError);
+            showAlert(
+               'Checkout salvo com ressalva',
+               'O checkout foi salvo, mas o catalogo Central ainda nao recebeu a URL oficial. Tente salvar novamente antes de liberar este upgrade aos clientes.',
+               'error',
+            );
+            return;
          }
          navigate('/admin/checkouts');
       } catch (error) {
