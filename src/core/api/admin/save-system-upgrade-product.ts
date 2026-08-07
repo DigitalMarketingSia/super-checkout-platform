@@ -2,10 +2,9 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { logAuthzEvent } from '../_authz.js';
 import { enforceApiRateLimit } from '../_rate-limit.js';
 import { requireConfiguredPlatformOwner } from './_platform-owner.js';
+import { SYSTEM_UPGRADE_PLAN_SLUGS } from '../../services/productCatalog.js';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const SYSTEM_UPGRADE_PLAN_SLUGS = new Set(['upgrade_domains', 'saas']);
-
 function parseBody(req: VercelRequest): Record<string, unknown> {
   if (!req.body) return {};
   if (typeof req.body === 'string') {

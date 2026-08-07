@@ -63,7 +63,7 @@ export const DEFAULT_PLAN_LIMITS: Record<string, LimitSet> = {
     },
     saas: {
         products: 'unlimited',
-        domains: 'unlimited',
+        domains: 1,
         checkouts: 'unlimited',
         member_areas: 'unlimited',
         custom_branding: 1
