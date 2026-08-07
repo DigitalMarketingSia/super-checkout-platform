@@ -48,7 +48,9 @@
     "deliverables_title": "Seus acessos",
     "deliverable_ready": "Material liberado para acesso imediato.",
     "delivery_pending_title": "Entrega em processamento",
-    "delivery_pending_desc": "Seu pagamento foi aprovado, mas este produto ainda nao possui entrega automatica configurada. Verifique seu e-mail ou fale com o suporte."
+    "delivery_pending_desc": "Seu pagamento foi aprovado, mas este produto ainda nao possui entrega automatica configurada. Verifique seu e-mail ou fale com o suporte.",
+    "upgrade_delivery_title": "Recursos Ilimitados sendo liberados",
+    "upgrade_delivery_desc": "Seu pagamento foi aprovado e os Recursos Ilimitados estao sendo liberados automaticamente na conta vinculada. Volte ao sistema, atualize a pagina e, se o acesso ainda nao aparecer, fale com o suporte."
   },
   "upsell": {
     "loading": "Carregando oferta",

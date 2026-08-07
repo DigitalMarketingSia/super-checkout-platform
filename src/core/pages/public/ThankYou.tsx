@@ -25,6 +25,7 @@ interface OrderDeliverable {
   visual_url?: string | null;
   label: string;
   instructions?: string | null;
+  source?: string | null;
 }
 
 interface SignedOrderSnapshot {
@@ -89,6 +90,7 @@ function normalizeStoredDeliverables(value: unknown): OrderDeliverable[] {
         visual_url: item.visual_url || null,
         label: String(item.label || ''),
         instructions: item.instructions || null,
+        source: item.source || null,
       };
     })
     .filter((item) => Boolean(item.id));
@@ -393,6 +395,10 @@ export const ThankYou = () => {
   const displayLocale = resolveDisplayLocale(i18n.language, displayCurrency);
   const actionableDeliverables = deliverables.filter((deliverable) => deliverable.status === 'available' && deliverable.url);
   const missingDeliverables = deliverables.filter((deliverable) => deliverable.status !== 'available' || !deliverable.url);
+  const hasAutomaticSystemUpgrade = missingDeliverables.some((deliverable) =>
+    deliverable.source === 'system_upgrade_entitlement'
+      || deliverable.label === 'Upgrade aplicado automaticamente'
+  );
   const primaryMemberDeliverable = actionableDeliverables.find((deliverable) => deliverable.delivery_type === 'member_area');
   const primaryAccessUrl = primaryMemberDeliverable?.url || checkout?.thank_you_button_url || '';
   const primaryAccessLabel = primaryMemberDeliverable?.label || checkout?.thank_you_button_text || t('thank_you.access', 'Acessar');
@@ -541,10 +547,14 @@ export const ThankYou = () => {
             {!isAwaitingConfirmation && missingDeliverables.length > 0 && actionableDeliverables.length === 0 && (
               <div className="max-w-lg mx-auto mb-8 rounded-xl border border-amber-100 bg-amber-50 p-4 text-left">
                 <p className="text-sm font-bold text-amber-900">
-                  {t('thank_you.delivery_pending_title', 'Entrega em processamento')}
+                  {hasAutomaticSystemUpgrade
+                    ? t('thank_you.upgrade_delivery_title', 'Recursos Ilimitados sendo liberados')
+                    : t('thank_you.delivery_pending_title', 'Entrega em processamento')}
                 </p>
                 <p className="text-xs text-amber-800 mt-1">
-                  {t('thank_you.delivery_pending_desc', 'Seu pagamento foi aprovado, mas este produto ainda nao possui entrega automatica configurada. Verifique seu e-mail ou fale com o suporte.')}
+                  {hasAutomaticSystemUpgrade
+                    ? t('thank_you.upgrade_delivery_desc', 'Seu pagamento foi aprovado e os Recursos Ilimitados estao sendo liberados automaticamente na conta vinculada. Volte ao sistema, atualize a pagina e, se o acesso ainda nao aparecer, fale com o suporte.')
+                    : t('thank_you.delivery_pending_desc', 'Seu pagamento foi aprovado, mas este produto ainda nao possui entrega automatica configurada. Verifique seu e-mail ou fale com o suporte.')}
                 </p>
               </div>
             )}

@@ -46,6 +46,48 @@ function getDomainLimit(plan: string): DomainLimit {
     return PLAN_DOMAIN_LIMITS[normalizePlan(plan)] ?? PLAN_DOMAIN_LIMITS.free;
 }
 
+function getRequestOrigin(req: VercelRequest) {
+    const forwardedHost = req.headers['x-forwarded-host'];
+    const host = Array.isArray(forwardedHost)
+        ? forwardedHost[0]
+        : forwardedHost || req.headers.host;
+    if (!host) return null;
+
+    const forwardedProto = req.headers['x-forwarded-proto'];
+    const protocol = (Array.isArray(forwardedProto) ? forwardedProto[0] : forwardedProto)
+        || (String(host).startsWith('localhost') || String(host).startsWith('127.0.0.1') ? 'http' : 'https');
+
+    return `${protocol}://${host}`.replace(/\/$/, '');
+}
+
+async function resolveCentralDomainLimit(req: VercelRequest, accessToken: string): Promise<DomainLimit | null> {
+    const origin = getRequestOrigin(req);
+    if (!origin || !accessToken) return null;
+
+    try {
+        const response = await fetch(`${origin}/api/central-proxy?endpoint=check-entitlement`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({ action: 'resolve_all' }),
+        });
+
+        if (!response.ok) return null;
+
+        const payload = await response.json();
+        const remoteLimit = payload?.limits?.domains;
+        if (remoteLimit === 'unlimited') return 'unlimited';
+        if (typeof remoteLimit === 'number' && Number.isFinite(remoteLimit)) return remoteLimit;
+        if (payload?.features?.UNLIMITED_DOMAINS === true) return 'unlimited';
+    } catch (error: any) {
+        console.warn('[domains_add] Central entitlement resolution unavailable:', error?.message || error);
+    }
+
+    return null;
+}
+
 function normalizeConfigValue(value: unknown) {
     if (value == null) return '';
     if (typeof value === 'string') {
@@ -87,7 +129,7 @@ function isExpired(expiresAt: unknown) {
 
 async function resolveDomainContext(
     supabaseAdmin: SupabaseClient,
-    params: { localUserId: string; centralUserId?: string | null },
+    params: { localUserId: string; centralUserId?: string | null; accessToken: string; req: VercelRequest },
 ) {
     const { data: account, error: accountError } = await supabaseAdmin
         .from('accounts')
@@ -149,12 +191,13 @@ async function resolveDomainContext(
     }
 
     const plan = normalizePlan((activeLicense as any)?.plan || (account as any)?.plan_type || 'free');
+    const centralLimit = await resolveCentralDomainLimit(params.req, params.accessToken);
     return {
         allowed: true,
         reason: null,
         status: 200 as const,
         plan,
-        limit: getDomainLimit(plan),
+        limit: centralLimit ?? getDomainLimit(plan),
         accountId: (account as any)?.id || null,
         licenseKey: (activeLicense as any)?.key || null,
         installationId: installationId || null,
@@ -177,7 +220,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
     if (!auth) return;
 
-    const { supabaseAdmin, user, profile } = auth;
+    const { supabaseAdmin, user, profile, token } = auth;
     const domain = normalizeDomain(req.body?.domain);
     const rateLimit = enforceApiRateLimit(req, res, {
         scope: 'domains_add',
@@ -249,6 +292,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const domainContext = await resolveDomainContext(supabaseAdmin, {
             localUserId: user.id,
             centralUserId: profile.central_user_id,
+            accessToken: token,
+            req,
         });
 
         if (!domainContext.allowed) {

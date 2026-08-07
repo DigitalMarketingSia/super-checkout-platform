@@ -48,7 +48,9 @@
     "deliverables_title": "Your access",
     "deliverable_ready": "Your material is available for immediate access.",
     "delivery_pending_title": "Delivery in progress",
-    "delivery_pending_desc": "Your payment was approved, but this product does not have automatic delivery configured yet. Check your email or contact support."
+    "delivery_pending_desc": "Your payment was approved, but this product does not have automatic delivery configured yet. Check your email or contact support.",
+    "upgrade_delivery_title": "Unlimited Resources are being released",
+    "upgrade_delivery_desc": "Your payment was approved and Unlimited Resources are being released automatically to the linked account. Return to the system, refresh the page and contact support if access does not appear."
   },
   "upsell": {
     "loading": "Loading offer",
