@@ -108,6 +108,8 @@ export const Products = () => {
   const [formData, setFormData] = useState(initialFormState);
   const selectedCommercialProductType = deriveProductType(formData);
   const isSystemUpgradeProduct = selectedCommercialProductType === PRODUCT_TYPE_SYSTEM_UPGRADE;
+  const isInstallationServiceProduct = selectedCommercialProductType === PRODUCT_TYPE_INSTALLATION_SERVICE;
+  const hasAutomaticNonContentDelivery = isSystemUpgradeProduct || isInstallationServiceProduct;
   const [uploading, setUploading] = useState(false);
   const [uploadingDeliverable, setUploadingDeliverable] = useState(false);
   // A new product does not exist in the database until it is saved. Keep an
@@ -258,6 +260,8 @@ export const Products = () => {
       const sanitizedFormData = { ...formData };
       const selectedProductType = deriveProductType(sanitizedFormData);
       const isSystemUpgrade = selectedProductType === PRODUCT_TYPE_SYSTEM_UPGRADE;
+      const isInstallationService = selectedProductType === PRODUCT_TYPE_INSTALLATION_SERVICE;
+      const hasAutomaticNonContentDelivery = isSystemUpgrade || isInstallationService;
 
       if (selectedProductType === PRODUCT_TYPE_SYSTEM_UPGRADE && !canManageSaasPlanMapping) {
         throw new Error('Somente o Proprietario do Sistema pode criar ou editar produtos de upgrade.');
@@ -279,9 +283,10 @@ export const Products = () => {
       });
       Object.assign(sanitizedFormData, catalog);
 
-      // A system upgrade is fulfilled by the platform after the approved
-      // payment. It must never inherit a regular product deliverable.
-      if (isSystemUpgrade) {
+      // Upgrades are fulfilled by entitlements and installation services by a
+      // Central service order. Neither product type may inherit a regular
+      // member-area, external-link or file deliverable.
+      if (hasAutomaticNonContentDelivery) {
         Object.assign(sanitizedFormData, {
           member_area_action: 'none',
           member_area_checkout_id: '',
@@ -347,7 +352,7 @@ export const Products = () => {
       }
 
       if (currentProductId) {
-        await storage.setProductContents(currentProductId, isSystemUpgrade ? [] : selectedContentIds);
+        await storage.setProductContents(currentProductId, hasAutomaticNonContentDelivery ? [] : selectedContentIds);
       }
 
       let syncWarning = '';
@@ -489,6 +494,9 @@ export const Products = () => {
 
   const openEdit = (product?: Product) => {
     if (product) {
+      const productType = deriveProductType(product);
+      const hasAutomaticNonContentDelivery = productType === PRODUCT_TYPE_SYSTEM_UPGRADE
+        || productType === PRODUCT_TYPE_INSTALLATION_SERVICE;
       setPendingImageFile(null);
       setImagePreviewUrl(null);
       setEditingId(product.id);
@@ -505,12 +513,12 @@ export const Products = () => {
         is_order_bump: product.is_order_bump || false,
         is_upsell: product.is_upsell || false,
         active: product.active,
-        member_area_action: (deriveProductType(product) === PRODUCT_TYPE_SYSTEM_UPGRADE
+        member_area_action: (hasAutomaticNonContentDelivery
           ? 'none'
           : (product.member_area_action || 'checkout')) as 'none' | 'checkout' | 'sales_page' | 'file',
         member_area_checkout_id: product.member_area_checkout_id || '',
         saas_plan_slug: product.saas_plan_slug || '',
-        product_type: deriveProductType(product),
+        product_type: productType,
         service_type: product.service_type || '',
         member_area_id: product.member_area_id || null,
         delivery_file_path: product.delivery_file_path || null,
@@ -519,7 +527,7 @@ export const Products = () => {
         delivery_file_size_bytes: product.delivery_file_size_bytes || null,
       });
       storage.getProductContents(product.id).then(ids => setSelectedContentIds(
-        deriveProductType(product) === PRODUCT_TYPE_SYSTEM_UPGRADE ? [] : ids,
+        hasAutomaticNonContentDelivery ? [] : ids,
       ));
     } else {
       setPendingImageFile(null);
@@ -875,12 +883,14 @@ export const Products = () => {
                         onChange={e => {
                           const nextType = e.target.value as ProductType;
                           const isUpgrade = nextType === PRODUCT_TYPE_SYSTEM_UPGRADE;
+                          const isInstallationService = nextType === PRODUCT_TYPE_INSTALLATION_SERVICE;
+                          const hasAutomaticNonContentDelivery = isUpgrade || isInstallationService;
                           setFormData({
                             ...formData,
                             product_type: nextType,
                             service_type: nextType === PRODUCT_TYPE_INSTALLATION_SERVICE ? SYSTEM_INSTALLATION_SERVICE : '',
                             saas_plan_slug: isUpgrade ? formData.saas_plan_slug : '',
-                            ...(isUpgrade ? {
+                            ...(hasAutomaticNonContentDelivery ? {
                               member_area_action: 'none' as const,
                               member_area_checkout_id: '',
                               member_area_id: null,
@@ -891,7 +901,7 @@ export const Products = () => {
                               delivery_file_size_bytes: null,
                             } : {}),
                           });
-                          if (isUpgrade) setSelectedContentIds([]);
+                          if (hasAutomaticNonContentDelivery) setSelectedContentIds([]);
                         }}
                       >
                         <option value={PRODUCT_TYPE_REGULAR}>Produto regular</option>
@@ -991,6 +1001,18 @@ export const Products = () => {
                            </div>
                         </div>
                      </div>
+                   ) : isInstallationServiceProduct ? (
+                     <div className="rounded-[1.5rem] border border-emerald-400/40 bg-emerald-500/10 p-5 shadow-lg shadow-emerald-500/10">
+                        <div className="flex items-center gap-4">
+                           <div className="w-5 h-5 rounded-full border border-emerald-400 flex items-center justify-center">
+                              <div className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+                           </div>
+                           <div>
+                              <p className="text-sm font-bold text-white mb-0.5">Solicitacao de instalacao recebida</p>
+                              <p className="text-[10px] text-gray-300">Apos o pagamento aprovado, a plataforma cria uma ordem de servico e nossa equipe entra em contato. Nao entrega area de membros, link ou arquivo.</p>
+                           </div>
+                        </div>
+                     </div>
                    ) : (
                      <div className="flex flex-col md:flex-row gap-4 mb-8">
                         {[
@@ -1024,7 +1046,7 @@ export const Products = () => {
                      </div>
                    )}
 
-                   {!isSystemUpgradeProduct && formData.member_area_action === 'checkout' && (
+                   {!hasAutomaticNonContentDelivery && formData.member_area_action === 'checkout' && (
                      <div className="space-y-6">
                         <div>
                            <label className="text-[10px] text-gray-600 font-black uppercase tracking-widest mb-3 block">ConteÃºdos Oferecidos (Multi-seleÃ§Ã£o)</label>
@@ -1060,14 +1082,14 @@ export const Products = () => {
                      </div>
                    )}
 
-                   {!isSystemUpgradeProduct && formData.member_area_action === 'sales_page' && (
+                   {!hasAutomaticNonContentDelivery && formData.member_area_action === 'sales_page' && (
                      <div className="animate-in fade-in slide-in-from-top-2 duration-300">
                          <label className="text-[10px] text-gray-600 font-black uppercase tracking-widest mb-3 block">Link de Entrega</label>
                         <input type="text" className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-4 text-white focus:border-white/20" placeholder="https://..." value={formData.redirect_link || ''} onChange={e => setFormData({ ...formData, redirect_link: e.target.value })} />
                      </div>
                    )}
 
-                   {!isSystemUpgradeProduct && formData.member_area_action === 'file' && (
+                   {!hasAutomaticNonContentDelivery && formData.member_area_action === 'file' && (
                      <div className="animate-in fade-in slide-in-from-top-2 duration-300 space-y-5">
                         <div className="rounded-[1.5rem] border border-white/5 bg-black/30 p-5">
                            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
