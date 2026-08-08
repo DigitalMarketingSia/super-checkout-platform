@@ -11,6 +11,7 @@ import { buildOrderDeliverables, stripSensitiveDeliverableFields } from './order
 import { mergeOrderMetadata, normalizeOrderMetadata } from './orderMetadata.js';
 import { dispatchSaleApprovedPush } from './pushAutomation.js';
 import { publishPlatformEvent } from './platformEventPublisher.js';
+import { upsertPaidCentralServiceOrder } from './centralServiceOrderPublisher.js';
 
 type SupabaseAdmin = any;
 
@@ -40,6 +41,14 @@ type ConsumedUpgradeIntent = {
   target_license_key: string;
   beneficiary_email: string | null;
   beneficiary_name: string | null;
+};
+
+type PurchasedInstallationService = {
+  productId: string;
+  productName: string;
+  serviceType: string;
+  price: number;
+  currency: string;
 };
 
 function maskEmail(email?: string | null) {
@@ -264,6 +273,7 @@ export async function fulfillOrder(
     .filter(Boolean)));
   let userId = order.customer_user_id || null;
   const saasPlansToCreate: string[] = [];
+  const installationServicesToCreate: PurchasedInstallationService[] = [];
   let accessGrantedCount = 0;
   const deliveryOrigin =
     process.env.NEXT_PUBLIC_APP_URL ||
@@ -299,11 +309,26 @@ export async function fulfillOrder(
 
     const { data: product } = await supabaseAdmin
       .from('products')
-      .select('saas_plan_slug')
+      .select('id,name,product_type,service_type,saas_plan_slug,currency,price_real')
       .eq('id', productId)
       .maybeSingle();
 
     if (product?.saas_plan_slug) saasPlansToCreate.push(product.saas_plan_slug);
+
+    const isInstallationService = String(product?.product_type || '').trim().toLowerCase() === 'installation_service'
+      || Boolean(String(product?.service_type || '').trim());
+    if (isInstallationService) {
+      const quantity = Math.max(1, Math.floor(Number(item?.quantity || 1) || 1));
+      const unitPrice = Number(item?.price ?? product?.price_real ?? 0);
+      const price = Math.round(Math.max(0, unitPrice * quantity) * 100) / 100;
+      installationServicesToCreate.push({
+        productId: String(product?.id || productId),
+        productName: String(item?.name || product?.name || 'Servico de instalacao').trim(),
+        serviceType: String(product?.service_type || 'system_installation').trim(),
+        price,
+        currency: String(product?.currency || order.currency || order.payment_currency || 'BRL').trim().toUpperCase(),
+      });
+    }
   }
 
   const uniqueSaasPlansToCreate = Array.from(new Set(saasPlansToCreate));
@@ -426,6 +451,43 @@ export async function fulfillOrder(
   } else {
     Object.assign(mergedMetadata, {
       order_deliverables_error_at: new Date().toISOString(),
+    });
+  }
+
+  if (installationServicesToCreate.length > 0) {
+    const originInstallationId = String(process.env.CENTRAL_INSTALLATION_ID || '').trim() || null;
+    const externalBeneficiaryUserId = String(order.customer_user_id || userId || '').trim() || null;
+    const externalSellerUserId = String(order.user_id || '').trim() || null;
+    const createdServiceOrders = [];
+
+    for (const service of installationServicesToCreate) {
+      const result = await upsertPaidCentralServiceOrder({
+        sourceOrderId: orderId,
+        originInstallationId,
+        externalBeneficiaryUserId,
+        beneficiaryEmail: payerEmail,
+        beneficiaryName: payerName,
+        externalSellerUserId,
+        productId: service.productId,
+        productName: service.productName,
+        serviceType: service.serviceType,
+        price: service.price,
+        currency: service.currency,
+        paidAt: order.paid_at || order.updated_at || new Date().toISOString(),
+        deduplicationKey: `service-order:${originInstallationId || 'control-plane'}:${orderId}:${service.productId}`,
+      });
+      createdServiceOrders.push({
+        product_id: service.productId,
+        service_order_id: result.serviceOrderId,
+        status: result.status,
+        created: result.created,
+        beneficiary_bound: result.beneficiaryBound,
+      });
+    }
+
+    Object.assign(mergedMetadata, {
+      fulfillment_service_orders: createdServiceOrders,
+      fulfillment_service_orders_created_at: new Date().toISOString(),
     });
   }
 

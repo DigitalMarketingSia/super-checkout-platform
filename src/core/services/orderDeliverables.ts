@@ -162,7 +162,7 @@ export async function buildOrderDeliverables(
   if (productIds.length > 0) {
     const { data: products, error: productsError } = await supabaseAdmin
       .from('products')
-      .select('id, name, product_type, saas_plan_slug, redirect_link, member_area_action, member_area_id, member_area_checkout_id, delivery_file_path, delivery_file_name, delivery_file_mime_type, delivery_file_size_bytes')
+      .select('id, name, product_type, service_type, saas_plan_slug, redirect_link, member_area_action, member_area_id, member_area_checkout_id, delivery_file_path, delivery_file_name, delivery_file_mime_type, delivery_file_size_bytes')
       .in('id', productIds);
 
     if (productsError) {
@@ -219,6 +219,8 @@ export async function buildOrderDeliverables(
     const itemType = normalizeItemType(String(item?.type || 'item'));
     const isSystemUpgrade = String(product?.product_type || '').trim().toLowerCase() === 'system_upgrade'
       || Boolean(String(product?.saas_plan_slug || '').trim());
+    const isInstallationService = String(product?.product_type || '').trim().toLowerCase() === 'installation_service'
+      || Boolean(String(product?.service_type || '').trim());
     const action = String(product?.member_area_action || '').trim();
     const externalUrl = normalizeDeliveryUrl(product?.redirect_link, origin);
     const directArea = product?.member_area_id ? areasById.get(product.member_area_id) : null;
@@ -245,6 +247,24 @@ export async function buildOrderDeliverables(
         instructions: 'O plano sera aplicado automaticamente a conta beneficiaria apos a confirmacao do pagamento.',
         sort_order: index,
         source: 'system_upgrade_entitlement',
+      } satisfies OrderDeliverable;
+    }
+
+    if (isInstallationService) {
+      return {
+        id: buildDeliverableId(orderId, productId, index),
+        order_id: orderId,
+        product_id: productId,
+        item_type: itemType,
+        title,
+        delivery_type: 'none',
+        status: 'not_configured',
+        url: null,
+        visual_url: null,
+        label: 'Solicitacao de instalacao recebida',
+        instructions: 'Seu pagamento foi confirmado. Nossa equipe entrara em contato para alinhar os dados necessarios e iniciar a instalacao.',
+        sort_order: index,
+        source: 'installation_service_order',
       } satisfies OrderDeliverable;
     }
 
