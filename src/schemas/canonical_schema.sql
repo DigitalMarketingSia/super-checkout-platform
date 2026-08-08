@@ -4063,3 +4063,38 @@ COMMENT ON FUNCTION public.super_checkout_keepalive() IS
   'Safe no-argument heartbeat. Anonymous callers can touch only the private singleton at most once per 12 hours.';
 
 NOTIFY pgrst, 'reload schema';
+
+-- Fresh-install baseline: this marker intentionally runs last. Everything
+-- through v1.0.44 is declared above, so a successfully imported canonical
+-- schema must not make a newly installed account replay historical migrations.
+DO $$
+BEGIN
+  INSERT INTO public.schema_migrations(version, description, success, execution_time_ms)
+  VALUES
+    ('1.0.34', 'Canonical schema hardens payment operational data and redacts webhook payloads', true, 0),
+    ('1.0.35', 'Canonical schema includes versioned HMAC signatures for outgoing webhooks', true, 0),
+    ('1.0.36', 'Canonical schema replaces broad public reads with sanitized data views', true, 0),
+    ('1.0.37', 'Canonical schema records rejected first-admin bootstrap attempts in security events', true, 0),
+    ('1.0.38', 'Canonical schema requires fresh TOTP approval for destructive installation actions', true, 0),
+    ('1.0.39', 'Canonical schema includes the optional GitHub Actions Supabase keepalive heartbeat', true, 0),
+    ('1.0.40', 'Canonical schema includes the migration-state refresh marker', true, 0),
+    ('1.0.41', 'Canonical schema formalizes platform email template metadata and owner-only RLS', true, 0),
+    ('1.0.42', 'Canonical schema formalizes commercial product type metadata', true, 0),
+    ('1.0.43', 'Canonical schema enforces commercial product catalog permissions', true, 0),
+    ('1.0.44', 'Canonical schema forces automatic delivery for system upgrade products', true, 0)
+  ON CONFLICT (version) DO UPDATE SET
+    description = EXCLUDED.description,
+    success = EXCLUDED.success,
+    execution_time_ms = EXCLUDED.execution_time_ms,
+    executed_at = timezone('utc'::text, now()),
+    error_log = NULL;
+
+  UPDATE public.system_info
+  SET db_version = '1.0.44',
+      last_update_at = timezone('utc'::text, now()),
+      updated_at = timezone('utc'::text, now()),
+      last_applied_migration_version = '1.0.44',
+      last_applied_migration_at = timezone('utc'::text, now());
+END $$;
+
+NOTIFY pgrst, 'reload schema';
