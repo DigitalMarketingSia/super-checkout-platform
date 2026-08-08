@@ -399,6 +399,10 @@ export const ThankYou = () => {
     deliverable.source === 'system_upgrade_entitlement'
       || deliverable.label === 'Upgrade aplicado automaticamente'
   );
+  const hasInstallationServiceOrder = missingDeliverables.some((deliverable) =>
+    deliverable.source === 'installation_service_order'
+      || deliverable.label === 'Solicitacao de instalacao recebida'
+  );
   const primaryMemberDeliverable = actionableDeliverables.find((deliverable) => deliverable.delivery_type === 'member_area');
   const primaryAccessUrl = primaryMemberDeliverable?.url || checkout?.thank_you_button_url || '';
   const primaryAccessLabel = primaryMemberDeliverable?.label || checkout?.thank_you_button_text || t('thank_you.access', 'Acessar');
@@ -549,11 +553,15 @@ export const ThankYou = () => {
                 <p className="text-sm font-bold text-amber-900">
                   {hasAutomaticSystemUpgrade
                     ? t('thank_you.upgrade_delivery_title', 'Recursos Ilimitados sendo liberados')
+                    : hasInstallationServiceOrder
+                      ? t('thank_you.installation_service_title', 'Solicitacao de instalacao recebida')
                     : t('thank_you.delivery_pending_title', 'Entrega em processamento')}
                 </p>
                 <p className="text-xs text-amber-800 mt-1">
                   {hasAutomaticSystemUpgrade
                     ? t('thank_you.upgrade_delivery_desc', 'Seu pagamento foi aprovado e os Recursos Ilimitados estao sendo liberados automaticamente na conta vinculada. Volte ao sistema, atualize a pagina e, se o acesso ainda nao aparecer, fale com o suporte.')
+                    : hasInstallationServiceOrder
+                      ? t('thank_you.installation_service_desc', 'Seu pagamento foi confirmado. Nossa equipe entrara em contato por e-mail para alinhar os dados necessarios e iniciar a instalacao.')
                     : t('thank_you.delivery_pending_desc', 'Seu pagamento foi aprovado, mas este produto ainda nao possui entrega automatica configurada. Verifique seu e-mail ou fale com o suporte.')}
                 </p>
               </div>
@@ -567,12 +575,16 @@ export const ThankYou = () => {
                   <h3 className="font-bold text-sm text-gray-900">
                     {isAwaitingConfirmation
                       ? t('thank_you.pending_email_title', 'Acompanhe seu e-mail')
+                      : hasInstallationServiceOrder
+                        ? t('thank_you.installation_service_email_title', 'Acompanhe seu e-mail')
                       : t('thank_you.check_email_title', 'Verifique seu e-mail')}
                   </h3>
                   <p className="text-xs text-gray-500 mt-1">
                     {isAwaitingConfirmation
                       ? t('thank_you.pending_email_desc', 'Se o pagamento for aprovado, a confirmação e os acessos serão enviados para {{email}}.', { email: order?.customer_email })
-                      : t('thank_you.check_email_desc', 'Enviamos o link de acesso e a nota fiscal para {{email}}.', { email: order?.customer_email })}
+                      : hasInstallationServiceOrder
+                        ? t('thank_you.installation_service_email_desc', 'Nosso time entrara em contato em {{email}} para dar continuidade a instalacao.', { email: order?.customer_email })
+                        : t('thank_you.check_email_desc', 'Enviamos o link de acesso e a nota fiscal para {{email}}.', { email: order?.customer_email })}
                   </p>
                 </div>
               </div>
