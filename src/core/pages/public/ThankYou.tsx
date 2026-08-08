@@ -35,6 +35,8 @@ interface SignedOrderSnapshot {
   deliverables: OrderDeliverable[];
 }
 
+const THANK_YOU_SNAPSHOT_STORAGE_PREFIX = 'super_checkout_thank_you_snapshot:';
+
 function resolveDisplayLocale(language: string, currency: string) {
   const normalizedLanguage = String(language || '').toLowerCase();
   if (normalizedLanguage.startsWith('en')) return 'en-US';
@@ -147,6 +149,46 @@ function stripSignedOrderAccessParams() {
   window.history.replaceState({}, document.title, buildCurrentUrl(params));
 }
 
+function getThankYouSnapshotStorageKey(orderId: string) {
+  return `${THANK_YOU_SNAPSHOT_STORAGE_PREFIX}${orderId}`;
+}
+
+function readCachedThankYouSnapshot(orderId: string): SignedOrderSnapshot | null {
+  if (typeof window === 'undefined' || !orderId) return null;
+
+  try {
+    const raw = window.sessionStorage.getItem(getThankYouSnapshotStorageKey(orderId));
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || parsed.order?.id !== orderId) return null;
+
+    return {
+      status: String(parsed.status || 'pending'),
+      authorized: parsed.authorized !== false,
+      order: normalizeSignedOrder(parsed.order),
+      deliverables: normalizeStoredDeliverables(parsed.deliverables),
+    };
+  } catch (error) {
+    console.warn('[ThankYou] Failed to read cached order snapshot:', error);
+    return null;
+  }
+}
+
+function cacheThankYouSnapshot(orderId: string, snapshot: SignedOrderSnapshot | null) {
+  if (typeof window === 'undefined' || !orderId || !snapshot?.order) return;
+
+  try {
+    window.sessionStorage.setItem(
+      getThankYouSnapshotStorageKey(orderId),
+      JSON.stringify(snapshot),
+    );
+  } catch (error) {
+    // A full/private storage context must not prevent the thank-you page from rendering.
+    console.warn('[ThankYou] Failed to cache order snapshot:', error);
+  }
+}
+
 const PurchaseTracker: React.FC<{ order: Order; attribution?: CheckoutTrackingAttribution | null }> = ({ order, attribution }) => {
   const { trackPurchase, isInitialized } = useTracking();
   useEffect(() => {
@@ -209,7 +251,7 @@ export const ThankYou = () => {
           status: String(payload?.status || 'pending'),
           authorized: payload?.authorized !== false,
           order: normalizeSignedOrder(payload?.order),
-          deliverables: Array.isArray(payload?.deliverables) ? payload.deliverables : [],
+          deliverables: normalizeStoredDeliverables(payload?.deliverables),
         };
       } catch (snapshotError) {
         console.warn('[ThankYou] Failed to load signed order snapshot:', snapshotError);
@@ -260,7 +302,11 @@ export const ThankYou = () => {
         const sig = new URLSearchParams(location.search).get('sig') || '';
         const originalSig = new URLSearchParams(location.search).get('origSig') || '';
         setStatusSignature(sig);
-        let currentSnapshot = sig ? await waitForOrderSnapshot(orderId, sig) : null;
+        const cachedCurrentSnapshot = readCachedThankYouSnapshot(orderId);
+        let currentSnapshot = sig
+          ? (await waitForOrderSnapshot(orderId, sig) || cachedCurrentSnapshot)
+          : cachedCurrentSnapshot;
+        cacheThankYouSnapshot(orderId, currentSnapshot);
         let orderData = currentSnapshot?.order || await fetchPublicOrderById(orderId);
 
         if (!orderData) throw new Error('Order not found');
@@ -275,7 +321,11 @@ export const ThankYou = () => {
         let originalStoredDeliverables: OrderDeliverable[] = [];
 
         if (originalOrderId && originalOrderId !== orderData.id) {
-          const originalSnapshot = originalSig ? await waitForOrderSnapshot(originalOrderId, originalSig) : null;
+          const cachedOriginalSnapshot = readCachedThankYouSnapshot(originalOrderId);
+          const originalSnapshot = originalSig
+            ? (await waitForOrderSnapshot(originalOrderId, originalSig) || cachedOriginalSnapshot)
+            : cachedOriginalSnapshot;
+          cacheThankYouSnapshot(originalOrderId, originalSnapshot);
           originalOrderData = originalSnapshot?.order || await fetchPublicOrderById(originalOrderId);
 
           if (originalOrderData) {
