@@ -222,7 +222,7 @@ export const Products = () => {
     return payload;
   };
 
-  const saveSystemUpgradeProduct = async (
+  const savePlatformCatalogProduct = async (
     productId: string,
     mode: 'create' | 'update',
     product: Product,
@@ -232,10 +232,10 @@ export const Products = () => {
 
     const accessToken = authData.session?.access_token;
     if (!accessToken) {
-      throw new Error('Sua sessao expirou. Entre novamente e tente salvar o produto de upgrade.');
+      throw new Error('Sua sessao expirou. Entre novamente e tente salvar o produto especial.');
     }
 
-    const response = await fetch('/api/admin?action=save-system-upgrade-product', {
+    const response = await fetch('/api/admin?action=save-platform-catalog-product', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -246,7 +246,7 @@ export const Products = () => {
 
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw new Error(payload?.error || payload?.message || 'Falha ao salvar o produto de upgrade.');
+      throw new Error(payload?.error || payload?.message || 'Falha ao salvar o produto especial.');
     }
 
     return payload;
@@ -262,6 +262,11 @@ export const Products = () => {
       const isSystemUpgrade = selectedProductType === PRODUCT_TYPE_SYSTEM_UPGRADE;
       const isInstallationService = selectedProductType === PRODUCT_TYPE_INSTALLATION_SERVICE;
       const hasAutomaticNonContentDelivery = isSystemUpgrade || isInstallationService;
+      // The official account intentionally retains the local `owner` role.
+      // Its special products therefore use the existing server-side owner
+      // proof, while eligible partners/SaaS accounts remain on direct RLS.
+      const usesPlatformCatalogWriter = isSystemUpgrade
+        || (isInstallationService && canManageSaasPlanMapping);
 
       if (selectedProductType === PRODUCT_TYPE_SYSTEM_UPGRADE && !canManageSaasPlanMapping) {
         throw new Error('Somente o Proprietario do Sistema pode criar ou editar produtos de upgrade.');
@@ -326,8 +331,8 @@ export const Products = () => {
       }
 
       const productToSave = { id: productId, ...sanitizedFormData } as Product;
-      if (isSystemUpgrade) {
-        await saveSystemUpgradeProduct(productId, editingId ? 'update' : 'create', productToSave);
+      if (usesPlatformCatalogWriter) {
+        await savePlatformCatalogProduct(productId, editingId ? 'update' : 'create', productToSave);
       } else if (editingId) {
         const productToUpdate = { id: editingId, ...sanitizedFormData } as Product;
         await storage.updateProduct(productToUpdate);
@@ -340,8 +345,8 @@ export const Products = () => {
         try {
           const publicUrl = await storage.uploadProductImage(pendingImageFile, productId);
           const productWithImage = { id: productId, ...sanitizedFormData, imageUrl: publicUrl } as Product;
-          if (isSystemUpgrade) {
-            await saveSystemUpgradeProduct(productId, 'update', productWithImage);
+          if (usesPlatformCatalogWriter) {
+            await savePlatformCatalogProduct(productId, 'update', productWithImage);
           } else {
             await storage.updateProduct(productWithImage);
           }

@@ -72,6 +72,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return await pushSubscriptionsHandler(req, res);
             case 'sync-saas-plan':
                 return await syncSaasPlanHandler(req, res);
+            // Keep the old action while existing official upgrades may still
+            // be open in older browser tabs. Both actions use the same
+            // platform-owner-only writer; this does not create a new Vercel
+            // Function.
+            case 'save-platform-catalog-product':
             case 'save-system-upgrade-product':
                 return await saveSystemUpgradeProductHandler(req, res);
             case 'create-upload-url':

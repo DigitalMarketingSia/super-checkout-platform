@@ -2,9 +2,14 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { logAuthzEvent } from '../_authz.js';
 import { enforceApiRateLimit } from '../_rate-limit.js';
 import { requireConfiguredPlatformOwner } from './_platform-owner.js';
-import { SYSTEM_UPGRADE_PLAN_SLUGS } from '../../services/productCatalog.js';
+import {
+  SYSTEM_INSTALLATION_SERVICE,
+  SYSTEM_UPGRADE_PLAN_SLUGS,
+} from '../../services/productCatalog.js';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const SYSTEM_UPGRADE_PRODUCT_TYPE = 'system_upgrade';
+const INSTALLATION_SERVICE_PRODUCT_TYPE = 'installation_service';
 function parseBody(req: VercelRequest): Record<string, unknown> {
   if (!req.body) return {};
   if (typeof req.body === 'string') {
@@ -36,18 +41,28 @@ function parseProduct(value: unknown) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const product = value as Record<string, unknown>;
   const name = text(product.name, 160);
+  const productType = text(product.product_type, 80).toLowerCase();
   const saasPlanSlug = text(product.saas_plan_slug, 80).toLowerCase();
+  const serviceType = text(product.service_type, 80).toLowerCase() || SYSTEM_INSTALLATION_SERVICE;
+  const isSystemUpgrade = productType === SYSTEM_UPGRADE_PRODUCT_TYPE;
+  const isInstallationService = productType === INSTALLATION_SERVICE_PRODUCT_TYPE;
 
-  if (!name) return { error: 'O nome do produto de upgrade e obrigatorio.' };
-  if (!SYSTEM_UPGRADE_PLAN_SLUGS.has(saasPlanSlug)) {
+  if (!name) return { error: 'O nome do produto especial e obrigatorio.' };
+  if (!isSystemUpgrade && !isInstallationService) {
+    return { error: 'Tipo de produto especial invalido.' };
+  }
+  if (isSystemUpgrade && !SYSTEM_UPGRADE_PLAN_SLUGS.has(saasPlanSlug)) {
     return { error: 'Selecione um plano de upgrade valido.' };
+  }
+  if (isInstallationService && serviceType !== SYSTEM_INSTALLATION_SERVICE) {
+    return { error: 'Selecione um tipo de servico de instalacao valido.' };
   }
 
   const priceReal = nonNegativeNumber(product.price_real);
 
   // This explicit allowlist is intentional. The server owns the commercial
-  // classification and the automatic delivery contract; the browser cannot
-  // turn an upgrade product into a member/link/file delivery.
+  // classification and automatic delivery contract; the browser cannot turn
+  // a platform product into a member/link/file delivery.
   return {
     record: {
       name,
@@ -66,9 +81,9 @@ function parseProduct(value: unknown) {
       is_upsell: Boolean(product.is_upsell),
       visible_in_member_area: false,
       for_sale: product.for_sale !== false,
-      product_type: 'system_upgrade',
-      service_type: null,
-      saas_plan_slug: saasPlanSlug,
+      product_type: productType,
+      service_type: isInstallationService ? serviceType : null,
+      saas_plan_slug: isSystemUpgrade ? saasPlanSlug : null,
       member_area_action: 'none',
       member_area_checkout_id: null,
       member_area_id: null,
@@ -85,7 +100,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const auth = await requireConfiguredPlatformOwner(req, res, 'admin_save_system_upgrade_product');
+  const auth = await requireConfiguredPlatformOwner(req, res, 'admin_save_platform_catalog_product');
   if (!auth) return;
 
   const body = parseBody(req);
@@ -94,7 +109,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const parsedProduct = parseProduct(body.product);
 
   const rateLimit = enforceApiRateLimit(req, res, {
-    scope: 'admin_save_system_upgrade_product',
+    scope: 'admin_save_platform_catalog_product',
     identifiers: [auth.user.id, productId || 'new'],
     limit: 30,
     windowMs: 15 * 60 * 1000,
@@ -117,16 +132,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .maybeSingle();
 
       if (existingError) throw existingError;
-      if (!existing) return res.status(404).json({ error: 'Produto de upgrade nao encontrado.' });
-      if (String(existing.user_id || '') !== auth.user.id || String(existing.product_type || '') !== 'system_upgrade') {
+      if (!existing) return res.status(404).json({ error: 'Produto especial nao encontrado.' });
+      if (
+        String(existing.user_id || '') !== auth.user.id
+        || String(existing.product_type || '') !== parsedProduct.record.product_type
+      ) {
         await logAuthzEvent({
           supabaseAdmin: auth.supabaseAdmin,
           req,
-          source: 'admin_save_system_upgrade_product',
-          eventType: 'system_upgrade_product_write_rejected',
+          source: 'admin_save_platform_catalog_product',
+          eventType: 'platform_catalog_product_write_rejected',
           severity: 'CRITICAL',
           userId: auth.user.id,
-          metadata: { product_id: productId, reason: 'ownership_or_type_mismatch' },
+          metadata: {
+            product_id: productId,
+            product_type: parsedProduct.record.product_type,
+            reason: 'ownership_or_type_mismatch',
+          },
         });
         return res.status(403).json({ error: 'Access denied' });
       }
@@ -147,16 +169,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await logAuthzEvent({
       supabaseAdmin: auth.supabaseAdmin,
       req,
-      source: 'admin_save_system_upgrade_product',
-      eventType: mode === 'create' ? 'system_upgrade_product_created' : 'system_upgrade_product_updated',
+      source: 'admin_save_platform_catalog_product',
+      eventType: mode === 'create' ? 'platform_catalog_product_created' : 'platform_catalog_product_updated',
       severity: 'INFO',
       userId: auth.user.id,
-      metadata: { product_id: productId, plan_slug: parsedProduct.record.saas_plan_slug },
+      metadata: {
+        product_id: productId,
+        product_type: parsedProduct.record.product_type,
+        plan_slug: parsedProduct.record.saas_plan_slug,
+        service_type: parsedProduct.record.service_type,
+      },
     });
 
     return res.status(200).json({ success: true, productId });
   } catch (error: any) {
-    console.error('[save-system-upgrade-product] Failed:', error?.message || error);
-    return res.status(500).json({ error: 'Nao foi possivel salvar o produto de upgrade.' });
+    console.error('[save-platform-catalog-product] Failed:', error?.message || error);
+    return res.status(500).json({ error: 'Nao foi possivel salvar o produto especial.' });
   }
 }
