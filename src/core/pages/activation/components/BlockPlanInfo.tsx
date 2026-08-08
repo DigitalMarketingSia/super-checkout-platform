@@ -7,6 +7,7 @@ interface BlockPlanInfoProps {
     license: License | null;
     userName?: string;
     userCreatedAt?: string | null;
+    isPlatformOwner?: boolean;
 }
 
 const formatMemberSince = (value: string | null | undefined, language: string, fallback: string) => {
@@ -22,10 +23,12 @@ const formatMemberSince = (value: string | null | undefined, language: string, f
     );
 };
 
-export const BlockPlanInfo: React.FC<BlockPlanInfoProps> = ({ license, userName, userCreatedAt }) => {
+export const BlockPlanInfo: React.FC<BlockPlanInfoProps> = ({ license, userName, userCreatedAt, isPlatformOwner = false }) => {
     const { t, i18n } = useTranslation('portal');
     const planLabel =
-        license?.plan === 'whitelabel'
+        isPlatformOwner
+            ? t('plan_info.platform_owner')
+            : license?.plan === 'whitelabel'
             ? t('plan_info.whitelabel')
             : license?.has_partner_panel && license?.has_unlimited_domains
                 ? `${t('plan_info.partner')} + ${t('plan_info.unlimited')}`

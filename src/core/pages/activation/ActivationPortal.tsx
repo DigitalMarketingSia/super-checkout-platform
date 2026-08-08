@@ -73,7 +73,8 @@ const getPortalDisplayName = (user: any, license: License | null, fallbackName: 
     return String(fullName).trim() || fallbackName;
 };
 
-const getPortalPlanLabel = (license: License | null, t: any): string => {
+const getPortalPlanLabel = (license: License | null, t: any, isPlatformOwner = false): string => {
+    if (isPlatformOwner) return t('plan_info.platform_owner');
     if (!license) return t('plan_info.free_account');
     if (license.plan === 'whitelabel') return t('plan_info.whitelabel');
     if (license.has_partner_panel && license.has_unlimited_domains) {
@@ -230,7 +231,6 @@ export const ActivationPortal: React.FC = () => {
                 .eq('id', user.id)
                 .maybeSingle();
 
-            setIsPortalOwner(profile?.role === 'owner');
             setOwnerTwoFactorEnabled(profile?.totp_enabled === true);
 
             if (profile?.is_blocked) {
@@ -259,7 +259,7 @@ export const ActivationPortal: React.FC = () => {
 
             setApprovalState(null);
 
-            const [licenseData, centralPlans, localSaaSProducts, partnerVisibility] = await Promise.all([
+            const [licenseData, centralPlans, localSaaSProducts, partnerVisibility, platformIdentity] = await Promise.all([
                 licenseService.getLicenseByUserId(user.id, user.email),
                 licenseService.getOfficialPlans(),
                 storage.getPublicSaaSProducts(),
@@ -267,7 +267,11 @@ export const ActivationPortal: React.FC = () => {
                     partner_opportunity_enabled: false,
                     plan_type: null,
                     account_id: null,
-                }))
+                })),
+                licenseService.getPlatformIdentity().catch(() => ({
+                    is_platform_owner: false,
+                    display_role: 'account_holder' as const,
+                })),
             ]);
 
             const mergedPlans = centralPlans.map(cp => {
@@ -294,6 +298,7 @@ export const ActivationPortal: React.FC = () => {
             setLicense(licenseData);
             setSaasProducts(mergedPlans);
             setPartnerOpportunityEnabled(Boolean(partnerVisibility?.partner_opportunity_enabled));
+            setIsPortalOwner(Boolean(platformIdentity?.is_platform_owner));
 
             if (licenseData) {
                 const instData = await licenseService.getMyInstallations();
@@ -331,7 +336,7 @@ export const ActivationPortal: React.FC = () => {
     const upgradeProduct = saasProducts.find((product) => matchesUpgradePlanSlug(product.saas_plan_slug, 'upgrade_domains')) || null;
     const portalDisplayName = getPortalDisplayName(centralUser, license, t('profile.client'));
     const portalFirstName = portalDisplayName.split(/\s+/)[0] || portalDisplayName;
-    const portalPlanLabel = getPortalPlanLabel(license, t);
+    const portalPlanLabel = getPortalPlanLabel(license, t, isPortalOwner);
     const blockedAtLocale = resolvedLanguage.startsWith('en') ? 'en-US' : resolvedLanguage.startsWith('es') ? 'es-ES' : 'pt-BR';
 
     useEffect(() => {
@@ -511,6 +516,7 @@ export const ActivationPortal: React.FC = () => {
                             license={license}
                             userName={portalDisplayName}
                             userCreatedAt={centralUser?.created_at}
+                            isPlatformOwner={isPortalOwner}
                         />
                         <UpsellBanners
                             license={license}
@@ -601,7 +607,7 @@ export const ActivationPortal: React.FC = () => {
                 return (
                     <div className="animate-in fade-in duration-500 text-white">
                         <h2 className="text-3xl font-black text-white mb-8 font-display uppercase tracking-tighter italic">{t('sidebar.my_account')}</h2>
-                        <BlockProfile user={centralUser} license={license} onNavigate={setActiveTab} />
+                        <BlockProfile user={centralUser} license={license} onNavigate={setActiveTab} isPlatformOwner={isPortalOwner} />
                     </div>
                 );
             default:

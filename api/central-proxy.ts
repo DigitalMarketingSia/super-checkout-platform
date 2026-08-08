@@ -1118,6 +1118,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
         }
 
+        // The platform owner is an operational identity, not a tenant profile
+        // role. Resolve it only on the official app/Portal surface using the
+        // server-side allowlist; never trust a client-supplied role or Central
+        // profile value for this decision.
+        if (endpoint === 'account-flags' && action === 'get_platform_identity') {
+            const officialSurface = isControlPlaneRequest(req) || isPortalRequest(req);
+            if (!officialSurface) {
+                return res.status(403).json({ error: 'Platform identity is only available on the official control plane.' });
+            }
+
+            const isPlatformOwner = isSystemOwnerEmail(userEmail);
+            return res.status(200).json({
+                success: true,
+                is_platform_owner: isPlatformOwner,
+                display_role: isPlatformOwner ? 'platform_owner' : 'account_holder',
+            });
+        }
+
         if (endpoint === 'get-license-status') {
             const targetEmailRaw = req.method === 'GET' ? req.query?.email : requestBody?.email;
             const targetEmail = typeof targetEmailRaw === 'string' ? targetEmailRaw.toLowerCase() : '';

@@ -6,9 +6,10 @@ interface BlockProfileProps {
     user: any;
     license: any;
     onNavigate: (tab: string) => void;
+    isPlatformOwner?: boolean;
 }
 
-export const BlockProfile: React.FC<BlockProfileProps> = ({ user, license, onNavigate }) => {
+export const BlockProfile: React.FC<BlockProfileProps> = ({ user, license, onNavigate, isPlatformOwner = false }) => {
     const { t } = useTranslation('portal');
     const displayName =
         user?.user_metadata?.full_name
@@ -21,7 +22,9 @@ export const BlockProfile: React.FC<BlockProfileProps> = ({ user, license, onNav
         ? createdAt.toLocaleDateString(navigator.language, { day: '2-digit', month: 'long', year: 'numeric' })
         : 'Data indisponivel';
     const planBadge =
-        license?.plan === 'whitelabel'
+        isPlatformOwner
+            ? t('plan_info.platform_owner')
+            : license?.plan === 'whitelabel'
             ? t('profile.plan_label', { plan: 'WHITELABEL' })
             : license?.has_partner_panel && license?.has_unlimited_domains
                 ? `${t('profile.partner')} + ${t('profile.unlimited_domains')}`

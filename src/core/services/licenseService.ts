@@ -57,6 +57,11 @@ export interface PartnerOpportunityVisibility {
     account_id: string | null;
 }
 
+export interface PlatformIdentity {
+    is_platform_owner: boolean;
+    display_role: 'platform_owner' | 'account_holder';
+}
+
 export interface CreateUpgradeIntentRequest {
     plan_slug: 'saas' | 'upgrade_domains' | 'whitelabel';
     checkout_id?: string | null;
@@ -570,6 +575,27 @@ export const licenseService = {
             partner_opportunity_enabled: Boolean(data.partner_opportunity_enabled),
             plan_type: data.plan_type || null,
             account_id: data.account_id || null
+        };
+    },
+
+    async getPlatformIdentity(): Promise<PlatformIdentity> {
+        const response = await fetch(getProxyUrl('account-flags'), {
+            method: 'POST',
+            headers: await getHeaders(),
+            body: JSON.stringify({
+                action: 'get_platform_identity'
+            })
+        });
+
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.error || 'Falha ao consultar a identidade da plataforma');
+        }
+
+        const data = await response.json();
+        return {
+            is_platform_owner: Boolean(data.is_platform_owner),
+            display_role: data.display_role === 'platform_owner' ? 'platform_owner' : 'account_holder',
         };
     },
 
