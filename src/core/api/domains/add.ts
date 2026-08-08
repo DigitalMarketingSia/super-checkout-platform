@@ -27,7 +27,7 @@ const PLAN_DOMAIN_LIMITS: Record<string, DomainLimit> = {
     free: 1,
     starter: 1,
     pro: 'unlimited',
-    saas: 1,
+    saas: 'unlimited',
     upgrade_domains: 'unlimited',
     whitelabel: 'unlimited',
     agency: 'unlimited',
