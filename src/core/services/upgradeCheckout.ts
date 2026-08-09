@@ -1,5 +1,7 @@
 import { toast } from 'sonner';
 import { licenseService } from './licenseService';
+import { centralSupabase } from './centralClient';
+import { getActivationUrl } from '../config/platformUrls';
 
 export type UpgradePlanSlug = 'saas' | 'upgrade_domains' | 'whitelabel';
 export type UpgradeSourceSurface = 'portal' | 'installation' | 'crm' | 'direct_link' | 'manual';
@@ -160,6 +162,17 @@ export const openUpgradeCheckout = async ({
 }: OpenUpgradeCheckoutParams) => {
     if (!checkoutUrl) {
         throw new Error('Checkout de upgrade nao configurado.');
+    }
+
+    // A Portal upgrade must be bound to the authenticated Central account.
+    // Never fall back to a browser-local session or create an anonymous intent.
+    if (sourceSurface === 'portal') {
+        const { data: { session } } = await centralSupabase.auth.getSession();
+        if (!session?.access_token) {
+            toast.info('Entre no Portal para vincular o upgrade a sua conta.');
+            window.location.assign(getActivationUrl());
+            return null;
+        }
     }
 
     const pendingWindow = openPendingCheckoutWindow();

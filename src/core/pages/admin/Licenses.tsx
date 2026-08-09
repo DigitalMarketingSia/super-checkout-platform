@@ -445,14 +445,14 @@ export const Licenses = () => {
                                 <h3 className="text-4xl font-portal-display text-white italic tracking-tighter font-black">
                                     {license.used_installations} 
                                     <span className="text-gray-700 text-lg font-medium ml-2 uppercase">
-                                        {(license.max_installations > 900000 || profile?.role === 'admin' || profile?.role === 'master_admin') ? `/ ${t('unlimited')}` : `/ ${license.max_installations}`}
+                                        {license.max_installations > 900000 ? `/ ${t('unlimited')}` : `/ ${license.max_installations}`}
                                     </span>
                                 </h3>
                             </div>
                             <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden border border-white/5">
                                 <div
                                     className="h-full bg-gradient-to-r from-blue-600 to-primary transition-all duration-1000 shadow-[0_0_10px_rgba(59,130,246,0.5)]"
-                                    style={{ width: `${(license.max_installations > 900000 || profile?.role === 'admin' || profile?.role === 'master_admin') ? '5%' : Math.min(100, (license.used_installations / license.max_installations) * 100)}%` }}
+                                    style={{ width: `${license.max_installations > 900000 ? '5%' : Math.min(100, (license.used_installations / license.max_installations) * 100)}%` }}
                                 />
                             </div>
                         </div>
