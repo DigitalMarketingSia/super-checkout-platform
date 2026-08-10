@@ -82,16 +82,31 @@ const isControlPlaneHost = () => {
 export const Products = () => {
   const { t, i18n } = useTranslation(['admin', 'common']);
   const { profile, account, compliance, isWhiteLabel } = useAuth();
-  const { getLimit, loading: checkingFeatures } = useFeatures();
+  const {
+    getLimit,
+    loading: checkingFeatures,
+    plan: entitlementPlan,
+    hasFeature,
+  } = useFeatures();
   const effectiveRole = profile?.effective_role || profile?.role;
   const canManageSaasPlanMapping =
     effectiveRole === 'master_admin' &&
     isControlPlaneHost();
-  const canManageInstallationService =
-    canManageSaasPlanMapping
-    || effectiveRole === 'partner'
+  // The local account mirror can remain `free` after an upgrade purchased in
+  // the Central Portal. Commercial permissions must therefore also honour the
+  // signed entitlement resolved from Central, rather than hiding the service
+  // option until a local webhook happens to update `accounts.plan_type`.
+  const hasPartnerEntitlement =
+    ['saas', 'partner', 'upgrade_partner'].includes(String(entitlementPlan || '').toLowerCase())
+    || hasFeature('partner_rights');
+  const hasLocalInstallationServicePermission =
+    effectiveRole === 'partner'
     || profile?.role === 'partner'
     || String(account?.plan_type || '').toLowerCase() === 'saas';
+  const canManageInstallationService =
+    canManageSaasPlanMapping
+    || hasLocalInstallationServicePermission
+    || hasPartnerEntitlement;
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'grid' | 'edit'>('grid');
@@ -252,6 +267,36 @@ export const Products = () => {
     return payload;
   };
 
+  const savePartnerInstallationServiceProduct = async (
+    productId: string,
+    mode: 'create' | 'update',
+    product: Product,
+  ) => {
+    const { data: authData, error: authError } = await supabase.auth.getSession();
+    if (authError) throw authError;
+
+    const accessToken = authData.session?.access_token;
+    if (!accessToken) {
+      throw new Error('Sua sessao expirou. Entre novamente e tente salvar o servico.');
+    }
+
+    const response = await fetch('/api/admin?action=save-installation-service-product', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ productId, mode, product }),
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload?.error || payload?.message || 'Falha ao salvar o produto de servico.');
+    }
+
+    return payload;
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -267,6 +312,14 @@ export const Products = () => {
       // proof, while eligible partners/SaaS accounts remain on direct RLS.
       const usesPlatformCatalogWriter = isSystemUpgrade
         || (isInstallationService && canManageSaasPlanMapping);
+      // A Plano Parceiro purchased through the Central is authoritative even
+      // when this installation still mirrors `accounts.plan_type = free`.
+      // The server route verifies both the current installation/licence and
+      // the Central entitlement before using the local service credential.
+      const usesCentralPartnerServiceWriter = isInstallationService
+        && !usesPlatformCatalogWriter
+        && hasPartnerEntitlement
+        && !hasLocalInstallationServicePermission;
 
       if (selectedProductType === PRODUCT_TYPE_SYSTEM_UPGRADE && !canManageSaasPlanMapping) {
         throw new Error('Somente o Proprietario do Sistema pode criar ou editar produtos de upgrade.');
@@ -333,6 +386,8 @@ export const Products = () => {
       const productToSave = { id: productId, ...sanitizedFormData } as Product;
       if (usesPlatformCatalogWriter) {
         await savePlatformCatalogProduct(productId, editingId ? 'update' : 'create', productToSave);
+      } else if (usesCentralPartnerServiceWriter) {
+        await savePartnerInstallationServiceProduct(productId, editingId ? 'update' : 'create', productToSave);
       } else if (editingId) {
         const productToUpdate = { id: editingId, ...sanitizedFormData } as Product;
         await storage.updateProduct(productToUpdate);

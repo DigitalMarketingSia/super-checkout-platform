@@ -49,6 +49,8 @@
     "deliverable_ready": "Tu material esta disponible para acceso inmediato.",
     "delivery_pending_title": "Entrega en proceso",
     "delivery_pending_desc": "Tu pago fue aprobado, pero este producto aun no tiene entrega automatica configurada. Revisa tu correo o contacta al soporte.",
+    "partner_upgrade_delivery_title": "El Plan de Socio se esta liberando",
+    "partner_upgrade_delivery_desc": "Tu pago fue aprobado y el Plan de Socio se esta liberando automaticamente en la cuenta vinculada. Abre el Portal para explorar tu oportunidad comercial, ofrecer instalaciones y generar ingresos con tus servicios.",
     "upgrade_delivery_title": "Los Recursos Ilimitados se estan liberando",
     "upgrade_delivery_desc": "Tu pago fue aprobado y los Recursos Ilimitados se estan liberando automaticamente en la cuenta vinculada. Vuelve al sistema, actualiza la pagina y contacta al soporte si el acceso no aparece."
   },

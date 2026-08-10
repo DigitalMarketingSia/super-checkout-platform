@@ -23,6 +23,7 @@ interface OrderDeliverable {
   status: 'available' | 'not_configured';
   url: string | null;
   visual_url?: string | null;
+  plan_slug?: string | null;
   label: string;
   instructions?: string | null;
   source?: string | null;
@@ -90,6 +91,7 @@ function normalizeStoredDeliverables(value: unknown): OrderDeliverable[] {
         status,
         url: item.url || item.visual_url || null,
         visual_url: item.visual_url || null,
+        plan_slug: typeof item.plan_slug === 'string' ? item.plan_slug : null,
         label: String(item.label || ''),
         instructions: item.instructions || null,
         source: item.source || null,
@@ -130,6 +132,25 @@ function resolveOriginalOrderId(order: Order | null) {
 
   const postPurchase = metadata.post_purchase && typeof metadata.post_purchase === 'object' ? metadata.post_purchase : {};
   return typeof postPurchase.original_order_id === 'string' ? postPurchase.original_order_id.trim() : '';
+}
+
+function extractPlanSlugs(value: unknown): string[] {
+  if (Array.isArray(value)) return value.flatMap((entry) => extractPlanSlugs(entry));
+
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized ? [normalized] : [];
+}
+
+function getOrderUpgradePlanSlugs(order: Order | null): string[] {
+  const metadata = order?.metadata && typeof order.metadata === 'object' ? order.metadata : {};
+  const items = Array.isArray(order?.items) ? order.items : [];
+
+  return [
+    ...extractPlanSlugs(metadata.fulfillment_saas_plans),
+    ...extractPlanSlugs(metadata.saas_plans),
+    ...extractPlanSlugs(metadata.upgrade_plan_slugs),
+    ...items.flatMap((item: any) => extractPlanSlugs(item?.saas_plan_slug || item?.plan_slug)),
+  ];
 }
 
 function buildCurrentUrl(params: URLSearchParams) {
@@ -453,6 +474,13 @@ export const ThankYou = () => {
     deliverable.source === 'installation_service_order'
       || deliverable.label === 'Solicitacao de instalacao recebida'
   );
+  const upgradePlanSlugs = Array.from(new Set([
+    ...effectiveOrders.flatMap((entry) => getOrderUpgradePlanSlugs(entry)),
+    ...missingDeliverables.map((deliverable) => String(deliverable.plan_slug || '').trim().toLowerCase()),
+  ].filter(Boolean)));
+  const hasPartnerPlanUpgrade = upgradePlanSlugs.some((slug) =>
+    ['saas', 'partner', 'upgrade_partner'].includes(slug)
+  );
   const primaryMemberDeliverable = actionableDeliverables.find((deliverable) => deliverable.delivery_type === 'member_area');
   const primaryAccessUrl = primaryMemberDeliverable?.url || checkout?.thank_you_button_url || '';
   const primaryAccessLabel = primaryMemberDeliverable?.label || checkout?.thank_you_button_text || t('thank_you.access', 'Acessar');
@@ -602,14 +630,18 @@ export const ThankYou = () => {
               <div className="max-w-lg mx-auto mb-8 rounded-xl border border-amber-100 bg-amber-50 p-4 text-left">
                 <p className="text-sm font-bold text-amber-900">
                   {hasAutomaticSystemUpgrade
-                    ? t('thank_you.upgrade_delivery_title', 'Recursos Ilimitados sendo liberados')
+                    ? hasPartnerPlanUpgrade
+                      ? t('thank_you.partner_upgrade_delivery_title', 'Plano Parceiro sendo liberado')
+                      : t('thank_you.upgrade_delivery_title', 'Recursos Ilimitados sendo liberados')
                     : hasInstallationServiceOrder
                       ? t('thank_you.installation_service_title', 'Solicitacao de instalacao recebida')
                     : t('thank_you.delivery_pending_title', 'Entrega em processamento')}
                 </p>
                 <p className="text-xs text-amber-800 mt-1">
                   {hasAutomaticSystemUpgrade
-                    ? t('thank_you.upgrade_delivery_desc', 'Seu pagamento foi aprovado e os Recursos Ilimitados estao sendo liberados automaticamente na conta vinculada. Volte ao sistema, atualize a pagina e, se o acesso ainda nao aparecer, fale com o suporte.')
+                    ? hasPartnerPlanUpgrade
+                      ? t('thank_you.partner_upgrade_delivery_desc', 'Seu pagamento foi aprovado e o Plano Parceiro esta sendo liberado automaticamente na conta vinculada. Acesse o Portal para explorar sua oportunidade comercial, oferecer instalacoes e gerar receita com seus servicos.')
+                      : t('thank_you.upgrade_delivery_desc', 'Seu pagamento foi aprovado e os Recursos Ilimitados estao sendo liberados automaticamente na conta vinculada. Volte ao sistema, atualize a pagina e, se o acesso ainda nao aparecer, fale com o suporte.')
                     : hasInstallationServiceOrder
                       ? t('thank_you.installation_service_desc', 'Seu pagamento foi confirmado. Nossa equipe entrara em contato por e-mail para alinhar os dados necessarios e iniciar a instalacao.')
                     : t('thank_you.delivery_pending_desc', 'Seu pagamento foi aprovado, mas este produto ainda nao possui entrega automatica configurada. Verifique seu e-mail ou fale com o suporte.')}

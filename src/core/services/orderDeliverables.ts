@@ -17,6 +17,7 @@ export interface OrderDeliverable {
   status: OrderDeliverableStatus;
   url: string | null;
   visual_url?: string | null;
+  plan_slug?: string | null;
   label: string;
   instructions?: string | null;
   sort_order: number;
@@ -243,6 +244,7 @@ export async function buildOrderDeliverables(
         status: 'not_configured',
         url: null,
         visual_url: null,
+        plan_slug: String(product?.saas_plan_slug || '').trim().toLowerCase() || null,
         label: 'Upgrade aplicado automaticamente',
         instructions: 'O plano sera aplicado automaticamente a conta beneficiaria apos a confirmacao do pagamento.',
         sort_order: index,

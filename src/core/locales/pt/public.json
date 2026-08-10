@@ -49,6 +49,8 @@
     "deliverable_ready": "Material liberado para acesso imediato.",
     "delivery_pending_title": "Entrega em processamento",
     "delivery_pending_desc": "Seu pagamento foi aprovado, mas este produto ainda nao possui entrega automatica configurada. Verifique seu e-mail ou fale com o suporte.",
+    "partner_upgrade_delivery_title": "Plano Parceiro sendo liberado",
+    "partner_upgrade_delivery_desc": "Seu pagamento foi aprovado e o Plano Parceiro esta sendo liberado automaticamente na conta vinculada. Acesse o Portal para explorar sua oportunidade comercial, oferecer instalacoes e gerar receita com seus servicos.",
     "upgrade_delivery_title": "Recursos Ilimitados sendo liberados",
     "upgrade_delivery_desc": "Seu pagamento foi aprovado e os Recursos Ilimitados estao sendo liberados automaticamente na conta vinculada. Volte ao sistema, atualize a pagina e, se o acesso ainda nao aparecer, fale com o suporte."
   },

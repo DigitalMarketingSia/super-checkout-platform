@@ -12,7 +12,7 @@ export interface ApprovedMigrationRecord {
   reason?: string;
 }
 
-export const CURRENT_SCHEMA_VERSION = '1.0.44';
+export const CURRENT_SCHEMA_VERSION = '1.0.45';
 export const UNKNOWN_SCHEMA_VERSION = '0.0.0';
 
 export const APPROVED_MIGRATION_ALLOWLIST: Record<string, ApprovedMigrationRecord> = {
@@ -203,6 +203,12 @@ export const APPROVED_MIGRATION_ALLOWLIST: Record<string, ApprovedMigrationRecor
     sha256: 'e3cab80b08d0855db88a09f4da1260d4107b22d3ce1bcf15a5808536b242ceed',
     execution: 'owner_manual',
     reason: 'Migration de contrato do catalogo comercial. Deve ser aplicada pelo Proprietario no SQL Editor para garantir que produtos de upgrade usem somente entrega automatica de entitlement.'
+  },
+  '1.0.45': {
+    file: 'v1.0.45.sql',
+    sha256: '424f1311efd4d7bd2afb75f7c35d07c6d08c0cc893192aeffad13ffff110f30a',
+    execution: 'owner_manual',
+    reason: 'Migration de seguranca do catalogo comercial. Deve ser aplicada pelo Proprietario para impedir que o browser altere accounts.plan_type e simule o Plano Parceiro localmente.'
   }
 };
 

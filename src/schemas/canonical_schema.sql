@@ -2387,11 +2387,13 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.two_factor_challenges TO service_
 CREATE POLICY "Users can view own account" ON public.accounts
 FOR SELECT TO authenticated USING(auth.uid() = owner_user_id);
 
-CREATE POLICY "Users can insert own account" ON public.accounts
-FOR INSERT TO authenticated WITH CHECK(auth.uid() = owner_user_id);
-
-CREATE POLICY "Users can update own account" ON public.accounts
-FOR UPDATE TO authenticated USING(auth.uid() = owner_user_id) WITH CHECK(auth.uid() = owner_user_id);
+CREATE POLICY "Users can insert own free account" ON public.accounts
+FOR INSERT TO authenticated
+WITH CHECK (
+  auth.uid() = owner_user_id
+  AND LOWER(COALESCE(plan_type, 'free')) = 'free'
+  AND LOWER(COALESCE(status, 'active')) = 'active'
+);
 
 CREATE POLICY "Users can manage their business settings" ON public.business_settings
 FOR ALL TO authenticated
@@ -4065,7 +4067,7 @@ COMMENT ON FUNCTION public.super_checkout_keepalive() IS
 NOTIFY pgrst, 'reload schema';
 
 -- Fresh-install baseline: this marker intentionally runs last. Everything
--- through v1.0.44 is declared above, so a successfully imported canonical
+-- through v1.0.45 is declared above, so a successfully imported canonical
 -- schema must not make a newly installed account replay historical migrations.
 DO $$
 BEGIN
@@ -4081,7 +4083,8 @@ BEGIN
     ('1.0.41', 'Canonical schema formalizes platform email template metadata and owner-only RLS', true, 0),
     ('1.0.42', 'Canonical schema formalizes commercial product type metadata', true, 0),
     ('1.0.43', 'Canonical schema enforces commercial product catalog permissions', true, 0),
-    ('1.0.44', 'Canonical schema forces automatic delivery for system upgrade products', true, 0)
+    ('1.0.44', 'Canonical schema forces automatic delivery for system upgrade products', true, 0),
+    ('1.0.45', 'Canonical schema keeps local account plan mirrors server-controlled', true, 0)
   ON CONFLICT (version) DO UPDATE SET
     description = EXCLUDED.description,
     success = EXCLUDED.success,
@@ -4090,10 +4093,10 @@ BEGIN
     error_log = NULL;
 
   UPDATE public.system_info
-  SET db_version = '1.0.44',
+  SET db_version = '1.0.45',
       last_update_at = timezone('utc'::text, now()),
       updated_at = timezone('utc'::text, now()),
-      last_applied_migration_version = '1.0.44',
+      last_applied_migration_version = '1.0.45',
       last_applied_migration_at = timezone('utc'::text, now());
 END $$;
 

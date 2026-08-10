@@ -1366,13 +1366,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             endpoint === 'get-license-status'
             || endpoint === 'manage-user-installations'
             || endpoint === 'generate-install-token'
+            || endpoint === 'check-entitlement'
         ) {
             // The Central function validates this token and ignores any
             // user_id/email supplied by the browser unless a trusted
             // installation or control-plane proof is present.
             // The pre-installation Portal flow has no installation HMAC yet,
-            // so generate-install-token must receive the authenticated
-            // Central JWT as well.
+            // so generate-install-token and check-entitlement must receive
+            // the authenticated Central JWT as well. Without that token,
+            // check-entitlement cannot resolve the Portal account and the
+            // Central Function correctly returns 401.
             forwardHeaders.Authorization = `Bearer ${jwt}`;
         }
 
