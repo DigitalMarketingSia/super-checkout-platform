@@ -20,7 +20,7 @@ function formatMoney(value: number, currency: string) {
   }
 }
 
-async function invokeApproval(action: 'inspect_approval' | 'decide_approval', body: Record<string, unknown>) {
+async function invokeApproval(action: 'inspect_approval' | 'decide_approval' | 'inspect_approval_session' | 'decide_approval_session', body: Record<string, unknown>) {
   const { data, error } = await centralSupabase.functions.invoke('service-orders', { body: { action, ...body } });
   if (error) {
     try {
@@ -49,7 +49,7 @@ export const ServiceApproval: React.FC = () => {
   useEffect(() => {
     let active = true;
     const load = async () => {
-      if (!orderId || !token) {
+      if (!orderId) {
         if (active) {
           setMessage('Este link de aprovação está incompleto.');
           setLoading(false);
@@ -57,7 +57,10 @@ export const ServiceApproval: React.FC = () => {
         return;
       }
       try {
-        const result = await invokeApproval('inspect_approval', { order_id: orderId, token });
+        const result = await invokeApproval(token ? 'inspect_approval' : 'inspect_approval_session', {
+          order_id: orderId,
+          ...(token ? { token } : {}),
+        });
         if (active) setOrder(result.order || null);
       } catch (error: any) {
         if (active) setMessage(error?.message || 'Este link expirou ou já foi utilizado.');
@@ -74,7 +77,11 @@ export const ServiceApproval: React.FC = () => {
     setSubmitting(true);
     setMessage(null);
     try {
-      await invokeApproval('decide_approval', { order_id: order.id, token, decision });
+      await invokeApproval(token ? 'decide_approval' : 'decide_approval_session', {
+        order_id: order.id,
+        ...(token ? { token } : {}),
+        decision,
+      });
       setApproved(decision === 'approve');
       setMessage(decision === 'approve'
         ? 'A instalação foi autorizada. Você poderá acompanhar o andamento no Portal.'
@@ -121,7 +128,7 @@ export const ServiceApproval: React.FC = () => {
                   <button type="button" disabled={submitting} onClick={() => void decide('approve')} className="rounded-xl bg-primary px-4 py-4 text-[11px] font-black uppercase tracking-widest text-white transition hover:bg-primary/80 disabled:opacity-50">{submitting ? 'Registrando...' : 'Autorizar serviço'}</button>
                 </div>
               ) : (
-                <button type="button" onClick={() => navigate('/activate/setup')} className="w-full rounded-xl bg-white px-4 py-4 text-[11px] font-black uppercase tracking-widest text-black transition hover:bg-gray-200">Abrir Portal</button>
+        <button type="button" onClick={() => navigate('/activate/setup?tab=services')} className="w-full rounded-xl bg-white px-4 py-4 text-[11px] font-black uppercase tracking-widest text-black transition hover:bg-gray-200">Abrir Portal</button>
               )}
             </div>
           ) : null}

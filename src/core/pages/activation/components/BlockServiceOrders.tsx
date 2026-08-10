@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router';
 import {
   CheckCircle2,
   ClipboardCheck,
@@ -50,8 +51,6 @@ const statusLabels: Record<string, string> = {
   revoked: 'Consentimento revogado',
 };
 
-const terminalStatuses = new Set(['completed', 'rejected', 'cancelled', 'revoked']);
-
 function formatMoney(value: number, currency: string) {
   try {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: currency || 'BRL' }).format(value || 0);
@@ -93,6 +92,7 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
   isPlatformOwner,
   hasPartnerAccess,
 }) => {
+  const navigate = useNavigate();
   const [orders, setOrders] = useState<ServiceOrder[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [providerSelection, setProviderSelection] = useState<Record<string, string>>({});
@@ -255,7 +255,9 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
             {orders.map((order) => {
               const busy = busyOrderId === order.id;
               const operator = isOperator(order);
-              const canRevoke = order.scope === 'beneficiary' && !terminalStatuses.has(order.status);
+              const canReviewApproval = order.scope === 'beneficiary' && order.status === 'awaiting_client_approval';
+              const canCancelRequest = order.scope === 'beneficiary' && ['paid', 'awaiting_client_approval'].includes(order.status);
+              const canRevoke = order.scope === 'beneficiary' && ['approved', 'assigned', 'in_progress'].includes(order.status);
               const canAssign = operator && order.status === 'approved' && (isPlatformOwner || hasPartnerAccess);
               const canStart = operator && order.status === 'assigned' && (isPlatformOwner || order.scope === 'provider');
               const canIssueInstallationAccess = operator && order.status === 'in_progress' && !order.installation_ready && (isPlatformOwner || order.scope === 'provider');
@@ -288,6 +290,11 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
                           <UserRoundCheck className="h-4 w-4" /> Solicitar aprovação
                         </button>
                       )}
+                      {canReviewApproval && (
+                        <button disabled={busy} onClick={() => navigate(`/service-approval/${encodeURIComponent(order.id)}`)} className="action-button bg-primary text-white hover:bg-primary/80">
+                          <UserRoundCheck className="h-4 w-4" /> Revisar aprovação
+                        </button>
+                      )}
                       {canAssign && isPlatformOwner && (
                         <select value={providerSelection[order.id] || ''} onChange={(event) => setProviderSelection((current) => ({ ...current, [order.id]: event.target.value }))} className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs text-white outline-none">
                           <option value="">Atribuir a mim</option>
@@ -303,6 +310,7 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
                       {canIssueInstallationAccess && <button disabled={busy} onClick={() => void runOrderAction(order, 'issue_installation_access')} className="action-button bg-violet-300 text-violet-950 hover:bg-violet-200"><Copy className="h-4 w-4" /> {order.installation_access_issued_at ? 'Gerar novo acesso' : 'Gerar acesso de instalacao'}</button>}
                       {canComplete && <button disabled={busy} onClick={() => void runOrderAction(order, 'complete')} className="action-button bg-emerald-300 text-emerald-950 hover:bg-emerald-200"><CheckCircle2 className="h-4 w-4" /> Concluir</button>}
                       {canCancel && <button disabled={busy} onClick={() => void runOrderAction(order, 'cancel')} className="action-button bg-white/5 text-gray-300 hover:bg-white/10">Cancelar</button>}
+                      {canCancelRequest && <button disabled={busy} onClick={() => void runOrderAction(order, 'revoke_client_consent')} className="action-button bg-red-400/15 text-red-200 hover:bg-red-400/25"><ShieldAlert className="h-4 w-4" /> Cancelar solicitação</button>}
                       {canRevoke && <button disabled={busy} onClick={() => void runOrderAction(order, 'revoke_client_consent')} className="action-button bg-red-400/15 text-red-200 hover:bg-red-400/25"><ShieldAlert className="h-4 w-4" /> Revogar consentimento</button>}
                     </div>
                   </div>
