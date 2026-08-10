@@ -29,9 +29,14 @@ type ServiceOrder = {
   beneficiary_name?: string | null;
   beneficiary_email?: string | null;
   beneficiary_license_ready?: boolean;
+  installation_access_issued_at?: string | null;
+  installation_access_expires_at?: string | null;
+  target_installation_id?: string | null;
+  installation_ready?: boolean;
 };
 
 type Provider = { id: string; name: string; email: string };
+type InstallationAccess = { url: string; expiresAt: string };
 
 const statusLabels: Record<string, string> = {
   paid: 'Aguardando preparação',
@@ -94,6 +99,7 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
   const [loading, setLoading] = useState(true);
   const [busyOrderId, setBusyOrderId] = useState<string | null>(null);
   const [approvalUrl, setApprovalUrl] = useState<string | null>(null);
+  const [installationAccessByOrder, setInstallationAccessByOrder] = useState<Record<string, InstallationAccess>>({});
 
   const loadOrders = useCallback(async () => {
     setLoading(true);
@@ -125,11 +131,30 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
     setBusyOrderId(order.id);
     try {
       const result = await invokeServiceOrders(action, { order_id: order.id, ...extra });
+      if (result.install_url) {
+        setInstallationAccessByOrder((current) => ({
+          ...current,
+          [order.id]: { url: String(result.install_url), expiresAt: String(result.expires_at || '') },
+        }));
+      }
       if (result.approval_url) {
         setApprovalUrl(String(result.approval_url));
         toast.success('Link de aprovação criado. Copie e envie ao cliente.');
       } else {
         toast.success('Ordem de serviço atualizada.');
+      }
+      if (action === 'start') {
+        try {
+          const access = await invokeServiceOrders('issue_installation_access', { order_id: order.id });
+          if (!access.install_url) throw new Error('Secure installation access was not returned.');
+          setInstallationAccessByOrder((current) => ({
+            ...current,
+            [order.id]: { url: String(access.install_url), expiresAt: String(access.expires_at || '') },
+          }));
+          toast.success('Servico iniciado e acesso seguro de instalacao gerado.');
+        } catch (accessError: any) {
+          toast.warning(accessError?.message || 'Servico iniciado. Gere o acesso de instalacao antes de continuar.');
+        }
       }
       await loadOrders();
     } catch (error: any) {
@@ -146,6 +171,17 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
       toast.success('Link de aprovação copiado.');
     } catch {
       toast.error('Não foi possível copiar o link.');
+    }
+  };
+
+  const copyInstallationUrl = async (orderId: string) => {
+    const access = installationAccessByOrder[orderId];
+    if (!access) return;
+    try {
+      await navigator.clipboard.writeText(access.url);
+      toast.success('Link seguro de instalacao copiado.');
+    } catch {
+      toast.error('Nao foi possivel copiar o link de instalacao.');
     }
   };
 
@@ -222,8 +258,10 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
               const canRevoke = order.scope === 'beneficiary' && !terminalStatuses.has(order.status);
               const canAssign = operator && order.status === 'approved' && (isPlatformOwner || hasPartnerAccess);
               const canStart = operator && order.status === 'assigned' && (isPlatformOwner || order.scope === 'provider');
-              const canComplete = operator && order.status === 'in_progress' && (isPlatformOwner || order.scope === 'provider');
+              const canIssueInstallationAccess = operator && order.status === 'in_progress' && !order.installation_ready && (isPlatformOwner || order.scope === 'provider');
+              const canComplete = operator && order.status === 'in_progress' && Boolean(order.installation_ready) && (isPlatformOwner || order.scope === 'provider');
               const canCancel = operator && ['paid', 'awaiting_client_approval', 'approved', 'assigned'].includes(order.status);
+              const installationAccess = installationAccessByOrder[order.id];
 
               return (
                 <article key={order.id} className="p-5 sm:p-7">
@@ -262,11 +300,33 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
                         </button>
                       )}
                       {canStart && <button disabled={busy} onClick={() => void runOrderAction(order, 'start')} className="action-button bg-amber-300 text-amber-950 hover:bg-amber-200"><Play className="h-4 w-4" /> Iniciar</button>}
+                      {canIssueInstallationAccess && <button disabled={busy} onClick={() => void runOrderAction(order, 'issue_installation_access')} className="action-button bg-violet-300 text-violet-950 hover:bg-violet-200"><Copy className="h-4 w-4" /> {order.installation_access_issued_at ? 'Gerar novo acesso' : 'Gerar acesso de instalacao'}</button>}
                       {canComplete && <button disabled={busy} onClick={() => void runOrderAction(order, 'complete')} className="action-button bg-emerald-300 text-emerald-950 hover:bg-emerald-200"><CheckCircle2 className="h-4 w-4" /> Concluir</button>}
                       {canCancel && <button disabled={busy} onClick={() => void runOrderAction(order, 'cancel')} className="action-button bg-white/5 text-gray-300 hover:bg-white/10">Cancelar</button>}
                       {canRevoke && <button disabled={busy} onClick={() => void runOrderAction(order, 'revoke_client_consent')} className="action-button bg-red-400/15 text-red-200 hover:bg-red-400/25"><ShieldAlert className="h-4 w-4" /> Revogar consentimento</button>}
                     </div>
                   </div>
+                  {operator && order.status === 'in_progress' && !order.installation_ready && (
+                    <p className="mt-4 inline-flex items-center gap-2 text-xs text-amber-300"><ShieldAlert className="h-4 w-4" /> Conclua a instalacao segura antes de encerrar este servico.</p>
+                  )}
+                  {operator && order.installation_ready && (
+                    <p className="mt-4 inline-flex items-center gap-2 text-xs text-emerald-300"><CheckCircle2 className="h-4 w-4" /> Instalacao vinculada com seguranca a esta ordem.</p>
+                  )}
+                  {installationAccess && (
+                    <div className="mt-5 rounded-2xl border border-violet-300/25 bg-violet-300/10 p-4">
+                      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-widest text-violet-100">Acesso seguro de instalacao pronto</p>
+                          <p className="mt-1 text-xs text-violet-100/70">Expira em {formatDate(installationAccess.expiresAt)} e e exclusivo desta ordem.</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <button type="button" onClick={() => void copyInstallationUrl(order.id)} className="action-button bg-violet-200 text-violet-950 hover:bg-violet-100"><Copy className="h-4 w-4" /> Copiar link</button>
+                          <a href={installationAccess.url} target="_blank" rel="noreferrer" className="action-button bg-white/10 text-white hover:bg-white/15"><Play className="h-4 w-4" /> Abrir instalador</a>
+                        </div>
+                      </div>
+                      <input readOnly value={installationAccess.url} className="mt-3 w-full rounded-xl border border-violet-300/20 bg-black/25 px-3 py-2 text-xs text-violet-50 outline-none" />
+                    </div>
+                  )}
                 </article>
               );
             })}
