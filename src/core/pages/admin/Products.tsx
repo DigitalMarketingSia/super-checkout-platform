@@ -27,6 +27,7 @@ import {
   PRODUCT_TYPE_REGULAR,
   PRODUCT_TYPE_SYSTEM_UPGRADE,
   SYSTEM_INSTALLATION_SERVICE,
+  normalizeCatalogPlanSlug,
 } from '../../services/productCatalog';
 
 // Initial Form State
@@ -97,7 +98,7 @@ export const Products = () => {
   // signed entitlement resolved from Central, rather than hiding the service
   // option until a local webhook happens to update `accounts.plan_type`.
   const hasPartnerEntitlement =
-    ['saas', 'partner', 'upgrade_partner'].includes(String(entitlementPlan || '').toLowerCase())
+    normalizeCatalogPlanSlug(entitlementPlan) === 'saas'
     || hasFeature('partner_rights');
   const hasLocalInstallationServicePermission =
     effectiveRole === 'partner'

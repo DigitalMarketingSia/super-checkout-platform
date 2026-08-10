@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next';
 import { getApiUrl } from '../../utils/apiUtils';
 import { getRuntimeMode } from '../../config/runtimeMode';
 import { demoDataService } from '../../services/demoDataService';
+import { normalizeCatalogPlanSlug } from '../../services/productCatalog';
 import {
   captureCheckoutTrackingAttribution,
   type CheckoutTrackingAttribution,
@@ -150,7 +151,7 @@ function getOrderUpgradePlanSlugs(order: Order | null): string[] {
     ...extractPlanSlugs(metadata.saas_plans),
     ...extractPlanSlugs(metadata.upgrade_plan_slugs),
     ...items.flatMap((item: any) => extractPlanSlugs(item?.saas_plan_slug || item?.plan_slug)),
-  ];
+  ].map((slug) => normalizeCatalogPlanSlug(slug)).filter(Boolean) as string[];
 }
 
 function buildCurrentUrl(params: URLSearchParams) {
@@ -478,9 +479,7 @@ export const ThankYou = () => {
     ...effectiveOrders.flatMap((entry) => getOrderUpgradePlanSlugs(entry)),
     ...missingDeliverables.map((deliverable) => String(deliverable.plan_slug || '').trim().toLowerCase()),
   ].filter(Boolean)));
-  const hasPartnerPlanUpgrade = upgradePlanSlugs.some((slug) =>
-    ['saas', 'partner', 'upgrade_partner'].includes(slug)
-  );
+  const hasPartnerPlanUpgrade = upgradePlanSlugs.includes('saas');
   const primaryMemberDeliverable = actionableDeliverables.find((deliverable) => deliverable.delivery_type === 'member_area');
   const primaryAccessUrl = primaryMemberDeliverable?.url || checkout?.thank_you_button_url || '';
   const primaryAccessLabel = primaryMemberDeliverable?.label || checkout?.thank_you_button_text || t('thank_you.access', 'Acessar');

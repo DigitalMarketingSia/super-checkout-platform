@@ -12,6 +12,7 @@ import { mergeOrderMetadata, normalizeOrderMetadata } from './orderMetadata.js';
 import { dispatchSaleApprovedPush } from './pushAutomation.js';
 import { publishPlatformEvent } from './platformEventPublisher.js';
 import { upsertPaidCentralServiceOrder } from './centralServiceOrderPublisher.js';
+import { normalizeCatalogPlanSlug } from './productCatalog.js';
 
 type SupabaseAdmin = any;
 
@@ -557,9 +558,11 @@ export async function fulfillOrder(
   const systemRecipientName = upgradeBeneficiary?.beneficiary_name || payerName;
 
   if (upgradeBeneficiary && systemRecipientEmail) {
-    const planSlugSet = new Set(uniqueSaasPlansToCreate.map((slug) => String(slug || '').trim().toLowerCase()));
-    const isPartnerUpgrade = ['saas', 'partner', 'upgrade_partner'].some((slug) => planSlugSet.has(slug));
-    const isUnlimitedUpgrade = ['upgrade_domains', 'unlimited', 'lifetime', 'upgrade_unlimited'].some((slug) => planSlugSet.has(slug));
+    const planSlugSet = new Set(uniqueSaasPlansToCreate
+      .map((slug) => normalizeCatalogPlanSlug(slug))
+      .filter(Boolean));
+    const isPartnerUpgrade = planSlugSet.has('saas');
+    const isUnlimitedUpgrade = planSlugSet.has('upgrade_domains');
 
     if (isPartnerUpgrade || isUnlimitedUpgrade) {
       const templateKey = isPartnerUpgrade ? 'PLATFORM_UPGRADE_PARTNER' : 'PLATFORM_UPGRADE_UNLIMITED';

@@ -16,6 +16,8 @@ export const SYSTEM_UPGRADE_PLAN_SLUGS = new Set([
  */
 export const SYSTEM_UPGRADE_PLAN_SLUG_ALIASES: Record<string, string> = {
   unlimited: 'upgrade_domains',
+  lifetime: 'upgrade_domains',
+  upgrade_unlimited: 'upgrade_domains',
   partner: 'saas',
   upgrade_partner: 'saas',
 };

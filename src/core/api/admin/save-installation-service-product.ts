@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { enforceApiRateLimit } from '../_rate-limit.js';
 import { logAuthzEvent, requireApiAuth } from '../_authz.js';
-import { SYSTEM_INSTALLATION_SERVICE } from '../../services/productCatalog.js';
+import { normalizeCatalogPlanSlug, SYSTEM_INSTALLATION_SERVICE } from '../../services/productCatalog.js';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const INSTALLATION_SERVICE_PRODUCT_TYPE = 'installation_service';
@@ -111,7 +111,7 @@ function getSelfOrigin(req: VercelRequest) {
 }
 
 function isPartnerEntitlement(payload: any) {
-  const plan = String(payload?.plan_slug || '').trim().toLowerCase();
+  const plan = normalizeCatalogPlanSlug(payload?.plan_slug);
   const partnerRights = payload?.features?.partner_rights;
   return ['saas', 'partner', 'upgrade_partner'].includes(plan)
     || partnerRights === true
