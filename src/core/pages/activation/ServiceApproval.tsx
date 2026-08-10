@@ -74,6 +74,7 @@ export const ServiceApproval: React.FC = () => {
 
   const decide = async (decision: 'approve' | 'reject') => {
     if (!order || submitting) return;
+    if (decision === 'reject' && !window.confirm('Tem certeza que deseja recusar esta solicitação? A ordem será encerrada, mas o prestador poderá solicitar uma nova aprovação depois.')) return;
     setSubmitting(true);
     setMessage(null);
     try {

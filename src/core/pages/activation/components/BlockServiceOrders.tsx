@@ -139,7 +139,9 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
       }
       if (result.approval_url) {
         setApprovalUrl(String(result.approval_url));
-        toast.success('Link de aprovação criado. Copie e envie ao cliente.');
+        toast.success(action === 'request_new_approval'
+          ? 'Novo link de aprovação criado sem nova cobrança. Copie e envie ao cliente.'
+          : 'Link de aprovação criado. Copie e envie ao cliente.');
       } else {
         toast.success('Ordem de serviço atualizada.');
       }
@@ -258,6 +260,7 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
               const canReviewApproval = order.scope === 'beneficiary' && order.status === 'awaiting_client_approval';
               const canCancelRequest = order.scope === 'beneficiary' && ['paid', 'awaiting_client_approval'].includes(order.status);
               const canRevoke = order.scope === 'beneficiary' && ['approved', 'assigned', 'in_progress'].includes(order.status);
+              const canRequestNewApproval = operator && order.status === 'rejected';
               const canAssign = operator && order.status === 'approved' && (isPlatformOwner || hasPartnerAccess);
               const canStart = operator && order.status === 'assigned' && (isPlatformOwner || order.scope === 'provider');
               const canIssueInstallationAccess = operator && order.status === 'in_progress' && !order.installation_ready && (isPlatformOwner || order.scope === 'provider');
@@ -288,6 +291,11 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
                       {operator && order.status === 'paid' && (
                         <button disabled={busy} onClick={() => void runOrderAction(order, 'request_approval')} className="action-button bg-primary text-white hover:bg-primary/80">
                           <UserRoundCheck className="h-4 w-4" /> Solicitar aprovação
+                        </button>
+                      )}
+                      {canRequestNewApproval && (
+                        <button disabled={busy} onClick={() => void runOrderAction(order, 'request_new_approval')} className="action-button bg-primary text-white hover:bg-primary/80">
+                          <UserRoundCheck className="h-4 w-4" /> Solicitar nova aprovação
                         </button>
                       )}
                       {canReviewApproval && (
