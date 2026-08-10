@@ -15,6 +15,7 @@ import syncSaasPlanHandler from '../src/core/api/admin/sync-saas-plan.js';
 import createUploadUrlHandler from '../src/core/api/admin/create-upload-url.js';
 import saveSystemUpgradeProductHandler from '../src/core/api/admin/save-system-upgrade-product.js';
 import saveInstallationServiceProductHandler from '../src/core/api/admin/save-installation-service-product.js';
+import centralNotificationsHandler from '../src/core/api/admin/central-notifications.js';
 
 const DEFAULT_ALLOWED_ORIGIN = 'https://app.supercheckout.app';
 
@@ -84,6 +85,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return await saveInstallationServiceProductHandler(req, res);
             case 'create-upload-url':
                 return await createUploadUrlHandler(req, res);
+            case 'central-notifications':
+                return await centralNotificationsHandler(req, res);
             default:
                 return res.status(404).json({ error: `Action ${action} not found in Admin Controller` });
         }

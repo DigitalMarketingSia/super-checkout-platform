@@ -18,6 +18,7 @@ import { BlockProfile } from './components/BlockProfile';
 import { BlockEarningsSimulator } from './components/BlockEarningsSimulator';
 import { BlockBasicDashboard, DemoExperienceCard } from './components/BlockBasicDashboard';
 import { BlockPortalSecurity } from './components/BlockPortalSecurity';
+import { PlatformNotificationInbox } from './components/PlatformNotificationInbox';
 import { EmailVerificationGate } from './components/EmailVerificationGate';
 import { getPlatformPrivacyUrl, getPlatformTermsUrl } from '../../config/platformUrls';
 import { useTranslation } from 'react-i18next';
@@ -314,6 +315,9 @@ export const ActivationPortal: React.FC = () => {
 
     useEffect(() => {
         loadData();
+
+        const requestedTab = new URLSearchParams(window.location.search).get('tab');
+        if (requestedTab) setActiveTabInternal(requestedTab);
         
         const handleNavEvent = (e: Event) => {
             const customEvent = e as CustomEvent<string>;
@@ -741,6 +745,8 @@ export const ActivationPortal: React.FC = () => {
                         <div className="hidden md:block">
                             <LanguageSelector variant="portal" />
                         </div>
+
+                        {centralUser && <PlatformNotificationInbox userId={centralUser.id} />}
 
                         {/* Security */}
                         <button 

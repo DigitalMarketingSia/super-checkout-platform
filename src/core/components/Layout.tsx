@@ -48,6 +48,7 @@ import { getRuntimeMode } from '../config/runtimeMode';
 import { platformUrls } from '../config/platformUrls';
 import { demoWorkspaceService } from '../services/demoWorkspaceService';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { AdminNotificationInbox } from './ui/AdminNotificationInbox';
 
 const getHostnameFromUrl = (url?: string) => {
   if (!url) return null;
@@ -77,7 +78,7 @@ const isControlPlaneHost = () => {
 export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> = ({ children, maxWidth = 'max-w-[1600px]' }) => {
   const location = useLocation();
   const { theme, toggleTheme } = useTheme();
-  const { user, signOut, compliance, isWhiteLabel, profile } = useAuth(); // Destructure compliance, isWhiteLabel, and profile
+  const { user, session, signOut, compliance, isWhiteLabel, profile } = useAuth(); // Destructure compliance, isWhiteLabel, and profile
   const { isOwner } = useFeatures(); // replaces useEntitlements and useFeatureFlags
   const { t } = useTranslation('admin');
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -600,10 +601,7 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
             <div className="flex items-center gap-3">
 
 
-              <button className="p-2.5 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 border border-transparent hover:border-white/10 transition-all relative">
-                <Bell className="w-5 h-5" />
-                <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-primary rounded-full shadow-[0_0_10px_rgba(138,43,226,0.8)] border-2 border-[#05050A]"></span>
-              </button>
+              <AdminNotificationInbox accessToken={session?.access_token || null} />
 
               <div className="h-8 w-px bg-white/10 mx-2 hidden md:block"></div>
 
