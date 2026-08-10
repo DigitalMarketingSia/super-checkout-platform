@@ -51,6 +51,7 @@ const MyInstallations = React.lazy(() => import('./pages/admin/Installations').t
 const LeadCRM = React.lazy(() => import('./pages/admin/LeadCRM').then((mod) => ({ default: mod.LeadCRM })));
 const FreeUserDetails = React.lazy(() => import('./pages/admin/FreeUserDetails').then((mod) => ({ default: mod.FreeUserDetails })));
 const PartnerDashboard = React.lazy(() => import('./pages/admin/PartnerDashboard').then((mod) => ({ default: mod.PartnerDashboard })));
+const ServiceApproval = React.lazy(() => import('./pages/activation/ServiceApproval').then((mod) => ({ default: mod.ServiceApproval })));
 const Marketing = React.lazy(() => import('./pages/Marketing').then((mod) => ({ default: mod.Marketing })));
 const IntegrationsHub = React.lazy(() => import('./pages/IntegrationsHub').then((mod) => ({ default: mod.IntegrationsHub })));
 const Notifications = React.lazy(() => import('./pages/admin/Notifications').then((mod) => ({ default: mod.Notifications })));
@@ -436,6 +437,7 @@ const DomainDispatcher = () => {
 
       <Route path="/activate" element={<ActivationLogin />} />
       <Route path="/activate/setup" element={<ActivationPortal />} />
+      <Route path="/service-approval/:orderId" element={<ServiceApproval />} />
 
       <Route path="/docs/webhooks" element={<AdminRoute><WebhookDocs /></AdminRoute>} />
 

@@ -13,6 +13,7 @@ import { BlockPasswordSetup } from './components/BlockPasswordSetup';
 import { UpsellBanners } from './components/UpsellBanners';
 import { BlockOpportunity } from './components/BlockOpportunity';
 import { BlockPartner } from './components/BlockPartner';
+import { BlockServiceOrders } from './components/BlockServiceOrders';
 import { BlockProfile } from './components/BlockProfile';
 import { BlockEarningsSimulator } from './components/BlockEarningsSimulator';
 import { BlockBasicDashboard, DemoExperienceCard } from './components/BlockBasicDashboard';
@@ -23,7 +24,7 @@ import { useTranslation } from 'react-i18next';
 import { LanguageSelector } from '../../components/ui/LanguageSelector';
 import { Loading } from '../../components/ui/Loading';
 import { PwaInstallBanner } from '../../components/ui/PwaInstallBanner';
-import { LogOut, LayoutDashboard, Key, Download, PlayCircle, Shield, Menu, X, User, Crown, BarChart3, ArrowRight, ShieldCheck, TrendingUp, Eye } from 'lucide-react';
+import { LogOut, LayoutDashboard, Key, Download, PlayCircle, Shield, Menu, X, User, Crown, BarChart3, ArrowRight, ShieldCheck, TrendingUp, Eye, ClipboardCheck } from 'lucide-react';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import './ActivationPortal.css';
 
@@ -596,6 +597,12 @@ export const ActivationPortal: React.FC = () => {
                         <BlockPartner userId={centralUser.id} />
                     </div>
                 );
+            case 'services':
+                return (
+                    <div className="animate-in fade-in duration-500 text-white">
+                        <BlockServiceOrders isPlatformOwner={isPortalOwner} hasPartnerAccess={hasPartnerAccess} />
+                    </div>
+                );
             case 'simulator':
                 if (!showEarningsSimulatorTab) return null;
                 return (
@@ -645,6 +652,7 @@ export const ActivationPortal: React.FC = () => {
                         <SidebarItem icon={PlayCircle} label={t('sidebar.tutorials')} active={activeTab === 'tutorials'} onClick={() => setActiveTab('tutorials')} collapsed={isCollapsed} />
                         <SidebarItem icon={Key} label={t('sidebar.access_data')} active={activeTab === 'license'} onClick={() => setActiveTab('license')} collapsed={isCollapsed} />
                         <SidebarItem icon={Download} label={t('sidebar.installation')} active={activeTab === 'install'} onClick={() => setActiveTab('install')} collapsed={isCollapsed} />
+                        <SidebarItem icon={ClipboardCheck} label="Serviços" active={activeTab === 'services'} onClick={() => setActiveTab('services')} collapsed={isCollapsed} />
                         
                         {showPartnerOpportunityTab ? (
                             <SidebarItem icon={Crown} label={t('sidebar.upgrade_business')} active={activeTab === 'opportunity'} onClick={() => setActiveTab('opportunity')} collapsed={isCollapsed} />
@@ -684,6 +692,7 @@ export const ActivationPortal: React.FC = () => {
                             <SidebarItem icon={PlayCircle} label={t('sidebar.tutorials')} active={activeTab === 'tutorials'} onClick={() => setActiveTab('tutorials')} />
                             <SidebarItem icon={Key} label={t('sidebar.access_data')} active={activeTab === 'license'} onClick={() => setActiveTab('license')} />
                             <SidebarItem icon={Download} label={t('sidebar.installation')} active={activeTab === 'install'} onClick={() => setActiveTab('install')} />
+                            <SidebarItem icon={ClipboardCheck} label="Serviços" active={activeTab === 'services'} onClick={() => setActiveTab('services')} />
                             {showPartnerOpportunityTab ? (
                                 <SidebarItem icon={Crown} label={t('sidebar.upgrade_business')} active={activeTab === 'opportunity'} onClick={() => setActiveTab('opportunity')} />
                             ) : showPartnerPanelTab ? (
