@@ -101,6 +101,7 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
   const [busyOrderId, setBusyOrderId] = useState<string | null>(null);
   const [approvalUrl, setApprovalUrl] = useState<string | null>(null);
   const [installationAccessByOrder, setInstallationAccessByOrder] = useState<Record<string, InstallationAccess>>({});
+  const [consentRevocationOrder, setConsentRevocationOrder] = useState<ServiceOrder | null>(null);
 
   const loadOrders = useCallback(async () => {
     setLoading(true);
@@ -186,6 +187,13 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
     } catch {
       toast.error('Nao foi possivel copiar o link de instalacao.');
     }
+  };
+
+  const confirmConsentRevocation = async () => {
+    const order = consentRevocationOrder;
+    if (!order) return;
+    setConsentRevocationOrder(null);
+    await runOrderAction(order, 'revoke_client_consent');
   };
 
   const isOperator = (order: ServiceOrder) => order.scope && order.scope !== 'beneficiary';
@@ -325,8 +333,8 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
                       {canIssueInstallationAccess && <button disabled={busy} onClick={() => void runOrderAction(order, 'issue_installation_access')} className="action-button bg-violet-300 text-violet-950 hover:bg-violet-200"><Copy className="h-4 w-4" /> {order.installation_access_issued_at ? 'Gerar novo acesso' : 'Gerar acesso de instalacao'}</button>}
                       {canComplete && <button disabled={busy} onClick={() => void runOrderAction(order, 'complete')} className="action-button bg-emerald-300 text-emerald-950 hover:bg-emerald-200"><CheckCircle2 className="h-4 w-4" /> Concluir</button>}
                       {canCancel && <button disabled={busy} onClick={() => void runOrderAction(order, 'cancel')} className="action-button bg-white/5 text-gray-300 hover:bg-white/10">Cancelar</button>}
-                      {canCancelRequest && <button disabled={busy} onClick={() => void runOrderAction(order, 'revoke_client_consent')} className="action-button bg-red-400/15 text-red-200 hover:bg-red-400/25"><ShieldAlert className="h-4 w-4" /> Cancelar solicitação</button>}
-                      {canRevoke && <button disabled={busy} onClick={() => void runOrderAction(order, 'revoke_client_consent')} className="action-button bg-red-400/15 text-red-200 hover:bg-red-400/25"><ShieldAlert className="h-4 w-4" /> Revogar consentimento</button>}
+                      {canCancelRequest && <button disabled={busy} onClick={() => setConsentRevocationOrder(order)} className="action-button bg-red-400/15 text-red-200 hover:bg-red-400/25"><ShieldAlert className="h-4 w-4" /> Cancelar solicitação</button>}
+                      {canRevoke && <button disabled={busy} onClick={() => setConsentRevocationOrder(order)} className="action-button bg-red-400/15 text-red-200 hover:bg-red-400/25"><ShieldAlert className="h-4 w-4" /> Revogar consentimento</button>}
                     </div>
                   </div>
                   {operator && order.status === 'in_progress' && !order.installation_ready && (
@@ -356,6 +364,24 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
           </div>
         )}
       </div>
+
+      {consentRevocationOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-5 backdrop-blur-sm" role="presentation">
+          <section role="dialog" aria-modal="true" aria-labelledby="revoke-consent-title" className="w-full max-w-md rounded-[2rem] border border-red-400/20 bg-[#11111a] p-6 shadow-2xl shadow-black/60 sm:p-7">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-400/10 text-red-200"><ShieldAlert className="h-6 w-6" /></div>
+            <h3 id="revoke-consent-title" className="mt-5 text-xl font-display font-black uppercase italic text-white">Confirmar cancelamento</h3>
+            <p className="mt-3 text-sm leading-relaxed text-gray-300">
+              {['paid', 'awaiting_client_approval'].includes(consentRevocationOrder.status)
+                ? 'Tem certeza que deseja cancelar esta solicitação? A instalação não será iniciada. O proprietário poderá enviar uma nova aprovação depois, sem nova cobrança.'
+                : 'Tem certeza que deseja revogar o consentimento? O acesso operacional pendente será interrompido e a instalação não poderá continuar sem uma nova solicitação.'}
+            </p>
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              <button type="button" onClick={() => setConsentRevocationOrder(null)} className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-200 transition hover:bg-white/10">Voltar</button>
+              <button type="button" onClick={() => void confirmConsentRevocation()} className="rounded-xl bg-red-400 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-red-950 transition hover:bg-red-300">Sim, cancelar</button>
+            </div>
+          </section>
+        </div>
+      )}
 
       <style>{`.action-button{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;border-radius:.75rem;padding:.65rem .8rem;font-size:.62rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase;transition:all .2s}.action-button:disabled{cursor:not-allowed;opacity:.5}`}</style>
     </div>

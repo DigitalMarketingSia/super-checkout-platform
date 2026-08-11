@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
-import { CheckCircle2, Loader2, ShieldCheck, XCircle } from 'lucide-react';
+import { CheckCircle2, Loader2, ShieldCheck } from 'lucide-react';
 import { centralSupabase } from '../../services/centralClient';
 
 type ApprovalOrder = {
@@ -72,21 +72,18 @@ export const ServiceApproval: React.FC = () => {
     return () => { active = false; };
   }, [orderId, token]);
 
-  const decide = async (decision: 'approve' | 'reject') => {
+  const approve = async () => {
     if (!order || submitting) return;
-    if (decision === 'reject' && !window.confirm('Tem certeza que deseja recusar esta solicitação? A ordem será encerrada, mas o prestador poderá solicitar uma nova aprovação depois.')) return;
     setSubmitting(true);
     setMessage(null);
     try {
       await invokeApproval(token ? 'decide_approval' : 'decide_approval_session', {
         order_id: order.id,
         ...(token ? { token } : {}),
-        decision,
+        decision: 'approve',
       });
-      setApproved(decision === 'approve');
-      setMessage(decision === 'approve'
-        ? 'A instalação foi autorizada. Você poderá acompanhar o andamento no Portal.'
-        : 'A solicitação foi recusada. Nenhum acesso será liberado ao prestador.');
+      setApproved(true);
+      setMessage('A instalação foi autorizada. Você poderá acompanhar o andamento no Portal.');
     } catch (error: any) {
       setMessage(error?.message || 'Não foi possível registrar sua decisão.');
     } finally {
@@ -117,16 +114,16 @@ export const ServiceApproval: React.FC = () => {
               </div>
 
               {message && (
-                <div className={`rounded-2xl border p-5 text-sm leading-relaxed ${approved === false ? 'border-red-400/20 bg-red-400/10 text-red-100' : 'border-emerald-400/20 bg-emerald-400/10 text-emerald-100'}`}>
-                  {approved === true ? <CheckCircle2 className="mb-3 h-6 w-6" /> : approved === false ? <XCircle className="mb-3 h-6 w-6" /> : null}
+                <div className={`rounded-2xl border p-5 text-sm leading-relaxed ${approved === true ? 'border-emerald-400/20 bg-emerald-400/10 text-emerald-100' : 'border-red-400/20 bg-red-400/10 text-red-100'}`}>
+                  {approved === true ? <CheckCircle2 className="mb-3 h-6 w-6" /> : null}
                   {message}
                 </div>
               )}
 
               {approved === null ? (
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <button type="button" disabled={submitting} onClick={() => void decide('reject')} className="rounded-xl border border-red-400/25 bg-red-400/10 px-4 py-4 text-[11px] font-black uppercase tracking-widest text-red-100 transition hover:bg-red-400/20 disabled:opacity-50">Recusar</button>
-                  <button type="button" disabled={submitting} onClick={() => void decide('approve')} className="rounded-xl bg-primary px-4 py-4 text-[11px] font-black uppercase tracking-widest text-white transition hover:bg-primary/80 disabled:opacity-50">{submitting ? 'Registrando...' : 'Autorizar serviço'}</button>
+                  <button type="button" disabled={submitting} onClick={() => navigate('/activate/setup?tab=services')} className="rounded-xl border border-white/15 bg-white/5 px-4 py-4 text-[11px] font-black uppercase tracking-widest text-gray-200 transition hover:bg-white/10 disabled:opacity-50">Voltar ao Portal</button>
+                  <button type="button" disabled={submitting} onClick={() => void approve()} className="rounded-xl bg-primary px-4 py-4 text-[11px] font-black uppercase tracking-widest text-white transition hover:bg-primary/80 disabled:opacity-50">{submitting ? 'Registrando...' : 'Autorizar serviço'}</button>
                 </div>
               ) : (
         <button type="button" onClick={() => navigate('/activate/setup?tab=services')} className="w-full rounded-xl bg-white px-4 py-4 text-[11px] font-black uppercase tracking-widest text-black transition hover:bg-gray-200">Abrir Portal</button>
