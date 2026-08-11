@@ -362,7 +362,9 @@
       "visual_label": "Message (visual)",
       "html_label": "Email HTML",
       "html_placeholder": "<h1>Hello...</h1>",
-      "html_badge": "HTML editor"
+      "html_badge": "HTML editor",
+      "plain_text_label": "Plain-text version",
+      "plain_text_placeholder": "Alternative text for email clients without HTML"
     },
     "preview": {
       "title": "Email preview",

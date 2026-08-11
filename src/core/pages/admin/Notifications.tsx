@@ -9,6 +9,7 @@ import { useAuth } from '../../context/AuthContext';
 import { demoWorkspaceService } from '../../services/demoWorkspaceService';
 import { isDemoDataRuntime } from '../../services/demoDataService';
 import { supabase } from '../../services/supabase';
+import { centralSupabase } from '../../services/centralClient';
 import { getMemberAccessEmailTemplates } from '../../services/memberAccessEmailTemplates';
 
 interface EmailTemplate {
@@ -21,6 +22,10 @@ interface EmailTemplate {
   updated_at: string;
   isVirtual?: boolean;
   language?: string;
+  text_body?: string;
+  allowed_variables?: string[];
+  template_key?: string;
+  template_version?: number;
 }
 
 interface BusinessEmailTemplateDefinition {
@@ -231,7 +236,7 @@ function writeDemoTemplates(scope: DemoTemplateScope, templates: EmailTemplate[]
 
 export const Notifications = () => {
   const { t, i18n } = useTranslation(['admin', 'common']);
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const isDemoMode = isDemoDataRuntime();
   const effectiveRole = profile?.effective_role || profile?.role;
   const isOwner = effectiveRole === 'master_admin';
@@ -294,16 +299,21 @@ export const Notifications = () => {
       }
 
       if (isOwner) {
-        const { data: systemData, error: systemError } = await supabase
-          .from('system_email_templates')
+        const { data: systemData, error: systemError } = await centralSupabase
+          .from('platform_email_templates')
           .select('*')
-          .order('name');
+          .order('template_key')
+          .order('language');
 
         if (systemError && systemError.code !== 'PGRST116') {
           console.error('Error fetching system templates:', systemError);
         }
 
-        setSystemTemplates(systemData || []);
+        setSystemTemplates((systemData || []).map((template) => ({
+          ...template,
+          event_type: template.template_key,
+          allowed_variables: Array.isArray(template.allowed_variables) ? template.allowed_variables : [],
+        })));
       }
 
       const languageCandidates = preferredLanguage === 'pt' ? ['pt'] : [preferredLanguage, 'pt'];
@@ -344,6 +354,7 @@ export const Notifications = () => {
     template: EmailTemplate;
     subject: string;
     htmlBody: string;
+    textBody?: string;
     isSystem: boolean;
   }) {
     const scope: DemoTemplateScope = payload.isSystem ? 'system' : 'business';
@@ -354,6 +365,7 @@ export const Notifications = () => {
       name: payload.template.name,
       subject: payload.subject,
       html_body: payload.htmlBody,
+      text_body: payload.textBody,
       active: payload.template.active ?? true,
       updated_at: new Date().toISOString(),
       language: payload.isSystem ? undefined : preferredLanguage,
@@ -367,6 +379,34 @@ export const Notifications = () => {
     ];
 
     writeDemoTemplates(scope, nextTemplates);
+  }
+
+  async function persistPlatformTemplate(payload: {
+    template: EmailTemplate;
+    subject: string;
+    htmlBody: string;
+    textBody?: string;
+    isSystem: boolean;
+  }) {
+    const templateKey = String(payload.template.template_key || payload.template.event_type || '').trim();
+    const allowedVariables = payload.template.allowed_variables || [];
+    const placeholders = `${payload.subject}\n${payload.htmlBody}\n${payload.textBody || ''}`.match(/{{[^}]+}}/g) || [];
+    if (!templateKey.startsWith('PLATFORM_') || placeholders.some((placeholder) => !allowedVariables.includes(placeholder))) {
+      throw new Error('O template contém uma variável não autorizada para este evento.');
+    }
+
+    const { error } = await centralSupabase
+      .from('platform_email_templates')
+      .update({
+        subject: payload.subject,
+        html_body: payload.htmlBody,
+        text_body: payload.textBody || '',
+        updated_by: user?.id || null,
+      })
+      .eq('id', payload.template.id)
+      .eq('template_key', templateKey);
+
+    if (error) throw error;
   }
 
   function handleEdit(template: EmailTemplate) {
@@ -404,7 +444,7 @@ export const Notifications = () => {
       return;
     }
 
-    const table = isSystemContext ? 'system_email_templates' : 'email_templates';
+    const table = isSystemContext ? 'platform_email_templates' : 'email_templates';
 
     if (template.isVirtual) {
       try {
@@ -417,7 +457,8 @@ export const Notifications = () => {
           ...(isSystemContext ? {} : { language: preferredLanguage }),
         };
 
-        const { error } = await supabase.from(table).insert(payload);
+        const client = isSystemContext ? centralSupabase : supabase;
+        const { error } = await client.from(table).insert(payload);
         if (error) throw error;
         await loadTemplates();
       } catch (error) {
@@ -427,7 +468,8 @@ export const Notifications = () => {
     }
 
     try {
-      const { error } = await supabase
+      const client = isSystemContext ? centralSupabase : supabase;
+      const { error } = await client
         .from(table)
         .update({ active: !template.active })
         .eq('id', template.id);
@@ -786,7 +828,7 @@ export const Notifications = () => {
           template={selectedTemplate}
           onSave={handleSave}
           isSystem={activeTab === 'system' && isOwner}
-          onPersist={isDemoMode ? persistDemoTemplate : undefined}
+          onPersist={isDemoMode ? persistDemoTemplate : activeTab === 'system' && isOwner ? persistPlatformTemplate : undefined}
           language={preferredLanguage}
         />
       </div>

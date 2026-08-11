@@ -15,6 +15,8 @@ interface EmailTemplate {
   html_body: string;
   active: boolean;
   isVirtual?: boolean;
+  text_body?: string;
+  allowed_variables?: string[];
 }
 
 interface EmailTemplateModalProps {
@@ -23,7 +25,7 @@ interface EmailTemplateModalProps {
   template: EmailTemplate | null;
   onSave: () => void;
   isSystem?: boolean;
-  onPersist?: (payload: { template: EmailTemplate; subject: string; htmlBody: string; isSystem: boolean }) => Promise<void> | void;
+  onPersist?: (payload: { template: EmailTemplate; subject: string; htmlBody: string; textBody?: string; isSystem: boolean }) => Promise<void> | void;
   language?: string;
 }
 
@@ -54,6 +56,7 @@ export const EmailTemplateModal: React.FC<EmailTemplateModalProps> = ({
   const { t } = useTranslation(['admin', 'common']);
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
+  const [textBody, setTextBody] = useState('');
   const [loading, setLoading] = useState(false);
   const [viewMode, setViewMode] = useState<'visual' | 'code' | 'preview'>('visual');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -64,13 +67,16 @@ export const EmailTemplateModal: React.FC<EmailTemplateModalProps> = ({
     if (template) {
       setSubject(template.subject);
       setBody(template.html_body);
+      setTextBody(template.text_body || '');
     }
   }, [template]);
 
   if (!isOpen || !template) return null;
 
   const availableVariables =
-    EVENT_VARIABLES[template.event_type] ||
+    template.allowed_variables?.length
+      ? template.allowed_variables
+      : EVENT_VARIABLES[template.event_type] ||
     (isSystem ? EVENT_VARIABLES.SYSTEM_ORDER_COMPLETED : EVENT_VARIABLES.ORDER_COMPLETED);
   const isDeliverablesTemplate =
     template.event_type === 'ORDER_DIRECT_DELIVERY' || template.event_type === 'ORDER_MEMBER_ACCESS';
@@ -103,6 +109,7 @@ export const EmailTemplateModal: React.FC<EmailTemplateModalProps> = ({
           template,
           subject,
           htmlBody: body,
+          textBody,
           isSystem,
         });
         onSave();
@@ -117,6 +124,7 @@ export const EmailTemplateModal: React.FC<EmailTemplateModalProps> = ({
           name: template.name,
           subject,
           html_body: body,
+          ...(isSystem ? { text_body: textBody } : {}),
           active: true,
           ...(isSystem ? {} : { language }),
         };
@@ -129,6 +137,7 @@ export const EmailTemplateModal: React.FC<EmailTemplateModalProps> = ({
           .update({
             subject,
             html_body: body,
+            ...(isSystem ? { text_body: textBody } : {}),
             updated_at: new Date().toISOString(),
           })
           .eq('id', template.id);
@@ -275,6 +284,21 @@ export const EmailTemplateModal: React.FC<EmailTemplateModalProps> = ({
                 placeholder={t('email_template_modal.fields.subject_placeholder')}
               />
             </div>
+
+            {isSystem && (
+              <div className={viewMode === 'preview' ? 'hidden' : ''}>
+                <label className="mb-1.5 block text-xs font-mono uppercase tracking-widest text-gray-400 font-bold">
+                  {t('email_template_modal.fields.plain_text_label')}
+                </label>
+                <textarea
+                  value={textBody}
+                  onChange={(event) => setTextBody(event.target.value)}
+                  className="h-32 w-full resize-none rounded-2xl border border-white/[0.12] bg-[#07070F] px-4 py-3.5 font-mono text-xs leading-relaxed text-gray-200 shadow-inner outline-none transition-all focus:border-primary/50 focus:ring-1 focus:ring-primary/50"
+                  spellCheck={false}
+                  placeholder={t('email_template_modal.fields.plain_text_placeholder')}
+                />
+              </div>
+            )}
 
             {/* Visual Mode (Rich Editor) */}
             {viewMode === 'visual' && (

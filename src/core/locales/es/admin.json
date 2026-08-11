@@ -375,7 +375,9 @@
       "visual_label": "Mensaje (visual)",
       "html_label": "HTML del correo",
       "html_placeholder": "<h1>Hola...</h1>",
-      "html_badge": "Editor HTML"
+      "html_badge": "Editor HTML",
+      "plain_text_label": "Versión de texto simple",
+      "plain_text_placeholder": "Texto alternativo para clientes sin HTML"
     },
     "preview": {
       "title": "Vista previa del correo",
