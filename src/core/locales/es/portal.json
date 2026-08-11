@@ -18,16 +18,16 @@
     "identity_confirmed": "Identidad Confirmada"
   },
   "banners": {
-    "highlights": "ilimitados socio desbloqueo vitalicio",
+    "highlights": "recursos ilimitados socio",
     "preparing": "Preparando...",
-    "auto_apply_note": "upgrade aplicado automaticamente en esta cuenta",
+    "auto_apply_note": "recursos liberados automáticamente en esta cuenta",
     "upgrade_domains": {
-      "name": "Desbloqueo Vitalicio",
+      "name": "Recursos Ilimitados",
       "description": "Productos ilimitados. Checkouts ilimitados. Dominios ilimitados. Áreas de miembros ilimitadas."
     },
     "whitelabel": {
-      "name": "Desbloqueo Vitalicio",
-      "description": "Productos ilimitados. Checkouts ilimitados. Dominios ilimitados. Áreas de miembros ilimitadas."
+      "name": "Plan White Label",
+      "description": "Recursos ilimitados con identidad visual propia para tu operación."
     },
     "saas": {
       "name": "Plan de Socio",
@@ -46,7 +46,7 @@
     "earnings_simulator": "Simulador de Ganancias",
     "my_account": "Mi Cuenta",
     "logout": "Cerrar Sesión",
-    "customer_portal": "Portal del Cliente"
+    "customer_portal": "Portal Comercial"
   },
   "welcome": {
     "title": "BIENVENIDO AL",
@@ -66,9 +66,9 @@
     "refresh_status": "Actualizar estado"
   },
   "basic_dashboard": {
-    "eyebrow": "modo basico",
-    "title": "Panel operativo esencial",
-    "description": "Mira tu clave de instalacion, acompana el estado actual del sistema y abre los accesos principales sin exponer la capa de socio.",
+    "eyebrow": "portal comercial",
+    "title": "Licencias, servicios e instalaciones",
+    "description": "Gestiona tu licencia, contrata recursos, acompaña servicios y accede con seguridad al panel del sistema instalado.",
     "primary_cta": {
       "license": "liberar mi licencia",
       "install": "generar instalacion",
@@ -84,7 +84,7 @@
       "installation_link": "link de instalacion",
       "installation_status": "estado de la instalacion",
       "current_limits": "limites del plan actual",
-      "operations_center": "centro de operaciones",
+      "operations_center": "panel de tu sistema",
       "operational_logs": "logs operativos"
     },
     "actions": {
@@ -118,8 +118,8 @@
       "license_validated": "Licencia: Validada en Cloud",
       "domains_monitored": "Dominios: Monitoreo Activo"
     },
-    "limited_desc": "Tu plan actual funciona con 1 dominio y 3 productos. Cuando quieras escalar sin limites, haz upgrade al plan ilimitado.",
-    "unlimited_desc": "Tu plan actual ya funciona con limites liberados para crecer y crear nuevas instalaciones.",
+    "limited_desc": "Tu cuenta gratuita incluye 1 dominio y hasta 3 productos. Libera Recursos Ilimitados cuando necesites crecer.",
+    "unlimited_desc": "Recursos Ilimitados está activo: productos, checkouts, áreas de miembros y dominios sin límite.",
     "demo": {
       "eyebrow": "probar antes de instalar",
       "title": "Sistema demo oficial",
@@ -186,8 +186,8 @@
     },
     "quick_access": {
       "eyebrow": "accesos rapidos",
-      "title": "Acceso rapido a tu sistema",
-      "ready": "Tu instalacion activa ya puede abrir los modulos principales directamente en el dominio publicado.",
+      "title": "Panel de tu sistema instalado",
+      "ready": "Tu instalación activa ya puede abrir los módulos administrativos directamente en el dominio publicado.",
       "waiting": "En cuanto exista una instalacion activa, estos accesos abriran automaticamente el panel publicado del cliente.",
       "open_live": "Abrir modulo en vivo",
       "install_required": "Disponible despues de una instalacion activa",
@@ -200,12 +200,12 @@
     }
   },
   "plan_info": {
-    "title": "Estado del Ecosistema",
-    "profile": "Perfil de la Cuenta",
+    "title": "Plan y recursos de la cuenta",
+    "profile": "Plan actual",
     "free_account": "Cuenta Gratuita",
     "whitelabel": "WHITELABEL",
-    "unlimited": "Dominios Ilimitados",
-    "partner": "Socio",
+    "unlimited": "Recursos Ilimitados",
+    "partner": "Plan de Socio",
     "platform_owner": "Propietario del Sistema",
     "current_status": "Estado Actual",
     "active": "Activo",
@@ -215,7 +215,19 @@
     "no_license": "Sin licencia",
     "pending": "Pendiente",
     "action_required": "Acción necesaria",
-    "generate_license_prompt": "Abre la pestaña Datos de Acceso para generar tu licencia gratuita."
+    "generate_license_prompt": "Abre la pestaña Datos de Acceso para generar tu licencia gratuita.",
+    "benefits": {
+      "title": "Lo que está habilitado",
+      "free_resources": "1 dominio y hasta 3 productos",
+      "free_installation": "1 instalación de tu propio sistema",
+      "unlimited_resources": "Productos, checkouts y áreas de miembros ilimitados",
+      "unlimited_domains": "Dominios y subdominios ilimitados",
+      "partner_services": "Vende productos y servicios de instalación",
+      "partner_orders": "Acompaña solamente tus propias órdenes",
+      "whitelabel": "Capa White Label habilitada",
+      "owner_global": "Gestión global de la plataforma",
+      "owner_operations": "Auditoría, licencias y operaciones centrales"
+    }
   },
   "license": {
     "title": "Credenciales de Acceso",
@@ -247,7 +259,7 @@
     "copy_link": "Copiar Enlace",
     "link_copied": "¡Enlace copiado!",
     "reset_emergency": "Restablecer Configuraciones (Emergencia)",
-    "scaling_title": "Desbloqueo Vitalicio",
+    "scaling_title": "Recursos Ilimitados",
     "limit_nudge": "Productos ilimitados. Checkouts ilimitados. Dominios ilimitados. Áreas de miembros ilimitadas.",
     "upgrade_button": "Desbloquear Ahora ⚡",
     "token_error": "Token no devuelto por la función.",
@@ -294,7 +306,7 @@
     "member_since": "Miembro desde",
     "security_desc": "Protege tu acceso o cambia tu contraseña de entrada.",
     "manage_password": "Gestionar Contraseña",
-    "unlimited_domains": "DOMINIOS ILIMITADOS",
+    "unlimited_domains": "RECURSOS ILIMITADOS",
     "partner": "SOCIO",
     "plan_label": "Plan {{plan}}"
   },

@@ -305,8 +305,8 @@
     "canvas_description": "I kept this area intentionally clean to make it easier to read spacing, contrast, side cropping, and visual hierarchy.",
     "offers": {
       "unlimited_domains": {
-        "label": "Elite lifetime license",
-        "note": "Commercial anchor for upgrade_domains."
+                                                                    "label": "Unlimited Features",
+                                                                    "note": "Commercial plan for unlimited features."
       },
       "partner_rights": {
         "label": "Commercial / partner license",

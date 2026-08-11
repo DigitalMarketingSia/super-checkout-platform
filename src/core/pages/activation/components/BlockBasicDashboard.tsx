@@ -234,8 +234,7 @@ export const BlockBasicDashboard: React.FC<BlockBasicDashboardProps> = ({
                         <div className="absolute -inset-1 rounded-[2rem] bg-gradient-to-br from-primary via-primary/60 to-amber-300/60 opacity-80" />
                         <button
                             onClick={() => onNavigate(license ? 'install' : 'license')}
-                            disabled={!license}
-                            className="group relative flex min-w-[280px] flex-col items-start justify-center gap-3 overflow-hidden rounded-[1.7rem] border border-white/15 bg-[#120815] px-6 py-5 text-left font-display text-white shadow-[0_0_45px_rgba(168,85,247,0.35)] transition-all hover:scale-[1.02] hover:shadow-[0_0_65px_rgba(168,85,247,0.48)] active:scale-95 disabled:opacity-50 disabled:hover:scale-100"
+                            className="group relative flex min-w-[280px] flex-col items-start justify-center gap-3 overflow-hidden rounded-[1.7rem] border border-white/15 bg-[#120815] px-6 py-5 text-left font-display text-white shadow-[0_0_45px_rgba(168,85,247,0.35)] transition-all hover:scale-[1.02] hover:shadow-[0_0_65px_rgba(168,85,247,0.48)] active:scale-95"
                         >
                             <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.2),transparent_45%)] opacity-80" />
                             <div className="absolute inset-0 translate-x-[-100%] bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-700 group-hover:translate-x-[100%]" />

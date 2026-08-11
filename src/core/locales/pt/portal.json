@@ -18,16 +18,16 @@
     "identity_confirmed": "Identidade Confirmada"
   },
   "banners": {
-    "highlights": "ilimitados parceiro desbloqueio vitalício",
+    "highlights": "recursos ilimitados parceiro",
     "preparing": "Preparando...",
-    "auto_apply_note": "upgrade aplicado automaticamente nesta conta",
+    "auto_apply_note": "recursos liberados automaticamente nesta conta",
     "upgrade_domains": {
-      "name": "Desbloqueio Vitalício",
+      "name": "Recursos Ilimitados",
       "description": "Produtos ilimitados. Checkouts ilimitados. Domínios ilimitados. Áreas de membros ilimitadas."
     },
     "whitelabel": {
-      "name": "Desbloqueio Vitalício",
-      "description": "Produtos ilimitados. Checkouts ilimitados. Domínios ilimitados. Áreas de membros ilimitadas."
+      "name": "Plano White Label",
+      "description": "Recursos ilimitados com identidade visual própria para a sua operação."
     },
     "saas": {
       "name": "Plano Parceiro",
@@ -46,7 +46,7 @@
     "earnings_simulator": "Simulador de Ganhos",
     "my_account": "Minha Conta",
     "logout": "Sair da Conta",
-    "customer_portal": "Portal do Cliente"
+    "customer_portal": "Portal Comercial"
   },
   "welcome": {
     "title": "BEM-VINDO AO",
@@ -66,9 +66,9 @@
     "refresh_status": "Atualizar status"
   },
   "basic_dashboard": {
-    "eyebrow": "modo basico",
-    "title": "Painel operacional essencial",
-    "description": "Gerencie sua infraestrutura tecnológica, acompanhe o status de ativação em tempo real e acesse ferramentas exclusivas para escalar seu negócio com máxima performance.",
+    "eyebrow": "portal comercial",
+    "title": "Licenças, serviços e instalações",
+    "description": "Gerencie sua licença, contrate recursos, acompanhe serviços e acesse com segurança o painel do sistema instalado.",
     "primary_cta": {
       "license": "liberar minha licenca",
       "install": "instalar",
@@ -84,7 +84,7 @@
       "installation_link": "link de instalacao",
       "installation_status": "status da instalacao",
       "current_limits": "limites do plano atual",
-      "operations_center": "centro de operações",
+      "operations_center": "painel do seu sistema",
       "operational_logs": "logs operacionais"
     },
     "actions": {
@@ -118,8 +118,8 @@
       "license_validated": "Licença: Validada em Cloud",
       "domains_monitored": "Domínios: Monitoramento Ativo"
     },
-    "limited_desc": "Seu plano atual opera com 1 dominio e 3 produtos. Quando quiser escalar sem travas, faca o upgrade para o plano ilimitado.",
-    "unlimited_desc": "Seu plano atual ja opera com limites liberados para crescimento e novas instalacoes.",
+    "limited_desc": "Sua conta gratuita permite 1 domínio e até 3 produtos. Libere Recursos Ilimitados quando precisar crescer.",
+    "unlimited_desc": "Recursos Ilimitados está ativo: produtos, checkouts, áreas de membros e domínios sem limite.",
     "demo": {
       "eyebrow": "teste antes de instalar",
       "title": "Sistema demo oficial",
@@ -186,8 +186,8 @@
     },
     "quick_access": {
       "eyebrow": "atalhos rapidos",
-      "title": "Acesso rapido ao seu sistema",
-      "ready": "Sua instalacao ativa ja pode abrir os modulos principais diretamente no dominio publicado.",
+      "title": "Painel do seu sistema instalado",
+      "ready": "Sua instalação ativa já pode abrir os módulos administrativos diretamente no domínio publicado.",
       "waiting": "Assim que houver uma instalacao ativa, estes atalhos abrirao o painel publicado do cliente automaticamente.",
       "open_live": "Abrir modulo ao vivo",
       "install_required": "Disponivel apos uma instalacao ativa",
@@ -200,12 +200,12 @@
     }
   },
   "plan_info": {
-    "title": "Status do Ecossistema",
-    "profile": "Perfil da Conta",
+    "title": "Plano e recursos da conta",
+    "profile": "Plano atual",
     "free_account": "Conta Gratuita",
     "whitelabel": "WHITELABEL",
-    "unlimited": "Domínios Ilimitados",
-    "partner": "Parceiro",
+    "unlimited": "Recursos Ilimitados",
+    "partner": "Plano Parceiro",
     "platform_owner": "Proprietário do Sistema",
     "current_status": "Situação Atual",
     "active": "Ativo",
@@ -215,7 +215,19 @@
     "no_license": "S/ Licença",
     "pending": "Pendente",
     "action_required": "Ação Necessária",
-    "generate_license_prompt": "Acesse a aba Dados de Acesso para gerar sua licença gratuita."
+    "generate_license_prompt": "Acesse a aba Dados de Acesso para gerar sua licença gratuita.",
+    "benefits": {
+      "title": "O que está liberado",
+      "free_resources": "1 domínio e até 3 produtos",
+      "free_installation": "1 instalação própria",
+      "unlimited_resources": "Produtos, checkouts e áreas ilimitados",
+      "unlimited_domains": "Domínios e subdomínios ilimitados",
+      "partner_services": "Venda produtos e serviços de instalação",
+      "partner_orders": "Acompanhe somente as suas ordens",
+      "whitelabel": "Camada White Label ativa",
+      "owner_global": "Gestão global da plataforma",
+      "owner_operations": "Auditoria, licenças e operações centrais"
+    }
   },
   "license": {
     "title": "Credenciais de Acesso",
@@ -247,9 +259,9 @@
     "copy_link": "Copiar Link",
     "link_copied": "Link copiado!",
     "reset_emergency": "Resetar Configurações (Emergência)",
-    "scaling_title": "Desbloqueio Vitalício",
+    "scaling_title": "Recursos Ilimitados",
     "limit_nudge": "Produtos ilimitados. Checkouts ilimitados. Domínios ilimitados. Áreas de membros ilimitadas.",
-    "upgrade_button": "Desbloquear Agora ⚡",
+    "upgrade_button": "LIBERAR RECURSOS ⚡",
     "token_error": "Token não retornado pela função.",
     "generic_error": "Erro ao gerar link de instalação.",
     "revoke_error": "Erro ao revogar instalação."
@@ -294,7 +306,7 @@
     "member_since": "Membro desde",
     "security_desc": "Proteja seu acesso ou altere sua senha de entrada.",
     "manage_password": "Gerenciar Senha",
-    "unlimited_domains": "DOMÍNIOS ILIMITADOS",
+    "unlimited_domains": "RECURSOS ILIMITADOS",
     "partner": "PARCEIRO",
     "plan_label": "Plano {{plan}}"
   },

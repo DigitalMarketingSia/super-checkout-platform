@@ -85,7 +85,7 @@
     },
     "offers": {
       "unlimited_domains": {
-        "title": "Elite Lifetime License",
+                                                                  "title": "Unlimited Features",
         "description": "Everything unlimited so you can sell more: domains, subdomains, products, checkouts, and member areas.",
         "features": [
           "Unlimited domains",
@@ -93,7 +93,7 @@
           "Unlimited products and checkouts",
           "Unlimited member areas"
         ],
-        "cta": "Get lifetime upgrade",
+                                                                  "cta": "Release Unlimited Features",
         "badge": "Special activation offer",
         "price_context": "The final price below automatically follows the product linked to this upgrade plan."
       },

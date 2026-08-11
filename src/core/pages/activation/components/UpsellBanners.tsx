@@ -116,7 +116,7 @@ export const UpsellBanners: React.FC<UpsellBannersProps> = ({ license, products,
     if (license?.plan === 'whitelabel') return null;
 
     // Filter relevant products for the user
-    // The "Dominios Ilimitados" banner must always target the exact `upgrade_domains` plan.
+    // The commercial Unlimited Features banner always targets the exact `upgrade_domains` entitlement.
     const showUpgrade = !hasUnlimitedDomains
         && (license?.max_instances || 0) <= 1
         && products.some(p => matchesUpgradePlanSlug(p.saas_plan_slug, 'upgrade_domains'));

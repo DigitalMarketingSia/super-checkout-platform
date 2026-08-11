@@ -167,7 +167,7 @@
     "description_placeholder": "Breve descrição do produto...",
     "saas_mapping_title": "Mapeamento de Plano",
     "not_saas_plan": "Não é um plano",
-    "upgrade_domains_plan": "Upgrade de Domínios",
+    "upgrade_domains_plan": "Recursos Ilimitados (1 instalação própria)",
     "saas_partner_plan": "Plano Parceiro",
     "saas_mapping_hint": "Vincular um plano concederá recursos automaticamente ao comprador.",
     "member_area_config_title": "Ação Pós-Venda",
@@ -2853,7 +2853,7 @@
     "unknown_user": "Usuário não identificado",
     "default_client_name": "Cliente",
     "features": {
-      "unlimited_domains": "Domínios ilimitados",
+      "unlimited_domains": "Recursos ilimitados",
       "partner_panel": "Painel de parceiros",
       "crm_leads": "CRM de leads"
     },

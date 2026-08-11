@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, Package, UserCheck } from 'lucide-react';
+import { Calendar, Package, Sparkles, UserCheck } from 'lucide-react';
 import { License } from '../../../services/licenseService';
 import { useTranslation } from 'react-i18next';
 
@@ -23,6 +23,48 @@ const formatMemberSince = (value: string | null | undefined, language: string, f
     );
 };
 
+const getPlanBenefits = (license: License, t: any, isPlatformOwner: boolean): string[] => {
+    if (isPlatformOwner) {
+        return [
+            t('plan_info.benefits.owner_global'),
+            t('plan_info.benefits.owner_operations'),
+        ];
+    }
+
+    if (license.plan === 'whitelabel') {
+        return [
+            t('plan_info.benefits.unlimited_resources'),
+            t('plan_info.benefits.whitelabel'),
+        ];
+    }
+
+    if (license.has_partner_panel && license.has_unlimited_domains) {
+        return [
+            t('plan_info.benefits.unlimited_resources'),
+            t('plan_info.benefits.partner_services'),
+        ];
+    }
+
+    if (license.has_partner_panel || license.plan === 'saas') {
+        return [
+            t('plan_info.benefits.partner_services'),
+            t('plan_info.benefits.partner_orders'),
+        ];
+    }
+
+    if (license.has_unlimited_domains || license.plan === 'upgrade_domains') {
+        return [
+            t('plan_info.benefits.unlimited_resources'),
+            t('plan_info.benefits.unlimited_domains'),
+        ];
+    }
+
+    return [
+        t('plan_info.benefits.free_resources'),
+        t('plan_info.benefits.free_installation'),
+    ];
+};
+
 export const BlockPlanInfo: React.FC<BlockPlanInfoProps> = ({ license, userName, userCreatedAt, isPlatformOwner = false }) => {
     const { t, i18n } = useTranslation('portal');
     const planLabel =
@@ -42,6 +84,7 @@ export const BlockPlanInfo: React.FC<BlockPlanInfoProps> = ({ license, userName,
         i18n.language,
         t('plan_info.date_unavailable')
     );
+    const planBenefits = license ? getPlanBenefits(license, t, isPlatformOwner) : [];
     
     if (!license) {
         return (
@@ -91,7 +134,7 @@ export const BlockPlanInfo: React.FC<BlockPlanInfoProps> = ({ license, userName,
         <div className="bg-white/5 border border-white/10 rounded-[2rem] p-8 backdrop-blur-xl">
             <h3 className="text-gray-500 text-[10px] font-black uppercase tracking-[0.2em] mb-8">{t('plan_info.title')}</h3>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
                 {/* Plan Name */}
                 <div className="flex items-center gap-5 p-4 rounded-2xl bg-white/5 border border-white/5 group hover:border-primary/20 transition-all duration-300">
                     <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center text-primary transition-transform group-hover:scale-110">
@@ -129,6 +172,23 @@ export const BlockPlanInfo: React.FC<BlockPlanInfoProps> = ({ license, userName,
                         <p className="text-xl font-black text-white font-display italic tracking-tighter">
                             {memberSince}
                         </p>
+                    </div>
+                </div>
+
+                <div className="flex items-start gap-4 p-4 rounded-2xl bg-primary/5 border border-primary/15 group hover:border-primary/30 transition-all duration-300">
+                    <div className="w-12 h-12 shrink-0 bg-primary/15 rounded-xl flex items-center justify-center text-primary transition-transform group-hover:scale-110">
+                        <Sparkles className="w-6 h-6" />
+                    </div>
+                    <div>
+                        <p className="text-[10px] text-primary/80 font-bold uppercase tracking-wider">{t('plan_info.benefits.title')}</p>
+                        <ul className="mt-2 space-y-1.5 text-xs font-medium leading-relaxed text-gray-300">
+                            {planBenefits.map((benefit) => (
+                                <li key={benefit} className="flex gap-2">
+                                    <span className="text-primary">•</span>
+                                    <span>{benefit}</span>
+                                </li>
+                            ))}
+                        </ul>
                     </div>
                 </div>
             </div>

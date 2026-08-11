@@ -18,16 +18,16 @@
     "identity_confirmed": "Identity Confirmed"
   },
   "banners": {
-    "highlights": "unlimited partner lifetime unlock",
+    "highlights": "unlimited features partner",
     "preparing": "Preparing...",
-    "auto_apply_note": "upgrade is applied automatically to this account",
+    "auto_apply_note": "features released automatically to this account",
     "upgrade_domains": {
-      "name": "Lifetime Unlock",
+      "name": "Unlimited Features",
       "description": "Unlimited products. Unlimited checkouts. Unlimited domains. Unlimited member areas."
     },
     "whitelabel": {
-      "name": "Lifetime Unlock",
-      "description": "Unlimited products. Unlimited checkouts. Unlimited domains. Unlimited member areas."
+      "name": "White Label Plan",
+      "description": "Unlimited features with your own visual identity for your operation."
     },
     "saas": {
       "name": "Partner Plan",
@@ -46,7 +46,7 @@
     "earnings_simulator": "Earnings Simulator",
     "my_account": "My Account",
     "logout": "Logout",
-    "customer_portal": "Customer Portal"
+    "customer_portal": "Commercial Portal"
   },
   "welcome": {
     "title": "WELCOME TO THE",
@@ -66,9 +66,9 @@
     "refresh_status": "Refresh status"
   },
   "basic_dashboard": {
-    "eyebrow": "basic mode",
-    "title": "Essential operations panel",
-    "description": "See your installation key, track the current system status and open the main shortcuts without exposing any partner layer.",
+    "eyebrow": "commercial portal",
+    "title": "Licenses, services, and installations",
+    "description": "Manage your license, purchase features, track services, and safely access the admin panel of your installed system.",
     "primary_cta": {
       "license": "unlock my license",
       "install": "generate install",
@@ -84,7 +84,7 @@
       "installation_link": "installation link",
       "installation_status": "installation status",
       "current_limits": "current plan limits",
-      "operations_center": "operations center",
+      "operations_center": "your system admin panel",
       "operational_logs": "operational logs"
     },
     "actions": {
@@ -118,8 +118,8 @@
       "license_validated": "License: Validated in Cloud",
       "domains_monitored": "Domains: Active Monitoring"
     },
-    "limited_desc": "Your current plan runs with 1 domain and 3 products. When you are ready to scale without limits, upgrade to the unlimited plan.",
-    "unlimited_desc": "Your current plan already runs with unlocked limits for growth and new installations.",
+    "limited_desc": "Your free account includes 1 domain and up to 3 products. Release Unlimited Features when you need to grow.",
+    "unlimited_desc": "Unlimited Features is active: unlimited products, checkouts, member areas, and domains.",
     "demo": {
       "eyebrow": "test before install",
       "title": "Official demo system",
@@ -186,8 +186,8 @@
     },
     "quick_access": {
       "eyebrow": "quick access",
-      "title": "Fast access to your system",
-      "ready": "Your active installation can already open the main modules directly on the published domain.",
+      "title": "Your installed system admin panel",
+      "ready": "Your active installation can open administrative modules directly in the published domain.",
       "waiting": "As soon as there is an active installation, these shortcuts will open the published customer panel automatically.",
       "open_live": "Open live module",
       "install_required": "Available after an active installation",
@@ -200,12 +200,12 @@
     }
   },
   "plan_info": {
-    "title": "Ecosystem Status",
-    "profile": "Account Profile",
+    "title": "Account plan and features",
+    "profile": "Current plan",
     "free_account": "Free Account",
     "whitelabel": "WHITELABEL",
-    "unlimited": "Unlimited Domains",
-    "partner": "Partner",
+    "unlimited": "Unlimited Features",
+    "partner": "Partner Plan",
     "platform_owner": "System Owner",
     "current_status": "Current Status",
     "active": "Active",
@@ -215,7 +215,19 @@
     "no_license": "No license",
     "pending": "Pending",
     "action_required": "Action Required",
-    "generate_license_prompt": "Open the Access Data tab to generate your free license."
+    "generate_license_prompt": "Open the Access Data tab to generate your free license.",
+    "benefits": {
+      "title": "What is enabled",
+      "free_resources": "1 domain and up to 3 products",
+      "free_installation": "1 installation for your own system",
+      "unlimited_resources": "Unlimited products, checkouts, and member areas",
+      "unlimited_domains": "Unlimited domains and subdomains",
+      "partner_services": "Sell products and installation services",
+      "partner_orders": "Track only your own orders",
+      "whitelabel": "White Label layer enabled",
+      "owner_global": "Global platform management",
+      "owner_operations": "Central audit, licenses, and operations"
+    }
   },
   "license": {
     "title": "Access Credentials",
@@ -247,7 +259,7 @@
     "copy_link": "Copy Link",
     "link_copied": "Link copied!",
     "reset_emergency": "Reset Settings (Emergency)",
-    "scaling_title": "Lifetime Unlock",
+    "scaling_title": "Unlimited Features",
     "limit_nudge": "Unlimited products. Unlimited checkouts. Unlimited domains. Unlimited member areas.",
     "upgrade_button": "Unlock Now ⚡",
     "token_error": "Token not returned by function.",
@@ -294,7 +306,7 @@
     "member_since": "Member since",
     "security_desc": "Protect your access or change your login password.",
     "manage_password": "Manage Password",
-    "unlimited_domains": "UNLIMITED DOMAINS",
+    "unlimited_domains": "UNLIMITED FEATURES",
     "partner": "PARTNER",
     "plan_label": "Plan {{plan}}"
   },

@@ -159,7 +159,7 @@
     "description_placeholder": "Brief description of the product...",
     "saas_mapping_title": "Plan Mapping",
     "not_saas_plan": "Not a plan",
-    "upgrade_domains_plan": "Domain Upgrade",
+    "upgrade_domains_plan": "Unlimited Features (1 own installation)",
     "saas_partner_plan": "Partner Plan",
     "saas_mapping_hint": "Linking a plan will automatically grant features to the buyer.",
     "member_area_config_title": "Post-Sale Action",
@@ -2854,7 +2854,7 @@
     "unknown_user": "Unidentified user",
     "default_client_name": "Client",
     "features": {
-      "unlimited_domains": "Unlimited domains",
+      "unlimited_domains": "Unlimited features",
       "partner_panel": "Partner panel",
       "crm_leads": "Lead CRM"
     },

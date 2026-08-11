@@ -85,7 +85,7 @@
     },
     "offers": {
       "unlimited_domains": {
-        "title": "Licencia Vitalicia Elite",
+                                                                  "title": "Recursos Ilimitados",
         "description": "Todo ilimitado para que vendas más: dominios, subdominios, productos, checkouts y áreas de miembros.",
         "features": [
           "Dominios ilimitados",
@@ -93,7 +93,7 @@
           "Productos y checkouts ilimitados",
           "Áreas de miembros ilimitadas"
         ],
-        "cta": "Hacer upgrade vitalicio",
+                                                                  "cta": "Liberar Recursos Ilimitados",
         "badge": "Oferta especial de activación",
         "price_context": "El valor final de abajo acompaña automáticamente el producto vinculado al plan de upgrade."
       },

@@ -305,8 +305,8 @@
     "canvas_description": "Mantive esta área propositalmente limpa para facilitar sua leitura de espaçamento, contraste, corte lateral e hierarquia visual.",
     "offers": {
       "unlimited_domains": {
-        "label": "Licença vitalícia elite",
-        "note": "Âncora comercial de upgrade_domains."
+                                                                    "label": "Recursos Ilimitados",
+                                                                    "note": "Plano comercial de recursos ilimitados."
       },
       "partner_rights": {
         "label": "Licença comercial / parceiro",

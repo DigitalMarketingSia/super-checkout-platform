@@ -174,7 +174,7 @@ export const SystemLicenses = () => {
             
             // Definição dos recursos padrão se não existirem no banco para esta licença
             const defaultPatterns = [
-                { key: 'UNLIMITED_DOMAINS', label: 'Domínios Ilimitados' },
+                { key: 'UNLIMITED_DOMAINS', label: 'Recursos Ilimitados' },
                 { key: 'FEATURE_PARTNER_PANEL', label: 'Painel de Parceiros' },
                 { key: 'FEATURE_CRM_LEADS', label: 'CRM de Leads' }
             ];
