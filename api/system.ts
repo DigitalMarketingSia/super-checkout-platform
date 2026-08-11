@@ -10,6 +10,7 @@ import { sanitizeGatewayPublicConfig, stripGatewayPrivateConfig } from '../src/c
 import { enforceApiRateLimit } from '../src/core/api/_rate-limit.js';
 import { fulfillOrder } from '../src/core/services/fulfillment.js';
 import { sendOrderAccessEmail } from '../src/core/services/orderEmail.js';
+import { processPaidSideEffects } from '../src/core/api/check-status.js';
 import { mergeOrderMetadata, normalizeOrderMetadata } from '../src/core/services/orderMetadata.js';
 import { dispatchPaymentFailedPush } from '../src/core/services/pushAutomation.js';
 import { getAllowedGatewayIdsForPaymentMethod } from '../src/core/config/paymentRouting.js';
@@ -904,7 +905,7 @@ async function orderDeliverablesHandler(req: VercelRequest, res: VercelResponse)
       supabaseAdmin,
       supabaseUrl: '',
       orderId,
-      knownOrder: order as Order,
+      knownOrder: order as any,
       origin,
     });
 

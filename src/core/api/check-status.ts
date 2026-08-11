@@ -123,7 +123,7 @@ function resolveMerchantUserId(input: {
     ).trim();
 }
 
-async function processPaidSideEffects(params: {
+export async function processPaidSideEffects(params: {
     supabaseAdmin?: any;
     supabaseUrl: string;
     serviceRoleKey?: string;
