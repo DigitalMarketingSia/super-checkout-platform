@@ -403,6 +403,11 @@ export const Products = () => {
           const productWithImage = { id: productId, ...sanitizedFormData, imageUrl: publicUrl } as Product;
           if (usesPlatformCatalogWriter) {
             await savePlatformCatalogProduct(productId, 'update', productWithImage);
+          } else if (usesCentralPartnerServiceWriter) {
+            // The service product was created by the protected Central-aware
+            // writer. Persist its image through that same writer instead of
+            // falling back to a browser-side RLS update.
+            await savePartnerInstallationServiceProduct(productId, 'update', productWithImage);
           } else {
             await storage.updateProduct(productWithImage);
           }
