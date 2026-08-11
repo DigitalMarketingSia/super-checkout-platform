@@ -35,6 +35,16 @@ type ServiceOrder = {
   installation_access_expires_at?: string | null;
   target_installation_id?: string | null;
   installation_ready?: boolean;
+  email_delivery?: {
+    total: number;
+    sent: number;
+    pending: number;
+    sending: number;
+    failed: number;
+    cancelled: number;
+    next_retry_at?: string | null;
+    last_sent_at?: string | null;
+  };
 };
 
 type Provider = { id: string; name: string; email: string };
@@ -67,6 +77,15 @@ function formatDate(value?: string | null) {
   } catch {
     return '—';
   }
+}
+
+function getEmailDeliveryLabel(delivery?: ServiceOrder['email_delivery']) {
+  if (!delivery?.total) return null;
+  if (delivery.failed > 0) return { label: 'Falha de e-mail — reprocessamento disponível', tone: 'text-red-300' };
+  if (delivery.sending > 0) return { label: 'E-mail em envio', tone: 'text-blue-300' };
+  if (delivery.pending > 0) return { label: 'E-mail aguardando envio', tone: 'text-amber-300' };
+  if (delivery.sent > 0) return { label: 'E-mail enviado', tone: 'text-emerald-300' };
+  return { label: 'E-mail cancelado', tone: 'text-gray-400' };
 }
 
 async function invokeServiceOrders(action: string, payload: Record<string, unknown> = {}) {
@@ -282,6 +301,8 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
               const canComplete = operator && order.status === 'in_progress' && Boolean(order.installation_ready) && (isPlatformOwner || order.scope === 'provider');
               const canCancel = operator && ['paid', 'awaiting_client_approval', 'approved', 'assigned'].includes(order.status);
               const installationAccess = installationAccessByOrder[order.id];
+              const emailDeliveryLabel = getEmailDeliveryLabel(order.email_delivery);
+              const canRetryFailedEmails = isPlatformOwner && Boolean(order.email_delivery?.failed);
 
               return (
                 <article key={order.id} className="p-5 sm:p-7">
@@ -299,6 +320,11 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
                       </div>
                       {operator && order.status === 'paid' && !order.beneficiary_license_ready && (
                         <p className="mt-3 inline-flex items-center gap-2 text-xs text-amber-300"><ShieldAlert className="h-4 w-4" /> O cliente precisa ativar uma licença no Portal antes da aprovação.</p>
+                      )}
+                      {emailDeliveryLabel && (
+                        <p className={`mt-3 inline-flex items-center gap-2 text-xs ${emailDeliveryLabel.tone}`}>
+                          <RefreshCw className="h-4 w-4" /> {emailDeliveryLabel.label}
+                        </p>
                       )}
                     </div>
 
@@ -332,6 +358,7 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
                       {canStart && <button disabled={busy} onClick={() => void runOrderAction(order, 'start')} className="action-button bg-amber-300 text-amber-950 hover:bg-amber-200"><Play className="h-4 w-4" /> Iniciar</button>}
                       {canIssueInstallationAccess && <button disabled={busy} onClick={() => void runOrderAction(order, 'issue_installation_access')} className="action-button bg-violet-300 text-violet-950 hover:bg-violet-200"><Copy className="h-4 w-4" /> {order.installation_access_issued_at ? 'Gerar novo acesso' : 'Gerar acesso de instalacao'}</button>}
                       {canComplete && <button disabled={busy} onClick={() => void runOrderAction(order, 'complete')} className="action-button bg-emerald-300 text-emerald-950 hover:bg-emerald-200"><CheckCircle2 className="h-4 w-4" /> Concluir</button>}
+                      {canRetryFailedEmails && <button disabled={busy} onClick={() => void runOrderAction(order, 'retry_failed_emails')} className="action-button bg-amber-300 text-amber-950 hover:bg-amber-200"><RefreshCw className="h-4 w-4" /> Reprocessar e-mails</button>}
                       {canCancel && <button disabled={busy} onClick={() => void runOrderAction(order, 'cancel')} className="action-button bg-white/5 text-gray-300 hover:bg-white/10">Cancelar</button>}
                       {canCancelRequest && <button disabled={busy} onClick={() => setConsentRevocationOrder(order)} className="action-button bg-red-400/15 text-red-200 hover:bg-red-400/25"><ShieldAlert className="h-4 w-4" /> Cancelar solicitação</button>}
                       {canRevoke && <button disabled={busy} onClick={() => setConsentRevocationOrder(order)} className="action-button bg-red-400/15 text-red-200 hover:bg-red-400/25"><ShieldAlert className="h-4 w-4" /> Revogar consentimento</button>}
