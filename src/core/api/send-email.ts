@@ -60,7 +60,6 @@ const ALLOWED_CONTENT_FLOWS = new Set([
     'ORDER_COMPLETED',
     'ACCESS_GRANTED',
     'BOLETO_GENERATED',
-    'SYSTEM_EMAIL',
     'INTEGRATION_TEST',
 ]);
 
@@ -106,7 +105,7 @@ function normalizeTemplateLanguage(value: unknown) {
     return 'pt';
 }
 
-async function resolvePlatformTemplate(
+export async function resolvePlatformTemplate(
     body: Record<string, any>,
 ) {
     const requestedTemplateKey = String(body.template_key || '').trim();
@@ -179,10 +178,6 @@ const APPROVED_MANUAL_TEMPLATES: Record<string, {
 
 async function resolveApprovedContent(body: Record<string, any>) {
     const flow = String(body.flow || '').trim();
-    if (flow === 'SYSTEM_EMAIL') {
-        return resolvePlatformTemplate(body);
-    }
-
     const templateKey = String(body.template_key || '').trim();
     if (templateKey) {
         const template = APPROVED_MANUAL_TEMPLATES[templateKey];
@@ -217,7 +212,11 @@ function isPlatformSystemFlow(body: Record<string, any>) {
     return String(body.flow || '').trim().toUpperCase() === 'SYSTEM_EMAIL';
 }
 
-async function dispatchPlatformEmailThroughCentral(params: {
+export function resolvePlatformEmailProfile(templateKey: string): 'account' | 'upgrade' | 'installation' | 'notification' {
+    return PLATFORM_SYSTEM_TEMPLATE_PROFILES[templateKey] || 'notification';
+}
+
+export async function dispatchPlatformEmailThroughCentral(params: {
     to: string[];
     profile: 'account' | 'upgrade' | 'installation' | 'notification';
     templateKey: string;
@@ -288,26 +287,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
         if (!auth) return;
 
-        const { supabaseAdmin, user, role } = auth;
+        const { supabaseAdmin, user } = auth;
         const body = parseBody(req) as Record<string, any>;
         const { to, from_name } = body;
         const recipients = normalizeRecipients(to);
 
-        // Platform templates are not tenant mail. During the migration to the
-        // Central dispatcher, keep the legacy flow available only to the
-        // global system actor. Tenant owners/admins must use the business
-        // templates/flows and cannot submit arbitrary platform HTML.
-        if (isPlatformSystemFlow(body) && role !== 'master_admin') {
+        // Platform email has a dedicated protected endpoint. The commercial
+        // endpoint never forwards platform templates or Central credentials.
+        if (isPlatformSystemFlow(body)) {
             await logAuthzEvent({
                 supabaseAdmin,
                 req,
                 source: 'send_email',
-                eventType: 'platform_email_scope_rejected',
-                severity: 'CRITICAL',
+                eventType: 'platform_email_route_rejected',
+                severity: 'WARNING',
                 userId: user.id,
-                metadata: { role, recipient_count: recipients.length },
+                metadata: { recipient_count: recipients.length },
             });
-            return res.status(403).json({ error: 'Platform email flow is restricted' });
+            return res.status(400).json({ error: 'Use the dedicated platform email endpoint' });
         }
 
         const rateLimit = enforceApiRateLimit(req, res, {
@@ -332,39 +329,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         let apiKey = '';
         let fromEmail = '';
-        if (!isPlatformSystemFlow(body)) {
-            const { data: integrations, error: intError } = await supabaseAdmin
-                .from('integrations')
-                .select('*')
-                .eq('user_id', user.id)
-                .eq('name', 'resend')
-                .eq('active', true)
-                .limit(1);
+        const { data: integrations, error: intError } = await supabaseAdmin
+            .from('integrations')
+            .select('*')
+            .eq('user_id', user.id)
+            .eq('name', 'resend')
+            .eq('active', true)
+            .limit(1);
 
-            if (intError) {
-                console.error('[Send-Email] DB Error:', intError);
-                throw new Error('Failed to fetch integration configuration');
-            }
+        if (intError) {
+            console.error('[Send-Email] DB Error:', intError);
+            throw new Error('Failed to fetch integration configuration');
+        }
 
-            const integration = integrations?.[0];
-            if (!integration || !integration.config) {
-                console.warn("[Send-Email] No active Resend integration found.");
-                return res.status(400).json({
-                    error: "Email provider 'resend' is not active or configured.",
-                    details: "Please go to Settings > Integrations and activate Resend."
-                });
-            }
+        const integration = integrations?.[0];
+        if (!integration || !integration.config) {
+            console.warn("[Send-Email] No active Resend integration found.");
+            return res.status(400).json({
+                error: "Email provider 'resend' is not active or configured.",
+                details: "Please go to Settings > Integrations and activate Resend."
+            });
+        }
 
-            apiKey = integration.config.apiKey || integration.config.api_key;
-            fromEmail = integration.config.senderEmail || integration.config.from_email;
+        apiKey = integration.config.apiKey || integration.config.api_key;
+        fromEmail = integration.config.senderEmail || integration.config.from_email;
 
-            if (!apiKey) {
-                return res.status(400).json({ error: "Missing Resend API Key in configuration." });
-            }
+        if (!apiKey) {
+            return res.status(400).json({ error: "Missing Resend API Key in configuration." });
+        }
 
-            if (!fromEmail || !isValidEmail(String(fromEmail))) {
-                return res.status(400).json({ error: 'Invalid sender email configuration.' });
-            }
+        if (!fromEmail || !isValidEmail(String(fromEmail))) {
+            return res.status(400).json({ error: 'Invalid sender email configuration.' });
         }
 
         if (recipients.length === 0) return res.status(400).json({ error: "Missing 'to' field" });
@@ -383,51 +378,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 metadata: { reason: 'unapproved_template_or_flow' },
             });
             return res.status(400).json({ error: 'Email template or flow is not approved' });
-        }
-
-        if (isPlatformSystemFlow(body)) {
-            const templateKey = String(approvedContent.template_key || body.template_key || '').trim();
-            const variables = approvedContent.variables && typeof approvedContent.variables === 'object'
-                ? approvedContent.variables
-                : {};
-            const result = await dispatchPlatformEmailThroughCentral({
-                to: recipients,
-                profile: PLATFORM_SYSTEM_TEMPLATE_PROFILES[templateKey] || 'notification',
-                templateKey,
-                language: approvedContent.language || 'pt',
-                variables,
-            });
-
-            if (!result.ok) {
-                await logAuthzEvent({
-                    supabaseAdmin,
-                    req,
-                    source: 'send_email',
-                    eventType: 'platform_email_dispatch_failed',
-                    severity: 'CRITICAL',
-                    userId: user.id,
-                    metadata: { template_key: templateKey, status: result.status, reason: result.error },
-                });
-                return res.status(result.status).json({ error: 'Platform email dispatch failed', code: result.error });
-            }
-
-            await logAuthzEvent({
-                supabaseAdmin,
-                req,
-                source: 'send_email',
-                eventType: 'email_sent',
-                severity: 'INFO',
-                userId: user.id,
-                metadata: {
-                    recipient_count: recipients.length,
-                    provider: 'central_resend',
-                    flow: approvedContent.flow,
-                    template_key: templateKey || null,
-                    resend_id: result.id,
-                },
-            });
-
-            return res.status(200).json({ id: result.id, provider: 'central_resend' });
         }
 
         const safeSubject = String(approvedContent.subject || '').trim().slice(0, 180);

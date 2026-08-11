@@ -39,7 +39,8 @@ class EmailService {
             const { data: sessionData } = await supabase.auth.getSession();
             const accessToken = sessionData.session?.access_token;
 
-            const response = await fetch('/api/send-email', {
+            const endpoint = data.flow === 'SYSTEM_EMAIL' ? '/api/platform-email' : '/api/send-email';
+            const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
