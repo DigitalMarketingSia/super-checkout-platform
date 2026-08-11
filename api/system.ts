@@ -707,10 +707,10 @@ async function resendOrderAccessHandler(req: VercelRequest, res: VercelResponse)
     if (userError || !user?.id) return res.status(401).json({ error: 'Invalid authorization token' });
 
     const { data: order, error: orderError } = await supabaseAdmin
-      .from('orders')
-      .select('id, customer_email, customer_name, checkouts(user_id)')
-      .eq('id', orderId)
-      .single();
+        .from('orders')
+        .select('id, status, customer_email, customer_name, metadata, checkouts(user_id)')
+        .eq('id', orderId)
+        .single();
 
     if (orderError || !order) return res.status(404).json({ error: 'Order not found' });
 
@@ -725,6 +725,16 @@ async function resendOrderAccessHandler(req: VercelRequest, res: VercelResponse)
       if (!['admin', 'owner'].includes(String(profile?.role || ''))) {
         return res.status(403).json({ error: 'Not allowed for this order' });
       }
+    }
+
+    const orderStatus = String(order.status || '').toLowerCase();
+    const orderMetadata = normalizeOrderMetadata(order.metadata);
+    if (['paid', 'approved'].includes(orderStatus) && !orderMetadata.fulfilled_at) {
+      await fulfillOrder(supabaseAdmin, {
+        orderId,
+        email: order.customer_email,
+        name: order.customer_name,
+      });
     }
 
     const origin = normalizeRequestOrigin(req);
@@ -890,6 +900,14 @@ async function orderDeliverablesHandler(req: VercelRequest, res: VercelResponse)
     }
 
     const origin = normalizeRequestOrigin(req);
+    await processPaidSideEffects({
+      supabaseAdmin,
+      supabaseUrl: '',
+      orderId,
+      knownOrder: order as Order,
+      origin,
+    });
+
     const {
       buildOrderDeliverables,
       stripSensitiveDeliverableFields,
