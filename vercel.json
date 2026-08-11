@@ -102,6 +102,7 @@
         { "source": "/api/proxy", "destination": "/api/system?action=proxy" },
         { "source": "/api/send-email", "destination": "/api/system?action=send-email" },
         { "source": "/api/platform-email", "destination": "/api/system?action=platform-email" },
+        { "source": "/api/platform-email-templates", "destination": "/api/system?action=platform-email-templates" },
         { "source": "/api/setup-admin", "destination": "/api/installer?action=setup-admin" },
         { "source": "/api/admin/:action", "destination": "/api/admin?action=:action" },
         { "source": "/api/domains/:action", "destination": "/api/domains?action=:action" },

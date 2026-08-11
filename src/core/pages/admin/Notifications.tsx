@@ -9,7 +9,6 @@ import { useAuth } from '../../context/AuthContext';
 import { demoWorkspaceService } from '../../services/demoWorkspaceService';
 import { isDemoDataRuntime } from '../../services/demoDataService';
 import { supabase } from '../../services/supabase';
-import { centralSupabase } from '../../services/centralClient';
 import { getMemberAccessEmailTemplates } from '../../services/memberAccessEmailTemplates';
 
 interface EmailTemplate {
@@ -234,9 +233,27 @@ function writeDemoTemplates(scope: DemoTemplateScope, templates: EmailTemplate[]
   window.localStorage.setItem(getDemoTemplateStorageKey(scope), JSON.stringify(serialized));
 }
 
+async function invokePlatformTemplateApi(action: 'list' | 'update' | 'toggle', payload: Record<string, unknown> = {}) {
+  const { data } = await supabase.auth.getSession();
+  const accessToken = data.session?.access_token;
+  if (!accessToken) throw new Error('Sua sessao administrativa expirou. Entre novamente para gerenciar os templates de plataforma.');
+
+  const response = await fetch('/api/platform-email-templates', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ action, ...payload }),
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(String(result?.error || 'Nao foi possivel atualizar o template de plataforma.'));
+  return result;
+}
+
 export const Notifications = () => {
   const { t, i18n } = useTranslation(['admin', 'common']);
-  const { profile, user } = useAuth();
+  const { profile } = useAuth();
   const isDemoMode = isDemoDataRuntime();
   const effectiveRole = profile?.effective_role || profile?.role;
   const isOwner = effectiveRole === 'master_admin';
@@ -299,17 +316,9 @@ export const Notifications = () => {
       }
 
       if (isOwner) {
-        const { data: systemData, error: systemError } = await centralSupabase
-          .from('platform_email_templates')
-          .select('*')
-          .order('template_key')
-          .order('language');
-
-        if (systemError && systemError.code !== 'PGRST116') {
-          console.error('Error fetching system templates:', systemError);
-        }
-
-        setSystemTemplates((systemData || []).map((template) => ({
+        const systemResult = await invokePlatformTemplateApi('list');
+        const systemData = Array.isArray(systemResult.templates) ? systemResult.templates : [];
+        setSystemTemplates(systemData.map((template: any) => ({
           ...template,
           event_type: template.template_key,
           allowed_variables: Array.isArray(template.allowed_variables) ? template.allowed_variables : [],
@@ -395,18 +404,12 @@ export const Notifications = () => {
       throw new Error('O template contém uma variável não autorizada para este evento.');
     }
 
-    const { error } = await centralSupabase
-      .from('platform_email_templates')
-      .update({
-        subject: payload.subject,
-        html_body: payload.htmlBody,
-        text_body: payload.textBody || '',
-        updated_by: user?.id || null,
-      })
-      .eq('id', payload.template.id)
-      .eq('template_key', templateKey);
-
-    if (error) throw error;
+    await invokePlatformTemplateApi('update', {
+      id: payload.template.id,
+      subject: payload.subject,
+      html_body: payload.htmlBody,
+      text_body: payload.textBody || '',
+    });
   }
 
   function handleEdit(template: EmailTemplate) {
@@ -444,7 +447,18 @@ export const Notifications = () => {
       return;
     }
 
-    const table = isSystemContext ? 'platform_email_templates' : 'email_templates';
+    if (isSystemContext) {
+      if (template.isVirtual) return;
+      try {
+        await invokePlatformTemplateApi('toggle', { id: template.id, active: !template.active });
+        await loadTemplates();
+      } catch (error) {
+        console.error('Error toggling platform template status:', error);
+      }
+      return;
+    }
+
+    const table = 'email_templates';
 
     if (template.isVirtual) {
       try {
@@ -454,11 +468,10 @@ export const Notifications = () => {
           subject: template.subject,
           html_body: template.html_body,
           active: !template.active,
-          ...(isSystemContext ? {} : { language: preferredLanguage }),
+          language: preferredLanguage,
         };
 
-        const client = isSystemContext ? centralSupabase : supabase;
-        const { error } = await client.from(table).insert(payload);
+        const { error } = await supabase.from(table).insert(payload);
         if (error) throw error;
         await loadTemplates();
       } catch (error) {
@@ -468,8 +481,7 @@ export const Notifications = () => {
     }
 
     try {
-      const client = isSystemContext ? centralSupabase : supabase;
-      const { error } = await client
+      const { error } = await supabase
         .from(table)
         .update({ active: !template.active })
         .eq('id', template.id);

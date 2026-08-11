@@ -2276,6 +2276,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return await (await import('../src/core/api/send-email.js')).default(req, res);
             case 'platform-email':
                 return await (await import('../src/core/api/platform-email.js')).default(req, res);
+            case 'platform-email-templates':
+                return await (await import('../src/core/api/platform-email-templates.js')).default(req, res);
             case 'demo-webhooks':
                 return await (await import('../src/core/api/demo-webhooks.js')).default(req, res);
             case 'test-webhook':
