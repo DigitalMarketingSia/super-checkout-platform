@@ -750,8 +750,12 @@ async function resendOrderAccessHandler(req: VercelRequest, res: VercelResponse)
 
     return res.status(200).json(result);
   } catch (err: any) {
-    console.error('[System] resend-order-access failed:', err?.message || err);
-    return res.status(500).json({ error: 'Failed to resend access email' });
+    const detail = String(err?.message || 'resend_order_access_failed').slice(0, 240);
+    console.error('[System] resend-order-access failed:', detail);
+    return res.status(500).json({
+      error: 'Failed to resend access email',
+      detail,
+    });
   }
 }
 

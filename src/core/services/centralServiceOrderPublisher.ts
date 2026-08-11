@@ -34,21 +34,31 @@ export type PaidServiceOrderResult = {
 };
 
 function resolveCentralApiUrl() {
-  return String(
+  const configuredUrl = String(
     process.env.CENTRAL_API_URL
     || process.env.VITE_CENTRAL_API_URL
     || process.env.NEXT_PUBLIC_CENTRAL_API_URL
     || OFFICIAL_CENTRAL_API_URL,
   ).replace(/\/+$/, '');
+
+  return configuredUrl.endsWith('/functions/v1')
+    ? configuredUrl
+    : `${configuredUrl}/functions/v1`;
 }
 
 export async function upsertPaidCentralServiceOrder(
   input: PaidServiceOrderInput,
 ): Promise<PaidServiceOrderResult> {
-  const controlPlaneHmacKey = getCentralControlPlaneHmacKey();
+  let controlPlaneHmacKey: string | null = null;
+  let controlPlaneError: Error | null = null;
+  try {
+    controlPlaneHmacKey = getCentralControlPlaneHmacKey();
+  } catch (error) {
+    controlPlaneError = error instanceof Error ? error : new Error('Central control-plane trust is invalid.');
+  }
   const installationTrust = controlPlaneHmacKey ? null : getCentralInstallationTrustConfig();
   if (!controlPlaneHmacKey && !installationTrust) {
-    throw new Error('Missing private Central trust credential for service-order creation.');
+    throw controlPlaneError || new Error('Missing private Central trust credential for service-order creation.');
   }
 
   const rawBody = JSON.stringify({
@@ -103,7 +113,8 @@ export async function upsertPaidCentralServiceOrder(
   }
 
   if (!response.ok || payload?.success !== true) {
-    throw new Error('Central service order could not be created.');
+    const code = String(payload?.code || '').replace(/[^a-z0-9:_-]/gi, '').slice(0, 80);
+    throw new Error(`Central service order could not be created (HTTP ${response.status}${code ? `: ${code}` : ''}).`);
   }
 
   const serviceOrderId = String(payload.service_order_id || '').trim();

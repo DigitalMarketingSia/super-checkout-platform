@@ -4,7 +4,6 @@ import { X, User, ShoppingBag, MessageCircle, CreditCard, Calendar, Mail, FileTe
 import { useTranslation } from 'react-i18next';
 import { Order } from '../../../types';
 import { Button } from '../../ui/Button';
-import { AlertModal } from '../../ui/Modal';
 import { resendOrderAccessEmail } from '../../../services/orderAccessEmailService';
 import { useBodyScrollLock } from '../../../hooks/useBodyScrollLock';
 
@@ -148,10 +147,13 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, isO
                 throw new Error(t('orders.modals.alerts.resend_error'));
             }
         } catch (error) {
+            const detail = error instanceof Error && error.message
+                ? error.message
+                : t('orders.modals.alerts.resend_error');
             setAlertModal({
                 isOpen: true,
                 title: t('error_title', { ns: 'common' }),
-                message: t('orders.modals.alerts.resend_error'),
+                message: detail,
                 variant: 'error'
             });
         } finally {
@@ -167,6 +169,40 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, isO
 
                     <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/20 rounded-full blur-3xl -mr-16 -mt-16" />
                     <div className="absolute bottom-0 left-0 w-32 h-32 bg-purple-500/10 rounded-full blur-3xl -ml-16 -mb-16" />
+
+                    {alertModal.isOpen && (
+                        <div
+                            className="absolute inset-0 z-30 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
+                            role="alertdialog"
+                            aria-modal="true"
+                            aria-labelledby="order-resend-feedback-title"
+                        >
+                            <div className="w-full max-w-md rounded-2xl border border-purple-500/30 bg-[#171722] p-6 shadow-2xl">
+                                <div className="flex items-start justify-between gap-4">
+                                    <h3 id="order-resend-feedback-title" className="text-lg font-bold text-white">
+                                        {alertModal.title}
+                                    </h3>
+                                    <button
+                                        type="button"
+                                        onClick={() => setAlertModal({ ...alertModal, isOpen: false })}
+                                        className="rounded-lg p-1 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
+                                        aria-label={t('close')}
+                                    >
+                                        <X className="h-5 w-5" />
+                                    </button>
+                                </div>
+                                <p className="mt-4 break-words text-sm leading-relaxed text-gray-300">{alertModal.message}</p>
+                                <div className="mt-6 flex justify-end">
+                                    <Button
+                                        variant="primary"
+                                        onClick={() => setAlertModal({ ...alertModal, isOpen: false })}
+                                    >
+                                        {t('ok', { ns: 'common' })}
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     <div className="relative flex-none border-b border-white/10 bg-white/[0.02] px-4 pb-4 pt-[calc(1rem+env(safe-area-inset-top))] sm:p-6">
                         <div className="flex items-start justify-between gap-4">
@@ -421,13 +457,6 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, isO
                 </Dialog.Content>
             </Dialog.Portal>
 
-            <AlertModal
-                isOpen={alertModal.isOpen}
-                onClose={() => setAlertModal({ ...alertModal, isOpen: false })}
-                title={alertModal.title}
-                message={alertModal.message}
-                variant={alertModal.variant}
-            />
         </Dialog.Root>
     );
 };
