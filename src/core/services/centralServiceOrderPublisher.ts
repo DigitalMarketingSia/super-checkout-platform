@@ -8,6 +8,9 @@ import {
 } from '../api/_central-installation-trust.js';
 
 const OFFICIAL_CENTRAL_API_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co/functions/v1';
+// This is a public Supabase publishable key. The HMAC installation credential
+// remains the authorization mechanism for creating service orders.
+const OFFICIAL_CENTRAL_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_TWNJjc7T2N9vCNkiBHaP9A_2XIgMgCF';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export type PaidServiceOrderInput = {
@@ -44,6 +47,18 @@ function resolveCentralApiUrl() {
   return configuredUrl.endsWith('/functions/v1')
     ? configuredUrl
     : `${configuredUrl}/functions/v1`;
+}
+
+function resolveCentralInvokeKey() {
+  return String(
+    process.env.CENTRAL_SUPABASE_PUBLISHABLE_KEY
+    || process.env.VITE_CENTRAL_SUPABASE_PUBLISHABLE_KEY
+    || process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_PUBLISHABLE_KEY
+    || process.env.CENTRAL_SUPABASE_ANON_KEY
+    || process.env.VITE_CENTRAL_SUPABASE_ANON_KEY
+    || process.env.NEXT_PUBLIC_CENTRAL_SUPABASE_ANON_KEY
+    || OFFICIAL_CENTRAL_SUPABASE_PUBLISHABLE_KEY,
+  ).trim();
 }
 
 export async function upsertPaidCentralServiceOrder(
@@ -92,12 +107,18 @@ export async function upsertPaidCentralServiceOrder(
       endpoint: 'service-orders',
       rawBody,
     });
+  const centralInvokeKey = resolveCentralInvokeKey();
 
   let response: Response;
   try {
     response = await fetch(`${resolveCentralApiUrl()}/service-orders`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...trustHeaders },
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: centralInvokeKey,
+        Authorization: `Bearer ${centralInvokeKey}`,
+        ...trustHeaders,
+      },
       body: rawBody,
     });
   } catch {
