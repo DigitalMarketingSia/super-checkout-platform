@@ -6,6 +6,7 @@ import {
   SYSTEM_INSTALLATION_SERVICE,
   SYSTEM_UPGRADE_PLAN_SLUGS,
 } from '../../services/productCatalog.js';
+import { syncInstallationServiceOffer } from './_installation-service-offer.js';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SYSTEM_UPGRADE_PRODUCT_TYPE = 'system_upgrade';
@@ -181,7 +182,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       },
     });
 
-    return res.status(200).json({ success: true, productId });
+    let offerSync: { synced: boolean; active: boolean; message?: string } | null = null;
+    if (parsedProduct.record.product_type === INSTALLATION_SERVICE_PRODUCT_TYPE) {
+      try {
+        offerSync = await syncInstallationServiceOffer({
+          req,
+          supabaseAdmin: auth.supabaseAdmin,
+          userId: auth.user.id,
+          selectProductId: productId,
+        });
+      } catch (syncError: any) {
+        offerSync = {
+          synced: false,
+          active: false,
+          message: syncError?.message || 'O produto foi salvo, mas a oferta do Portal ainda não pôde ser publicada.',
+        };
+      }
+    }
+
+    return res.status(200).json({ success: true, productId, offer_sync: offerSync });
   } catch (error: any) {
     console.error('[save-platform-catalog-product] Failed:', error?.message || error);
     return res.status(500).json({ error: 'Nao foi possivel salvar o produto especial.' });

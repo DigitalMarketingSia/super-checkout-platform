@@ -43,6 +43,8 @@ import {
    ROUTABLE_PAYMENT_METHODS,
    supportsGatewayPaymentMethod,
 } from '../../config/paymentRouting';
+import { deriveProductType, PRODUCT_TYPE_INSTALLATION_SERVICE } from '../../services/productCatalog';
+import { syncInstallationServiceOffer } from '../../services/installationServiceOffer';
 
 const isSelectableGateway = (gateway: Gateway) => gateway.name !== GatewayProvider.PAGSEGURO;
 
@@ -335,6 +337,12 @@ export const CheckoutEditor = () => {
       if (!response.ok || !payload?.success) {
          throw new Error(payload?.error || payload?.message || 'Falha ao publicar o checkout de upgrade no catalogo central.');
       }
+   };
+
+   const syncPortalInstallationOffer = async (selectedProductId: string) => {
+      const selectedProduct = products.find((product) => product.id === selectedProductId);
+      if (!selectedProduct || deriveProductType(selectedProduct) !== PRODUCT_TYPE_INSTALLATION_SERVICE) return;
+      await syncInstallationServiceOffer(selectedProductId);
    };
 
    const closeAlert = () => {
@@ -671,11 +679,12 @@ export const CheckoutEditor = () => {
 
          try {
             await syncCentralPlanForSystemUpgrade(productId);
+            await syncPortalInstallationOffer(productId);
          } catch (syncError) {
             console.error('Central upgrade plan sync failed after checkout save:', syncError);
             showAlert(
                'Checkout salvo com ressalva',
-               'O checkout foi salvo, mas o catalogo Central ainda nao recebeu a URL oficial. Tente salvar novamente antes de liberar este upgrade aos clientes.',
+               'O checkout foi salvo, mas a publicação comercial no Portal ainda não foi atualizada. Tente salvar novamente antes de divulgá-lo aos clientes.',
                'error',
             );
             return;

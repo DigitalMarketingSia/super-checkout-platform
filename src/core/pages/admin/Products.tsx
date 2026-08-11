@@ -29,6 +29,7 @@ import {
   SYSTEM_INSTALLATION_SERVICE,
   normalizeCatalogPlanSlug,
 } from '../../services/productCatalog';
+import { syncInstallationServiceOffer } from '../../services/installationServiceOffer';
 
 // Initial Form State
 const initialFormState = {
@@ -136,6 +137,7 @@ export const Products = () => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const deliverableInputRef = useRef<HTMLInputElement>(null);
+  const portalOfferAutoSyncDoneRef = useRef(false);
 
   const [availableContents, setAvailableContents] = useState<Content[]>([]);
   const [selectedContentIds, setSelectedContentIds] = useState<string[]>([]);
@@ -168,6 +170,18 @@ export const Products = () => {
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (portalOfferAutoSyncDoneRef.current || !canManageInstallationService) return;
+    if (!products.some((product) => deriveProductType(product) === PRODUCT_TYPE_INSTALLATION_SERVICE)) return;
+
+    // Existing partners can update to this version without editing a legacy
+    // service product: opening Produtos publishes their first active offer.
+    portalOfferAutoSyncDoneRef.current = true;
+    void syncInstallationServiceOffer().catch((error) => {
+      console.warn('[Products] Existing installation offer sync failed:', error);
+    });
+  }, [canManageInstallationService, products]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -385,10 +399,13 @@ export const Products = () => {
       }
 
       const productToSave = { id: productId, ...sanitizedFormData } as Product;
+      let offerSyncWarning = '';
       if (usesPlatformCatalogWriter) {
-        await savePlatformCatalogProduct(productId, editingId ? 'update' : 'create', productToSave);
+        const saved = await savePlatformCatalogProduct(productId, editingId ? 'update' : 'create', productToSave);
+        if (saved?.offer_sync?.synced === false) offerSyncWarning = saved.offer_sync.message || 'A oferta do Portal ainda não pôde ser publicada.';
       } else if (usesCentralPartnerServiceWriter) {
-        await savePartnerInstallationServiceProduct(productId, editingId ? 'update' : 'create', productToSave);
+        const saved = await savePartnerInstallationServiceProduct(productId, editingId ? 'update' : 'create', productToSave);
+        if (saved?.offer_sync?.synced === false) offerSyncWarning = saved.offer_sync.message || 'A oferta do Portal ainda não pôde ser publicada.';
       } else if (editingId) {
         const productToUpdate = { id: editingId, ...sanitizedFormData } as Product;
         await storage.updateProduct(productToUpdate);
@@ -402,12 +419,14 @@ export const Products = () => {
           const publicUrl = await storage.uploadProductImage(pendingImageFile, productId);
           const productWithImage = { id: productId, ...sanitizedFormData, imageUrl: publicUrl } as Product;
           if (usesPlatformCatalogWriter) {
-            await savePlatformCatalogProduct(productId, 'update', productWithImage);
+            const saved = await savePlatformCatalogProduct(productId, 'update', productWithImage);
+            if (saved?.offer_sync?.synced === false) offerSyncWarning = saved.offer_sync.message || offerSyncWarning;
           } else if (usesCentralPartnerServiceWriter) {
             // The service product was created by the protected Central-aware
             // writer. Persist its image through that same writer instead of
             // falling back to a browser-side RLS update.
-            await savePartnerInstallationServiceProduct(productId, 'update', productWithImage);
+            const saved = await savePartnerInstallationServiceProduct(productId, 'update', productWithImage);
+            if (saved?.offer_sync?.synced === false) offerSyncWarning = saved.offer_sync.message || offerSyncWarning;
           } else {
             await storage.updateProduct(productWithImage);
           }
@@ -437,10 +456,10 @@ export const Products = () => {
       setPendingImageFile(null);
       setImagePreviewUrl(null);
 
-      if (syncWarning || imageWarning) {
+      if (syncWarning || imageWarning || offerSyncWarning) {
         showAlert(
           imageWarning ? 'Produto salvo com ressalva' : 'Plano central nao sincronizado',
-          [imageWarning, syncWarning].filter(Boolean).join(' '),
+          [imageWarning, syncWarning, offerSyncWarning].filter(Boolean).join(' '),
           'error',
         );
       }
@@ -459,10 +478,23 @@ export const Products = () => {
     if (!deleteId) return;
     try {
       setIsDeleting(true);
+      const product = products.find((item) => item.id === deleteId);
       await storage.deleteProduct(deleteId);
+      let portalOfferWarning = '';
+      if (product && deriveProductType(product) === PRODUCT_TYPE_INSTALLATION_SERVICE) {
+        try {
+          await syncInstallationServiceOffer(product.id);
+        } catch (syncError: any) {
+          portalOfferWarning = syncError?.message || 'A oferta de instalação do Portal ainda não foi atualizada.';
+        }
+      }
       await loadData();
       setDeleteId(null);
-      showAlert(t('common.success'), t('products.delete_success'), 'success');
+      showAlert(
+        portalOfferWarning ? 'Produto excluído com ressalva' : t('common.success'),
+        portalOfferWarning || t('products.delete_success'),
+        portalOfferWarning ? 'error' : 'success',
+      );
     } catch (error) {
       console.error('Error deleting product:', error);
       showAlert(t('common.error'), t('products.delete_error'), 'error');

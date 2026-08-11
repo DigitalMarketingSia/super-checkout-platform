@@ -15,6 +15,7 @@ import syncSaasPlanHandler from '../src/core/api/admin/sync-saas-plan.js';
 import createUploadUrlHandler from '../src/core/api/admin/create-upload-url.js';
 import saveSystemUpgradeProductHandler from '../src/core/api/admin/save-system-upgrade-product.js';
 import saveInstallationServiceProductHandler from '../src/core/api/admin/save-installation-service-product.js';
+import syncInstallationServiceOfferHandler from '../src/core/api/admin/sync-installation-service-offer.js';
 import centralNotificationsHandler from '../src/core/api/admin/central-notifications.js';
 
 const DEFAULT_ALLOWED_ORIGIN = 'https://app.supercheckout.app';
@@ -83,6 +84,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return await saveSystemUpgradeProductHandler(req, res);
             case 'save-installation-service-product':
                 return await saveInstallationServiceProductHandler(req, res);
+            case 'sync-installation-service-offer':
+                return await syncInstallationServiceOfferHandler(req, res);
             case 'create-upload-url':
                 return await createUploadUrlHandler(req, res);
             case 'central-notifications':

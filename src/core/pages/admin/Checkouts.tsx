@@ -15,6 +15,8 @@ import { ConfirmModal, AlertModal, Modal } from '../../components/ui/Modal';
 import { useTranslation } from 'react-i18next';
 import { useFeatures } from '../../hooks/useFeatures';
 import { UpsellModal } from '../../components/ui/UpsellModal';
+import { deriveProductType, PRODUCT_TYPE_INSTALLATION_SERVICE } from '../../services/productCatalog';
+import { syncInstallationServiceOffer } from '../../services/installationServiceOffer';
 
 export const Checkouts = () => {
   const { t, i18n } = useTranslation(['admin', 'common', 'sidebar']);
@@ -100,10 +102,24 @@ export const Checkouts = () => {
     if (!deleteId) return;
     try {
       setIsDeleting(true);
+      const checkout = checkouts.find((item) => item.id === deleteId);
+      const product = checkout ? products.find((item) => item.id === checkout.product_id) : null;
       await storage.deleteCheckout(deleteId);
+      let portalOfferWarning = '';
+      if (product && deriveProductType(product) === PRODUCT_TYPE_INSTALLATION_SERVICE) {
+        try {
+          await syncInstallationServiceOffer(product.id);
+        } catch (syncError: any) {
+          portalOfferWarning = syncError?.message || 'A oferta de instalação do Portal ainda não foi atualizada.';
+        }
+      }
       await loadData();
       setDeleteId(null);
-      showAlert(t('common.success'), t('checkouts.delete_success'), 'success');
+      showAlert(
+        portalOfferWarning ? 'Checkout excluído com ressalva' : t('common.success'),
+        portalOfferWarning || t('checkouts.delete_success'),
+        portalOfferWarning ? 'error' : 'success',
+      );
     } catch (error) {
       console.error('Error deleting checkout:', error);
       showAlert(t('common.error'), t('checkouts.delete_error'), 'error');

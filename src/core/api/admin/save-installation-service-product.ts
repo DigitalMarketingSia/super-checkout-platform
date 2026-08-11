@@ -5,6 +5,7 @@ import {
   buildCentralInstallationTrustHeaders,
   getCentralInstallationTrustConfig,
 } from '../_central-installation-trust.js';
+import { syncInstallationServiceOffer } from './_installation-service-offer.js';
 import { normalizeCatalogPlanSlug, SYSTEM_INSTALLATION_SERVICE } from '../../services/productCatalog.js';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -309,7 +310,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       },
     });
 
-    return res.status(200).json({ success: true, productId });
+    let offerSync: { synced: boolean; active: boolean; message?: string };
+    try {
+      offerSync = await syncInstallationServiceOffer({
+        req,
+        supabaseAdmin: auth.supabaseAdmin,
+        userId: auth.user.id,
+        selectProductId: productId,
+      });
+    } catch (syncError: any) {
+      offerSync = {
+        synced: false,
+        active: false,
+        message: syncError?.message || 'O produto foi salvo, mas a oferta do Portal ainda não pôde ser publicada.',
+      };
+    }
+
+    return res.status(200).json({ success: true, productId, offer_sync: offerSync });
   } catch (error: any) {
     console.error('[save-installation-service-product] Failed:', error?.message || error);
     return res.status(500).json({ error: 'Nao foi possivel salvar o produto de servico.' });

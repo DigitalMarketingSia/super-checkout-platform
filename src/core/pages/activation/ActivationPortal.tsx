@@ -14,6 +14,7 @@ import { UpsellBanners } from './components/UpsellBanners';
 import { BlockOpportunity } from './components/BlockOpportunity';
 import { BlockPartner } from './components/BlockPartner';
 import { BlockServiceOrders } from './components/BlockServiceOrders';
+import { InstallationServiceOfferBanner, InstallationServiceOfferCard, type InstallationServiceOffer } from './components/BlockInstallationServiceOffer';
 import { BlockProfile } from './components/BlockProfile';
 import { BlockEarningsSimulator } from './components/BlockEarningsSimulator';
 import { BlockBasicDashboard, DemoExperienceCard } from './components/BlockBasicDashboard';
@@ -25,7 +26,7 @@ import { useTranslation } from 'react-i18next';
 import { LanguageSelector } from '../../components/ui/LanguageSelector';
 import { Loading } from '../../components/ui/Loading';
 import { PwaInstallBanner } from '../../components/ui/PwaInstallBanner';
-import { LogOut, LayoutDashboard, Key, Download, PlayCircle, Shield, Menu, X, User, Crown, BarChart3, ArrowRight, ShieldCheck, TrendingUp, Eye, ClipboardCheck } from 'lucide-react';
+import { LogOut, LayoutDashboard, Key, Download, PlayCircle, Shield, Menu, X, User, Crown, BarChart3, ArrowRight, ShieldCheck, TrendingUp, Eye, ClipboardCheck, Wrench } from 'lucide-react';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import './ActivationPortal.css';
 
@@ -106,6 +107,8 @@ export const ActivationPortal: React.FC = () => {
     const [ownerTwoFactorEnabled, setOwnerTwoFactorEnabled] = useState(false);
     const [approvalState, setApprovalState] = useState<{ status: 'pending_approval' | 'rejected' | 'blocked'; notes?: string | null; blockedAt?: string | null } | null>(null);
     const [partnerOpportunityEnabled, setPartnerOpportunityEnabled] = useState(false);
+    const [installationOffer, setInstallationOffer] = useState<InstallationServiceOffer | null>(null);
+    const [showInstallationOfferBanner, setShowInstallationOfferBanner] = useState(false);
     const [demoLoading, setDemoLoading] = useState(false);
     const [demoError, setDemoError] = useState<string | null>(null);
     const resolvedLanguage = i18n.language.toLowerCase();
@@ -185,6 +188,31 @@ export const ActivationPortal: React.FC = () => {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
+    const resolveInstallationOffer = async () => {
+        const { data, error } = await centralSupabase.functions.invoke('installation-offers', {
+            body: { action: 'resolve_offer' },
+        });
+        if (error) throw error;
+        return data as { eligible?: boolean; show_banner?: boolean; offer?: InstallationServiceOffer };
+    };
+
+    const dismissInstallationOffer = async () => {
+        setShowInstallationOfferBanner(false);
+        try {
+            const { error } = await centralSupabase.functions.invoke('installation-offers', {
+                body: { action: 'dismiss_offer' },
+            });
+            if (error) throw error;
+        } catch (error) {
+            console.warn('[Portal] Could not persist installation-offer dismissal:', error);
+        }
+    };
+
+    const openInstallationOfferCheckout = () => {
+        if (!installationOffer?.checkout_url) return;
+        window.location.assign(installationOffer.checkout_url);
+    };
+
     const handleActivate = async () => {
         if (!termsAccepted) {
             alert(t('generate_license_gate.accept_terms_required'));
@@ -261,7 +289,7 @@ export const ActivationPortal: React.FC = () => {
 
             setApprovalState(null);
 
-            const [licenseData, centralPlans, localSaaSProducts, partnerVisibility, platformIdentity] = await Promise.all([
+            const [licenseData, centralPlans, localSaaSProducts, partnerVisibility, platformIdentity, offerResponse] = await Promise.all([
                 licenseService.getLicenseByUserId(user.id, user.email),
                 licenseService.getOfficialPlans(),
                 storage.getPublicSaaSProducts(),
@@ -274,6 +302,7 @@ export const ActivationPortal: React.FC = () => {
                     is_platform_owner: false,
                     display_role: 'account_holder' as const,
                 })),
+                resolveInstallationOffer().catch(() => ({ eligible: false })),
             ]);
 
             const mergedPlans = centralPlans.map(cp => {
@@ -301,6 +330,9 @@ export const ActivationPortal: React.FC = () => {
             setSaasProducts(mergedPlans);
             setPartnerOpportunityEnabled(Boolean(partnerVisibility?.partner_opportunity_enabled));
             setIsPortalOwner(Boolean(platformIdentity?.is_platform_owner));
+            const resolvedOffer = offerResponse?.eligible && offerResponse.offer?.checkout_url ? offerResponse.offer : null;
+            setInstallationOffer(resolvedOffer);
+            setShowInstallationOfferBanner(Boolean(resolvedOffer && offerResponse?.show_banner));
 
             if (licenseData) {
                 const instData = await licenseService.getMyInstallations();
@@ -358,7 +390,10 @@ export const ActivationPortal: React.FC = () => {
         if (activeTab === 'simulator' && !showEarningsSimulatorTab) {
             setActiveTabInternal('home');
         }
-    }, [activeTab, showEarningsSimulatorTab, showPartnerOpportunityTab, showPartnerPanelTab]);
+        if (activeTab === 'installation-assistance' && !installationOffer) {
+            setActiveTabInternal('home');
+        }
+    }, [activeTab, installationOffer, showEarningsSimulatorTab, showPartnerOpportunityTab, showPartnerPanelTab]);
 
     // Real-time listener for block enforcement
     useEffect(() => {
@@ -501,6 +536,13 @@ export const ActivationPortal: React.FC = () => {
                                 {t('welcome.desc')}
                             </p>
                         </div>
+                        {installationOffer && showInstallationOfferBanner && (
+                            <InstallationServiceOfferBanner
+                                offer={installationOffer}
+                                onDismiss={() => void dismissInstallationOffer()}
+                                onPurchase={openInstallationOfferCheckout}
+                            />
+                        )}
                         <BlockPortalSecurity
                             enabled={ownerTwoFactorEnabled}
                             isOwner={isPortalOwner}
@@ -607,6 +649,13 @@ export const ActivationPortal: React.FC = () => {
                         <BlockServiceOrders isPlatformOwner={isPortalOwner} hasPartnerAccess={hasPartnerAccess} />
                     </div>
                 );
+            case 'installation-assistance':
+                if (!installationOffer) return null;
+                return (
+                    <div className="animate-in fade-in duration-500 text-white">
+                        <InstallationServiceOfferCard offer={installationOffer} onPurchase={openInstallationOfferCheckout} />
+                    </div>
+                );
             case 'simulator':
                 if (!showEarningsSimulatorTab) return null;
                 return (
@@ -657,6 +706,7 @@ export const ActivationPortal: React.FC = () => {
                         <SidebarItem icon={Key} label={t('sidebar.access_data')} active={activeTab === 'license'} onClick={() => setActiveTab('license')} collapsed={isCollapsed} />
                         <SidebarItem icon={Download} label={t('sidebar.installation')} active={activeTab === 'install'} onClick={() => setActiveTab('install')} collapsed={isCollapsed} />
                         <SidebarItem icon={ClipboardCheck} label="Serviços" active={activeTab === 'services'} onClick={() => setActiveTab('services')} collapsed={isCollapsed} />
+                        {installationOffer && <SidebarItem icon={Wrench} label="Instalação assistida" active={activeTab === 'installation-assistance'} onClick={() => setActiveTab('installation-assistance')} collapsed={isCollapsed} highlighted />}
                         
                         {showPartnerOpportunityTab ? (
                             <SidebarItem icon={Crown} label={t('sidebar.upgrade_business')} active={activeTab === 'opportunity'} onClick={() => setActiveTab('opportunity')} collapsed={isCollapsed} />
@@ -697,6 +747,7 @@ export const ActivationPortal: React.FC = () => {
                             <SidebarItem icon={Key} label={t('sidebar.access_data')} active={activeTab === 'license'} onClick={() => setActiveTab('license')} />
                             <SidebarItem icon={Download} label={t('sidebar.installation')} active={activeTab === 'install'} onClick={() => setActiveTab('install')} />
                             <SidebarItem icon={ClipboardCheck} label="Serviços" active={activeTab === 'services'} onClick={() => setActiveTab('services')} />
+                            {installationOffer && <SidebarItem icon={Wrench} label="Instalação assistida" active={activeTab === 'installation-assistance'} onClick={() => setActiveTab('installation-assistance')} highlighted />}
                             {showPartnerOpportunityTab ? (
                                 <SidebarItem icon={Crown} label={t('sidebar.upgrade_business')} active={activeTab === 'opportunity'} onClick={() => setActiveTab('opportunity')} />
                             ) : showPartnerPanelTab ? (
@@ -734,6 +785,7 @@ export const ActivationPortal: React.FC = () => {
                                     opportunity: 'upgrade_business',
                                     partner: 'partner_panel',
                                     simulator: 'earnings_simulator',
+                                    'installation-assistance': 'installation',
                                     profile: 'my_account'
                                 } as any)[activeTab] || activeTab}`)}
                             </h2>
