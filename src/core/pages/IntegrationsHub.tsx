@@ -122,7 +122,9 @@ export const IntegrationsHub: React.FC = () => {
                                     SSL Seguro
                                 </div>
                                 <Button
+                                    type="button"
                                     size="sm"
+                                    onClick={() => setIsResendModalOpen(true)}
                                     className={`h-9 px-4 rounded-xl font-bold transition-all duration-300 ${
                                         isResendActive
                                             ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 hover:bg-emerald-500/20 shadow-none'
@@ -229,6 +231,11 @@ export const IntegrationsHub: React.FC = () => {
                     <h4 className="text-lg font-portal-display text-gray-400 italic">Novas IntegraÃ§Ãµes em Breve</h4>
                     <p className="text-xs text-gray-500 font-semibold mt-2 leading-relaxed">Estamos trabalhando em conectores nativos para ActiveCampaign, Hotmart e outros sistemas globais.</p>
                 </div>
+
+                <ResendConfigModal
+                    isOpen={isResendModalOpen}
+                    onClose={handleResendModalClose}
+                />
             </div>
         </Layout>
     );
