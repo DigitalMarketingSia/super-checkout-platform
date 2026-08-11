@@ -89,7 +89,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   });
   if (!rateLimit.allowed) return res.status(429).json({ error: 'Too many platform template attempts' });
 
-  const central = await callCentral(action, body);
+  const central = await callCentral(action, { ...body, actor_id: auth.user.id });
   if (!central.ok) {
     await logAuthzEvent({
       supabaseAdmin: auth.supabaseAdmin,
