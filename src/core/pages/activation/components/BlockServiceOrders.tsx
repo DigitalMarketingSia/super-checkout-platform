@@ -6,6 +6,7 @@ import {
   Clock3,
   Copy,
   Loader2,
+  MessageCircleMore,
   Play,
   RefreshCw,
   ShieldAlert,
@@ -35,6 +36,15 @@ type ServiceOrder = {
   installation_access_expires_at?: string | null;
   target_installation_id?: string | null;
   installation_ready?: boolean;
+  support_request?: {
+    id: string;
+    status: 'open' | 'acknowledged' | 'resolved' | string;
+    message: string;
+    created_at: string;
+    updated_at?: string | null;
+    acknowledged_at?: string | null;
+    resolved_at?: string | null;
+  } | null;
   email_delivery?: {
     total: number;
     sent: number;
@@ -60,6 +70,12 @@ const statusLabels: Record<string, string> = {
   rejected: 'Recusado pelo cliente',
   cancelled: 'Cancelado',
   revoked: 'Consentimento revogado',
+};
+
+const supportStatusLabels: Record<string, string> = {
+  open: 'Atendimento solicitado',
+  acknowledged: 'Em atendimento',
+  resolved: 'Atendimento concluído',
 };
 
 function formatMoney(value: number, currency: string) {
@@ -121,6 +137,8 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
   const [approvalUrl, setApprovalUrl] = useState<string | null>(null);
   const [installationAccessByOrder, setInstallationAccessByOrder] = useState<Record<string, InstallationAccess>>({});
   const [consentRevocationOrder, setConsentRevocationOrder] = useState<ServiceOrder | null>(null);
+  const [supportRequestOrder, setSupportRequestOrder] = useState<ServiceOrder | null>(null);
+  const [supportMessage, setSupportMessage] = useState('');
 
   const loadOrders = useCallback(async () => {
     setLoading(true);
@@ -163,6 +181,14 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
         toast.success(action === 'request_new_approval'
           ? 'Novo link de aprovação criado sem nova cobrança. Copie e envie ao cliente.'
           : 'Link de aprovação criado. Copie e envie ao cliente.');
+      } else if (action === 'request_support') {
+        toast.success(result.created === false
+          ? 'Já existe um pedido de atendimento em aberto para esta solicitação.'
+          : 'Pedido de atendimento enviado ao prestador responsável.');
+      } else if (action === 'acknowledge_support') {
+        toast.success('Atendimento assumido. O cliente foi avisado no Portal.');
+      } else if (action === 'resolve_support') {
+        toast.success('Atendimento marcado como concluído.');
       } else {
         toast.success('Ordem de serviço atualizada.');
       }
@@ -213,6 +239,19 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
     if (!order) return;
     setConsentRevocationOrder(null);
     await runOrderAction(order, 'revoke_client_consent');
+  };
+
+  const submitSupportRequest = async () => {
+    const order = supportRequestOrder;
+    const message = supportMessage.trim();
+    if (!order) return;
+    if (message.length < 10) {
+      toast.error('Descreva o que você precisa em pelo menos 10 caracteres.');
+      return;
+    }
+    setSupportRequestOrder(null);
+    setSupportMessage('');
+    await runOrderAction(order, 'request_support', { message });
   };
 
   const isOperator = (order: ServiceOrder) => order.scope && order.scope !== 'beneficiary';
@@ -303,6 +342,10 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
               const installationAccess = installationAccessByOrder[order.id];
               const emailDeliveryLabel = getEmailDeliveryLabel(order.email_delivery);
               const canRetryFailedEmails = isPlatformOwner && Boolean(order.email_delivery?.failed);
+              const supportRequest = order.support_request || null;
+              const canRequestSupport = order.scope === 'beneficiary' && (!supportRequest || supportRequest.status === 'resolved');
+              const canAcknowledgeSupport = operator && supportRequest?.status === 'open';
+              const canResolveSupport = operator && ['open', 'acknowledged'].includes(supportRequest?.status || '');
 
               return (
                 <article key={order.id} className="p-5 sm:p-7">
@@ -321,10 +364,19 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
                       {operator && order.status === 'paid' && !order.beneficiary_license_ready && (
                         <p className="mt-3 inline-flex items-center gap-2 text-xs text-amber-300"><ShieldAlert className="h-4 w-4" /> O cliente precisa ativar uma licença no Portal antes da aprovação.</p>
                       )}
+                      {!operator && order.status === 'paid' && (
+                        <p className="mt-3 inline-flex items-center gap-2 text-xs text-amber-200"><Clock3 className="h-4 w-4" /> O prestador está preparando sua autorização. Você será avisado quando puder autorizar.</p>
+                      )}
                       {emailDeliveryLabel && (
                         <p className={`mt-3 inline-flex items-center gap-2 text-xs ${emailDeliveryLabel.tone}`}>
                           <RefreshCw className="h-4 w-4" /> {emailDeliveryLabel.label}
                         </p>
+                      )}
+                      {supportRequest && (
+                        <div className="mt-4 max-w-2xl rounded-xl border border-sky-300/15 bg-sky-300/5 p-3 text-xs text-sky-100/90">
+                          <div className="flex items-center gap-2 font-bold text-sky-200"><MessageCircleMore className="h-4 w-4" /> {supportStatusLabels[supportRequest.status] || 'Atendimento atualizado'}</div>
+                          <p className="mt-2 leading-relaxed text-sky-100/75">{supportRequest.message}</p>
+                        </div>
                       )}
                     </div>
 
@@ -342,6 +394,21 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
                       {canReviewApproval && (
                         <button disabled={busy} onClick={() => navigate(`/service-approval/${encodeURIComponent(order.id)}`)} className="action-button bg-primary text-white hover:bg-primary/80">
                           <UserRoundCheck className="h-4 w-4" /> Revisar aprovação
+                        </button>
+                      )}
+                      {canRequestSupport && (
+                        <button disabled={busy} onClick={() => { setSupportMessage(''); setSupportRequestOrder(order); }} className="action-button bg-sky-300/15 text-sky-100 hover:bg-sky-300/25">
+                          <MessageCircleMore className="h-4 w-4" /> Preciso de ajuda
+                        </button>
+                      )}
+                      {canAcknowledgeSupport && (
+                        <button disabled={busy} onClick={() => void runOrderAction(order, 'acknowledge_support')} className="action-button bg-sky-300 text-sky-950 hover:bg-sky-200">
+                          <MessageCircleMore className="h-4 w-4" /> Assumir atendimento
+                        </button>
+                      )}
+                      {canResolveSupport && (
+                        <button disabled={busy} onClick={() => void runOrderAction(order, 'resolve_support')} className="action-button bg-white/10 text-sky-100 hover:bg-white/15">
+                          <CheckCircle2 className="h-4 w-4" /> Concluir atendimento
                         </button>
                       )}
                       {canAssign && isPlatformOwner && (
@@ -391,6 +458,30 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
           </div>
         )}
       </div>
+
+      {supportRequestOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-5 backdrop-blur-sm" role="presentation">
+          <section role="dialog" aria-modal="true" aria-labelledby="support-request-title" className="w-full max-w-lg rounded-[2rem] border border-sky-300/20 bg-[#11111a] p-6 shadow-2xl shadow-black/60 sm:p-7">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-300/10 text-sky-200"><MessageCircleMore className="h-6 w-6" /></div>
+            <h3 id="support-request-title" className="mt-5 text-xl font-display font-black uppercase italic text-white">Solicitar atendimento</h3>
+            <p className="mt-3 text-sm leading-relaxed text-gray-300">Descreva sua dúvida sobre este serviço. O pedido será enviado ao prestador responsável e ficará registrado no Portal.</p>
+            <textarea
+              value={supportMessage}
+              onChange={(event) => setSupportMessage(event.target.value.slice(0, 1200))}
+              minLength={10}
+              maxLength={1200}
+              rows={5}
+              placeholder="Ex.: Tenho uma dúvida sobre os próximos passos da instalação."
+              className="mt-5 w-full resize-y rounded-xl border border-white/10 bg-black/25 px-4 py-3 text-sm text-white outline-none placeholder:text-gray-600 focus:border-sky-300/50"
+            />
+            <p className="mt-2 text-right text-[10px] font-bold text-gray-500">{supportMessage.trim().length}/1200</p>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <button type="button" onClick={() => { setSupportRequestOrder(null); setSupportMessage(''); }} className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-200 transition hover:bg-white/10">Voltar</button>
+              <button type="button" onClick={() => void submitSupportRequest()} className="rounded-xl bg-sky-300 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-sky-950 transition hover:bg-sky-200">Enviar pedido</button>
+            </div>
+          </section>
+        </div>
+      )}
 
       {consentRevocationOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-5 backdrop-blur-sm" role="presentation">
