@@ -2,6 +2,10 @@ import {
   buildCentralControlPlaneTrustHeaders,
   getCentralControlPlaneHmacKey,
 } from '../api/_central-control-plane-trust.js';
+import {
+  buildCentralInstallationTrustHeaders,
+  getCentralInstallationTrustConfig,
+} from '../api/_central-installation-trust.js';
 
 const OFFICIAL_CENTRAL_API_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co/functions/v1';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -42,7 +46,8 @@ export async function upsertPaidCentralServiceOrder(
   input: PaidServiceOrderInput,
 ): Promise<PaidServiceOrderResult> {
   const controlPlaneHmacKey = getCentralControlPlaneHmacKey();
-  if (!controlPlaneHmacKey) {
+  const installationTrust = controlPlaneHmacKey ? null : getCentralInstallationTrustConfig();
+  if (!controlPlaneHmacKey && !installationTrust) {
     throw new Error('Missing private Central trust credential for service-order creation.');
   }
 
@@ -64,12 +69,19 @@ export async function upsertPaidCentralServiceOrder(
       deduplication_key: input.deduplicationKey,
     },
   });
-  const trustHeaders = buildCentralControlPlaneTrustHeaders({
-    key: controlPlaneHmacKey,
-    method: 'POST',
-    endpoint: 'service-orders',
-    rawBody,
-  });
+  const trustHeaders = controlPlaneHmacKey
+    ? buildCentralControlPlaneTrustHeaders({
+      key: controlPlaneHmacKey,
+      method: 'POST',
+      endpoint: 'service-orders',
+      rawBody,
+    })
+    : buildCentralInstallationTrustHeaders({
+      config: installationTrust!,
+      method: 'POST',
+      endpoint: 'service-orders',
+      rawBody,
+    });
 
   let response: Response;
   try {
