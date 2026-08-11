@@ -30,6 +30,7 @@ type ServiceOrder = {
   beneficiary_name?: string | null;
   beneficiary_email?: string | null;
   beneficiary_license_ready?: boolean;
+  approval_token_expires_at?: string | null;
   installation_access_issued_at?: string | null;
   installation_access_expires_at?: string | null;
   target_installation_id?: string | null;
@@ -260,7 +261,13 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
               const canReviewApproval = order.scope === 'beneficiary' && order.status === 'awaiting_client_approval';
               const canCancelRequest = order.scope === 'beneficiary' && ['paid', 'awaiting_client_approval'].includes(order.status);
               const canRevoke = order.scope === 'beneficiary' && ['approved', 'assigned', 'in_progress'].includes(order.status);
-              const canRequestNewApproval = operator && order.status === 'rejected';
+              const approvalExpired = order.status === 'awaiting_client_approval'
+                && order.client_approval_status === 'pending'
+                && new Date(order.approval_token_expires_at || 0).getTime() <= Date.now();
+              const canRequestNewApproval = operator
+                && ((order.status === 'rejected' && order.client_approval_status === 'rejected')
+                  || (order.status === 'cancelled' && order.client_approval_status === 'pending')
+                  || approvalExpired);
               const canAssign = operator && order.status === 'approved' && (isPlatformOwner || hasPartnerAccess);
               const canStart = operator && order.status === 'assigned' && (isPlatformOwner || order.scope === 'provider');
               const canIssueInstallationAccess = operator && order.status === 'in_progress' && !order.installation_ready && (isPlatformOwner || order.scope === 'provider');
