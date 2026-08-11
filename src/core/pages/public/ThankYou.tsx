@@ -154,6 +154,16 @@ function getOrderUpgradePlanSlugs(order: Order | null): string[] {
   ].map((slug) => normalizeCatalogPlanSlug(slug)).filter(Boolean) as string[];
 }
 
+function isSystemUpgradeDeliverable(deliverable: OrderDeliverable) {
+  return deliverable.source === 'system_upgrade_entitlement'
+    || deliverable.label === 'Upgrade aplicado automaticamente';
+}
+
+function isInstallationServiceDeliverable(deliverable: OrderDeliverable) {
+  return deliverable.source === 'installation_service_order'
+    || deliverable.label === 'Solicitacao de instalacao recebida';
+}
+
 function buildCurrentUrl(params: URLSearchParams) {
   const query = params.toString();
   return `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`;
@@ -467,14 +477,7 @@ export const ThankYou = () => {
   const displayLocale = resolveDisplayLocale(i18n.language, displayCurrency);
   const actionableDeliverables = deliverables.filter((deliverable) => deliverable.status === 'available' && deliverable.url);
   const missingDeliverables = deliverables.filter((deliverable) => deliverable.status !== 'available' || !deliverable.url);
-  const hasAutomaticSystemUpgrade = missingDeliverables.some((deliverable) =>
-    deliverable.source === 'system_upgrade_entitlement'
-      || deliverable.label === 'Upgrade aplicado automaticamente'
-  );
-  const hasInstallationServiceOrder = missingDeliverables.some((deliverable) =>
-    deliverable.source === 'installation_service_order'
-      || deliverable.label === 'Solicitacao de instalacao recebida'
-  );
+  const hasInstallationServiceOrder = missingDeliverables.some(isInstallationServiceDeliverable);
   const upgradePlanSlugs = Array.from(new Set([
     ...effectiveOrders.flatMap((entry) => getOrderUpgradePlanSlugs(entry)),
     ...missingDeliverables.map((deliverable) => String(deliverable.plan_slug || '').trim().toLowerCase()),
@@ -625,26 +628,49 @@ export const ThankYou = () => {
               </div>
             )}
 
-            {!isAwaitingConfirmation && missingDeliverables.length > 0 && actionableDeliverables.length === 0 && (
-              <div className="max-w-lg mx-auto mb-8 rounded-xl border border-amber-100 bg-amber-50 p-4 text-left">
-                <p className="text-sm font-bold text-amber-900">
-                  {hasAutomaticSystemUpgrade
-                    ? hasPartnerPlanUpgrade
-                      ? t('thank_you.partner_upgrade_delivery_title', 'Plano Parceiro sendo liberado')
-                      : t('thank_you.upgrade_delivery_title', 'Recursos Ilimitados sendo liberados')
-                    : hasInstallationServiceOrder
-                      ? t('thank_you.installation_service_title', 'Solicitacao de instalacao recebida')
-                    : t('thank_you.delivery_pending_title', 'Entrega em processamento')}
-                </p>
-                <p className="text-xs text-amber-800 mt-1">
-                  {hasAutomaticSystemUpgrade
-                    ? hasPartnerPlanUpgrade
-                      ? t('thank_you.partner_upgrade_delivery_desc', 'Seu pagamento foi aprovado e o Plano Parceiro esta sendo liberado automaticamente na conta vinculada. Acesse o Portal para explorar sua oportunidade comercial, oferecer instalacoes e gerar receita com seus servicos.')
-                      : t('thank_you.upgrade_delivery_desc', 'Seu pagamento foi aprovado e os Recursos Ilimitados estao sendo liberados automaticamente na conta vinculada. Volte ao sistema, atualize a pagina e, se o acesso ainda nao aparecer, fale com o suporte.')
-                    : hasInstallationServiceOrder
-                      ? t('thank_you.installation_service_desc', 'Seu pagamento foi confirmado. Nossa equipe entrara em contato por e-mail para alinhar os dados necessarios e iniciar a instalacao.')
-                    : t('thank_you.delivery_pending_desc', 'Seu pagamento foi aprovado, mas este produto ainda nao possui entrega automatica configurada. Verifique seu e-mail ou fale com o suporte.')}
-                </p>
+            {!isAwaitingConfirmation && missingDeliverables.length > 0 && (
+              <div className="max-w-lg mx-auto mb-8 text-left">
+                <div className="mb-3">
+                  <h2 className="text-sm font-bold text-gray-900">
+                    {t('thank_you.order_outcomes_title', 'Entregas deste pedido')}
+                  </h2>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {t('thank_you.order_outcomes_desc', 'Cada item segue o seu próprio fluxo de liberação e acompanhamento.')}
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  {missingDeliverables.map((deliverable) => {
+                    const isSystemUpgrade = isSystemUpgradeDeliverable(deliverable);
+                    const isInstallationService = isInstallationServiceDeliverable(deliverable);
+                    const deliverablePlanSlug = normalizeCatalogPlanSlug(String(deliverable.plan_slug || '').trim());
+                    const isPartnerUpgrade = isSystemUpgrade && (
+                      deliverablePlanSlug === 'saas'
+                      || (!deliverablePlanSlug && hasPartnerPlanUpgrade)
+                    );
+                    const title = isSystemUpgrade
+                      ? isPartnerUpgrade
+                        ? t('thank_you.partner_upgrade_delivery_title', 'Plano Parceiro sendo liberado')
+                        : t('thank_you.upgrade_delivery_title', 'Recursos Ilimitados sendo liberados')
+                      : isInstallationService
+                        ? t('thank_you.installation_service_title', 'Solicitacao de instalacao recebida')
+                        : t('thank_you.delivery_pending_title', 'Entrega em processamento');
+                    const description = isSystemUpgrade
+                      ? isPartnerUpgrade
+                        ? t('thank_you.partner_upgrade_delivery_desc', 'Seu pagamento foi aprovado e o Plano Parceiro esta sendo liberado automaticamente na conta vinculada. Acesse o Portal para explorar sua oportunidade comercial, oferecer instalacoes e gerar receita com seus servicos.')
+                        : t('thank_you.upgrade_delivery_desc', 'Seu pagamento foi aprovado e os Recursos Ilimitados estao sendo liberados automaticamente na conta vinculada. Volte ao sistema, atualize a pagina e, se o acesso ainda nao aparecer, fale com o suporte.')
+                      : isInstallationService
+                        ? t('thank_you.installation_service_desc', 'Seu pagamento foi confirmado. Quando o prestador preparar o servico, voce recebera uma solicitacao de autorizacao no Portal e por e-mail.')
+                        : deliverable.instructions || t('thank_you.delivery_pending_desc', 'Seu pagamento foi aprovado, mas este produto ainda nao possui entrega automatica configurada. Verifique seu e-mail ou fale com o suporte.');
+
+                    return (
+                      <div key={deliverable.id} className="rounded-xl border border-amber-100 bg-amber-50 p-4">
+                        <p className="text-sm font-bold text-amber-900">{title}</p>
+                        <p className="text-xs text-amber-800 mt-1">{description}</p>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
 
