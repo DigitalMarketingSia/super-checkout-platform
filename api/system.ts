@@ -669,7 +669,7 @@ async function autoLoginHandler(req: VercelRequest, res: VercelResponse) {
 }
 
 async function resendOrderAccessHandler(req: VercelRequest, res: VercelResponse) {
-  const corsAllowed = applyPublicCors(req, res);
+  const corsAllowed = applyMemberCors(req, res);
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
