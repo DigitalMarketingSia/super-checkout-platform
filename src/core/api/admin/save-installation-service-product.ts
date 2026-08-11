@@ -1,10 +1,15 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { enforceApiRateLimit } from '../_rate-limit.js';
 import { logAuthzEvent, requireApiAuth } from '../_authz.js';
+import {
+  buildCentralInstallationTrustHeaders,
+  getCentralInstallationTrustConfig,
+} from '../_central-installation-trust.js';
 import { normalizeCatalogPlanSlug, SYSTEM_INSTALLATION_SERVICE } from '../../services/productCatalog.js';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const INSTALLATION_SERVICE_PRODUCT_TYPE = 'installation_service';
+const OFFICIAL_CENTRAL_API_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co/functions/v1';
 
 function parseBody(req: VercelRequest): Record<string, unknown> {
   if (!req.body) return {};
@@ -96,51 +101,64 @@ function parseConfigValue(value: unknown) {
   }
 }
 
-function getSelfOrigin(req: VercelRequest) {
-  const deploymentHost = String(process.env.VERCEL_URL || '').trim().toLowerCase();
-  if (/^[a-z0-9.-]+\.vercel\.app$/i.test(deploymentHost)) return `https://${deploymentHost}`;
-
-  if (process.env.NODE_ENV !== 'production') {
-    const requestHost = Array.isArray(req.headers.host) ? req.headers.host[0] : req.headers.host;
-    if (/^(localhost|127\.0\.0\.1)(:\d+)?$/i.test(String(requestHost || ''))) {
-      return `http://${requestHost}`;
-    }
-  }
-
-  return '';
+function resolveCentralApiUrl() {
+  return String(
+    process.env.CENTRAL_API_URL
+    || process.env.VITE_CENTRAL_API_URL
+    || process.env.NEXT_PUBLIC_CENTRAL_API_URL
+    || OFFICIAL_CENTRAL_API_URL,
+  ).replace(/\/+$/, '');
 }
 
 function isPartnerEntitlement(payload: any) {
-  const plan = normalizeCatalogPlanSlug(payload?.plan_slug);
-  const partnerRights = payload?.features?.partner_rights;
+  const plan = normalizeCatalogPlanSlug(payload?.plan_slug || payload?.license?.plan);
+  const partnerRights = payload?.features?.partner_rights
+    ?? payload?.features?.FEATURE_PARTNER_PANEL
+    ?? payload?.limits?.partner_rights;
   return ['saas', 'partner', 'upgrade_partner'].includes(plan)
     || partnerRights === true
     || partnerRights === 'true'
     || partnerRights === 'unlimited';
 }
 
-async function resolvePartnerEntitlement(req: VercelRequest, token: string) {
-  const origin = getSelfOrigin(req);
-  if (!origin) throw new Error('A verificacao de entitlement exige um deployment Vercel configurado.');
-
-  const response = await fetch(`${origin}/api/central-proxy?endpoint=check-entitlement`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ action: 'resolve_all' }),
-  });
-  const payload = await response.json().catch(() => ({}));
-
-  if (!response.ok || !isPartnerEntitlement(payload)) {
-    return { allowed: false, plan: String(payload?.plan_slug || '').trim().toLowerCase() || null };
+async function resolvePartnerEntitlement(installationId: string) {
+  let trustConfig;
+  try {
+    trustConfig = getCentralInstallationTrustConfig();
+  } catch (error: any) {
+    return { allowed: false, plan: null, failure: error?.message || 'installation_trust_invalid' };
+  }
+  if (!trustConfig) return { allowed: false, plan: null, failure: 'installation_trust_missing' };
+  if (trustConfig.installationId !== installationId) {
+    return { allowed: false, plan: null, failure: 'installation_trust_mismatch' };
   }
 
-  return { allowed: true, plan: String(payload?.plan_slug || '').trim().toLowerCase() };
+  const rawBody = JSON.stringify({ action: 'resolve_all' });
+  const headers = buildCentralInstallationTrustHeaders({
+    config: trustConfig,
+    method: 'POST',
+    endpoint: 'check-entitlement',
+    rawBody,
+  });
+
+  try {
+    const response = await fetch(`${resolveCentralApiUrl()}/check-entitlement`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...headers },
+      body: rawBody,
+    });
+    const payload = await response.json().catch(() => ({}));
+    const plan = normalizeCatalogPlanSlug(payload?.plan_slug || payload?.license?.plan) || null;
+    if (!response.ok) {
+      return { allowed: false, plan, failure: `central_entitlement_http_${response.status}` };
+    }
+    return { allowed: isPartnerEntitlement(payload), plan, failure: null };
+  } catch {
+    return { allowed: false, plan: null, failure: 'central_entitlement_unreachable' };
+  }
 }
 
-async function resolveInstallationAccountId(supabaseAdmin: any) {
+async function resolveInstallationContext(supabaseAdmin: any) {
   const { data: config, error: configError } = await supabaseAdmin
     .from('app_config')
     .select('value')
@@ -167,7 +185,8 @@ async function resolveInstallationAccountId(supabaseAdmin: any) {
   if (licenseError) throw licenseError;
   if (String(license?.status || '').toLowerCase() !== 'active') return null;
 
-  return String(license?.account_id || '').trim() || null;
+  const accountId = String(license?.account_id || '').trim();
+  return accountId ? { installationId, accountId } : null;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -208,12 +227,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .maybeSingle();
     if (accountError) throw accountError;
 
-    const installationAccountId = await resolveInstallationAccountId(auth.supabaseAdmin);
+    const installationContext = await resolveInstallationContext(auth.supabaseAdmin);
     if (
       !account?.id
       || String(account.status || '').toLowerCase() !== 'active'
-      || !installationAccountId
-      || installationAccountId !== String(account.id)
+      || !installationContext
+      || installationContext.accountId !== String(account.id)
     ) {
       await logAuthzEvent({
         supabaseAdmin: auth.supabaseAdmin,
@@ -227,17 +246,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(403).json({ error: 'A conta atual nao corresponde a licenca desta instalacao.' });
     }
 
-    const entitlement = await resolvePartnerEntitlement(req, auth.token);
+    const entitlement = await resolvePartnerEntitlement(installationContext.installationId);
     if (!entitlement.allowed) {
       await logAuthzEvent({
         supabaseAdmin: auth.supabaseAdmin,
         req,
         source: 'admin_save_installation_service_product',
         eventType: 'installation_service_write_rejected',
-        severity: 'WARNING',
+        severity: entitlement.failure ? 'CRITICAL' : 'WARNING',
         userId: auth.user.id,
-        metadata: { product_id: productId, reason: 'partner_entitlement_missing', plan: entitlement.plan },
+        metadata: {
+          product_id: productId,
+          reason: entitlement.failure || 'partner_entitlement_missing',
+          plan: entitlement.plan,
+        },
       });
+      if (entitlement.failure) {
+        return res.status(503).json({ error: 'Nao foi possivel confirmar seu Plano Parceiro no Central. Tente novamente em instantes.' });
+      }
       return res.status(403).json({ error: 'Seu Plano Parceiro ativo e obrigatorio para criar servicos de instalacao.' });
     }
 
