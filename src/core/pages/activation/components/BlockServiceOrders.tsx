@@ -274,7 +274,7 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
                 && new Date(order.approval_token_expires_at || 0).getTime() <= Date.now();
               const canRequestNewApproval = operator
                 && ((order.status === 'rejected' && order.client_approval_status === 'rejected')
-                  || (order.status === 'cancelled' && order.client_approval_status === 'pending')
+                  || (order.status === 'cancelled' && ['pending', 'revoked'].includes(order.client_approval_status))
                   || approvalExpired);
               const canAssign = operator && order.status === 'approved' && (isPlatformOwner || hasPartnerAccess);
               const canStart = operator && order.status === 'assigned' && (isPlatformOwner || order.scope === 'provider');
