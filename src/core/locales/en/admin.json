@@ -2844,6 +2844,7 @@
     "no_system_installed": "No system installed.",
     "lifetime_batch": "Lifetime batch",
     "activate_features": "Activate features",
+    "view_order": "View order",
     "brand_protection_title": "Brand protection and support",
     "brand_protection_description": "In case of support abandonment or poor technical conduct with referred clients, the partner license may be suspended or revoked by the platform after review.",
     "modules_management_title": "Module management: {{name}}",
@@ -2868,6 +2869,7 @@
     },
     "toasts": {
       "load_error": "Error loading partner data.",
+      "access_denied": "Your account cannot access the installation ecosystem.",
       "link_copied": "Link copied to the clipboard!",
       "features_load_error": "Error loading features: {{message}}",
       "feature_updated": "Feature updated in the central database!",

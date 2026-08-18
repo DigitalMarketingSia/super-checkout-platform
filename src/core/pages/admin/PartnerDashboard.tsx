@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router';
 import { Layout } from '../../components/Layout';
 import {
     Users,
@@ -13,7 +14,6 @@ import {
     ShieldCheck,
     Crown,
     Zap,
-    Settings,
     Rocket,
     MoreVertical,
     Link as LinkIcon,
@@ -27,27 +27,26 @@ import { centralSupabase } from '../../services/centralClient';
 import { useAuth } from '../../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
+import {
+    CentralInstallationEcosystemError,
+    listInstallationEcosystem,
+    type InstallationEcosystemItem,
+} from '../../services/centralInstallationEcosystem';
 import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
-import { licenseService, LicenseFeature } from '../../services/licenseService';
+import { licenseService } from '../../services/licenseService';
 import { supabase } from '../../services/supabase';
 import { getInstallerUrl, getRegisterUrl } from '../../config/platformUrls';
 
 export const PartnerDashboard = () => {
     const { profile, user } = useAuth();
     const { t, i18n } = useTranslation('admin');
+    const navigate = useNavigate();
     const [stats, setStats] = useState({ clients: 0, installations: 0 });
-    const [clients, setClients] = useState<any[]>([]); // Installations
+    const [clients, setClients] = useState<InstallationEcosystemItem[]>([]); // Authorized ecosystem rows
     const [leads, setLeads] = useState<any[]>([]); // Referred Profiles
     const [loading, setLoading] = useState(true);
     
-    // Manage Features Modal
-    const [isFeaturesModalOpen, setIsFeaturesModalOpen] = useState(false);
-    const [features, setFeatures] = useState<LicenseFeature[]>([]);
-    const [loadingFeatures, setLoadingFeatures] = useState(false);
-    const [selectedLicenseKey, setSelectedLicenseKey] = useState<string | null>(null);
-    const [selectedClientName, setSelectedClientName] = useState<string | null>(null);
-
     // Create/Install Modal
     const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
     const [selectedLead, setSelectedLead] = useState<any>(null);
@@ -90,28 +89,17 @@ export const PartnerDashboard = () => {
                     .eq('referred_by_partner_id', centralUserId)
                     .order('created_at', { ascending: false });
 
-                // 3. Fetch INSTALLATIONS
-                const { data: instData, count: instCount } = await centralSupabase
-                    .from('installations')
-                    .select('id, domain, status, installed_at, account_id, license_key')
-                    .eq('installed_by_partner_id', centralUserId);
+                // 3. Fetch the same server-side read model used by the Portal.
+                // The admin surface must not fall back to a legacy installation
+                // table filter or receive license secrets in the browser.
+                const ecosystem = await listInstallationEcosystem({ page: 1, page_size: 50 });
 
                 setStats({
                     clients: leadCount || 0,
-                    installations: instCount || 0
+                    installations: ecosystem.summary.total
                 });
 
-                if (instData) {
-                    const enrichedInst = instData.map(inst => ({
-                        ...inst,
-                        profiles: leadData?.find(l => l.id === inst.account_id) || {
-                            id: inst.account_id,
-                            full_name: t('partner_dashboard.unknown_user'),
-                            email: 'N/A'
-                        }
-                    }));
-                    setClients(enrichedInst);
-                }
+                setClients(ecosystem.items);
 
                 if (leadData) {
                     setLeads(leadData);
@@ -119,7 +107,11 @@ export const PartnerDashboard = () => {
 
             } catch (error) {
                 console.error('Error fetching partner data:', error);
-                toast.error(t('partner_dashboard.toasts.load_error'));
+                if (error instanceof CentralInstallationEcosystemError && error.kind === 'access_denied') {
+                    toast.error(t('partner_dashboard.toasts.access_denied'));
+                } else {
+                    toast.error(t('partner_dashboard.toasts.load_error'));
+                }
             } finally {
                 setLoading(false);
             }
@@ -131,51 +123,6 @@ export const PartnerDashboard = () => {
     const copyToClipboard = (text: string) => {
         navigator.clipboard.writeText(text);
         toast.success(t('partner_dashboard.toasts.link_copied'));
-    };
-
-    const handleViewFeatures = async (licenseKey: string, clientName: string) => {
-        setSelectedLicenseKey(licenseKey);
-        setSelectedClientName(clientName);
-        setIsFeaturesModalOpen(true);
-        setLoadingFeatures(true);
-        try {
-            const data = await licenseService.getLicenseFeatures(licenseKey);
-            
-            const defaultPatterns = [
-                { key: 'UNLIMITED_DOMAINS', label: t('partner_dashboard.features.unlimited_domains') },
-                { key: 'FEATURE_PARTNER_PANEL', label: t('partner_dashboard.features.partner_panel') },
-                { key: 'FEATURE_CRM_LEADS', label: t('partner_dashboard.features.crm_leads') }
-            ];
-
-            const mergedFeatures = defaultPatterns.map(p => {
-                const existing = data.find(f => f.feature_key === p.key);
-                return {
-                    id: existing?.id || '',
-                    license_key: licenseKey,
-                    feature_key: p.key,
-                    label: p.label,
-                    is_enabled: existing?.is_enabled || false,
-                    settings: existing?.settings || {}
-                } as any;
-            });
-
-            setFeatures(mergedFeatures);
-        } catch (error: any) {
-            toast.error(t('partner_dashboard.toasts.features_load_error', { message: error.message }));
-        } finally {
-            setLoadingFeatures(false);
-        }
-    };
-
-    const handleToggleFeature = async (featureKey: string, isEnabled: boolean) => {
-        if (!selectedLicenseKey) return;
-        try {
-            await licenseService.toggleLicenseFeature(selectedLicenseKey, featureKey, isEnabled);
-            setFeatures(prev => prev.map(f => f.feature_key === featureKey ? { ...f, is_enabled: isEnabled } : f));
-            toast.success(t('partner_dashboard.toasts.feature_updated'));
-        } catch (error: any) {
-            toast.error(t('partner_dashboard.toasts.feature_update_error', { message: error.message }));
-        }
     };
 
     const handleStartInstall = (lead: any) => {
@@ -361,7 +308,7 @@ export const PartnerDashboard = () => {
                                     </tr>
                                 ) : (
                                     leads.map((lead) => {
-                                        const isInstalled = clients.some(c => c.profiles?.id === lead.id);
+                                        const isInstalled = clients.some(c => c.beneficiary.id === lead.id);
                                         return (
                                             <tr key={lead.id} className="hover:bg-white/[0.02] transition-colors group">
                                                 <td className="px-8 py-6">
@@ -448,7 +395,7 @@ export const PartnerDashboard = () => {
                                     </tr>
                                 ) : (
                                     clients.map((client) => (
-                                        <tr key={client.id} className="hover:bg-white/[0.02] transition-colors group">
+                                        <tr key={`${client.installation_id}-${client.service_order_id}`} className="hover:bg-white/[0.02] transition-colors group">
                                             <td className="px-8 py-6">
                                                 <div className="flex flex-col">
                                                     <div className="flex items-center gap-2">
@@ -457,7 +404,7 @@ export const PartnerDashboard = () => {
                                                             <ArrowUpRight className="w-3 h-3" />
                                                         </a>
                                                     </div>
-                                                    <span className="text-[11px] text-gray-500 font-medium">{client.profiles?.full_name}</span>
+                                                    <span className="text-[11px] text-gray-500 font-medium">{client.beneficiary.name}</span>
                                                 </div>
                                             </td>
                                             <td className="px-8 py-6 text-xs text-gray-400">
@@ -467,13 +414,22 @@ export const PartnerDashboard = () => {
                                                 </div>
                                             </td>
                                             <td className="px-8 py-6 text-right">
-                                                <button
-                                                    onClick={() => handleViewFeatures(client.license_key, client.profiles?.full_name)}
-                                                    className="inline-flex items-center gap-2 px-4 py-2 bg-orange-500/5 hover:bg-orange-500 text-orange-400 hover:text-white border border-orange-500/20 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest group/btn active:scale-95"
-                                                >
-                                                    <Zap className="w-3 h-3 group-hover/btn:animate-pulse" />
-                                                    {t('partner_dashboard.activate_features')}
-                                                </button>
+                                                <div className="flex flex-wrap justify-end gap-2">
+                                                    <button
+                                                        onClick={() => navigate(`/activate/setup?tab=services&order_id=${encodeURIComponent(client.service_order_id)}`)}
+                                                        className="inline-flex items-center gap-2 px-4 py-2 bg-orange-500/5 hover:bg-orange-500 text-orange-400 hover:text-white border border-orange-500/20 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest group/btn active:scale-95"
+                                                    >
+                                                        <ArrowUpRight className="w-3 h-3 group-hover/btn:animate-pulse" />
+                                                        {t('partner_dashboard.view_order')}
+                                                    </button>
+                                                    <button
+                                                        onClick={() => navigate(`/admin/system-licenses?search=${encodeURIComponent(client.beneficiary.email || client.beneficiary.name)}`)}
+                                                        className="inline-flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/10 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest active:scale-95"
+                                                    >
+                                                        <Zap className="w-3 h-3" />
+                                                        {t('partner_dashboard.activate_features')}
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))
@@ -497,64 +453,6 @@ export const PartnerDashboard = () => {
                         </div>
                     </div>
                 </div>
-
-                {/* MODAL: Gerenciar Recursos (Flags) */}
-                <Modal
-                    isOpen={isFeaturesModalOpen}
-                    onClose={() => setIsFeaturesModalOpen(false)}
-                    title={t('partner_dashboard.modules_management_title', {
-                        name: selectedClientName || t('partner_dashboard.default_client_name'),
-                    })}
-                >
-                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                        <div className="bg-gradient-to-r from-orange-500/10 to-transparent border border-orange-500/20 p-5 rounded-[1.5rem] flex items-start gap-4 backdrop-blur-sm">
-                            <Zap className="w-6 h-6 text-orange-400 shrink-0" />
-                            <p className="text-orange-200/70 text-sm leading-relaxed font-medium">
-                                {t('partner_dashboard.modules_management_description')}
-                            </p>
-                        </div>
-
-                        {loadingFeatures ? (
-                            <div className="flex flex-col items-center justify-center p-12 gap-4">
-                                <RefreshCw className="w-8 h-8 animate-spin text-orange-500/40" />
-                                <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{t('partner_dashboard.syncing_central')}</span>
-                            </div>
-                        ) : (
-                            <div className="space-y-3">
-                                {features.map((feat) => (
-                                    <div key={feat.feature_key} className="flex items-center justify-between p-5 bg-white/5 border border-white/5 rounded-[1.25rem] hover:bg-white/[0.08] transition-all group">
-                                        <div className="flex items-center gap-4">
-                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${feat.is_enabled ? 'bg-orange-500/20 text-orange-400 shadow-[0_0_15px_rgba(249,115,22,0.2)]' : 'bg-gray-500/10 text-gray-600'}`}>
-                                                <Settings className="w-5 h-5" />
-                                            </div>
-                                            <div>
-                                                <div className="text-white font-black tracking-tight">{(feat as any).label}</div>
-                                                <div className="text-[9px] text-gray-500 font-black uppercase tracking-widest">{feat.feature_key}</div>
-                                            </div>
-                                        </div>
-                                        
-                                        <label className="relative inline-flex items-center cursor-pointer group/toggle">
-                                            <input 
-                                                type="checkbox" 
-                                                className="sr-only peer"
-                                                checked={feat.is_enabled}
-                                                onChange={(e) => handleToggleFeature(feat.feature_key, e.target.checked)}
-                                            />
-                                            <div className="w-12 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-6 rtl:peer-checked:after:-translate-x-6 peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:start-[4px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-orange-500 shadow-inner group-hover/toggle:ring-4 group-hover/toggle:ring-orange-500/10"></div>
-                                        </label>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                        <Button 
-                            variant="outline" 
-                            onClick={() => setIsFeaturesModalOpen(false)} 
-                            className="w-full bg-white/5 border-white/10 hover:bg-white/10 text-white font-black py-4 rounded-xl uppercase text-xs tracking-widest transition-all"
-                        >
-                            {t('partner_dashboard.finish_management')}
-                        </Button>
-                    </div>
-                </Modal>
 
                 {/* MODAL: Iniciar Instalação */}
                 <Modal

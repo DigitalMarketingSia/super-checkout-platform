@@ -5,15 +5,55 @@ import { useTranslation } from 'react-i18next';
 import { GenerateLicenseGate } from './GenerateLicenseGate';
 
 interface BlockLicenseProps {
-    license: License;
+    license: License | null;
     isUnlimited?: boolean;
+    isPlatformOwner?: boolean;
+    licenseLoadError?: string | null;
     userName?: string;
     onRefresh?: () => void;
 }
 
-export const BlockLicense: React.FC<BlockLicenseProps> = ({ license, isUnlimited, userName = '', onRefresh }) => {
+export const BlockLicense: React.FC<BlockLicenseProps> = ({ license, isUnlimited, isPlatformOwner = false, licenseLoadError = null, userName = '', onRefresh }) => {
     const { t } = useTranslation('portal');
     const [copied, setCopied] = React.useState(false);
+
+    if (!license && isPlatformOwner) {
+        return (
+            <div className="bg-white/5 border border-primary/20 rounded-[2rem] p-8 backdrop-blur-xl">
+                <h3 className="text-gray-500 text-[10px] font-black uppercase tracking-[0.2em] mb-4">{t('license.title')}</h3>
+                <p className="text-xl font-black text-white font-display italic tracking-tighter">Conta proprietária da plataforma</p>
+                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-gray-400">
+                    O acesso operacional desta conta é reconhecido pela Central e não depende da geração de uma licença gratuita.
+                </p>
+                {licenseLoadError && (
+                    <button
+                        type="button"
+                        onClick={() => onRefresh && onRefresh()}
+                        className="mt-6 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-200 transition hover:bg-white/10"
+                    >
+                        Atualizar dados da licença
+                    </button>
+                )}
+            </div>
+        );
+    }
+
+    if (!license && licenseLoadError) {
+        return (
+            <div className="bg-white/5 border border-amber-400/20 rounded-[2rem] p-8 backdrop-blur-xl">
+                <h3 className="text-gray-500 text-[10px] font-black uppercase tracking-[0.2em] mb-4">{t('license.title')}</h3>
+                <p className="text-lg font-black text-white font-display italic tracking-tighter">Não foi possível consultar os dados de acesso</p>
+                <p className="mt-2 text-sm leading-relaxed text-gray-400">{licenseLoadError}</p>
+                <button
+                    type="button"
+                    onClick={() => onRefresh && onRefresh()}
+                    className="mt-6 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-200 transition hover:bg-white/10"
+                >
+                    Tentar novamente
+                </button>
+            </div>
+        );
+    }
 
     if (!license) {
         return <GenerateLicenseGate userName={userName} onActivated={() => onRefresh && onRefresh()} />;

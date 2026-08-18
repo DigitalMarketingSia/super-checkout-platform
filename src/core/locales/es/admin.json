@@ -2843,6 +2843,7 @@
     "no_system_installed": "No hay ningún sistema instalado.",
     "lifetime_batch": "Lote vitalicio",
     "activate_features": "Activar recursos",
+    "view_order": "Ver orden",
     "brand_protection_title": "Protección de marca y soporte",
     "brand_protection_description": "En caso de abandono del soporte o mala conducta técnica con clientes referidos, la licencia de socio puede ser suspendida o revocada por la plataforma tras el análisis.",
     "modules_management_title": "Gestión de módulos: {{name}}",
@@ -2867,6 +2868,7 @@
     },
     "toasts": {
       "load_error": "Error al cargar los datos del socio.",
+      "access_denied": "Tu cuenta no puede acceder al ecosistema de instalaciones.",
       "link_copied": "¡Enlace copiado al portapapeles!",
       "features_load_error": "Error al cargar los recursos: {{message}}",
       "feature_updated": "¡Recurso actualizado en la base central!",

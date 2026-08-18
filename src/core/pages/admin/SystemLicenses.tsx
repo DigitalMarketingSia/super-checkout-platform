@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router';
 import { Layout } from '../../components/Layout';
 import { supabase } from '../../services/supabase';
 import { Button } from '../../components/ui/Button';
@@ -25,9 +26,10 @@ const isProtectedSystemLicense = (license: License) => {
 
 export const SystemLicenses = () => {
     const { t } = useTranslation('admin');
+    const location = useLocation();
     const [licenses, setLicenses] = useState<License[]>([]);
     const [loading, setLoading] = useState(true);
-    const [search, setSearch] = useState('');
+    const [search, setSearch] = useState(() => new URLSearchParams(location.search).get('search') || '');
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [totalItems, setTotalItems] = useState(0);

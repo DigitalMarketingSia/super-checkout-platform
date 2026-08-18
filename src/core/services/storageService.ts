@@ -19,6 +19,7 @@ import { demoDataService, isDemoDataRuntime } from './demoDataService';
 import { isPublicViewUnavailable } from './publicDataViews';
 import { publicSupabase, supabase } from './supabase';
 import { deriveProductType, normalizeProductCatalogPayload } from './productCatalog';
+import { isLocalHostname } from '../config/runtimeMode';
 export { supabase };
 
 import { User } from '@supabase/supabase-js';
@@ -1061,7 +1062,7 @@ class StorageService {
         || allCheckouts[0]
         || null;
 
-      const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      const isLocalHost = isLocalHostname(window.location.hostname);
       const protocol = isLocalHost ? 'http' : 'https';
 
       let checkout_url = p.redirect_link || '';

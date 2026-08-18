@@ -52,6 +52,26 @@ const MANAGE_LICENSES_SELF_SERVICE_SECRET_ACTIONS = new Set([
     'revoke_installation',
 ]);
 
+const PORTAL_SERVICE_ORDER_ACTIONS = new Set([
+    'list',
+    'list_installation_ecosystem',
+    'list_providers',
+    'retry_failed_emails',
+    'request_approval',
+    'request_new_approval',
+    'request_support',
+    'acknowledge_support',
+    'resolve_support',
+    'assign',
+    'start',
+    'issue_installation_access',
+    'complete',
+    'cancel',
+    'revoke_client_consent',
+    'inspect_approval_session',
+    'decide_approval_session',
+]);
+
 const TRUSTED_PROXY_ENDPOINTS = new Set([
     'account-flags',
     'activate-free-license',
@@ -195,6 +215,7 @@ const ALLOWED_ENDPOINTS = [
     'create-passport-ticket',
     'revoke-passport-ticket',
     'public-plans',
+    'service-orders',
 ];
 
 // CORS Whitelist (Fase 15.1 — Hardening)
@@ -211,7 +232,16 @@ const ALLOWED_ORIGINS = [
     'https://app.supercheckout.app',
     'https://portal.supercheckout.app',
     'https://install.supercheckout.app',
-    ...(process.env.NODE_ENV !== 'production' ? ['http://localhost:3000', 'http://localhost:5173'] : [])
+    ...(process.env.NODE_ENV !== 'production' ? [
+        'http://localhost:3000',
+        'http://localhost:5173',
+        'http://portal.localhost:3000',
+        'http://portal.localhost:5173',
+        'http://app.localhost:3000',
+        'http://app.localhost:5173',
+        'http://install.localhost:3000',
+        'http://install.localhost:5173',
+    ] : [])
 ].filter(Boolean);
 
 const DEV_CENTRAL_API_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co/functions/v1';
@@ -487,7 +517,12 @@ const PORTAL_HOSTS = new Set(
 
 const isLocalHost = (host?: string | null) => {
     const hostname = normalizeHost(host);
-    return hostname === 'localhost' || hostname === '127.0.0.1';
+    return Boolean(
+        hostname === 'localhost'
+        || hostname?.endsWith('.localhost')
+        || hostname === '127.0.0.1'
+        || hostname?.startsWith('127.')
+    );
 };
 
 const isControlPlaneRequest = (req: VercelRequest) => {
@@ -555,7 +590,10 @@ const isPortalRequest = (req: VercelRequest) => {
         getHostnameFromUrl(req.headers.referer as string | undefined),
     ].filter(Boolean) as string[];
 
-    return requestHosts.some((host) => PORTAL_HOSTS.has(host));
+    return requestHosts.some((host) =>
+        PORTAL_HOSTS.has(host)
+        || (process.env.NODE_ENV !== 'production' && isLocalHost(host))
+    );
 };
 
 async function validateJwtWithSupabase(url: string, key: string, jwt: string, label: string) {
@@ -684,6 +722,41 @@ async function resolveLocalAdminAccess(
         return await fetchLocalProfileAccess(localSupabaseUrl, localKey, filters, 'Local profile role', bearerToken);
     } catch (error: any) {
         console.warn(`[Central Proxy] Local profile role lookup exception: ${error?.message || error}`);
+        return { allowed: false, role: null as string | null };
+    }
+}
+
+async function resolveCentralPlatformOwnerAccess(
+    centralSupabaseUrl: string,
+    centralKey: string | undefined,
+    userId: string,
+    userEmail?: string | null,
+    bearerToken?: string,
+) {
+    if (!centralSupabaseUrl || !centralKey || (!userId && !userEmail)) {
+        return { allowed: false, role: null as string | null };
+    }
+
+    try {
+        const filters = [
+            userId ? `id.eq.${encodeURIComponent(userId)}` : '',
+            userEmail ? `email.eq.${encodeURIComponent(String(userEmail).toLowerCase())}` : '',
+        ].filter(Boolean);
+        const profileAccess = await fetchLocalProfileAccess(
+            centralSupabaseUrl,
+            centralKey,
+            filters,
+            'Central platform owner role',
+            bearerToken,
+        );
+        const isPlatformRole = ['owner', 'master_admin'].includes(String(profileAccess.role || '').toLowerCase());
+
+        return {
+            allowed: profileAccess.allowed && isPlatformRole,
+            role: profileAccess.role,
+        };
+    } catch (error: any) {
+        console.warn(`[Central Proxy] Central platform owner lookup exception: ${error?.message || error}`);
         return { allowed: false, role: null as string | null };
     }
 }
@@ -1051,8 +1124,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             userEmail,
             jwt
         );
+        const centralPlatformOwnerAccess = await resolveCentralPlatformOwnerAccess(
+            centralSupUrl as string,
+            centralServiceKey || centralInvokeKey,
+            user.id,
+            userEmail,
+            jwt,
+        );
+        const isVerifiedPlatformOwner = isSystemOwnerEmail(userEmail) || centralPlatformOwnerAccess.allowed;
         const hasLocalAdminAccess = localAdminAccess.allowed;
-        const hasSystemOwnerControlPlaneAccess = isControlPlaneRequest(req) && isSystemOwnerEmail(userEmail);
+        const hasSystemOwnerControlPlaneAccess = isControlPlaneRequest(req) && isVerifiedPlatformOwner;
         const hasControlPlaneAdminAccess = controlPlaneAdminAccess.allowed || hasSystemOwnerControlPlaneAccess;
         const controlPlaneAdminRole = hasSystemOwnerControlPlaneAccess ? 'master_admin' : (controlPlaneAdminAccess.role || '');
         const canCreateCommercialLicense = hasSystemOwnerControlPlaneAccess;
@@ -1118,21 +1199,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
         }
 
-        // The platform owner is an operational identity, not a tenant profile
-        // role. Resolve it only on the official app/Portal surface using the
-        // server-side allowlist; never trust a client-supplied role or Central
-        // profile value for this decision.
+        // Resolve the platform owner only after validating the caller JWT. The
+        // server allowlist remains authoritative, with the user's own verified
+        // Central profile as a resilient fallback for local and recovery flows.
+        // No client-supplied role is accepted here.
         if (endpoint === 'account-flags' && action === 'get_platform_identity') {
             const officialSurface = isControlPlaneRequest(req) || isPortalRequest(req);
             if (!officialSurface) {
                 return res.status(403).json({ error: 'Platform identity is only available on the official control plane.' });
             }
 
-            const isPlatformOwner = isSystemOwnerEmail(userEmail);
             return res.status(200).json({
                 success: true,
-                is_platform_owner: isPlatformOwner,
-                display_role: isPlatformOwner ? 'platform_owner' : 'account_holder',
+                is_platform_owner: isVerifiedPlatformOwner,
+                display_role: isVerifiedPlatformOwner ? 'platform_owner' : 'account_holder',
             });
         }
 
@@ -1195,6 +1275,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (!targetEmail || String(targetEmail).toLowerCase() === userEmail) {
                     isAllowed = true;
                 }
+            } else if (endpoint === 'service-orders') {
+                isAllowed = req.method === 'POST' && PORTAL_SERVICE_ORDER_ACTIONS.has(String(requestBody?.action || ''));
             }
 
             if (!isAllowed) {
@@ -1367,6 +1449,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             || endpoint === 'manage-user-installations'
             || endpoint === 'generate-install-token'
             || endpoint === 'check-entitlement'
+            || endpoint === 'service-orders'
         ) {
             // The Central function validates this token and ignores any
             // user_id/email supplied by the browser unless a trusted

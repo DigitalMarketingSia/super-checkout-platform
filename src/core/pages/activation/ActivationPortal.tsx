@@ -1,15 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import { centralSupabase } from '../../services/centralClient';
 import { licenseService, License } from '../../services/licenseService';
 import { storage } from '../../services/storageService';
 import { matchesUpgradePlanSlug, normalizeUpgradePlanSlug } from '../../services/upgradePlanSlug';
 import { Product } from '../../types';
-import { BlockPlanInfo } from './components/BlockPlanInfo';
 import { BlockLicense } from './components/BlockLicense';
 import { BlockInstall } from './components/BlockInstall';
 import { BlockTutorials } from './components/BlockTutorials';
-import { BlockPasswordSetup } from './components/BlockPasswordSetup';
+import { BlockPortalSecurity } from './components/BlockPortalSecurity';
 import { UpsellBanners } from './components/UpsellBanners';
 import { BlockOpportunity } from './components/BlockOpportunity';
 import { BlockPartner } from './components/BlockPartner';
@@ -17,8 +16,8 @@ import { BlockServiceOrders } from './components/BlockServiceOrders';
 import { InstallationServiceOfferBanner, InstallationServiceOfferCard, type InstallationServiceOffer } from './components/BlockInstallationServiceOffer';
 import { BlockProfile } from './components/BlockProfile';
 import { BlockEarningsSimulator } from './components/BlockEarningsSimulator';
-import { BlockBasicDashboard, DemoExperienceCard } from './components/BlockBasicDashboard';
-import { BlockPortalSecurity } from './components/BlockPortalSecurity';
+import { DemoExperienceCard } from './components/BlockBasicDashboard';
+import { PreviewDashboard } from '../public/PreviewDashboard';
 import { PlatformNotificationInbox } from './components/PlatformNotificationInbox';
 import { EmailVerificationGate } from './components/EmailVerificationGate';
 import { getPlatformPrivacyUrl, getPlatformTermsUrl } from '../../config/platformUrls';
@@ -26,7 +25,7 @@ import { useTranslation } from 'react-i18next';
 import { LanguageSelector } from '../../components/ui/LanguageSelector';
 import { Loading } from '../../components/ui/Loading';
 import { PwaInstallBanner } from '../../components/ui/PwaInstallBanner';
-import { LogOut, LayoutDashboard, Key, Download, PlayCircle, Shield, Menu, X, User, Crown, BarChart3, ArrowRight, ShieldCheck, TrendingUp, Eye, ClipboardCheck, Wrench } from 'lucide-react';
+import { LogOut, LayoutDashboard, Key, Download, PlayCircle, Shield, Menu, X, User, Crown, BarChart3, ArrowRight, ShieldCheck, TrendingUp, ClipboardCheck, Wrench, Rocket } from 'lucide-react';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import './ActivationPortal.css';
 
@@ -65,6 +64,18 @@ const SidebarItem = ({ icon: Icon, label, active, onClick, collapsed, highlighte
     </button>
 );
 
+const SidebarDemoButton = ({ onClick, collapsed = false, active = false }: { onClick: () => void; collapsed?: boolean; active?: boolean }) => (
+    <button
+        type="button"
+        onClick={onClick}
+        title={collapsed ? 'Testar Sistema' : undefined}
+        className={`group relative flex h-16 w-full items-center justify-center gap-3 overflow-hidden border-y border-white/5 bg-[#05050A] text-gray-500 transition-all duration-300 before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-orange-500 before:shadow-[4px_0_12px_rgba(249,115,22,0.55)] hover:bg-orange-500/10 hover:text-gray-300 ${collapsed ? 'px-0' : 'px-4'} ${active ? 'bg-gradient-to-r from-orange-600/90 via-orange-500 to-orange-400 text-white shadow-lg shadow-orange-500/20' : ''}`}
+    >
+        <Rocket className={`shrink-0 transition-transform duration-300 group-hover:scale-110 ${collapsed ? 'h-7 w-7' : 'h-5 w-5'}`} />
+        {!collapsed && <span className="text-[12px] font-black uppercase italic tracking-wider">Testar Sistema</span>}
+    </button>
+);
+
 const getPortalDisplayName = (user: any, license: License | null, fallbackName: string): string => {
     const fullName =
         user?.user_metadata?.full_name
@@ -76,8 +87,9 @@ const getPortalDisplayName = (user: any, license: License | null, fallbackName: 
     return String(fullName).trim() || fallbackName;
 };
 
-const getPortalPlanLabel = (license: License | null, t: any, isPlatformOwner = false): string => {
+const getPortalPlanLabel = (license: License | null, t: any, isPlatformOwner = false, licenseLoadError: string | null = null): string => {
     if (isPlatformOwner) return t('plan_info.platform_owner');
+    if (licenseLoadError) return t('plan_info.status_unavailable', 'Status indisponível');
     if (!license) return t('plan_info.free_account');
     if (license.plan === 'whitelabel') return t('plan_info.whitelabel');
     if (license.has_partner_panel && license.has_unlimited_domains) {
@@ -92,9 +104,11 @@ const getPortalPlanLabel = (license: License | null, t: any, isPlatformOwner = f
 
 export const ActivationPortal: React.FC = () => {
     const { t, i18n } = useTranslation(['portal', 'common']);
+    const location = useLocation();
     const navigate = useNavigate();
     const [centralUser, setCentralUser] = useState<any | null>(null);
     const [license, setLicense] = useState<License | null>(null);
+    const [licenseLoadError, setLicenseLoadError] = useState<string | null>(null);
     const [installations, setInstallations] = useState<any[]>([]);
     const [saasProducts, setSaasProducts] = useState<Product[]>([]);
     const [loading, setLoading] = useState(true);
@@ -261,6 +275,12 @@ export const ActivationPortal: React.FC = () => {
                 .eq('id', user.id)
                 .maybeSingle();
 
+            // This row is fetched with the authenticated Central session and
+            // is used only to keep the Portal UI responsive. Every privileged
+            // backend action still validates the caller role independently.
+            const profileRole = String(profile?.role || '').toLowerCase();
+            const isProfilePlatformOwner = ['owner', 'master_admin'].includes(profileRole);
+            setIsPortalOwner(isProfilePlatformOwner);
             setOwnerTwoFactorEnabled(profile?.totp_enabled === true);
 
             if (profile?.is_blocked) {
@@ -270,6 +290,7 @@ export const ActivationPortal: React.FC = () => {
                     blockedAt: profile.blocked_at || null
                 });
                 setLicense(null);
+                setLicenseLoadError(null);
                 setInstallations([]);
                 setLoading(false);
                 return;
@@ -282,6 +303,7 @@ export const ActivationPortal: React.FC = () => {
                     blockedAt: profile.blocked_at || null
                 });
                 setLicense(null);
+                setLicenseLoadError(null);
                 setInstallations([]);
                 setLoading(false);
                 return;
@@ -289,8 +311,8 @@ export const ActivationPortal: React.FC = () => {
 
             setApprovalState(null);
 
-            const [licenseData, centralPlans, localSaaSProducts, partnerVisibility, platformIdentity, offerResponse] = await Promise.all([
-                licenseService.getLicenseByUserId(user.id, user.email),
+            const [licenseLookup, centralPlans, localSaaSProducts, partnerVisibility, platformIdentity, offerResponse] = await Promise.all([
+                licenseService.getCurrentUserLicenseStatus(user.email),
                 licenseService.getOfficialPlans(),
                 storage.getPublicSaaSProducts(),
                 licenseService.getPartnerOpportunityVisibility().catch(() => ({
@@ -302,7 +324,7 @@ export const ActivationPortal: React.FC = () => {
                     is_platform_owner: false,
                     display_role: 'account_holder' as const,
                 })),
-                resolveInstallationOffer().catch(() => ({ eligible: false })),
+                resolveInstallationOffer().catch(() => ({ eligible: false, show_banner: false, offer: undefined })),
             ]);
 
             const mergedPlans = centralPlans.map(cp => {
@@ -326,10 +348,12 @@ export const ActivationPortal: React.FC = () => {
                 };
             });
 
+            const licenseData = licenseLookup.license;
             setLicense(licenseData);
+            setLicenseLoadError(licenseLookup.error);
             setSaasProducts(mergedPlans);
             setPartnerOpportunityEnabled(Boolean(partnerVisibility?.partner_opportunity_enabled));
-            setIsPortalOwner(Boolean(platformIdentity?.is_platform_owner));
+            setIsPortalOwner(isProfilePlatformOwner || Boolean(platformIdentity?.is_platform_owner));
             const resolvedOffer = offerResponse?.eligible && offerResponse.offer?.checkout_url ? offerResponse.offer : null;
             setInstallationOffer(resolvedOffer);
             setShowInstallationOfferBanner(Boolean(resolvedOffer && offerResponse?.show_banner));
@@ -361,8 +385,14 @@ export const ActivationPortal: React.FC = () => {
         return () => window.removeEventListener('nav-to-tab', handleNavEvent);
     }, []);
 
+    useEffect(() => {
+        const requestedTab = new URLSearchParams(location.search).get('tab');
+        if (requestedTab) setActiveTabInternal(requestedTab);
+    }, [location.search]);
+
     const hasPartnerAccess = Boolean(
-        license?.has_partner_panel
+        isPortalOwner
+        || license?.has_partner_panel
         || license?.plan === 'saas'
         || license?.plan === 'whitelabel'
     );
@@ -373,7 +403,8 @@ export const ActivationPortal: React.FC = () => {
     const upgradeProduct = saasProducts.find((product) => matchesUpgradePlanSlug(product.saas_plan_slug, 'upgrade_domains')) || null;
     const portalDisplayName = getPortalDisplayName(centralUser, license, t('profile.client'));
     const portalFirstName = portalDisplayName.split(/\s+/)[0] || portalDisplayName;
-    const portalPlanLabel = getPortalPlanLabel(license, t, isPortalOwner);
+    const portalPlanLabel = getPortalPlanLabel(license, t, isPortalOwner, licenseLoadError);
+    const requestedServiceOrderId = new URLSearchParams(location.search).get('order_id');
     const blockedAtLocale = resolvedLanguage.startsWith('en') ? 'en-US' : resolvedLanguage.startsWith('es') ? 'es-ES' : 'pt-BR';
 
     useEffect(() => {
@@ -437,6 +468,24 @@ export const ActivationPortal: React.FC = () => {
     const handleLogout = async () => {
         await centralSupabase.auth.signOut();
         navigate('/activate');
+    };
+
+    const handlePreviewQuickAccess = (key: string) => {
+        const activeInstall = installations.find((installation) => installation.status === 'active');
+        const pathByKey: Record<string, string> = {
+            checkouts: '/admin/checkouts',
+            domains: '/admin/domains',
+            products: '/admin/products',
+            members: '/admin/members',
+        };
+
+        if (!activeInstall?.domain || !pathByKey[key]) {
+            setActiveTabInternal('install');
+            return;
+        }
+
+        const targetUrl = new URL(pathByKey[key], `https://${activeInstall.domain}/`).toString();
+        window.open(targetUrl, '_blank', 'noopener,noreferrer');
     };
 
     if (loading) {
@@ -526,51 +575,22 @@ export const ActivationPortal: React.FC = () => {
         switch (activeTab) {
             case 'home':
                 return (
-                    <div className="space-y-16 animate-in fade-in slide-in-from-bottom-8 duration-1000 fill-mode-both text-white text-center">
-                        <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-primary/10 via-transparent to-transparent border border-white/5 p-8 md:p-16">
-                            <div className="absolute top-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-[120px] pointer-events-none" />
-                            <h1 className="font-display italic font-black text-4xl md:text-7xl text-white uppercase tracking-tighter mb-6 leading-none">
-                                {t('welcome.title')} <span className="bg-gradient-to-r from-primary to-indigo-400 bg-clip-text text-transparent">{t('welcome.span')}</span>
-                            </h1>
-                            <p className="text-gray-400 text-lg md:text-xl max-w-2xl font-medium leading-relaxed mx-auto">
-                                {t('welcome.desc')}
-                            </p>
-                        </div>
-                        {installationOffer && showInstallationOfferBanner && (
-                            <InstallationServiceOfferBanner
-                                offer={installationOffer}
-                                onDismiss={() => void dismissInstallationOffer()}
-                                onPurchase={openInstallationOfferCheckout}
-                            />
-                        )}
-                        <BlockPortalSecurity
-                            enabled={ownerTwoFactorEnabled}
-                            isOwner={isPortalOwner}
-                            onEnabled={() => setOwnerTwoFactorEnabled(true)}
-                        />
-                        {!isPartnerExperienceVisible && (
-                            <BlockBasicDashboard
-                                license={license}
-                                installations={installations}
-                                onNavigate={setActiveTab}
-                                upgradeProduct={upgradeProduct}
-                                onOpenDemo={handleOpenDemo}
-                                demoLoading={demoLoading}
-                                demoError={demoError}
-                            />
-                        )}
-                        <BlockPlanInfo
-                            license={license}
-                            userName={portalDisplayName}
-                            userCreatedAt={centralUser?.created_at}
-                            isPlatformOwner={isPortalOwner}
-                        />
-                        <UpsellBanners
-                            license={license}
-                            products={saasProducts}
-                            showPartnerOpportunity={isPartnerExperienceVisible}
-                        />
-                    </div>
+                    <PreviewDashboard
+                        license={license}
+                        installations={installations}
+                        userCreatedAt={centralUser?.created_at}
+                        isPortalOwner={isPortalOwner}
+                        ownerTwoFactorEnabled={ownerTwoFactorEnabled}
+                        onNavigate={setActiveTab}
+                        onQuickAccess={handlePreviewQuickAccess}
+                        onOpenDemo={handleOpenDemo}
+                        demoLoading={demoLoading}
+                        demoError={demoError}
+                        hasInstallationOffer={Boolean(installationOffer)}
+                        onPurchaseInstallation={openInstallationOfferCheckout}
+                        showPreviewBanner={false}
+                        embedded
+                    />
                 );
             case 'license':
                 return (
@@ -578,6 +598,8 @@ export const ActivationPortal: React.FC = () => {
                         <h2 className="text-3xl font-black text-white mb-8 font-display uppercase tracking-tighter italic">{t('sidebar.access_data')}</h2>
                         <BlockLicense 
                             license={license} 
+                            licenseLoadError={licenseLoadError}
+                            isPlatformOwner={isPortalOwner}
                             isUnlimited={(license?.max_instances || 0) > 900000 || ['enterprise', 'master', 'owner'].includes(String(license?.plan || '').toLowerCase())}
                             userName={centralUser?.user_metadata?.name || centralUser?.email}
                             onRefresh={loadData}
@@ -626,7 +648,11 @@ export const ActivationPortal: React.FC = () => {
                 return (
                     <div className="animate-in fade-in duration-500 text-white">
                         <h2 className="text-3xl font-black text-white mb-8 font-display uppercase tracking-tighter italic">{t('sidebar.security')}</h2>
-                        <BlockPasswordSetup />
+                        <BlockPortalSecurity
+                            enabled={ownerTwoFactorEnabled}
+                            isOwner={isPortalOwner}
+                            onEnabled={() => setOwnerTwoFactorEnabled(true)}
+                        />
                     </div>
                 );
             case 'opportunity':
@@ -640,13 +666,13 @@ export const ActivationPortal: React.FC = () => {
                 if (!showPartnerPanelTab) return null;
                 return (
                     <div className="animate-in fade-in duration-500 text-white">
-                        <BlockPartner userId={centralUser.id} />
+                        <BlockPartner userId={centralUser.id} isPlatformOwner={isPortalOwner} />
                     </div>
                 );
             case 'services':
                 return (
                     <div className="animate-in fade-in duration-500 text-white">
-                        <BlockServiceOrders isPlatformOwner={isPortalOwner} hasPartnerAccess={hasPartnerAccess} />
+                        <BlockServiceOrders isPlatformOwner={isPortalOwner} hasPartnerAccess={hasPartnerAccess} focusOrderId={requestedServiceOrderId} />
                     </div>
                 );
             case 'installation-assistance':
@@ -716,10 +742,11 @@ export const ActivationPortal: React.FC = () => {
                         {showEarningsSimulatorTab && (
                             <SidebarItem icon={TrendingUp} label={t('sidebar.earnings_simulator')} active={activeTab === 'simulator'} onClick={() => setActiveTab('simulator')} collapsed={isCollapsed} />
                         )}
-                        <SidebarItem icon={Eye} label={t('sidebar.demo')} active={activeTab === 'demo'} onClick={() => setActiveTab('demo')} collapsed={isCollapsed} highlighted={true} />
                     </nav>
 
-                    {/* Footer / Support info could go here */}
+                    <div className={`mt-4 shrink-0 ${isCollapsed ? 'w-[calc(100%+2rem)] -mx-4' : 'w-[calc(100%+3rem)] -mx-6'}`}>
+                        <SidebarDemoButton onClick={() => setActiveTab('demo')} active={activeTab === 'demo'} collapsed={isCollapsed} />
+                    </div>
                 </div>
             </aside>
 
@@ -756,8 +783,8 @@ export const ActivationPortal: React.FC = () => {
                             {showEarningsSimulatorTab && (
                                 <SidebarItem icon={TrendingUp} label={t('sidebar.earnings_simulator')} active={activeTab === 'simulator'} onClick={() => setActiveTab('simulator')} />
                             )}
-                            <SidebarItem icon={Eye} label={t('sidebar.demo')} active={activeTab === 'demo'} onClick={() => setActiveTab('demo')} highlighted={true} />
                         </nav>
+                        <SidebarDemoButton onClick={() => { setActiveTab('demo'); setSidebarOpen(false); }} active={activeTab === 'demo'} />
                         <button onClick={handleLogout} className="mt-auto flex items-center justify-center gap-3 px-4 py-4 text-red-500 font-black uppercase italic tracking-tighter border border-red-500/20 rounded-2xl bg-red-500/5 hover:bg-red-500 hover:text-white transition-all duration-300">
                             <LogOut className="w-4 h-4" /> 
                             {t('sidebar.logout')}
@@ -836,6 +863,24 @@ export const ActivationPortal: React.FC = () => {
 
                 <div className="p-6 lg:p-12 max-w-[1400px] mx-auto pb-32 relative">
                     <PwaInstallBanner />
+                    {activeTab === 'home' && (
+                        <div className="mb-8 space-y-6">
+                            {showInstallationOfferBanner && installationOffer && (
+                                <InstallationServiceOfferBanner
+                                    offer={installationOffer}
+                                    onDismiss={dismissInstallationOffer}
+                                    onPurchase={openInstallationOfferCheckout}
+                                />
+                            )}
+                            {(license || !licenseLoadError) && saasProducts.length > 0 && (
+                                <UpsellBanners
+                                    license={license}
+                                    products={saasProducts}
+                                    showPartnerOpportunity={partnerOpportunityEnabled}
+                                />
+                            )}
+                        </div>
+                    )}
                     {renderContent()}
                 </div>
             </main>

@@ -15,8 +15,13 @@ export const getCurrentHostname = () => {
     return window.location.hostname.toLowerCase();
 };
 
-export const isLocalHostname = (hostname: string) =>
-    hostname.includes('localhost') || hostname.includes('127.0.0.1');
+export const isLocalHostname = (hostname: string) => {
+    const normalized = hostname.toLowerCase();
+    return normalized === 'localhost'
+        || normalized.endsWith('.localhost')
+        || normalized === '127.0.0.1'
+        || normalized.startsWith('127.');
+};
 
 const DEMO_HOSTNAMES = new Set(
     [

@@ -109,7 +109,7 @@ export const ServiceApproval: React.FC = () => {
               <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
                 <p className="text-[10px] font-black uppercase tracking-[0.22em] text-gray-500">Solicitação</p>
                 <h2 className="mt-2 text-xl font-display font-black uppercase italic text-white">{order.product_name}</h2>
-                <p className="mt-3 text-sm leading-relaxed text-gray-400">Ao aprovar, você autoriza o prestador designado a executar a instalação exclusivamente na sua licença. Este consentimento pode ser revogado no Portal.</p>
+                <p className="mt-3 text-sm leading-relaxed text-gray-400">Ao aprovar, você autoriza o prestador designado a executar a instalação exclusivamente na sua licença. Essa autorização pode ser cancelada no Portal.</p>
                 <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-gray-500"><span>{formatMoney(order.price, order.currency)}</span><span>Expira em {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(order.expires_at))}</span></div>
               </div>
 

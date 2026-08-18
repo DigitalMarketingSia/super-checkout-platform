@@ -7,7 +7,7 @@ import { openUpgradeCheckout } from '../../../services/upgradeCheckout';
 import { matchesUpgradePlanSlug, normalizeUpgradePlanSlug } from '../../../services/upgradePlanSlug';
 
 interface UpsellBannersProps {
-    license: License;
+    license: License | null;
     products: Product[];
     showPartnerOpportunity: boolean;
 }
@@ -118,7 +118,7 @@ export const UpsellBanners: React.FC<UpsellBannersProps> = ({ license, products,
     // Filter relevant products for the user
     // The commercial Unlimited Features banner always targets the exact `upgrade_domains` entitlement.
     const showUpgrade = !hasUnlimitedDomains
-        && (license?.max_instances || 0) <= 1
+        && (!license || (license.max_instances || 0) <= 1)
         && products.some(p => matchesUpgradePlanSlug(p.saas_plan_slug, 'upgrade_domains'));
 
     // 2. If not partner, show saas plan if available in products

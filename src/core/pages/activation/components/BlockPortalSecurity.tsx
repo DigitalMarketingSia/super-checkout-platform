@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { AlertTriangle, Loader2, ShieldCheck, Smartphone } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { AlertTriangle, Check, Loader2, ShieldCheck, Smartphone } from 'lucide-react';
 import { centralSupabase } from '../../../services/centralClient';
 import { getApiUrl } from '../../../utils/apiUtils';
 
@@ -23,6 +23,8 @@ export const BlockPortalSecurity: React.FC<BlockPortalSecurityProps> = ({ enable
   const [code, setCode] = useState('');
   const [currentCode, setCurrentCode] = useState('');
   const [message, setMessage] = useState('');
+
+  const inputsRef = useRef<(HTMLInputElement | null)[]>([]);
 
   const prepare = async () => {
     setLoading(true);
@@ -84,96 +86,203 @@ export const BlockPortalSecurity: React.FC<BlockPortalSecurityProps> = ({ enable
     }
   };
 
+  const updateDigitAt = (currentStr: string, index: number, digit: string, setter: (val: string) => void) => {
+    const cleanDigit = digit.replace(/[^\d]/g, '').slice(-1);
+    const arr = (currentStr.padEnd(6, ' ')).split('');
+    arr[index] = cleanDigit || ' ';
+    const result = arr.join('').trimEnd();
+    setter(result);
+
+    if (cleanDigit && index < 5) {
+      inputsRef.current[index + 1]?.focus();
+    }
+  };
+
+  const handleKeyDownAt = (currentStr: string, index: number, e: React.KeyboardEvent<HTMLInputElement>, setter: (val: string) => void) => {
+    if (e.key === 'Backspace') {
+      const digitPresent = Boolean(currentStr[index] && currentStr[index] !== ' ');
+      if (!digitPresent && index > 0) {
+        inputsRef.current[index - 1]?.focus();
+      }
+    }
+  };
+
+  // ESTADO JÁ ATIVADO
   if (enabled && !qrCodeDataUrl) {
+    const currentDigits = currentCode.padEnd(6, ' ').split('');
+
     return (
-      <section className="rounded-[2rem] border border-emerald-400/20 bg-emerald-500/[0.07] p-6 text-left">
-        <div className="flex items-start gap-4">
-          <div className="rounded-2xl bg-emerald-400/15 p-3 text-emerald-300"><ShieldCheck className="h-6 w-6" /></div>
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-300">{isOwner ? 'Proteção do owner' : 'Proteção do Portal'}</p>
-            <h2 className="mt-1 text-xl font-black text-white">2FA do Portal está ativa</h2>
-            <p className="mt-2 text-sm leading-relaxed text-emerald-100/75">
-              Novos logins por senha e operações destrutivas exigem seu aplicativo autenticador.
-            </p>
-            <label className="mt-4 block text-xs font-black uppercase tracking-[0.16em] text-emerald-100/80">
-              Código atual do autenticador do Portal
-              <input
-                value={currentCode}
-                onChange={(event) => setCurrentCode(event.target.value.replace(/[^\d]/g, '').slice(0, 6))}
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                placeholder="000000"
-                className="mt-2 block w-full rounded-xl border border-emerald-300/30 bg-black/20 px-4 py-3 text-center text-base font-black tracking-[0.3em] text-white outline-none focus:border-emerald-200"
-              />
-            </label>
-            <button
-              type="button"
-              onClick={prepare}
-              disabled={loading || currentCode.length !== 6}
-              className="mt-4 inline-flex items-center gap-2 rounded-xl border border-emerald-300/30 bg-emerald-300/10 px-4 py-2 text-xs font-black text-emerald-100 transition hover:bg-emerald-300/20 disabled:opacity-60"
-            >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Smartphone className="h-4 w-4" />}
-              Confirmar e trocar autenticador
-            </button>
+      <article className="rounded-[2rem] border border-emerald-500/40 bg-[#0B1411] p-6 shadow-2xl relative overflow-hidden flex flex-col justify-between text-left space-y-6">
+        <div className="space-y-6">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3.5">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-emerald-500/40 bg-emerald-500/10 text-emerald-400 shadow-md">
+                <ShieldCheck className="h-6 w-6" />
+              </div>
+              <div>
+                <span className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-400">
+                  {isOwner ? 'Proteção do owner' : 'Proteção do Portal'}
+                </span>
+                <h3 className="font-display text-xl font-black uppercase italic tracking-tight text-white">
+                  2FA do Portal está ativa
+                </h3>
+              </div>
+            </div>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-3.5 py-1.5 text-[9px] font-black uppercase tracking-widest text-emerald-400">
+              <Check className="h-3.5 w-3.5" /> PROTEGIDO
+            </span>
+          </div>
+
+          <p className="text-xs text-gray-300 leading-relaxed font-medium">
+            Novos logins por senha e operações destrutivas exigem seu aplicativo autenticador.
+          </p>
+
+          <div className="rounded-2xl border border-white/[0.08] bg-[#060B09] p-5 space-y-3 shadow-inner">
+            <span className="block text-[9px] font-black uppercase tracking-widest text-emerald-400">
+              CÓDIGO ATUAL DO AUTENTICADOR DO PORTAL (6 DÍGITOS)
+            </span>
+
+            <div className="flex items-center justify-between gap-2 pt-1 max-w-xs">
+              {[0, 1, 2, 3, 4, 5].map((idx) => (
+                <input
+                  key={idx}
+                  ref={(el) => (inputsRef.current[idx] = el)}
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={1}
+                  value={currentDigits[idx]?.trim() || ''}
+                  onChange={(e) => updateDigitAt(currentCode, idx, e.target.value, setCurrentCode)}
+                  onKeyDown={(e) => handleKeyDownAt(currentCode, idx, e, setCurrentCode)}
+                  placeholder="•"
+                  className="w-11 h-12 rounded-xl border border-emerald-500/30 bg-[#0E1B15] text-center font-mono text-lg font-black text-white shadow-inner outline-none transition duration-200 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20"
+                />
+              ))}
+            </div>
           </div>
         </div>
-      </section>
+
+        <div className="mt-6 pt-4 border-t border-white/[0.08]">
+          <button
+            type="button"
+            onClick={prepare}
+            disabled={loading || currentCode.replace(/[^\d]/g, '').length !== 6}
+            className="inline-flex items-center gap-2.5 rounded-2xl border border-emerald-500/40 bg-emerald-500/20 hover:bg-emerald-500/30 px-6 py-3.5 text-xs font-black uppercase tracking-wider text-emerald-300 transition duration-200 disabled:opacity-40"
+          >
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Smartphone className="h-4 w-4" />}
+            <span>Confirmar e trocar autenticador</span>
+          </button>
+        </div>
+
+        {message && <p className="mt-2 text-xs font-bold text-red-300">{message}</p>}
+      </article>
     );
   }
 
+  // ESTADO DESATIVADO OU PREPARANDO SETUP
+  const codeDigits = code.padEnd(6, ' ').split('');
+
   return (
-    <section className="rounded-[2rem] border border-amber-400/25 bg-amber-500/[0.07] p-6 text-left">
-      <div className="flex items-start gap-4">
-        <div className="rounded-2xl bg-amber-400/15 p-3 text-amber-200"><AlertTriangle className="h-6 w-6" /></div>
-        <div className="flex-1">
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-200">{enabled ? 'Troca protegida de autenticador' : (isOwner ? 'Ação obrigatória do owner' : 'Proteção recomendada')}</p>
-          <h2 className="mt-1 text-xl font-black text-white">{enabled ? 'Cadastre o novo autenticador' : 'Proteja o Portal com 2FA'}</h2>
-          <p className="mt-2 text-sm leading-relaxed text-amber-50/75">
-            {enabled
-              ? 'A 2FA permanece obrigatória. Escaneie e confirme o novo QR Code nesta mesma tela; o código antigo deixa de valer quando o novo QR for preparado.'
-              : isOwner
-              ? 'Sem 2FA, uma sessão recuperada por e-mail poderia solicitar o reset da instalação. Ative agora para que essa ação passe a pedir seu código temporário.'
-              : 'Ações como reset ou revogação da sua instalação pedem um código temporário. Ative agora para manter esse recurso disponível com proteção adicional.'}
-          </p>
+    <article className="rounded-[2rem] border border-amber-500/30 bg-[#0F0D16] p-6 shadow-2xl relative overflow-hidden flex flex-col justify-between text-left space-y-6">
+      <div className="space-y-6">
+        <div className="flex items-center gap-3.5">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-amber-500/30 bg-amber-500/10 text-amber-400 shadow-md">
+            <AlertTriangle className="h-6 w-6" />
+          </div>
+          <div>
+            <span className="text-[9px] font-black uppercase tracking-[0.2em] text-amber-400">
+              {enabled ? 'Troca protegida de autenticador' : (isOwner ? 'Ação obrigatória do owner' : 'Proteção recomendada')}
+            </span>
+            <h3 className="font-display text-xl font-black uppercase italic tracking-tight text-white">
+              {enabled ? 'Cadastre o novo autenticador' : 'Proteja o Portal com 2FA'}
+            </h3>
+          </div>
         </div>
+
+        <p className="text-xs text-gray-300 leading-relaxed font-medium">
+          {enabled
+            ? 'A 2FA permanece obrigatória. Escaneie e confirme o novo QR Code nesta mesma tela; o código antigo deixa de valer quando o novo QR for preparado.'
+            : isOwner
+            ? 'Sem 2FA, uma sessão recuperada por e-mail poderia solicitar o reset da instalação. Ative agora para que essa ação passe a pedir seu código temporário.'
+            : 'Ações como reset ou revogação da sua instalação pedem um código temporário. Ative agora para manter esse recurso disponível com proteção adicional.'}
+        </p>
+
+        {!qrCodeDataUrl ? (
+          <div className="rounded-2xl border border-white/[0.08] bg-[#07060B] p-5 space-y-3 shadow-inner">
+            <span className="block text-[9px] font-black uppercase tracking-widest text-amber-400/90">
+              DIGITE O CÓDIGO DE 6 DÍGITOS PARA ATIVAR
+            </span>
+
+            <div className="flex items-center justify-between gap-2 pt-1 max-w-xs">
+              {[0, 1, 2, 3, 4, 5].map((idx) => (
+                <input
+                  key={idx}
+                  ref={(el) => (inputsRef.current[idx] = el)}
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={1}
+                  value={codeDigits[idx]?.trim() || ''}
+                  onChange={(e) => updateDigitAt(code, idx, e.target.value, setCode)}
+                  onKeyDown={(e) => handleKeyDownAt(code, idx, e, setCode)}
+                  placeholder="•"
+                  className="w-11 h-12 rounded-xl border border-amber-500/30 bg-[#120E1C] text-center font-mono text-lg font-black text-amber-300 shadow-inner outline-none transition duration-200 focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20"
+                />
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-white/10 bg-[#07060B] p-5 space-y-4">
+            <p className="text-xs font-bold text-white">1. Escaneie este QR Code no Google Authenticator, Authy ou app equivalente:</p>
+            <img className="mx-auto my-3 h-44 w-44 rounded-xl bg-white p-2" src={qrCodeDataUrl} alt="QR Code para configurar 2FA do Portal" />
+            <span className="block text-[9px] font-black uppercase tracking-widest text-amber-400">
+              2. DIGITE O CÓDIGO DE 6 DÍGITOS GERADO NO APP
+            </span>
+            <div className="flex items-center justify-between gap-2 pt-1 max-w-xs mx-auto">
+              {[0, 1, 2, 3, 4, 5].map((idx) => (
+                <input
+                  key={idx}
+                  ref={(el) => (inputsRef.current[idx] = el)}
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={1}
+                  value={codeDigits[idx]?.trim() || ''}
+                  onChange={(e) => updateDigitAt(code, idx, e.target.value, setCode)}
+                  onKeyDown={(e) => handleKeyDownAt(code, idx, e, setCode)}
+                  placeholder="•"
+                  className="w-11 h-12 rounded-xl border border-amber-500/30 bg-[#120E1C] text-center font-mono text-lg font-black text-amber-300 shadow-inner outline-none transition duration-200 focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20"
+                />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
-      {!qrCodeDataUrl ? (
-        <button
-          type="button"
-          onClick={prepare}
-          disabled={loading}
-          className="mt-5 inline-flex items-center gap-2 rounded-xl bg-amber-300 px-5 py-3 text-sm font-black text-black transition hover:bg-amber-200 disabled:opacity-60"
-        >
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Smartphone className="h-4 w-4" />}
-          Configurar 2FA agora
-        </button>
-      ) : (
-        <div className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-5">
-          <p className="text-sm font-bold text-white">1. Escaneie este QR Code no Google Authenticator, Authy ou app equivalente.</p>
-          <img className="mx-auto my-5 h-48 w-48 rounded-xl bg-white p-2" src={qrCodeDataUrl} alt="QR Code para configurar 2FA do Portal" />
-          <label className="block text-xs font-black uppercase tracking-[0.16em] text-gray-300">2. Digite o código de 6 dígitos</label>
-          <input
-            value={code}
-            onChange={(event) => setCode(event.target.value.replace(/[^\d]/g, '').slice(0, 6))}
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            placeholder="000000"
-            className="mt-2 w-full rounded-xl border border-white/15 bg-black/30 px-4 py-3 text-center text-lg font-black tracking-[0.35em] text-white outline-none focus:border-amber-300"
-          />
+      <div className="mt-6 pt-4 border-t border-white/[0.08]">
+        {!qrCodeDataUrl ? (
+          <button
+            type="button"
+            onClick={prepare}
+            disabled={loading}
+            className="inline-flex items-center gap-2.5 rounded-2xl border border-amber-400/50 bg-amber-400 hover:bg-amber-300 px-6 py-3.5 text-xs font-black uppercase tracking-wider text-black shadow-xl shadow-amber-950/40 transition duration-200 active:scale-95 disabled:opacity-60"
+          >
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Smartphone className="h-4 w-4" />}
+            <span>Configurar 2FA agora</span>
+          </button>
+        ) : (
           <button
             type="button"
             onClick={enable}
-            disabled={loading}
-            className="mt-3 inline-flex items-center gap-2 rounded-xl bg-emerald-400 px-5 py-3 text-sm font-black text-black transition hover:bg-emerald-300 disabled:opacity-60"
+            disabled={loading || code.replace(/[^\d]/g, '').length !== 6}
+            className="inline-flex items-center gap-2.5 rounded-2xl border border-emerald-400/50 bg-emerald-400 hover:bg-emerald-300 px-6 py-3.5 text-xs font-black uppercase tracking-wider text-black shadow-xl shadow-emerald-950/40 transition duration-200 active:scale-95 disabled:opacity-60"
           >
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-            Confirmar e ativar 2FA
+            <span>Confirmar e ativar 2FA</span>
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
-      {message && <p className="mt-4 text-sm font-medium text-red-200">{message}</p>}
-    </section>
+      {message && <p className="mt-2 text-xs font-bold text-red-300">{message}</p>}
+    </article>
   );
 };
+
+export default BlockPortalSecurity;

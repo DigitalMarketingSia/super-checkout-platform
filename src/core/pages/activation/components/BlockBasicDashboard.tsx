@@ -1,5 +1,21 @@
 import React, { useMemo } from 'react';
-import { Boxes, Copy, ExternalLink, Globe, KeyRound, LayoutDashboard, Loader2, Package, RefreshCcw, Sparkles, Zap } from 'lucide-react';
+import {
+    Activity,
+    ArrowUpRight,
+    Boxes,
+    Check,
+    Copy,
+    ExternalLink,
+    Globe,
+    KeyRound,
+    LayoutDashboard,
+    Loader2,
+    Package,
+    Play,
+    RefreshCcw,
+    ShieldCheck,
+    Zap,
+} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Installation, License } from '../../../services/licenseService';
 import { Product } from '../../../types';
@@ -45,98 +61,80 @@ export const DemoExperienceCard: React.FC<DemoExperienceCardProps> = ({
     const { t } = useTranslation('portal');
 
     return (
-        <div className="relative overflow-hidden rounded-[2.4rem] border border-primary/20 bg-[radial-gradient(circle_at_top_left,rgba(168,85,247,0.22),transparent_34%),linear-gradient(135deg,rgba(17,9,26,0.98),rgba(8,8,14,0.96))] p-6 md:p-8">
-            <div className="pointer-events-none absolute -left-16 top-0 h-40 w-40 rounded-full bg-primary/25 blur-3xl" />
-            <div className="pointer-events-none absolute -right-12 bottom-0 h-36 w-36 rounded-full bg-cyan-400/15 blur-3xl" />
+        <article className="relative overflow-hidden rounded-[2rem] border border-purple-500/40 bg-gradient-to-br from-purple-950/80 via-[#0D0B18] to-emerald-950/30 p-6 shadow-2xl flex flex-col justify-between text-left">
+            <div>
+                <div className="mt-5 grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+                    {/* Lado Esquerdo do Card Demo */}
+                    <div className="md:col-span-7 space-y-3">
+                        <h3 className="font-display text-2xl font-black uppercase italic tracking-tighter text-white leading-tight sm:text-3xl">
+                            {t('basic_dashboard.demo.title')}
+                        </h3>
 
-            <div className="relative grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_360px] xl:items-stretch">
-                <div className="max-w-3xl">
-                    <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-white/5 px-4 py-2 text-[10px] font-black uppercase tracking-[0.3em] text-primary/90">
-                        <Sparkles className="h-3.5 w-3.5" />
-                        {t('basic_dashboard.demo.eyebrow')}
+                        {/* Resumo Curto */}
+                        <p className="text-xs text-gray-300 font-medium leading-relaxed">
+                            {t('basic_dashboard.demo.description')}
+                        </p>
+
+                        {/* Lista de Bullets (Builtpoints) */}
+                        <ul className="space-y-2 text-[11px] font-semibold text-gray-300 pt-1">
+                            <li className="flex items-center gap-2">
+                                <span className="h-1.5 w-1.5 rounded-full bg-purple-400 shrink-0" />
+                                <span>Interface 100% real do produto</span>
+                            </li>
+                            <li className="flex items-center gap-2">
+                                <span className="h-1.5 w-1.5 rounded-full bg-purple-400 shrink-0" />
+                                <span>Simulação de vendas, compras e Pix</span>
+                            </li>
+                            <li className="flex items-center gap-2">
+                                <span className="h-1.5 w-1.5 rounded-full bg-purple-400 shrink-0" />
+                                <span>Área de alunos interativa liberada</span>
+                            </li>
+                            <li className="flex items-center gap-2">
+                                <span className="h-1.5 w-1.5 rounded-full bg-purple-400 shrink-0" />
+                                <span>Teste completo em ambiente seguro</span>
+                            </li>
+                        </ul>
                     </div>
 
-                    <h4 className="mt-4 font-display text-3xl font-black italic uppercase tracking-tighter text-white md:text-4xl">
-                        {t('basic_dashboard.demo.title')}
-                    </h4>
-                    <p className="mt-4 max-w-2xl text-sm leading-relaxed text-gray-300 md:text-[15px]">
-                        {t('basic_dashboard.demo.description')}
-                    </p>
-
-                    <div className="mt-6 flex flex-wrap gap-3">
-                        <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-gray-200 shadow-[0_10px_25px_rgba(0,0,0,0.2)]">
-                            {t('basic_dashboard.demo.bullets.ui')}
+                    {/* Lado Direito: SUB-CARD BRANCO REFINADO */}
+                    <div className="md:col-span-5 space-y-3">
+                        <span className="inline-flex items-center gap-2 rounded-full border border-purple-500/40 bg-purple-500/20 px-4 py-1.5 text-[9px] font-black uppercase tracking-widest text-purple-300">
+                            <span className="h-1.5 w-1.5 rounded-full bg-purple-400" />
+                            {t('basic_dashboard.demo.eyebrow')}
                         </span>
-                        <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-gray-200 shadow-[0_10px_25px_rgba(0,0,0,0.2)]">
-                            {t('basic_dashboard.demo.bullets.checkout')}
-                        </span>
-                        <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-gray-200 shadow-[0_10px_25px_rgba(0,0,0,0.2)]">
-                            {t('basic_dashboard.demo.bullets.members')}
-                        </span>
-                        <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-gray-200 shadow-[0_10px_25px_rgba(0,0,0,0.2)]">
-                            {t('basic_dashboard.demo.bullets.full_test')}
-                        </span>
-                    </div>
-                </div>
+                        <p className="text-xs font-black uppercase tracking-tight text-white leading-snug">
+                            {t('basic_dashboard.demo.cta_support')}
+                        </p>
 
-                <div className="relative">
-                    <div className="absolute -inset-2 rounded-[2rem] bg-gradient-to-br from-primary/35 via-transparent to-cyan-400/25 blur-2xl opacity-90" />
-                    <div className="relative flex h-full flex-col justify-between rounded-[2rem] border border-white/10 bg-black/35 p-5 shadow-[0_25px_65px_rgba(0,0,0,0.35)] backdrop-blur-xl">
-                        <div>
-                            <p className="text-[10px] font-black uppercase tracking-[0.32em] text-primary">
-                                {t('basic_dashboard.demo.cta_title')}
-                            </p>
-                            <p className="mt-3 text-lg font-black uppercase tracking-tight text-white/95 leading-snug">
-                                {t('basic_dashboard.demo.cta_hint')}
-                            </p>
-                        </div>
-
-                        <div className="mt-6 space-y-3">
-                            <button
-                                type="button"
-                                onClick={() => void onOpenDemo()}
-                                disabled={demoLoading}
-                                className="group inline-flex w-full items-center justify-between gap-3 rounded-[1.5rem] bg-white px-5 py-5 text-left text-black shadow-[0_18px_45px_rgba(255,255,255,0.18)] transition-all hover:-translate-y-0.5 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-70"
-                            >
-                                <span className="flex items-center gap-3">
-                                    <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-black text-white">
-                                        {demoLoading ? (
-                                            <Loader2 className="h-5 w-5 animate-spin" />
-                                        ) : (
-                                            <Sparkles className="h-5 w-5" />
-                                        )}
-                                    </span>
-                                    <span className="flex flex-col">
-                                        <span className="text-xs font-black uppercase tracking-[0.22em]">
-                                            {demoLoading
-                                                ? t('basic_dashboard.demo.opening')
-                                                : t('basic_dashboard.demo.cta')}
-                                        </span>
-                                        <span className="mt-1 text-[10px] font-black uppercase tracking-[0.22em] text-black/50">
-                                            {t('basic_dashboard.demo.cta_support')}
-                                        </span>
-                                    </span>
-                                </span>
-
-                                <span className="flex h-10 w-10 items-center justify-center rounded-2xl border border-black/10 bg-black text-white transition-transform duration-500 group-hover:translate-x-1">
-                                    <ExternalLink className="h-4.5 w-4.5" />
-                                </span>
-                            </button>
-
-                            <p className="text-xs leading-relaxed text-gray-500">
-                                {t('basic_dashboard.demo.retention')}
-                            </p>
+                        {/* Botão Card Branco Sólido */}
+                        <div
+                            onClick={() => void onOpenDemo()}
+                            className={`mt-3 cursor-pointer rounded-[1.5rem] bg-white p-4 text-black shadow-2xl transition duration-200 hover:bg-gray-100 hover:scale-[1.02] active:scale-95 flex items-center justify-between ${demoLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-black text-white">
+                                    {demoLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Play className="h-4 w-4 fill-current ml-0.5" />}
+                                </div>
+                                <div>
+                                    <p className="text-xs font-black uppercase tracking-wider text-black">
+                                        {demoLoading ? t('basic_dashboard.demo.opening') : t('basic_dashboard.demo.cta')}
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-black text-white">
+                                <ExternalLink className="h-5 w-5" />
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
 
             {demoError && (
-                <p className="relative mt-4 rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                <p className="mt-4 rounded-2xl border border-red-400/30 bg-red-500/10 px-4 py-2.5 text-xs font-medium text-red-200">
                     {demoError}
                 </p>
             )}
-        </div>
+        </article>
     );
 };
 
@@ -150,6 +148,8 @@ export const BlockBasicDashboard: React.FC<BlockBasicDashboardProps> = ({
     demoError,
 }) => {
     const { t } = useTranslation('portal');
+    const [copiedKey, setCopiedKey] = React.useState(false);
+
     const activeInstall = useMemo(
         () => installations.find(
             (installation) => installation.status === 'active' && !isSetupPendingInstallation(installation)
@@ -195,9 +195,9 @@ export const BlockBasicDashboard: React.FC<BlockBasicDashboardProps> = ({
         if (!license?.key) return;
 
         await navigator.clipboard.writeText(license.key);
+        setCopiedKey(true);
+        setTimeout(() => setCopiedKey(false), 2000);
     };
-
-
 
     const installationStatusLabel = activeInstall
         ? t('basic_dashboard.status.active')
@@ -211,279 +211,301 @@ export const BlockBasicDashboard: React.FC<BlockBasicDashboardProps> = ({
             ? t('basic_dashboard.status.inactive_desc')
             : t('basic_dashboard.status.pending_desc');
 
+    const statusIsActive = Boolean(activeInstall);
+
     return (
-        <section className="relative overflow-hidden rounded-[2.5rem] border border-white/10 bg-white/5 p-6 text-left md:p-8 backdrop-blur-2xl">
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-48 bg-gradient-to-b from-primary/10 to-transparent" />
-
-            <div className="relative z-10 space-y-8">
-                <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between border-b border-white/5 pb-10">
-                    <div className="max-w-4xl">
-                        <p className="text-[11px] font-black uppercase tracking-[0.45em] text-primary/80">
+        <section className="space-y-6 text-left">
+            {/* HEADER PRINCIPAL */}
+            <header className="flex flex-col gap-5 rounded-[2rem] border border-purple-500/30 bg-gradient-to-r from-[#120B20] via-[#0E0C18] to-[#0B1317] p-6 shadow-2xl lg:flex-row lg:items-center lg:justify-between">
+                <div className="space-y-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full bg-purple-400 shadow-[0_0_8px_#a855f7]" />
+                        <span className="text-[10px] font-black uppercase tracking-[0.25em] text-purple-400">
                             {t('basic_dashboard.eyebrow')}
-                        </p>
-                        <h3 className="mt-4 font-display text-4xl font-black italic uppercase tracking-tighter text-white md:text-5xl lg:text-7xl leading-[0.9]">
-                            {t('basic_dashboard.title')}
-                        </h3>
-                        <p className="mt-6 text-base font-medium leading-relaxed text-gray-500 max-w-2xl">
-                            {t('basic_dashboard.description')}
-                        </p>
+                        </span>
                     </div>
- 
-                    <div className="relative self-start lg:self-auto">
-                        <div className="absolute -inset-3 rounded-[2rem] bg-primary/20 blur-2xl opacity-80" />
-                        <div className="absolute -inset-1 rounded-[2rem] bg-gradient-to-br from-primary via-primary/60 to-amber-300/60 opacity-80" />
-                        <button
-                            onClick={() => onNavigate(license ? 'install' : 'license')}
-                            className="group relative flex min-w-[280px] flex-col items-start justify-center gap-3 overflow-hidden rounded-[1.7rem] border border-white/15 bg-[#120815] px-6 py-5 text-left font-display text-white shadow-[0_0_45px_rgba(168,85,247,0.35)] transition-all hover:scale-[1.02] hover:shadow-[0_0_65px_rgba(168,85,247,0.48)] active:scale-95"
-                        >
-                            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.2),transparent_45%)] opacity-80" />
-                            <div className="absolute inset-0 translate-x-[-100%] bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-700 group-hover:translate-x-[100%]" />
+                    <h3 className="font-display text-3xl font-black uppercase italic tracking-tighter text-white sm:text-4xl">
+                        {t('basic_dashboard.title')}
+                    </h3>
+                    <p className="text-xs text-gray-400 max-w-xl leading-relaxed">
+                        {t('basic_dashboard.description')}
+                    </p>
+                </div>
 
-                            <div className="relative flex items-center gap-2">
-                                <span className="inline-flex items-center rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[9px] font-black uppercase tracking-[0.28em] text-white/80">
-                                    {license
-                                        ? t('basic_dashboard.primary_cta.recommended')
-                                        : t('basic_dashboard.primary_cta.unlock_label')}
-                                </span>
-                                <span className="h-2.5 w-2.5 rounded-full bg-emerald-300 shadow-[0_0_14px_rgba(110,231,183,0.95)]" />
-                            </div>
+                <button
+                    type="button"
+                    onClick={() => onNavigate(license ? 'install' : 'license')}
+                    className="inline-flex shrink-0 items-center justify-center gap-2.5 rounded-2xl border border-purple-400/50 bg-gradient-to-r from-purple-600 to-purple-800 px-6 py-3.5 text-xs font-black uppercase italic tracking-wider text-white shadow-xl shadow-purple-950/70 transition duration-200 hover:from-purple-500 hover:to-purple-700 active:scale-95"
+                >
+                    {license ? <Zap className="h-4 w-4 fill-current text-white" /> : <KeyRound className="h-4 w-4" />}
+                    <span>{license ? t('basic_dashboard.primary_cta.install') : t('basic_dashboard.primary_cta.license')}</span>
+                    <ArrowUpRight className="h-4 w-4" />
+                </button>
+            </header>
 
-                            <div className="relative flex items-center gap-3">
-                                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/10 shadow-inner">
-                                    {license ? <Zap className="h-7 w-7 fill-current" /> : <KeyRound className="h-7 w-7" />}
+            {/* GRADE PRINCIPAL: STATUS + CHAVE */}
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+                {/* CARD 1: STATUS DA INSTALAÇÃO */}
+                <article className="flex flex-col justify-between rounded-[2rem] border border-emerald-500/30 bg-gradient-to-br from-[#120B20] via-[#0E0C18] to-[#0A1417] p-6 shadow-2xl lg:col-span-7 relative overflow-hidden">
+                    <div className="space-y-6">
+                        {/* Header Superior Limpo */}
+                        <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                                <div className={`flex h-11 w-11 items-center justify-center rounded-2xl border ${statusIsActive ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.15)]' : 'border-amber-500/40 bg-amber-500/10 text-amber-400'}`}>
+                                    <Activity className="h-5 w-5" />
                                 </div>
                                 <div>
-                                    <span className="block text-2xl font-black italic uppercase tracking-tighter leading-none">
-                                        {license ? t('basic_dashboard.primary_cta.install') : t('basic_dashboard.primary_cta.license')}
+                                    <span className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400">
+                                        {t('basic_dashboard.cards.installation_status')}
                                     </span>
-                                    <span className="mt-1 block text-[10px] font-black uppercase tracking-[0.24em] text-white/55">
-                                        {license
-                                            ? t('basic_dashboard.primary_cta.install_subtext')
-                                            : t('basic_dashboard.primary_cta.unlock_subtext')}
-                                    </span>
+                                    <p className="text-[11px] font-bold text-gray-500">
+                                        {t('basic_dashboard.cards.operations_center')}
+                                    </p>
                                 </div>
                             </div>
+                            <span className={`inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-[9px] font-black uppercase tracking-widest ${statusIsActive ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.25)]' : 'border-amber-500/40 bg-amber-500/15 text-amber-400'}`}>
+                                <span className={`h-2 w-2 rounded-full ${statusIsActive ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+                                {installationStatusLabel}
+                            </span>
+                        </div>
 
-                            <div className="relative flex w-full items-center justify-between rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
-                                <span className="text-[10px] font-black uppercase tracking-[0.22em] text-white/80">
-                                    {license
-                                        ? t('basic_dashboard.primary_cta.install_hint')
-                                        : t('basic_dashboard.primary_cta.license_hint')}
+                        {/* Seção 1: Domínio Principal em Campo Separado */}
+                        <div className="space-y-2">
+                            <span className="text-[9px] font-black uppercase tracking-widest text-emerald-400 px-1">
+                                {t('basic_dashboard.cards.installation_status')}
+                            </span>
+                            <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-500/30 bg-[#0B0A12] p-3.5 shadow-inner">
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                    <Globe className="h-4 w-4 text-emerald-400 shrink-0" />
+                                    <code className="truncate font-mono text-sm sm:text-base font-black tracking-tight text-white">
+                                        {activeInstall?.domain || installationStatusHint}
+                                    </code>
+                                </div>
+                                <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-xl border px-3 py-1.5 text-[10px] font-black uppercase tracking-wider ${statusIsActive ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400' : 'border-amber-500/30 bg-amber-500/10 text-amber-400'}`}>
+                                    <Check className="h-3.5 w-3.5" /> {installationStatusLabel}
                                 </span>
-                                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-black transition-transform duration-500 group-hover:translate-x-1">
-                                    <ExternalLink className="h-4.5 w-4.5" />
+                            </div>
+                        </div>
+
+                        {/* Seção 2: Logs Operacionais em Campo Separado */}
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between px-1">
+                                <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">
+                                    {t('basic_dashboard.cards.operational_logs')}
+                                </span>
+                                <span className="text-[10px] font-black text-emerald-400 uppercase">
+                                    {statusIsActive ? t('basic_dashboard.status.active') : t('basic_dashboard.status.pending')}
+                                </span>
+                            </div>
+                            <div className="rounded-2xl border border-white/[0.08] bg-[#0B0A12] p-4 space-y-2.5">
+                                <div className="flex items-center gap-1.5">
+                                    {[0, 1, 2, 3, 4, 5, 6, 7].map((seg) => (
+                                        <span
+                                            key={seg}
+                                            className={`h-2.5 flex-1 rounded-full ${statusIsActive || seg < 2 ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-white/10'}`}
+                                        />
+                                    ))}
                                 </div>
                             </div>
+                        </div>
+                    </div>
+
+                    <div className="mt-6 border-t border-white/[0.08] pt-4">
+                        <button
+                            type="button"
+                            onClick={() => onNavigate('install')}
+                            className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.05] hover:bg-white/10 px-5 py-2.5 text-[10px] font-black uppercase tracking-wider text-gray-200 transition duration-200"
+                        >
+                            <RefreshCcw className="h-3.5 w-3.5" />
+                            <span>{t('basic_dashboard.actions.view_installation')}</span>
                         </button>
                     </div>
-                </div>
+                </article>
 
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                    {/* HUB DE STATUS (CARD PRINCIPAL) */}
-                    <div className="lg:col-span-8 group relative overflow-hidden rounded-[2.5rem] border border-white/5 bg-[#0A0A0F]/60 p-8 backdrop-blur-3xl transition-all hover:border-white/10">
-                        <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-500/5 rounded-full blur-[100px] pointer-events-none" />
-                        
-                        <div className="relative flex flex-col h-full">
-                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                                <div className="flex items-center gap-4 text-emerald-400">
-                                    <div className="p-3.5 rounded-2xl bg-emerald-400/10 border border-emerald-400/20 shadow-[0_0_15px_rgba(52,211,153,0.15)]">
-                                        <LayoutDashboard className="h-7 w-7" />
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] font-black uppercase tracking-[0.4em] text-gray-500 leading-none">
-                                            {t('basic_dashboard.cards.installation_status')}
-                                        </p>
-                                        <h3 className="mt-2 text-3xl font-black italic uppercase tracking-tighter text-white leading-none">
-                                            {t('basic_dashboard.cards.operations_center')}
-                                        </h3>
-                                    </div>
-                                </div>
-                                <div className={`inline-flex items-center gap-3 px-5 py-2.5 rounded-full border ${activeInstall ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-amber-500/10 border-amber-500/20 text-amber-400'}`}>
-                                    <span className={`h-2.5 w-2.5 rounded-full animate-pulse ${activeInstall ? 'bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.5)]' : 'bg-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.5)]'}`} />
-                                    <span className="text-[11px] font-black uppercase tracking-[0.25em]">{installationStatusLabel}</span>
-                                </div>
+                {/* CARD 2: CHAVE DE INSTALAÇÃO */}
+                <article className="flex flex-col justify-between rounded-[2rem] border border-purple-500/30 bg-gradient-to-br from-[#180E29] via-[#0E0C18] to-[#120B20] p-6 shadow-2xl lg:col-span-5 relative overflow-hidden">
+                    <div className="space-y-6">
+                        {/* Header Superior Limpo */}
+                        <div className="flex items-center gap-3">
+                            <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-purple-500/40 bg-purple-500/10 text-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.15)]">
+                                <KeyRound className="h-5 w-5" />
                             </div>
-
-                            <div className="mt-12 grid grid-cols-1 md:grid-cols-2 gap-10 items-center">
-                                <div>
-                                    <p className="text-xl font-medium text-gray-400 leading-relaxed max-w-sm">
-                                        {installationStatusHint}
-                                    </p>
-                                    <div className="mt-10 flex flex-wrap gap-4">
-                                        <button
-                                            onClick={() => onNavigate('install')}
-                                            className="inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-8 py-4 text-xs font-black uppercase tracking-widest text-white transition-all hover:bg-white/10"
-                                        >
-                                            <RefreshCcw className="h-4.5 w-4.5" />
-                                            {t('basic_dashboard.actions.view_installation')}
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div className="hidden md:block">
-                                    <div className="rounded-[2rem] border border-white/5 bg-white/[0.02] p-7 relative overflow-hidden group/logs">
-                                        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover/logs:opacity-100 transition-opacity duration-500" />
-                                        <p className="text-[10px] font-black uppercase tracking-[0.25em] text-gray-500 mb-5 flex items-center gap-2">
-                                            <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-                                            {t('basic_dashboard.cards.operational_logs')}
-                                        </p>
-                                        <div className="space-y-4 relative z-10">
-                                            <div className="flex items-center gap-3 text-[11px] font-mono text-gray-400">
-                                                <span className="text-emerald-400 font-bold">[OK]</span> 
-                                                <span className="opacity-40">{t('basic_dashboard.logs.core_engine_synced')}</span>
-                                            </div>
-                                            <div className="flex items-center gap-3 text-[11px] font-mono text-gray-400">
-                                                <span className="text-primary font-bold">[OK]</span>
-                                                <span className="opacity-40">{t('basic_dashboard.logs.license_validated')}</span>
-                                            </div>
-                                            <div className="flex items-center gap-3 text-[11px] font-mono text-gray-400">
-                                                <span className="text-sky-400 font-bold">[OK]</span>
-                                                <span className="opacity-40">{t('basic_dashboard.logs.domains_monitored')}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* CREDENCIAIS E LIMITES */}
-                    <div className="lg:col-span-4 flex flex-col gap-6">
-                        <div className="flex-1 rounded-[2.5rem] border border-white/5 bg-[#0A0A0F]/60 p-8 backdrop-blur-3xl transition-all hover:border-white/10 group/key">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3 text-primary/80">
-                                    <KeyRound className="h-5 w-5" />
-                                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-500">
-                                        {t('basic_dashboard.cards.installation_key')}
-                                    </p>
-                                </div>
-                                <button 
-                                    onClick={copyLicenseKey}
-                                    className="p-2.5 rounded-xl bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-all opacity-0 group-hover/key:opacity-100"
-                                >
-                                    <Copy className="h-4 w-4" />
-                                </button>
-                            </div>
-                            
-                            <div className="mt-8">
-                                {license?.key ? (
-                                    <div className="space-y-5">
-                                        <div className="relative group/code">
-                                            <code className="block break-all rounded-2xl border border-white/5 bg-black/40 p-5 text-[11px] font-bold leading-relaxed text-white/50 font-mono transition-all group-hover/code:text-white group-hover/code:border-primary/30">
-                                                {license.key}
-                                            </code>
-                                        </div>
-                                        <button
-                                            onClick={() => onNavigate('license')}
-                                            className="w-full inline-flex items-center justify-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-4 text-[10px] font-black uppercase tracking-widest text-white transition-all hover:bg-white/10"
-                                        >
-                                            {t('basic_dashboard.actions.manage_key')}
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <p className="text-sm text-gray-500 leading-relaxed italic">{t('basic_dashboard.empty_key')}</p>
-                                )}
-                            </div>
-                        </div>
-
-                        <div className={`rounded-[2.5rem] border p-8 transition-all relative overflow-hidden group/plan ${hasUnlimitedPlan ? 'border-primary/20 bg-primary/5' : 'border-white/5 bg-white/[0.02]'}`}>
-                            <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-[40px] pointer-events-none" />
-                            
-                            <div className="relative z-10 flex items-center justify-between">
-                                <div className="flex items-center gap-3 text-primary">
-                                    <Globe className="h-5 w-5" />
-                                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-500">
-                                        {t('basic_dashboard.cards.current_limits')}
-                                    </p>
-                                </div>
-                                {!hasUnlimitedPlan && (
-                                    <button onClick={openUpgrade} className="text-[10px] font-black text-primary hover:underline uppercase tracking-tighter">{t('basic_dashboard.actions.upgrade_plan')}</button>
-                                )}
-                            </div>
-                            
-                            <div className="relative z-10 mt-8 grid grid-cols-2 gap-6">
-                                <div className="space-y-1">
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-600">{t('basic_dashboard.labels.domains')}</p>
-                                    <p className="text-4xl font-black italic tracking-tighter text-white">
-                                        {domainLimit}
-                                    </p>
-                                </div>
-                                <div className="space-y-1">
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-600">{t('basic_dashboard.labels.products')}</p>
-                                    <p className="text-4xl font-black italic tracking-tighter text-white">
-                                        {productLimit}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="rounded-[2.5rem] border border-white/5 bg-[#05050A]/40 p-6 md:p-10">
-                    <div className="mb-6">
-                        <DemoExperienceCard
-                            onOpenDemo={onOpenDemo}
-                            demoLoading={demoLoading}
-                            demoError={demoError}
-                        />
-                    </div>
-
-                    <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
-                        <div>
-                            <p className="text-[11px] font-black uppercase tracking-[0.4em] text-primary/60">
-                                {t('basic_dashboard.quick_access.eyebrow')}
-                            </p>
-                            <h4 className="mt-3 font-display text-3xl font-black italic uppercase tracking-tighter text-white">
-                                {t('basic_dashboard.quick_access.title')}
-                            </h4>
-                            <p className="mt-3 max-w-2xl text-sm font-medium leading-relaxed text-gray-500">
-                                {installedAdminBaseUrl
-                                    ? t('basic_dashboard.quick_access.ready')
-                                    : t('basic_dashboard.quick_access.waiting')}
-                            </p>
-                        </div>
-
-                        {installedAdminBaseUrl && (
-                            <div className="flex items-center gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 px-5 py-3 backdrop-blur-md">
-                                <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.5)]" />
-                                <span className="text-[11px] font-black uppercase tracking-[0.24em] text-emerald-400/90">
-                                    {activeInstall?.domain}
+                            <div>
+                                <span className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400">
+                                    {t('basic_dashboard.cards.installation_key')}
                                 </span>
+                                <p className="text-[11px] font-bold text-purple-300/70">
+                                    CHAVE MASTER DE AUTENTICAÇÃO
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Seção Organizada da Chave */}
+                        {license?.key ? (
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between px-1">
+                                    <span className="text-[9px] font-black uppercase tracking-widest text-purple-400">
+                                        {t('basic_dashboard.cards.installation_key')}
+                                    </span>
+                                    <span className="text-[9px] font-bold text-emerald-400 flex items-center gap-1">
+                                        <ShieldCheck className="h-3 w-3" /> {t('basic_dashboard.status.active')}
+                                    </span>
+                                </div>
+
+                                {/* Campo Estilizado Separado */}
+                                <div className="flex items-center justify-between gap-3 rounded-2xl border border-purple-500/40 bg-[#0B0A12] p-3 shadow-inner">
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                        <KeyRound className="h-4 w-4 text-purple-400 shrink-0" />
+                                        <code className="truncate font-mono text-xs sm:text-sm font-black tracking-wider text-purple-200 select-all">
+                                            {license.key}
+                                        </code>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={copyLicenseKey}
+                                        disabled={!license?.key}
+                                        className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-purple-400/40 bg-purple-600 hover:bg-purple-500 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-white shadow-md transition duration-200 active:scale-95 disabled:opacity-40"
+                                    >
+                                        {copiedKey ? <Check className="h-3.5 w-3.5 text-emerald-300" /> : <Copy className="h-3.5 w-3.5" />}
+                                        <span>{copiedKey ? 'COPIADO' : 'COPIAR'}</span>
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="rounded-2xl border border-white/[0.08] bg-[#0B0A12] p-4 text-xs italic leading-relaxed text-gray-400">
+                                {t('basic_dashboard.empty_key')}
                             </div>
                         )}
                     </div>
 
-                    <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-                        {QUICK_ACCESS_ITEMS.map(({ key, icon: Icon, path }) => (
-                            <button
-                                key={key}
-                                disabled={!installedAdminBaseUrl}
-                                onClick={() => openInstalledPath(path)}
-                                className="group relative flex flex-col justify-between overflow-hidden rounded-[2rem] border border-white/5 bg-white/[0.02] p-6 text-left transition-all duration-500 hover:border-primary/40 hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-30"
-                            >
-                                <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-primary/5 blur-2xl transition-all group-hover:bg-primary/10" />
-                                
-                                <div className="relative z-10 flex items-center justify-between">
-                                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary transition-transform duration-500 group-hover:scale-110 group-hover:bg-primary/20">
-                                        <Icon className="h-6 w-6" />
-                                    </div>
-                                    <ExternalLink className="h-4 w-4 text-gray-600 transition-all duration-300 group-hover:translate-x-1 group-hover:-translate-y-1 group-hover:text-primary" />
-                                </div>
-                                <div className="relative z-10 mt-8">
-                                    <p className="font-display text-xl font-black italic uppercase tracking-tight text-white group-hover:text-primary-hover transition-colors">
-                                        {t(`basic_dashboard.quick_access.items.${key}`)}
-                                    </p>
-                                    <p className="mt-2 text-xs font-medium leading-relaxed text-gray-500 group-hover:text-gray-400 transition-colors">
-                                        {installedAdminBaseUrl
-                                            ? t('basic_dashboard.quick_access.open_live')
-                                            : t('basic_dashboard.quick_access.install_required')}
-                                    </p>
-                                </div>
-                            </button>
-                        ))}
+                    {/* Rodapé Separado */}
+                    <div className="mt-6 flex items-center justify-between border-t border-white/[0.08] pt-4">
+                        <span className="text-[10px] font-medium text-gray-400">
+                            Usada para validar suas instâncias
+                        </span>
+                        <button
+                            type="button"
+                            onClick={() => onNavigate('license')}
+                            className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-purple-400 transition hover:text-purple-300 hover:underline"
+                        >
+                            {t('basic_dashboard.actions.manage_key')}
+                            <ArrowUpRight className="h-3.5 w-3.5" />
+                        </button>
                     </div>
+                </article>
+            </div>
+
+            {/* GRADE SECUNDÁRIA: LIMITES + DEMO */}
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+                {/* CARD 3: LIMITES DO PLANO */}
+                <article className={`rounded-[2rem] border p-6 shadow-2xl lg:col-span-5 flex flex-col justify-between relative overflow-hidden ${hasUnlimitedPlan ? 'border-purple-500/30 bg-gradient-to-br from-[#120B20] via-[#0E0C18] to-[#180E29]' : 'border-sky-500/30 bg-gradient-to-br from-[#0C1324] via-[#0E0C18] to-[#180E29]'}`}>
+                    <div>
+                        <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                                <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-sky-500/40 bg-sky-500/10 text-sky-400 shadow-[0_0_15px_rgba(56,189,248,0.15)]">
+                                    <Globe className="h-5 w-5" />
+                                </div>
+                                <div>
+                                    <span className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400">
+                                        {t('basic_dashboard.cards.current_limits')}
+                                    </span>
+                                    <p className="text-[11px] font-bold text-sky-300/70">
+                                        RECURSOS LIBERADOS
+                                    </p>
+                                </div>
+                            </div>
+                            {!hasUnlimitedPlan && (
+                                <button
+                                    type="button"
+                                    onClick={openUpgrade}
+                                    className="text-[9px] font-black uppercase tracking-wider text-purple-400 hover:text-white transition"
+                                >
+                                    {t('basic_dashboard.actions.upgrade_plan')}
+                                </button>
+                            )}
+                        </div>
+
+                        <div className="mt-5 grid grid-cols-2 gap-3.5">
+                            <div className="rounded-[1.25rem] border border-white/[0.08] bg-black/60 p-4">
+                                <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">
+                                    {t('basic_dashboard.labels.domains')}
+                                </span>
+                                <p className="mt-2 font-display text-2xl font-black italic tracking-tighter text-white">{domainLimit}</p>
+                                <div className="mt-3 h-2 rounded-full bg-white/10 overflow-hidden">
+                                    <div className={`h-full rounded-full ${hasUnlimitedPlan ? 'w-full bg-purple-500 shadow-[0_0_10px_#a855f7]' : 'w-1/4 bg-sky-400'}`} />
+                                </div>
+                            </div>
+
+                            <div className="rounded-[1.25rem] border border-white/[0.08] bg-black/60 p-4">
+                                <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">
+                                    {t('basic_dashboard.labels.products')}
+                                </span>
+                                <p className="mt-2 font-display text-2xl font-black italic tracking-tighter text-white">{productLimit}</p>
+                                <div className="mt-3 h-2 rounded-full bg-white/10 overflow-hidden">
+                                    <div className={`h-full rounded-full ${hasUnlimitedPlan ? 'w-full bg-purple-500 shadow-[0_0_10px_#a855f7]' : 'w-2/5 bg-sky-400'}`} />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+
+                {/* CARD 4: SISTEMA DEMO OFICIAL */}
+                <div className="lg:col-span-7">
+                    <DemoExperienceCard
+                        onOpenDemo={onOpenDemo}
+                        demoLoading={demoLoading}
+                        demoError={demoError}
+                    />
                 </div>
             </div>
+
+            {/* SEÇÃO 5: ATALHOS RÁPIDOS */}
+            <section className="pt-4 space-y-4">
+                <div className="flex items-end justify-between gap-3">
+                    <div>
+                        <span className="text-[10px] font-black uppercase tracking-[0.25em] text-purple-400">
+                            {t('basic_dashboard.quick_access.eyebrow')}
+                        </span>
+                        <h4 className="font-display text-xl font-black uppercase italic tracking-tighter text-white">
+                            {t('basic_dashboard.quick_access.title')}
+                        </h4>
+                    </div>
+                    {installedAdminBaseUrl && (
+                        <span className="max-w-[180px] truncate rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-[9px] font-black uppercase tracking-wider text-emerald-300">
+                            {activeInstall?.domain}
+                        </span>
+                    )}
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    {QUICK_ACCESS_ITEMS.map(({ key, icon: Icon, path }) => (
+                        <button
+                            key={key}
+                            type="button"
+                            disabled={!installedAdminBaseUrl}
+                            onClick={() => openInstalledPath(path)}
+                            className="group flex flex-col justify-between rounded-[1.75rem] border border-purple-500/20 bg-gradient-to-br from-[#140E24] via-[#0E0C18] to-[#0A0F1B] p-5 transition duration-300 hover:-translate-y-1 hover:border-purple-500/50 hover:shadow-2xl hover:shadow-purple-950/50 text-left min-h-[130px] disabled:cursor-not-allowed disabled:opacity-30"
+                        >
+                            <div className="flex items-center justify-between">
+                                <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-purple-500/25 bg-purple-500/10 text-purple-400 transition duration-300 group-hover:bg-purple-600 group-hover:text-white group-hover:border-purple-500 shadow-inner">
+                                    <Icon className="h-5 w-5" />
+                                </div>
+                                <ArrowUpRight className="h-4 w-4 text-gray-500 transition duration-300 group-hover:text-purple-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                            </div>
+                            <div className="mt-4 flex items-end justify-between gap-2">
+                                <h5 className="font-display text-sm font-black uppercase italic tracking-tight text-white transition duration-300 group-hover:text-purple-300 truncate">
+                                    {t(`basic_dashboard.quick_access.items.${key}`)}
+                                </h5>
+                                <span className="shrink-0 text-[8px] font-black uppercase tracking-widest text-gray-500">
+                                    {installedAdminBaseUrl ? t('basic_dashboard.quick_access.open_live') : t('basic_dashboard.quick_access.install_required')}
+                                </span>
+                            </div>
+                        </button>
+                    ))}
+                </div>
+            </section>
         </section>
     );
 };
+
+export default BlockBasicDashboard;

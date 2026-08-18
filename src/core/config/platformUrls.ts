@@ -1,3 +1,5 @@
+import { isLocalHostname } from './runtimeMode';
+
 type QueryValue = string | number | boolean | null | undefined;
 
 const DEFAULT_MARKETING_URL = 'https://supercheckout.app';
@@ -13,7 +15,7 @@ const getEnvUrl = (env: string | undefined, fallback: string): string => {
         return normalizeBaseUrl(env);
     }
 
-    if (typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname)) {
+    if (typeof window !== 'undefined' && isLocalHostname(window.location.hostname)) {
         return window.location.origin;
     }
 

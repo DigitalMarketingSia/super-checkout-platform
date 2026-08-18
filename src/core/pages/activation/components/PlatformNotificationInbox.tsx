@@ -1,5 +1,20 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Bell, Check, CheckCheck, ExternalLink, Loader2 } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import {
+  Bell,
+  Check,
+  CheckCheck,
+  ChevronDown,
+  ChevronUp,
+  ExternalLink,
+  Loader2,
+  ShoppingBag,
+  ShieldAlert,
+  Sparkles,
+  UserRound,
+  Wrench,
+  X,
+} from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import {
@@ -20,20 +35,52 @@ function formatNotificationDate(value: string) {
   }
 }
 
-function isSafePortalAction(actionUrl: string | null) {
-  if (!actionUrl) return false;
+function getSafeNotificationTarget(notification: PlatformNotification) {
+  const isInstallationNotification = notification.category === 'installation' || notification.reference_type === 'service_order';
+  const rawActionUrl = notification.action_url || (isInstallationNotification && notification.reference_id ? '/activate/setup?tab=services' : null);
+  if (!rawActionUrl) return null;
   try {
-    const target = new URL(actionUrl, window.location.origin);
-    return target.origin === window.location.origin || target.origin === 'https://portal.supercheckout.app';
+    const target = new URL(rawActionUrl, window.location.origin);
+    const isSafeOrigin = target.origin === window.location.origin || target.origin === 'https://portal.supercheckout.app';
+    if (!isSafeOrigin) return null;
+
+    if (isInstallationNotification && ['/activate', '/activate/'].includes(target.pathname)) {
+      target.pathname = '/activate/setup';
+      target.searchParams.set('tab', 'services');
+    }
+    if (isInstallationNotification && notification.reference_id) {
+      target.searchParams.set('order_id', notification.reference_id);
+    }
+    return target;
   } catch {
-    return false;
+    return null;
   }
+}
+
+function getNotificationPresentation(notification: PlatformNotification) {
+  if (notification.category === 'installation') return { label: 'Instalação', icon: Wrench, tone: 'text-amber-300 bg-amber-400/10 border-amber-300/20' };
+  if (notification.category === 'upgrade') return { label: 'Upgrade', icon: Sparkles, tone: 'text-[#C77DFF] bg-[#8A2BE2]/10 border-[#8A2BE2]/20' };
+  if (notification.category === 'commercial') return { label: 'Comercial', icon: ShoppingBag, tone: 'text-emerald-300 bg-emerald-400/10 border-emerald-300/20' };
+  if (notification.category === 'security' || notification.category === 'license') return { label: 'Segurança', icon: ShieldAlert, tone: 'text-red-300 bg-red-400/10 border-red-300/20' };
+  if (notification.category === 'account') return { label: 'Conta', icon: UserRound, tone: 'text-sky-300 bg-sky-400/10 border-sky-300/20' };
+  return { label: 'Atualização', icon: Bell, tone: 'text-gray-300 bg-white/5 border-white/10' };
+}
+
+function getNotificationSummary(notification: PlatformNotification) {
+  const title = String(notification.title || '').trim();
+  const message = String(notification.message || '').trim();
+  if (title.length > 0 && title.length <= 96) return title;
+
+  const firstSentence = message.split(/[.!?]\s+/)[0]?.trim() || message || title;
+  if (firstSentence.length <= 120) return firstSentence;
+  return `${firstSentence.slice(0, 117).trimEnd()}...`;
 }
 
 export const PlatformNotificationInbox: React.FC<{ userId: string }> = ({ userId }) => {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState<NotificationFilter>('all');
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<PlatformNotification[]>([]);
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -102,8 +149,11 @@ export const PlatformNotificationInbox: React.FC<{ userId: string }> = ({ userId
 
   const handleOpenNotification = async (notification: PlatformNotification) => {
     await handleRead(notification);
-    if (!isSafePortalAction(notification.action_url)) return;
-    const target = new URL(notification.action_url as string, window.location.origin);
+    const target = getSafeNotificationTarget(notification);
+    if (!target) {
+      toast.error('Esta notificação não possui um destino disponível.');
+      return;
+    }
     navigate(`${target.pathname}${target.search}${target.hash}`);
     setOpen(false);
   };
@@ -113,8 +163,9 @@ export const PlatformNotificationInbox: React.FC<{ userId: string }> = ({ userId
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
+        aria-expanded={open}
         title="Notificações"
-        className={`relative rounded-2xl border p-3 transition-all ${open ? 'border-primary/20 bg-primary/10 text-primary' : 'border-white/5 bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'}`}
+        className={`relative z-[51] rounded-2xl border p-3 transition-all ${open ? 'border-primary/30 bg-[#111116] text-primary' : 'border-white/5 bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'}`}
       >
         <Bell className="h-5 w-5" />
         {unreadCount > 0 && (
@@ -124,60 +175,112 @@ export const PlatformNotificationInbox: React.FC<{ userId: string }> = ({ userId
         )}
       </button>
 
-      {open && (
-        <div className="absolute right-0 top-14 z-50 w-[min(92vw,420px)] overflow-hidden rounded-3xl border border-white/10 bg-[#0C0C12] shadow-2xl shadow-black/50">
-          <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.2em] text-white">Central de notificações</p>
-              <p className="mt-1 text-[10px] text-gray-500">{unreadCount ? `${unreadCount} não lida${unreadCount === 1 ? '' : 's'}` : 'Tudo em dia'}</p>
+      {open && typeof document !== 'undefined' && createPortal(
+        <>
+          <button
+            type="button"
+            aria-label="Fechar painel de notificações"
+            onClick={() => setOpen(false)}
+            className="fixed inset-0 z-[100] cursor-default bg-[#05050A]/80 backdrop-blur-[3px]"
+          />
+          <div role="dialog" aria-label="Notificações" className="fixed left-1/2 top-[4.75rem] z-[101] w-[min(94vw,460px)] max-w-[calc(100vw-1.5rem)] -translate-x-1/2 overflow-hidden rounded-2xl border border-white/15 bg-[#0B0B12] shadow-2xl shadow-black/70 sm:top-[5.5rem]">
+            <div className="flex items-center justify-between gap-3 border-b border-white/5 px-5 py-4">
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white">Notificações</p>
+                <p className="mt-1 text-[9px] font-medium uppercase tracking-wider text-gray-600">{unreadCount ? `${unreadCount} não lida${unreadCount === 1 ? '' : 's'}` : 'Tudo em dia'}</p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <button type="button" onClick={() => void handleMarkAll()} disabled={!unreadCount || busyId === 'all'} className="inline-flex items-center gap-1 rounded-lg border border-transparent px-1.5 py-1 text-[8px] font-black uppercase tracking-widest text-primary transition hover:border-primary/20 hover:bg-primary/10 disabled:opacity-40">
+                  {busyId === 'all' ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCheck className="h-3 w-3" />} Ler todas
+                </button>
+                <button type="button" onClick={() => setOpen(false)} aria-label="Fechar notificações" className="rounded-lg border border-white/5 bg-[#111116] p-1.5 text-gray-500 transition hover:bg-[#15151e] hover:text-white"><X className="h-3.5 w-3.5" /></button>
+              </div>
             </div>
-            <button type="button" onClick={() => void handleMarkAll()} disabled={!unreadCount || busyId === 'all'} className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-primary disabled:opacity-40">
-              {busyId === 'all' ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCheck className="h-3 w-3" />} Marcar todas
-            </button>
-          </div>
 
-          <div className="flex gap-1 overflow-x-auto border-b border-white/5 px-4 py-3">
-            {([
-              ['all', 'Todas'],
-              ['unread', 'Não lidas'],
-              ['installation', 'Instalação'],
-              ['upgrade', 'Upgrade'],
-              ['commercial', 'Comercial'],
-            ] as Array<[NotificationFilter, string]>).map(([value, label]) => (
-              <button key={value} type="button" onClick={() => setFilter(value)} className={`whitespace-nowrap rounded-full px-3 py-1.5 text-[9px] font-black uppercase tracking-widest transition ${filter === value ? 'bg-primary/15 text-primary' : 'text-gray-500 hover:bg-white/5 hover:text-gray-300'}`}>
-                {label}
-              </button>
-            ))}
-          </div>
+            <div className="flex flex-wrap gap-1 border-b border-white/5 px-4 py-2.5">
+              {([
+                ['all', 'Todas'],
+                ['unread', 'Não lidas'],
+                ['installation', 'Instalação'],
+                ['upgrade', 'Upgrade'],
+                ['commercial', 'Comercial'],
+              ] as Array<[NotificationFilter, string]>).map(([value, label]) => (
+                <button key={value} type="button" onClick={() => setFilter(value)} className={`rounded-lg px-2.5 py-1.5 text-[8px] font-black uppercase tracking-wider transition ${filter === value ? 'border border-primary/25 bg-primary/10 text-primary' : 'border border-transparent text-gray-600 hover:border-white/5 hover:bg-white/5 hover:text-gray-300'}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
 
-          <div className="max-h-[min(65vh,520px)] overflow-y-auto">
-            {loading ? (
-              <div className="flex items-center justify-center gap-2 px-5 py-12 text-xs text-gray-500"><Loader2 className="h-4 w-4 animate-spin text-primary" /> Carregando...</div>
-            ) : visibleNotifications.length === 0 ? (
-              <div className="px-6 py-12 text-center"><Bell className="mx-auto h-7 w-7 text-gray-700" /><p className="mt-3 text-xs font-black uppercase tracking-widest text-gray-500">Nenhuma notificação</p></div>
-            ) : (
-              visibleNotifications.map((notification) => (
-                <div key={notification.id} className={`border-b border-white/5 px-5 py-4 transition hover:bg-white/[0.03] ${notification.read_at ? 'opacity-70' : 'bg-primary/[0.04]'}`}>
-                  <div className="flex gap-3">
-                    <div className={`mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-xl ${notification.read_at ? 'bg-white/5 text-gray-500' : 'bg-primary/15 text-primary'}`}>
-                      {notification.read_at ? <Check className="h-3.5 w-3.5" /> : <Bell className="h-3.5 w-3.5" />}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between gap-3"><p className="text-xs font-black text-white">{notification.title}</p><span className="shrink-0 text-[9px] text-gray-600">{formatNotificationDate(notification.created_at)}</span></div>
-                      <p className="mt-1 text-xs leading-relaxed text-gray-400">{notification.message}</p>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {!notification.read_at && <button type="button" onClick={() => void handleRead(notification)} disabled={busyId === notification.id} className="text-[9px] font-black uppercase tracking-widest text-gray-500 hover:text-white">Marcar lida</button>}
-                        {isSafePortalAction(notification.action_url) && <button type="button" onClick={() => void handleOpenNotification(notification)} className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-primary hover:text-primary/80"><ExternalLink className="h-3 w-3" /> Abrir</button>}
-                      </div>
-                    </div>
-                  </div>
+            <div className="max-h-[min(60vh,380px)] overflow-x-hidden overflow-y-auto px-4 py-3">
+              {loading ? (
+                <div className="flex items-center justify-center gap-2 px-5 py-12 text-xs text-gray-500"><Loader2 className="h-4 w-4 animate-spin text-primary" /> Carregando...</div>
+              ) : visibleNotifications.length === 0 ? (
+                <div className="px-6 py-12 text-center"><Bell className="mx-auto h-7 w-7 text-gray-700" /><p className="mt-3 text-xs font-black uppercase tracking-widest text-gray-500">Nenhuma notificação</p></div>
+              ) : (
+                <div className="space-y-2">
+                  {visibleNotifications.map((notification) => {
+                    const presentation = getNotificationPresentation(notification);
+                    const Icon = presentation.icon;
+                    const target = getSafeNotificationTarget(notification);
+                    const isInstallationNotification = notification.category === 'installation' || notification.reference_type === 'service_order';
+                    const priorityLabel = notification.priority === 'critical' ? 'Urgente' : notification.priority === 'high' ? 'Importante' : null;
+                    const isExpanded = expandedId === notification.id;
+                    const summary = getNotificationSummary(notification);
+
+                    return (
+                      <article key={notification.id} className={`min-w-0 overflow-hidden rounded-xl border border-l-2 transition ${notification.read_at ? 'border-white/5 border-l-white/10 bg-[#0F0F15] hover:border-white/15 hover:bg-[#14141B]' : 'border-primary/35 border-l-primary bg-[#171520] shadow-[0_4px_18px_rgba(0,0,0,0.18)] hover:border-primary/50 hover:bg-[#1B1925]'} ${notification.priority === 'critical' ? 'border-red-400/40 border-l-red-400' : ''}`}>
+                        <div className="flex min-w-0 items-center gap-3 px-3.5 py-3">
+                          <div className={`relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${presentation.tone} ${notification.read_at ? 'opacity-60' : ''}`}>
+                            <Icon className="h-3.5 w-3.5" />
+                            {!notification.read_at && <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full border-2 border-[#111116] bg-primary" />}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex min-w-0 items-center gap-2">
+                              <p className={`min-w-0 flex-1 truncate text-[11px] font-black leading-tight ${notification.read_at ? 'text-gray-300' : 'text-white'}`}>{summary}</p>
+                              <time className="shrink-0 text-[8px] font-medium text-gray-600">{formatNotificationDate(notification.created_at)}</time>
+                            </div>
+                            <p className="mt-1 truncate text-[9px] font-black uppercase tracking-[0.12em] text-gray-600">{presentation.label}{!notification.read_at ? ' · Nova' : ''}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setExpandedId((current) => current === notification.id ? null : notification.id)}
+                            aria-expanded={isExpanded}
+                            aria-controls={`notification-details-${notification.id}`}
+                            aria-label={isExpanded ? 'Recolher notificação' : 'Expandir notificação'}
+                            className="shrink-0 rounded-lg border border-white/10 bg-white/[0.03] p-1.5 text-gray-500 transition hover:border-primary/30 hover:bg-primary/10 hover:text-primary"
+                          >
+                            {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                          </button>
+                        </div>
+
+                        {isExpanded && (
+                          <div id={`notification-details-${notification.id}`} className="border-t border-white/5 px-3.5 pb-3.5 pt-3">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className={`rounded-md border px-1.5 py-0.5 text-[7px] font-black uppercase tracking-wider ${presentation.tone}`}>{presentation.label}</span>
+                              {notification.read_at && <span className="rounded-md border border-white/10 bg-white/[0.03] px-1.5 py-0.5 text-[7px] font-black uppercase tracking-wider text-gray-500">Lida</span>}
+                              {priorityLabel && <span className="rounded-md border border-amber-300/15 bg-amber-300/5 px-1.5 py-0.5 text-[7px] font-black uppercase tracking-wider text-amber-300">{priorityLabel}</span>}
+                            </div>
+                            <p className="mt-2 text-[11px] font-black leading-tight text-white">{notification.title}</p>
+                            <p className="mt-2 break-words text-[10px] leading-relaxed text-[#E1E7F0]">{notification.message}</p>
+                            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/5 pt-2.5">
+                              <div className="flex items-center gap-3">
+                                {!notification.read_at && <button type="button" onClick={() => void handleRead(notification)} disabled={busyId === notification.id} className="text-[8px] font-black uppercase tracking-wider text-gray-600 transition hover:text-white disabled:opacity-40">Marcar lida</button>}
+                                {notification.read_at && <span className="inline-flex items-center gap-1 text-[8px] font-black uppercase tracking-wider text-gray-600"><Check className="h-3 w-3" /> Lida</span>}
+                              </div>
+                              {target && <button type="button" onClick={() => void handleOpenNotification(notification)} className="inline-flex items-center gap-1 rounded-lg border border-primary/25 bg-primary/10 px-2 py-1.5 text-[8px] font-black uppercase tracking-wider text-primary transition hover:bg-primary/20"><ExternalLink className="h-3 w-3" /> {isInstallationNotification ? 'Abrir solicitação' : 'Abrir'}</button>}
+                            </div>
+                          </div>
+                        )}
+                      </article>
+                    );
+                  })}
                 </div>
-              ))
-            )}
+              )}
+            </div>
           </div>
-        </div>
+        </>,
+        document.body,
       )}
     </div>
   );
 };
-

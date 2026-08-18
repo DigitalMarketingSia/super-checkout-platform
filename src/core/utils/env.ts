@@ -74,7 +74,7 @@ export const getEnv = (key: string): string | undefined => {
   }
 
   // 1.5. Override para desenvolvimento local (LocalStorage)
-  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname.endsWith('.localhost') || window.location.hostname === '127.0.0.1' || window.location.hostname.startsWith('127.'))) {
     const isSupabaseKey = key.includes('SUPABASE');
     const isCentralKey = key.includes('CENTRAL_');
     if (isSupabaseKey && !isCentralKey && !isServerOnlyKey) {

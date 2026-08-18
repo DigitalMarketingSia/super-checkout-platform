@@ -17,6 +17,12 @@ export interface License {
     has_partner_panel?: boolean;
 }
 
+export interface LicenseLookupResult {
+    license: License | null;
+    error: string | null;
+    status: number | null;
+}
+
 export interface LicensesResponse {
     data: License[];
     meta: {
@@ -182,6 +188,49 @@ const normalizeLicensePayload = (payload: any): License | null => {
     } as License;
 };
 
+const getCurrentUserLicenseStatus = async (email?: string): Promise<LicenseLookupResult> => {
+    let url = getProxyUrl('get-license-status');
+
+    if (email) {
+        const params = new URLSearchParams({ email, _t: Date.now().toString() });
+        url = `${url}?${params.toString()}`;
+    } else {
+        url = `${url}?_t=${Date.now()}`;
+    }
+
+    try {
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: await getHeaders(),
+        });
+
+        if (response.status === 404) {
+            return { license: null, error: null, status: 404 };
+        }
+
+        if (!response.ok) {
+            return {
+                license: null,
+                error: await readApiError(response, 'Não foi possível consultar a licença nesta instalação.'),
+                status: response.status,
+            };
+        }
+
+        return {
+            license: normalizeLicensePayload(await response.json()),
+            error: null,
+            status: response.status,
+        };
+    } catch (error: any) {
+        console.error('Error in getCurrentUserLicenseStatus:', error);
+        return {
+            license: null,
+            error: 'Não foi possível conectar ao serviço de licenças nesta instalação.',
+            status: null,
+        };
+    }
+};
+
 export const licenseService = {
     async list(page = 1, search = '', limit = 10): Promise<LicensesResponse> {
         const params = new URLSearchParams({
@@ -286,29 +335,13 @@ export const licenseService = {
         if (!response.ok) throw new Error('Failed to update license');
     },
 
-    async getLicenseByUserId(userId: string, email?: string): Promise<License | null> {
-        const headers = await getHeaders();
-        let url = getProxyUrl('get-license-status');
+    async getLicenseByUserId(_userId: string, email?: string): Promise<License | null> {
+        const result = await getCurrentUserLicenseStatus(email);
+        return result.license;
+    },
 
-        if (email) {
-            const params = new URLSearchParams({ email, _t: Date.now().toString() });
-            url = `${url}?${params.toString()}`;
-        } else {
-            url = `${url}?_t=${Date.now()}`;
-        }
-
-        try {
-            const response = await fetch(url, {
-                method: 'GET',
-                headers
-            });
-
-            if (!response.ok) return null;
-            return normalizeLicensePayload(await response.json());
-        } catch (error) {
-            console.error('Error in getLicenseByUserId:', error);
-            return null;
-        }
+    async getCurrentUserLicenseStatus(email?: string): Promise<LicenseLookupResult> {
+        return getCurrentUserLicenseStatus(email);
     },
 
     async requestActivationLink(email: string): Promise<void> {

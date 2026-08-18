@@ -50,7 +50,6 @@ const PrivacyCenter = React.lazy(() => import('./pages/admin/PrivacyCenter').the
 const MyInstallations = React.lazy(() => import('./pages/admin/Installations').then((mod) => ({ default: mod.MyInstallations })));
 const LeadCRM = React.lazy(() => import('./pages/admin/LeadCRM').then((mod) => ({ default: mod.LeadCRM })));
 const FreeUserDetails = React.lazy(() => import('./pages/admin/FreeUserDetails').then((mod) => ({ default: mod.FreeUserDetails })));
-const PartnerDashboard = React.lazy(() => import('./pages/admin/PartnerDashboard').then((mod) => ({ default: mod.PartnerDashboard })));
 const ServiceApproval = React.lazy(() => import('./pages/activation/ServiceApproval').then((mod) => ({ default: mod.ServiceApproval })));
 const Marketing = React.lazy(() => import('./pages/Marketing').then((mod) => ({ default: mod.Marketing })));
 const IntegrationsHub = React.lazy(() => import('./pages/IntegrationsHub').then((mod) => ({ default: mod.IntegrationsHub })));
@@ -64,6 +63,7 @@ const ContentModules = React.lazy(() => import('./pages/member/ContentModules').
 const PublicCheckout = React.lazy(() => import('./pages/public/PublicCheckout').then((mod) => ({ default: mod.PublicCheckout })));
 const PixPayment = React.lazy(() => import('./pages/public/PixPayment').then((mod) => ({ default: mod.PixPayment })));
 const PreviewUpsell = React.lazy(() => import('./pages/public/PreviewUpsell').then((mod) => ({ default: mod.PreviewUpsell })));
+const PreviewDashboard = React.lazy(() => import('./pages/public/PreviewDashboard').then((mod) => ({ default: mod.PreviewDashboard })));
 const UpsellPage = React.lazy(() => import('./pages/public/UpsellPage').then((mod) => ({ default: mod.UpsellPage })));
 const ThankYou = React.lazy(() => import('./pages/public/ThankYou').then((mod) => ({ default: mod.ThankYou })));
 const Login = React.lazy(() => import('./pages/Login').then((mod) => ({ default: mod.Login })));
@@ -400,6 +400,7 @@ const DomainDispatcher = () => {
       <Route path="/thank-you/:orderId" element={<ThankYou />} />
       <Route path="/c/:id" element={<PublicCheckout />} />
       <Route path="/preview/upsell" element={<PreviewUpsell />} />
+      <Route path="/preview/dashboard" element={<PreviewDashboard />} />
       <Route path="/installer" element={<InstallerWizard />} />
 
       <Route path="/admin" element={<AdminRoute><Dashboard /></AdminRoute>} />
@@ -425,7 +426,7 @@ const DomainDispatcher = () => {
       <Route path="/admin/free-users/:id" element={<SystemOwnerRoute requireControlPlane><FreeUserDetails /></SystemOwnerRoute>} />
 
       <Route path="/admin/installations" element={<AdminRoute><MyInstallations /></AdminRoute>} />
-      <Route path="/admin/partner-dashboard" element={<SystemOwnerRoute requireControlPlane><PartnerDashboard /></SystemOwnerRoute>} />
+      <Route path="/admin/partner-dashboard" element={<SystemOwnerRoute requireControlPlane><Navigate to="/activate/setup?tab=partner" replace /></SystemOwnerRoute>} />
       <Route path="/admin/marketing" element={<AdminRoute><Marketing /></AdminRoute>} />
       <Route path="/admin/integrations" element={<AdminRoute><IntegrationsHub /></AdminRoute>} />
       <Route path="/admin/notifications" element={<AdminRoute><Notifications /></AdminRoute>} />

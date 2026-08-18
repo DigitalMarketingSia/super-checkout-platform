@@ -2843,6 +2843,7 @@
     "no_system_installed": "Nenhum sistema instalado.",
     "lifetime_batch": "Lote vitalício",
     "activate_features": "Ativar recursos",
+    "view_order": "Ver ordem",
     "brand_protection_title": "Proteção da marca e suporte",
     "brand_protection_description": "Em caso de abandono de suporte ou má conduta técnica com clientes indicados, a licença de parceiro pode ser suspensa ou revogada pela plataforma após análise.",
     "modules_management_title": "Gestão de módulos: {{name}}",
@@ -2867,6 +2868,7 @@
     },
     "toasts": {
       "load_error": "Erro ao carregar dados do parceiro.",
+      "access_denied": "Sua conta não tem acesso ao ecossistema de instalações.",
       "link_copied": "Link copiado para a área de transferência!",
       "features_load_error": "Erro ao carregar recursos: {{message}}",
       "feature_updated": "Recurso atualizado no banco central!",

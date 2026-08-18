@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router';
 import {
     Users,
     Globe,
@@ -26,17 +27,26 @@ import {
 import { useTranslation } from 'react-i18next';
 import { sanitizeTranslationHtml } from '../../../utils/sanitize';
 import { centralSupabase } from '../../../services/centralClient';
+import {
+    CentralInstallationEcosystemError,
+    listInstallationEcosystem,
+    type InstallationEcosystemItem,
+    type InstallationEcosystemResponse,
+    type InstallationEcosystemStatus,
+} from '../../../services/centralInstallationEcosystem';
 import { toast } from 'sonner';
 import { getRegisterUrl } from '../../../config/platformUrls';
 
 interface BlockPartnerProps {
     userId: string;
+    isPlatformOwner: boolean;
 }
 
 const LEADS_PER_PAGE = 10;
 
-export const BlockPartner: React.FC<BlockPartnerProps> = ({ userId }) => {
+export const BlockPartner: React.FC<BlockPartnerProps> = ({ userId, isPlatformOwner }) => {
     const { t, i18n } = useTranslation('portal');
+    const navigate = useNavigate();
     const partnerDateLocale = i18n.language.toLowerCase().startsWith('en')
         ? 'en-US'
         : i18n.language.toLowerCase().startsWith('es')
@@ -46,7 +56,15 @@ export const BlockPartner: React.FC<BlockPartnerProps> = ({ userId }) => {
     const [stats, setStats] = useState({ clients: 0, installations: 0, newToday: 0 });
 
     // Installations State (Technical view)
-    const [installations, setInstallations] = useState<any[]>([]);
+    const [installations, setInstallations] = useState<InstallationEcosystemItem[]>([]);
+    const [ecosystem, setEcosystem] = useState<InstallationEcosystemResponse | null>(null);
+    const [ecosystemLoading, setEcosystemLoading] = useState(true);
+    const [ecosystemError, setEcosystemError] = useState<CentralInstallationEcosystemError | null>(null);
+    const [ecosystemSearch, setEcosystemSearch] = useState('');
+    const [ecosystemStatus, setEcosystemStatus] = useState<InstallationEcosystemStatus>('all');
+    const [ecosystemPartnerId, setEcosystemPartnerId] = useState<string | null>(null);
+    const [ecosystemProviderId, setEcosystemProviderId] = useState<string | null>(null);
+    const [ecosystemPage, setEcosystemPage] = useState(1);
 
     // Leads CRM State
     const [leads, setLeads] = useState<any[]>([]);
@@ -64,15 +82,20 @@ export const BlockPartner: React.FC<BlockPartnerProps> = ({ userId }) => {
 
     const referralLink = getRegisterUrl({ partner: userId });
 
+    const handleViewOrder = (orderId: string) => {
+        navigate(`/activate/setup?tab=services&order_id=${encodeURIComponent(orderId)}`);
+    };
+
     const fetchData = async () => {
         if (!userId) return;
         setLoading(true);
         try {
-            // 1. Fetch Global Stats & Installations
-            const [statsRes, instRes] = await Promise.all([
-                centralSupabase.from('profiles').select('id, created_at', { count: 'exact' }).eq('referred_by_partner_id', userId),
-                centralSupabase.from('installations').select('id, hostname, status, created_at, profiles!inner(full_name, email, id)').eq('installed_by_partner_id', userId)
-            ]);
+            // Leads remain a separate CRM read; installations come only from
+            // the authenticated Central read model below.
+            const statsRes = await centralSupabase
+                .from('profiles')
+                .select('id, created_at', { count: 'exact' })
+                .eq('referred_by_partner_id', userId);
 
             const now = new Date();
             const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -80,11 +103,9 @@ export const BlockPartner: React.FC<BlockPartnerProps> = ({ userId }) => {
 
             setStats({
                 clients: statsRes.count || 0,
-                installations: instRes.data?.length || 0,
+                installations: ecosystem?.summary.total || 0,
                 newToday: newTodayCount
             });
-
-            if (instRes.data) setInstallations(instRes.data);
 
             // Initial leads fetch
             await fetchLeads(1, '', 'all');
@@ -113,12 +134,8 @@ export const BlockPartner: React.FC<BlockPartnerProps> = ({ userId }) => {
                 query = query.or(`full_name.ilike.%${search}%,email.ilike.%${search}%`);
             }
 
-            // Status Filter Logic: We need to filter based on presence in 'installations'
-            // For true server-side filtering by "converted" status, we'd need a more complex join or a helper column.
-            // Since we want to keep it performant and direct, we'll fetch the leads first and handle the local filter if it's 'pending'/'converted'.
-            // Actually, for 1000+ leads, filtering "Pending" (not in installations) is tricky without a join.
-            // But for now, we'll implement it as a semi-intelligent filter: 
-            // If the user selects 'converted', we query installations table and then filter profiles.
+            // Lead conversion remains a CRM concern; the installation ecosystem
+            // is loaded separately through its scoped server-side read model.
 
             let { data, count, error } = await query.range(start, end);
 
@@ -137,6 +154,42 @@ export const BlockPartner: React.FC<BlockPartnerProps> = ({ userId }) => {
     useEffect(() => {
         fetchData();
     }, [userId]);
+
+    const loadEcosystem = async () => {
+        setEcosystemLoading(true);
+        setEcosystemError(null);
+        try {
+            const result = await listInstallationEcosystem({
+                page: ecosystemPage,
+                page_size: LEADS_PER_PAGE,
+                search: ecosystemSearch,
+                installation_status: ecosystemStatus,
+                partner_id: isPlatformOwner ? ecosystemPartnerId : null,
+                provider_id: isPlatformOwner ? ecosystemProviderId : null,
+            });
+            setEcosystem(result);
+            setInstallations(result.items);
+            setStats(current => ({ ...current, installations: result.summary.total }));
+        } catch (error) {
+            const normalizedError = error instanceof CentralInstallationEcosystemError
+                ? error
+                : new CentralInstallationEcosystemError('A Central está indisponível neste momento.', 'unavailable');
+            setEcosystemError(normalizedError);
+            setEcosystem(null);
+            setInstallations([]);
+        } finally {
+            setEcosystemLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        const timer = window.setTimeout(() => void loadEcosystem(), 250);
+        return () => window.clearTimeout(timer);
+    }, [ecosystemPage, ecosystemSearch, ecosystemStatus, ecosystemPartnerId, ecosystemProviderId, isPlatformOwner]);
+
+    useEffect(() => {
+        if (ecosystemPage !== 1) setEcosystemPage(1);
+    }, [ecosystemSearch, ecosystemStatus, ecosystemPartnerId, ecosystemProviderId]);
 
     // Debounced Search & Filter
     useEffect(() => {
@@ -170,6 +223,26 @@ export const BlockPartner: React.FC<BlockPartnerProps> = ({ userId }) => {
         toast.success(t('common:success'));
     };
 
+    const totalPages = Math.max(1, Math.ceil(totalLeads / LEADS_PER_PAGE));
+    const paginationItems = useMemo<Array<number | 'ellipsis'>>(() => {
+        const safePage = Math.min(Math.max(currentPage, 1), totalPages);
+        if (totalPages <= 7) return Array.from({ length: totalPages }, (_, index) => index + 1);
+
+        const pages = Array.from(new Set([1, totalPages, safePage - 1, safePage, safePage + 1]))
+            .filter(page => page >= 1 && page <= totalPages)
+            .sort((a, b) => a - b);
+
+        return pages.reduce<Array<number | 'ellipsis'>>((items, page, index) => {
+            if (index > 0 && page - pages[index - 1] > 1) items.push('ellipsis');
+            items.push(page);
+            return items;
+        }, []);
+    }, [currentPage, totalPages]);
+
+    useEffect(() => {
+        if (currentPage > totalPages) setCurrentPage(totalPages);
+    }, [currentPage, totalPages]);
+
     if (loading) {
         return (
             <div className="flex flex-col items-center justify-center py-32 gap-4">
@@ -178,8 +251,6 @@ export const BlockPartner: React.FC<BlockPartnerProps> = ({ userId }) => {
             </div>
         );
     }
-
-    const isLeadsEmpty = leads.length === 0 && !searchTerm;
 
     return (
         <div className="space-y-10 animate-in fade-in slide-in-from-bottom-10 duration-700">
@@ -191,7 +262,7 @@ export const BlockPartner: React.FC<BlockPartnerProps> = ({ userId }) => {
                     <div className="space-y-4">
                         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/20 border border-primary/30 text-primary text-[10px] font-black uppercase tracking-widest">
                             <Crown className="w-3.5 h-3.5" />
-                            {t('partner.official_provider')}
+                            {isPlatformOwner ? t('partner.platform_view') : t('partner.my_operation')}
                         </div>
                         <h2 className="text-4xl md:text-6xl font-display font-black text-white italic uppercase tracking-tighter leading-none" 
                             dangerouslySetInnerHTML={{ __html: sanitizeTranslationHtml(t('partner.partner_hub')) }}
@@ -215,7 +286,7 @@ export const BlockPartner: React.FC<BlockPartnerProps> = ({ userId }) => {
                         </div>
                         <div className="bg-white/5 border border-white/10 p-5 rounded-3xl backdrop-blur-xl">
                             <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest mb-1">{t('license.installations')}</p>
-                            <span className="text-3xl font-display font-black text-primary italic">{stats.installations}</span>
+                            <span className="text-3xl font-display font-black text-primary italic">{ecosystem?.summary.total ?? stats.installations}</span>
                         </div>
                     </div>
                 </div>
@@ -312,7 +383,7 @@ export const BlockPartner: React.FC<BlockPartnerProps> = ({ userId }) => {
                                     leads.map((lead) => {
                                         const isNew = new Date(lead.created_at) >= new Date(new Date().setDate(new Date().getDate() - 1));
                                         const isContacted = contactedLeads.has(lead.id);
-                                        const isConverted = installations.some(inst => inst.profiles?.id === lead.id);
+                                         const isConverted = installations.some(inst => inst.beneficiary.id === lead.id);
 
                                         return (
                                             <tr key={lead.id} className="group hover:bg-white/5 transition-all">
@@ -376,22 +447,46 @@ export const BlockPartner: React.FC<BlockPartnerProps> = ({ userId }) => {
 
                     {/* Pagination */}
                     {totalLeads > LEADS_PER_PAGE && (
-                        <div className="p-8 border-t border-white/5 flex items-center justify-between bg-white/[0.02]">
-                            <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest italic">
-                                {t('partner.showing_leads', { count: Math.min(currentPage * LEADS_PER_PAGE, totalLeads), total: totalLeads })}
-                            </p>
-                            <div className="flex items-center gap-4">
+                        <div className="flex flex-col gap-4 border-t border-white/5 bg-white/[0.02] p-6 sm:flex-row sm:items-center sm:justify-between sm:px-8">
+                            <div>
+                                <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest italic">
+                                    {t('partner.showing_leads', { count: Math.min(currentPage * LEADS_PER_PAGE, totalLeads), total: totalLeads })}
+                                </p>
+                                <p className="mt-1 text-[9px] text-gray-700 font-black uppercase tracking-widest">
+                                    {t('partner.pagination_page', { page: currentPage, totalPages })}
+                                </p>
+                            </div>
+                            <div className="flex items-center justify-between gap-2 sm:justify-end">
                                 <button
+                                    type="button"
+                                    aria-label={t('partner.previous_page')}
                                     disabled={currentPage === 1}
-                                    onClick={() => setCurrentPage(prev => prev - 1)}
+                                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                                     className="p-2 rounded-xl bg-white/5 border border-white/5 text-gray-500 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition-all"
                                 >
                                     <ChevronLeft className="w-5 h-5" />
                                 </button>
-                                <span className="text-sm font-black text-white italic">{currentPage}</span>
+                                <div className="flex items-center gap-1">
+                                    {paginationItems.map((item, index) => item === 'ellipsis' ? (
+                                        <span key={`ellipsis-${index}`} className="px-1 text-xs font-black text-gray-700" aria-hidden="true">...</span>
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            key={item}
+                                            aria-current={item === currentPage ? 'page' : undefined}
+                                            aria-label={`${t('partner.pagination_page', { page: item, totalPages })}`}
+                                            onClick={() => setCurrentPage(item)}
+                                            className={`min-w-8 rounded-xl px-2 py-2 text-xs font-black transition-all ${item === currentPage ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-white/5 text-gray-500 hover:bg-white/10 hover:text-white'}`}
+                                        >
+                                            {item}
+                                        </button>
+                                    ))}
+                                </div>
                                 <button
-                                    disabled={currentPage * LEADS_PER_PAGE >= totalLeads}
-                                    onClick={() => setCurrentPage(prev => prev + 1)}
+                                    type="button"
+                                    aria-label={t('partner.next_page')}
+                                    disabled={currentPage >= totalPages}
+                                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                                     className="p-2 rounded-xl bg-white/5 border border-white/5 text-gray-500 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition-all"
                                 >
                                     <ChevronRight className="w-5 h-5" />
@@ -402,68 +497,148 @@ export const BlockPartner: React.FC<BlockPartnerProps> = ({ userId }) => {
                 </div>
             </div>
 
-            {/* Installations Board (Technical) */}
+            {/* Installation ecosystem read model */}
             <div className="bg-white/5 border border-white/10 rounded-[2.5rem] overflow-hidden backdrop-blur-xl">
-                <div className="p-8 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
-                    <h3 className="text-lg font-display font-black text-white italic uppercase tracking-tighter flex items-center gap-3">
-                        <Globe className="w-5 h-5 text-primary" />
-                        {t('partner.installations_ecosystem')}
-                    </h3>
-                    <div className="px-4 py-1.5 rounded-full bg-white/5 border border-white/5 text-[10px] font-black uppercase text-gray-500 tracking-widest italic">
-                        {t('partner.technical_view')}
+                <div className="p-8 border-b border-white/5 bg-white/[0.02] space-y-6">
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                        <div>
+                            <h3 className="text-lg font-display font-black text-white italic uppercase tracking-tighter flex items-center gap-3">
+                                <Globe className="w-5 h-5 text-primary" />
+                                {t('partner.installations_ecosystem')}
+                            </h3>
+                            <p className="text-xs text-gray-500 mt-2">{isPlatformOwner ? t('partner.platform_view_description') : t('partner.my_operation_description')}</p>
+                        </div>
+                        <div className="px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-[10px] font-black uppercase text-primary tracking-widest italic">
+                            {isPlatformOwner ? t('partner.platform_view') : t('partner.my_operation')}
+                        </div>
                     </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+                        <label className="relative md:col-span-2 xl:col-span-1">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                            <input
+                                type="search"
+                                aria-label={t('partner.ecosystem_search')}
+                                placeholder={t('partner.ecosystem_search')}
+                                value={ecosystemSearch}
+                                onChange={(event) => setEcosystemSearch(event.target.value)}
+                                className="w-full bg-black/20 border border-white/10 rounded-2xl pl-11 pr-4 py-3 text-sm text-white outline-none focus:border-primary/50"
+                            />
+                        </label>
+                        <select
+                            aria-label={t('partner.ecosystem_status')}
+                            value={ecosystemStatus}
+                            onChange={(event) => setEcosystemStatus(event.target.value as InstallationEcosystemStatus)}
+                            className="bg-black/20 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white outline-none focus:border-primary/50"
+                        >
+                            <option value="all">{t('partner.all_statuses')}</option>
+                            <option value="active">{t('partner.active_status')}</option>
+                            <option value="pending">{t('partner.pending_status')}</option>
+                            <option value="revoked">{t('partner.revoked_status')}</option>
+                        </select>
+                        {isPlatformOwner && (
+                            <>
+                                <select
+                                    aria-label={t('partner.ecosystem_partner')}
+                                    value={ecosystemPartnerId || ''}
+                                    onChange={(event) => setEcosystemPartnerId(event.target.value || null)}
+                                    className="bg-black/20 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white outline-none focus:border-primary/50"
+                                >
+                                    <option value="">{t('partner.all_partners')}</option>
+                                    {(ecosystem?.filter_options.partners || []).map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}
+                                </select>
+                                <select
+                                    aria-label={t('partner.ecosystem_provider')}
+                                    value={ecosystemProviderId || ''}
+                                    onChange={(event) => setEcosystemProviderId(event.target.value || null)}
+                                    className="bg-black/20 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white outline-none focus:border-primary/50"
+                                >
+                                    <option value="">{t('partner.all_providers')}</option>
+                                    {(ecosystem?.filter_options.providers || []).map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}
+                                </select>
+                            </>
+                        )}
+                    </div>
+
+                    {ecosystem && (
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            {[
+                                [t('partner.ecosystem_total'), ecosystem.summary.total],
+                                [t('partner.ecosystem_active'), ecosystem.summary.active],
+                                [t('partner.ecosystem_pending'), ecosystem.summary.pending],
+                                [t('partner.ecosystem_partners'), ecosystem.summary.partners],
+                            ].map(([label, value]) => (
+                                <div key={String(label)} className="rounded-2xl border border-white/5 bg-black/20 px-4 py-3">
+                                    <p className="text-[9px] uppercase tracking-widest text-gray-500">{label}</p>
+                                    <p className="text-xl font-black text-white mt-1">{value}</p>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
 
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                        <thead>
-                            <tr className="bg-white/5">
-                                <th className="px-8 py-5 text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] italic">{t('partner.owner')}</th>
-                                <th className="px-8 py-5 text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] italic">{t('partner.hostname')}</th>
-                                <th className="px-8 py-5 text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] italic">{t('common:status')}</th>
-                                <th className="px-8 py-5 text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] italic text-right">{t('common:actions')}</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/5">
-                            {installations.length === 0 ? (
-                                <tr>
-                                    <td colSpan={4} className="px-8 py-20 text-center text-gray-500 italic font-medium">
-                                        {t('partner.no_installations')}
-                                    </td>
-                                </tr>
-                            ) : (
-                                installations.map((inst) => (
-                                    <tr key={inst.id} className="group hover:bg-white/5 transition-all">
-                                        <td className="px-8 py-6">
-                                            <div className="font-bold text-white uppercase tracking-tighter italic font-display">{inst.profiles?.full_name}</div>
-                                            <div className="text-[10px] text-gray-500 font-black uppercase tracking-widest">{inst.profiles?.email}</div>
-                                        </td>
-                                        <td className="px-8 py-6 text-sm text-gray-400 font-mono italic">
-                                            {inst.hostname}
-                                        </td>
-                                        <td className="px-8 py-6">
-                                            <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${inst.status === 'active'
-                                                ? 'bg-green-500/10 text-green-500 border border-green-500/20'
-                                                : 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20'
-                                                }`}>
-                                                {inst.status === 'active' ? (
-                                                    <><div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> {t('partner.online')}</>
-                                                ) : (
-                                                    <><Clock className="w-3 h-3" /> {t('common:pending')}</>
-                                                )}
-                                            </span>
-                                        </td>
-                                        <td className="px-8 py-6 text-right">
-                                            <button className="p-2 rounded-xl bg-white/5 border border-white/5 text-gray-500 hover:text-primary hover:border-primary/30 transition-all">
-                                                <ArrowUpRight className="w-4 h-4" />
-                                            </button>
-                                        </td>
+                {ecosystemError ? (
+                    <div className="px-8 py-20 text-center space-y-3">
+                        <AlertCircle className="w-8 h-8 mx-auto text-amber-400" />
+                        <p className="text-white font-bold">{ecosystemError.kind === 'session_expired' ? t('partner.ecosystem_session_expired') : ecosystemError.kind === 'access_denied' ? t('partner.ecosystem_access_denied') : t('partner.ecosystem_unavailable')}</p>
+                        <p className="text-sm text-gray-500">{t('partner.ecosystem_not_zero')}</p>
+                    </div>
+                ) : ecosystemLoading ? (
+                    <div className="px-8 py-20 text-center"><Loader icon={Sparkles} label={t('partner.syncing')} /></div>
+                ) : installations.length === 0 ? (
+                    <div className="px-8 py-20 text-center text-gray-500 italic font-medium">
+                        {ecosystem?.pagination.total_items ? t('partner.ecosystem_no_results') : t('partner.no_installations')}
+                    </div>
+                ) : (
+                    <>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left min-w-[900px]">
+                                <thead>
+                                    <tr className="bg-white/5">
+                                        <th className="px-8 py-5 text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] italic">{t('partner.client')}</th>
+                                        <th className="px-8 py-5 text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] italic">{t('partner.hostname')}</th>
+                                        <th className="px-8 py-5 text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] italic">{t('partner.ecosystem_partner')}</th>
+                                        <th className="px-8 py-5 text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] italic">{t('partner.ecosystem_provider')}</th>
+                                        <th className="px-8 py-5 text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] italic">{t('common:status')}</th>
+                                        <th className="px-8 py-5 text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] italic text-right">{t('common:actions')}</th>
                                     </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+                                </thead>
+                                <tbody className="divide-y divide-white/5">
+                                    {installations.map((inst) => (
+                                        <tr key={`${inst.installation_id}-${inst.service_order_id}`} className="group hover:bg-white/5 transition-all">
+                                            <td className="px-8 py-6">
+                                                <div className="font-bold text-white">{inst.beneficiary.name}</div>
+                                                <div className="text-[10px] text-gray-500 font-black tracking-widest">{inst.beneficiary.email || '—'}</div>
+                                            </td>
+                                            <td className="px-8 py-6 text-sm text-gray-400 font-mono">{inst.domain || '—'}</td>
+                                            <td className="px-8 py-6 text-sm text-gray-300">{inst.partner?.name || inst.seller?.name || '—'}</td>
+                                            <td className="px-8 py-6 text-sm text-gray-400">{inst.provider?.name || '—'}</td>
+                                            <td className="px-8 py-6">
+                                                <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${inst.installation_status === 'active' ? 'bg-green-500/10 text-green-500 border border-green-500/20' : inst.installation_status === 'revoked' ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20'}`}>
+                                                    {inst.installation_status === 'active' ? <><div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> {t('partner.active_status')}</> : inst.installation_status === 'revoked' ? <><AlertCircle className="w-3 h-3" /> {t('partner.revoked_status')}</> : <><Clock className="w-3 h-3" /> {t('partner.pending_status')}</>}
+                                                </span>
+                                            </td>
+                                            <td className="px-8 py-6 text-right">
+                                                <button type="button" onClick={() => handleViewOrder(inst.service_order_id)} title={t('partner.view_order')} className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 border border-white/5 text-gray-400 hover:text-primary hover:border-primary/30 transition-all text-[10px] font-black uppercase tracking-widest">
+                                                    <ArrowUpRight className="w-4 h-4" /> {t('partner.view_order')}
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                        {ecosystem && ecosystem.pagination.total_pages > 1 && (
+                            <div className="flex items-center justify-between border-t border-white/5 px-8 py-5">
+                                <span className="text-[10px] uppercase tracking-widest text-gray-500">{t('partner.ecosystem_pagination', { page: ecosystem.pagination.page, totalPages: ecosystem.pagination.total_pages })}</span>
+                                <div className="flex gap-2">
+                                    <button type="button" aria-label={t('partner.previous_page')} disabled={ecosystemPage === 1} onClick={() => setEcosystemPage((page) => Math.max(1, page - 1))} className="p-2 rounded-xl bg-white/5 text-gray-400 disabled:opacity-30"><ChevronLeft className="w-4 h-4" /></button>
+                                    <button type="button" aria-label={t('partner.next_page')} disabled={ecosystemPage >= ecosystem.pagination.total_pages} onClick={() => setEcosystemPage((page) => Math.min(ecosystem.pagination.total_pages, page + 1))} className="p-2 rounded-xl bg-white/5 text-gray-400 disabled:opacity-30"><ChevronRight className="w-4 h-4" /></button>
+                                </div>
+                            </div>
+                        )}
+                    </>
+                )}
             </div>
 
             {/* Caution Footer */}
