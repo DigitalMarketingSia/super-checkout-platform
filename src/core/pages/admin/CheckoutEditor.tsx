@@ -48,6 +48,27 @@ import { syncInstallationServiceOffer } from '../../services/installationService
 
 const isSelectableGateway = (gateway: Gateway) => gateway.name !== GatewayProvider.PAGSEGURO;
 
+type CommercialPublicationRoute = {
+   productId: string;
+   active: boolean;
+   domainId: string;
+   slug: string;
+};
+
+// The Portal stores the product and checkout URL, not checkout-only options
+// such as order bumps, payment routing or post-purchase copy. Re-publishing
+// on those edits creates an avoidable external dependency and a false warning.
+const hasCommercialPublicationRouteChanged = (
+   previous: CommercialPublicationRoute | null,
+   next: CommercialPublicationRoute,
+) => (
+   !previous
+   || previous.productId !== next.productId
+   || previous.active !== next.active
+   || previous.domainId !== next.domainId
+   || previous.slug !== next.slug
+);
+
 const DEFAULT_UPSELL_BENEFITS = [
    'Acesso vitalício sem pagar nada a mais depois',
    'Acesso imediato enviado para o seu e-mail',
@@ -253,6 +274,7 @@ export const CheckoutEditor = () => {
    const [gatewayId, setGatewayId] = useState('');
    const [domainId, setDomainId] = useState('');
    const [slug, setSlug] = useState('');
+   const initialCommercialPublicationRouteRef = useRef<CommercialPublicationRoute | null>(null);
 
    const [orderBumpIds, setOrderBumpIds] = useState<string[]>([]);
    const [upsellProductId, setUpsellProductId] = useState('');
@@ -514,6 +536,12 @@ export const CheckoutEditor = () => {
                setGatewayId(found.gateway_id);
                setDomainId(found.domain_id || '');
                setSlug(found.custom_url_slug);
+               initialCommercialPublicationRouteRef.current = {
+                  productId: found.product_id,
+                  active: Boolean(found.active),
+                  domainId: found.domain_id || '',
+                  slug: found.custom_url_slug || '',
+               };
                setOrderBumpIds(found.order_bump_ids || []);
                setUpsellProductId(resolvedUpsellProductId);
                setThankYouButtonUrl((found as any).thank_you_button_url || '');
@@ -654,6 +682,12 @@ export const CheckoutEditor = () => {
             user_id: user?.id || '', // Requisito da interface
             offer_id: undefined // Legacy field, not used in current implementation
          };
+         const nextCommercialPublicationRoute: CommercialPublicationRoute = {
+            productId,
+            active: Boolean(active),
+            domainId: domainId || '',
+            slug: checkoutData.custom_url_slug,
+         };
 
          if (isNew) {
             await storage.createCheckout({
@@ -678,13 +712,22 @@ export const CheckoutEditor = () => {
          }
 
          try {
-            await syncCentralPlanForSystemUpgrade(productId);
-            await syncPortalInstallationOffer(productId);
+            if (hasCommercialPublicationRouteChanged(
+               initialCommercialPublicationRouteRef.current,
+               nextCommercialPublicationRoute,
+            )) {
+               await syncCentralPlanForSystemUpgrade(productId);
+               await syncPortalInstallationOffer(productId);
+               initialCommercialPublicationRouteRef.current = nextCommercialPublicationRoute;
+            }
          } catch (syncError) {
-            console.error('Central upgrade plan sync failed after checkout save:', syncError);
+            console.error('Commercial publication sync failed after checkout save:', syncError);
+            const safeDetail = syncError instanceof Error && syncError.message
+               ? ` Motivo: ${syncError.message}`
+               : '';
             showAlert(
                'Checkout salvo com ressalva',
-               'O checkout foi salvo, mas a publicação comercial no Portal ainda não foi atualizada. Tente salvar novamente antes de divulgá-lo aos clientes.',
+               `O checkout foi salvo, mas a publicação comercial no Portal ainda não foi atualizada. Tente salvar novamente antes de divulgá-lo aos clientes.${safeDetail}`,
                'error',
             );
             return;
