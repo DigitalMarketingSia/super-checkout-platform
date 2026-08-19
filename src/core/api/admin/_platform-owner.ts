@@ -1,11 +1,28 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { logAuthzEvent, requireApiAuth, type ApiAuthContext } from '../_authz.js';
+import { logAuthzEvent, type ApiAuthContext } from '../_authz.js';
+import {
+  getLocalSupabaseServerKeyErrorMessage,
+  resolveLocalSupabaseServerClient,
+  validateLocalUserWithPublicKey,
+} from '../_supabase-server.js';
 
 const DEFAULT_CONTROL_PLANE_HOST = 'app.supercheckout.app';
-const KNOWN_PROFILE_ROLES = ['owner', 'admin', 'master_admin', 'partner', 'member', 'client'] as const;
 
 function normalizeEmail(value?: string | null) {
   return String(value || '').trim().toLowerCase();
+}
+
+function getBearerToken(req: VercelRequest) {
+  const raw = Array.isArray(req.headers.authorization)
+    ? req.headers.authorization[0] || ''
+    : req.headers.authorization || '';
+  return raw.startsWith('Bearer ') ? raw.slice('Bearer '.length).trim() : '';
+}
+
+function isInactiveStatus(status?: string | null) {
+  return ['blocked', 'suspended', 'revoked', 'disabled', 'inactive'].includes(
+    String(status || '').trim().toLowerCase(),
+  );
 }
 
 function getHostname(value?: string | string[] | null) {
@@ -68,28 +85,89 @@ export async function requireConfiguredPlatformOwner(
     return null;
   }
 
-  // The email allowlist below is the authority check. Accepting all known
-  // local roles here only lets the existing auth helper verify the JWT and an
-  // active local profile; it never grants access by role alone.
-  const auth = await requireApiAuth(req, res, {
-    source,
-    allowedRoles: [...KNOWN_PROFILE_ROLES],
-  });
-  if (!auth) return null;
-
-  if (isConfiguredPlatformOwnerEmail(auth.user.email)) {
-    return auth;
+  const token = getBearerToken(req);
+  if (!token) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return null;
   }
 
-  await logAuthzEvent({
-    supabaseAdmin: auth.supabaseAdmin,
-    req,
-    source,
-    eventType: 'platform_owner_authorization_rejected',
-    severity: 'CRITICAL',
-    userId: auth.user.id,
-    metadata: { reason: 'email_not_in_server_allowlist' },
-  });
-  res.status(403).json({ error: 'Access denied' });
-  return null;
+  // The official owner is identified by a server-side email allowlist. A
+  // valid local JWT is enough to establish that identity; requiring a local
+  // `profiles` row before evaluating the allowlist creates an inconsistent
+  // state where the UI recognizes the owner but protected writes reject it.
+  const user = await validateLocalUserWithPublicKey(token);
+  if (!user?.id) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return null;
+  }
+
+  const { supabase: supabaseAdmin } = await resolveLocalSupabaseServerClient();
+  if (!supabaseAdmin) {
+    res.status(500).json({ error: getLocalSupabaseServerKeyErrorMessage() });
+    return null;
+  }
+
+  if (!isConfiguredPlatformOwnerEmail(user.email)) {
+    await logAuthzEvent({
+      supabaseAdmin,
+      req,
+      source,
+      eventType: 'platform_owner_authorization_rejected',
+      severity: 'CRITICAL',
+      userId: user.id,
+      metadata: { reason: 'email_not_in_server_allowlist' },
+    });
+    res.status(403).json({ error: 'Access denied' });
+    return null;
+  }
+
+  // Keep a blocked local profile blocked when it is available. A missing
+  // profile is logged, but cannot override the explicit platform-owner
+  // identity: the session-authz endpoint already follows this same model.
+  const { data: profile, error: profileError } = await supabaseAdmin
+    .from('profiles')
+    .select('id,email,status,installation_id,central_user_id')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (profile?.id && isInactiveStatus(profile.status)) {
+    await logAuthzEvent({
+      supabaseAdmin,
+      req,
+      source,
+      eventType: 'platform_owner_authorization_rejected',
+      severity: 'CRITICAL',
+      userId: user.id,
+      metadata: { reason: 'inactive_profile' },
+    });
+    res.status(403).json({ error: 'Access denied' });
+    return null;
+  }
+
+  if (profileError || !profile?.id) {
+    await logAuthzEvent({
+      supabaseAdmin,
+      req,
+      source,
+      eventType: 'platform_owner_profile_fallback',
+      severity: 'WARNING',
+      userId: user.id,
+      metadata: { reason: profileError ? 'profile_lookup_failed' : 'profile_missing' },
+    });
+  }
+
+  return {
+    token,
+    user,
+    profile: {
+      id: user.id,
+      email: profile?.email || user.email || null,
+      role: 'master_admin',
+      status: profile?.status || 'active',
+      installation_id: profile?.installation_id || null,
+      central_user_id: profile?.central_user_id || null,
+    },
+    role: 'master_admin',
+    supabaseAdmin,
+  };
 }
