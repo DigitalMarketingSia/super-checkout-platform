@@ -61,7 +61,7 @@ function getPasswordStrength(pwd: string): { score: number; label: string; color
     if (/[^A-Za-z0-9]/.test(pwd)) score += 1;
 
     if (score <= 2) return { score, label: 'Fraca', color: 'bg-rose-500 shadow-[0_0_10px_rgba(239,68,68,0.6)]' };
-    if (score <= 4) return { score, label: 'MÃ©dia', color: 'bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.6)]' };
+    if (score <= 4) return { score, label: 'Média', color: 'bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.6)]' };
     return { score, label: 'Forte', color: 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.6)]' };
 }
 
@@ -171,7 +171,7 @@ export const Settings = () => {
                     type: 'success',
                     text: t(
                         'account_settings.profile.email_change_success',
-                        'Confira o e-mail para confirmar a alteraÃ§Ã£o.'
+                        'Confira o e-mail para confirmar a alteração.'
                     )
                 });
             } else {
@@ -202,10 +202,10 @@ export const Settings = () => {
             i18n.changeLanguage(defaultLocale);
             localStorage.setItem('i18nextLng', defaultLocale);
 
-            setMessage({ type: 'success', text: t('account_settings.system.success', 'PreferÃªncias atualizadas!') });
+            setMessage({ type: 'success', text: t('account_settings.system.success', 'Preferências atualizadas!') });
             setSystemConfigId(payload.id);
         } catch (error: any) {
-            setMessage({ type: 'error', text: error.message || t('account_settings.system.error', 'Erro ao salvar preferÃªncias') });
+            setMessage({ type: 'error', text: error.message || t('account_settings.system.error', 'Erro ao salvar preferências') });
         } finally {
             setLoading(false);
         }
@@ -214,7 +214,7 @@ export const Settings = () => {
     const handleChangePassword = async (e: React.FormEvent) => {
         e.preventDefault();
         if (password !== confirmPassword) {
-            setMessage({ type: 'error', text: t('account_settings.security.mismatch_error', 'As senhas nÃ£o coincidem') });
+            setMessage({ type: 'error', text: t('account_settings.security.mismatch_error', 'As senhas não coincidem') });
             return;
         }
 
@@ -251,7 +251,7 @@ export const Settings = () => {
 
         try {
             const token = await getSessionToken();
-            if (!token) throw new Error('SessÃ£o expirada. FaÃ§a login novamente.');
+            if (!token) throw new Error('Sessão expirada. Faça login novamente.');
 
             const response = await fetch(getApiUrl('/api/auth?route=2fa&action=setup'), {
                 method: 'POST',
@@ -262,8 +262,8 @@ export const Settings = () => {
                 body: JSON.stringify({ action: 'setup' }),
             });
 
-            const payload = await readApiPayload(response, 'NÃ£o foi possÃ­vel preparar a 2FA.');
-            if (!response.ok) throw new Error(payload.error || 'NÃ£o foi possÃ­vel preparar a 2FA.');
+            const payload = await readApiPayload(response, 'Não foi possível preparar a 2FA.');
+            if (!response.ok) throw new Error(payload.error || 'Não foi possível preparar a 2FA.');
 
             setTwoFactorSecret(payload.secret || '');
             setTwoFactorQrDataUrl(payload.qr_code_data_url || '');
@@ -271,7 +271,7 @@ export const Settings = () => {
 
             const successMessage = {
                 type: 'success' as const,
-                text: 'Escaneie o QR Code no app e digite o cÃ³digo de 6 dÃ­gitos.'
+                text: 'Escaneie o QR Code no app e digite o código de 6 dígitos.'
             };
             setMessage(successMessage);
             setTwoFactorMessage(successMessage);
@@ -287,7 +287,7 @@ export const Settings = () => {
     const handleSubmitTwoFactor = async (disable = false) => {
         const normalizedCode = twoFactorCode.replace(/[^\d]/g, '').trim();
         if (!normalizedCode || normalizedCode.length < 6) {
-            const errorMessage = { type: 'error' as const, text: 'Digite o cÃ³digo TOTP de 6 dÃ­gitos.' };
+            const errorMessage = { type: 'error' as const, text: 'Digite o código TOTP de 6 dígitos.' };
             setMessage(errorMessage);
             setTwoFactorMessage(errorMessage);
             return;
@@ -299,7 +299,7 @@ export const Settings = () => {
 
         try {
             const token = await getSessionToken();
-            if (!token) throw new Error('SessÃ£o expirada. FaÃ§a login novamente.');
+            if (!token) throw new Error('Sessão expirada. Faça login novamente.');
 
             const action = disable ? 'disable' : 'verify';
             const endpoint = `/api/auth?route=2fa&action=${action}`;
@@ -312,8 +312,8 @@ export const Settings = () => {
                 body: JSON.stringify({ action, code: normalizedCode }),
             });
 
-            const payload = await readApiPayload(response, 'NÃ£o foi possÃ­vel validar a 2FA.');
-            if (!response.ok) throw new Error(payload.error || 'NÃ£o foi possÃ­vel validar a 2FA.');
+            const payload = await readApiPayload(response, 'Não foi possível validar a 2FA.');
+            if (!response.ok) throw new Error(payload.error || 'Não foi possível validar a 2FA.');
 
             setTwoFactorEnabled(!disable);
             setTwoFactorCode('');
@@ -339,7 +339,7 @@ export const Settings = () => {
     const handleIssueCentralInstallationTrust = async () => {
         const confirmed = window.confirm(t(
             'account_settings.security.central_trust.confirmation',
-            'Esta credencial privada aparece uma unica vez. Copie os tres valores para a Vercel antes de fechar ou recarregar esta pagina. Deseja continuar?'
+            'Esta credencial privada aparece uma única vez. Copie os três valores para a Vercel antes de fechar ou recarregar esta página. Deseja continuar?'
         ));
         if (!confirmed) return;
 
@@ -361,7 +361,7 @@ export const Settings = () => {
                 type: 'error',
                 text: error?.message || t(
                     'account_settings.security.central_trust.error',
-                    'Nao foi possivel emitir a credencial privada da Central.'
+                    'Não foi possível emitir a credencial privada da Central.'
                 ),
             });
         } finally {
@@ -389,9 +389,9 @@ export const Settings = () => {
 
     const navItems = [
         { id: 'profile' as const, label: t('account_settings.tabs.profile', 'Perfil & Acesso'), icon: User, desc: 'Nome, e-mail e senha' },
-        { id: 'security' as const, label: 'AutenticaÃ§Ã£o 2FA', icon: Fingerprint, desc: 'CÃ³digo temporÃ¡rio MFA' },
-        { id: 'regional' as const, label: t('account_settings.system.title', 'Regional'), icon: Globe, desc: 'Idioma e moeda padrÃ£o' },
-        { id: 'captcha' as const, label: 'Auth CAPTCHA', icon: Shield, desc: 'Filtro contra forÃ§a bruta' },
+        { id: 'security' as const, label: 'Autenticação 2FA', icon: Fingerprint, desc: '2FA e credencial privada da Central' },
+        { id: 'regional' as const, label: t('account_settings.system.title', 'Regional'), icon: Globe, desc: 'Idioma e moeda padrão' },
+        { id: 'captcha' as const, label: 'Auth CAPTCHA', icon: Shield, desc: 'Filtro contra força bruta' },
     ];
 
     // Calculated dynamic security score
@@ -424,7 +424,7 @@ export const Settings = () => {
                     <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                         <div>
                             <h1 className="text-3xl lg:text-4xl font-portal-display text-white mb-1 leading-none uppercase italic tracking-tight">
-                                {t('account_settings.header.title_prefix', 'Central de')} <span className="text-primary font-black">{t('account_settings.header.title_highlight', 'ConfiguraÃ§Ãµes')}</span>
+                                {t('account_settings.header.title_prefix', 'Central de')} <span className="text-primary font-black">{t('account_settings.header.title_highlight', 'Configurações')}</span>
                             </h1>
                             <div className="flex items-center gap-2 mt-1">
                                 <p className="text-gray-400 font-medium uppercase tracking-[0.15em] text-[9px] font-mono">
@@ -449,7 +449,7 @@ export const Settings = () => {
                         </div>
                     </div>
                     <p className="text-xs text-gray-300 max-w-2xl leading-relaxed italic border-l border-primary/30 pl-4 font-medium">
-                        {t('account_settings.header.description', 'Gerencie as configuraÃ§Ãµes de seguranÃ§a, preferÃªncias regionais e parÃ¢metros globais.')}
+                        {t('account_settings.header.description', 'Gerencie as configurações de segurança, preferências regionais e parâmetros globais.')}
                     </p>
                 </div>
 
@@ -584,7 +584,7 @@ export const Settings = () => {
                                                 />
                                                 <p className="text-[10px] text-gray-400 mt-1.5 italic px-1 font-medium leading-normal flex items-center gap-1.5">
                                                     <AlertCircle className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
-                                                    {t('account_settings.profile.email_hint', 'AlteraÃ§Ãµes exigem confirmaÃ§Ã£o por e-mail.')}
+                                                    {t('account_settings.profile.email_hint', 'Alterações exigem confirmação por e-mail.')}
                                                 </p>
                                             </div>
                                             <div className="pt-2">
@@ -635,13 +635,13 @@ export const Settings = () => {
                                                     value={password}
                                                     onChange={(e) => setPassword(e.target.value)}
                                                     className="w-full bg-[#07070F] border border-white/[0.12] rounded-xl px-4 py-3 text-sm text-white focus:border-primary focus:ring-1 focus:ring-primary/30 outline-none transition-all duration-300 placeholder:text-gray-600 font-semibold shadow-inner"
-                                                    placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                                                    placeholder="••••••••"
                                                     minLength={6}
                                                 />
                                                 {password && (
                                                     <div className="mt-2 space-y-1.5 px-1 animate-in fade-in duration-300">
                                                         <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-widest font-mono">
-                                                            <span className="text-gray-400">ForÃ§a da Senha</span>
+                                                            <span className="text-gray-400">Força da Senha</span>
                                                             <span className="text-white font-bold">{pwdStrength.label}</span>
                                                         </div>
                                                         <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden flex gap-1">
@@ -659,7 +659,7 @@ export const Settings = () => {
                                                     value={confirmPassword}
                                                     onChange={(e) => setConfirmPassword(e.target.value)}
                                                     className="w-full bg-[#07070F] border border-white/[0.12] rounded-xl px-4 py-3 text-sm text-white focus:border-primary focus:ring-1 focus:ring-primary/30 outline-none transition-all duration-300 placeholder:text-gray-600 font-semibold shadow-inner"
-                                                    placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                                                    placeholder="••••••••"
                                                     minLength={6}
                                                 />
                                             </div>
@@ -695,10 +695,10 @@ export const Settings = () => {
                                         <Globe className="w-9 h-9 text-white animate-pulse-slow" />
                                     </div>
                                     <h3 className="text-xl font-portal-display text-white uppercase italic tracking-tight mb-1">
-                                        DefiniÃ§Ãµes Regionais
+                                        Definições Regionais
                                     </h3>
                                     <p className="text-xs text-gray-400 max-w-sm font-medium">
-                                        Configure o idioma e a moeda padrÃ£o do seu painel e faturas.
+                                        Configure o idioma e a moeda padrão do seu painel e faturas.
                                     </p>
                                 </div>
 
@@ -706,7 +706,7 @@ export const Settings = () => {
                                     <form onSubmit={handleUpdateSystemPreferences} className="space-y-4">
                                         <div className="space-y-2">
                                             <label className="block text-[9px] font-black text-gray-300 uppercase tracking-widest ml-1 font-mono">
-                                                {t('account_settings.system.language', 'Idioma PadrÃ£o')}
+                                                {t('account_settings.system.language', 'Idioma Padrão')}
                                             </label>
                                             <select
                                                 value={defaultLocale}
@@ -714,13 +714,13 @@ export const Settings = () => {
                                                 className="w-full bg-[#07070F] border border-white/[0.12] rounded-xl px-4 py-3 text-sm text-white focus:border-primary focus:ring-1 focus:ring-primary/30 outline-none transition-all duration-300 font-semibold shadow-inner appearance-none cursor-pointer"
                                             >
                                                 <option value="en">English (US)</option>
-                                                <option value="pt">PortuguÃªs (BR)</option>
-                                                <option value="es">EspaÃ±ol</option>
+                                                <option value="pt">Português (BR)</option>
+                                                <option value="es">Español</option>
                                             </select>
                                         </div>
                                         <div className="space-y-2">
                                             <label className="block text-[9px] font-black text-gray-300 uppercase tracking-widest ml-1 font-mono">
-                                                {t('account_settings.system.currency', 'Moeda PadrÃ£o')}
+                                                {t('account_settings.system.currency', 'Moeda Padrão')}
                                             </label>
                                             <select
                                                 value={defaultCurrency}
@@ -729,7 +729,7 @@ export const Settings = () => {
                                             >
                                                 <option value="USD">USD ($)</option>
                                                 <option value="BRL">BRL (R$)</option>
-                                                <option value="EUR">EUR (â‚¬)</option>
+                                                <option value="EUR">EUR (€)</option>
                                             </select>
                                         </div>
                                         <div className="pt-2">
@@ -769,13 +769,13 @@ export const Settings = () => {
                                         Duas Etapas (MFA)
                                     </h3>
                                     <p className="text-xs text-gray-400 max-w-sm font-medium">
-                                        ProteÃ§Ã£o extra exigindo cÃ³digo temporÃ¡rio no seu dispositivo autenticador.
+                                        Proteção extra exigindo código temporário no seu dispositivo autenticador.
                                     </p>
                                 </div>
 
                                 <div className="space-y-6 border-t border-white/5 pt-6">
                                     <p className="text-xs text-gray-400 font-medium leading-relaxed italic border-l border-primary/30 pl-3">
-                                        ProteÃ§Ã£o extra exigindo cÃ³digo temporÃ¡rio no seu dispositivo.
+                                        Proteção extra exigindo código temporário no seu dispositivo.
                                     </p>
 
                                     {twoFactorMessage && (
@@ -818,7 +818,7 @@ export const Settings = () => {
                                             <div className="space-y-4">
                                                 <div className="space-y-2">
                                                     <label className="block text-[9px] font-black text-gray-300 uppercase tracking-widest ml-1 font-mono">
-                                                        CÃ³digo de VerificaÃ§Ã£o
+                                                        Código de Verificação
                                                     </label>
                                                     <input
                                                         type="text"
@@ -839,7 +839,7 @@ export const Settings = () => {
                                                         className="w-full h-11 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl shadow-lg shadow-emerald-500/10 text-xs uppercase"
                                                     >
                                                         {twoFactorSubmitLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4 mr-1.5" />}
-                                                        Confirmar AtivaÃ§Ã£o
+                                                        Confirmar Ativação
                                                     </Button>
                                                     <Button
                                                         type="button"
@@ -859,14 +859,14 @@ export const Settings = () => {
                                         <div className="space-y-4 animate-in fade-in duration-1000">
                                             <div className="p-4 bg-emerald-500/5 border border-emerald-500/10 rounded-xl shadow-inner">
                                                 <p className="text-xs text-emerald-400 font-semibold leading-relaxed italic">
-                                                    Sua conta estÃ¡ protegida com autenticaÃ§Ã£o em duas etapas. Mantenha seu app autenticador seguro.
+                                                    Sua conta está protegida com autenticação em duas etapas. Mantenha seu app autenticador seguro.
                                                 </p>
                                             </div>
 
                                             <div className="space-y-4 pt-4 border-t border-white/5">
                                                 <div className="space-y-2">
                                                     <label className="block text-[9px] font-black text-gray-300 uppercase tracking-widest ml-1 font-mono">
-                                                        CÃ³digo p/ Desativar
+                                                        Código p/ Desativar
                                                     </label>
                                                     <input
                                                         type="text"
@@ -886,7 +886,7 @@ export const Settings = () => {
                                                     className="text-rose-500 hover:bg-rose-500/10 font-bold text-xs uppercase tracking-wider h-11 w-full rounded-xl flex items-center justify-center gap-1.5 border border-rose-500/15 transition-all duration-300"
                                                 >
                                                     {twoFactorSubmitLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <AlertCircle className="w-4 h-4" />}
-                                                    Interromper SeguranÃ§a (2FA)
+                                                    Interromper Segurança (2FA)
                                                 </Button>
                                             </div>
                                         </div>
@@ -934,7 +934,7 @@ export const Settings = () => {
                                                     : <ShieldCheck className="w-4 h-4" />}
                                                 {centralInstallationTrustLoading
                                                     ? t('account_settings.security.central_trust.issuing', 'Emitindo...')
-                                                    : t('account_settings.security.central_trust.issue', 'Emitir credencial unica')}
+                                                    : t('account_settings.security.central_trust.issue', 'Emitir credencial única')}
                                             </Button>
                                         ) : (
                                             <div className="space-y-3 rounded-xl border border-amber-400/25 bg-amber-400/5 p-4">
@@ -1006,13 +1006,13 @@ export const Settings = () => {
                                         Auth CAPTCHA
                                     </h3>
                                     <p className="text-xs text-gray-400 max-w-sm font-medium">
-                                        GovernanÃ§a do CAPTCHA global do Supabase Auth (Cloudflare Turnstile).
+                                        Governança do CAPTCHA global do Supabase Auth (Cloudflare Turnstile).
                                     </p>
                                 </div>
 
                                 <div className="space-y-5 border-t border-white/5 pt-6">
                                     <p className="text-xs text-gray-400 font-medium leading-relaxed italic border-l border-primary/20 pl-3">
-                                        GovernanÃ§a do CAPTCHA global do Supabase Auth (Cloudflare Turnstile).
+                                        Governança do CAPTCHA global do Supabase Auth (Cloudflare Turnstile).
                                     </p>
 
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
@@ -1031,7 +1031,7 @@ export const Settings = () => {
                                         <div className="rounded-xl border border-white/5 bg-black/20 p-3.5 shadow-inner">
                                             <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-gray-500 font-mono">Hostname Atual</p>
                                             <p className="mt-1 text-xs font-semibold text-white break-all font-mono leading-none">
-                                                {runtimeHostname || 'IndisponÃ­vel'}
+                                                {runtimeHostname || 'Indisponível'}
                                             </p>
                                         </div>
                                         <div className="rounded-xl border border-white/5 bg-black/20 p-3.5 shadow-inner">
@@ -1048,17 +1048,17 @@ export const Settings = () => {
                                             onClick={() => setShowCaptchaDocs(!showCaptchaDocs)}
                                             className="w-full flex items-center justify-between p-3.5 bg-black/20 rounded-xl border border-white/5 hover:border-white/10 transition-all duration-300"
                                         >
-                                            <span className="text-xs font-bold text-white uppercase tracking-wider font-mono">DocumentaÃ§Ã£o e InstruÃ§Ãµes</span>
+                                    <span className="text-xs font-bold text-white uppercase tracking-wider font-mono">Documentação e Instruções</span>
                                             <ChevronRight className={`w-4 h-4 text-gray-500 transition-transform duration-300 ${showCaptchaDocs ? 'rotate-90 text-white' : ''}`} />
                                         </button>
 
                                         {showCaptchaDocs && (
                                             <div className="mt-4 space-y-4 border-t border-white/5 pt-4 animate-in slide-in-from-top-3 duration-300">
                                                 <div className="rounded-xl border border-white/5 bg-[#0B0B12] p-4">
-                                                    <p className="text-[8px] font-black uppercase tracking-[0.24em] text-gray-500 font-mono mb-2">Env mÃ­nimo na Vercel</p>
+                                                    <p className="text-[8px] font-black uppercase tracking-[0.24em] text-gray-500 font-mono mb-2">Env mínimo na Vercel</p>
                                                     <div className="space-y-1.5 text-[11px] text-gray-300 font-mono">
                                                         <div><span className="text-primary">VITE_ENABLE_SUPABASE_AUTH_CAPTCHA</span>=true</div>
-                                                        <div><span className="text-primary">VITE_TURNSTILE_SITE_KEY</span>=...site key pÃºblica...</div>
+                                                        <div><span className="text-primary">VITE_TURNSTILE_SITE_KEY</span>=...site key pública...</div>
                                                         <div><span className="text-primary">TURNSTILE_SECRET_KEY</span>=...secret key privada...</div>
                                                     </div>
                                                 </div>
@@ -1066,19 +1066,19 @@ export const Settings = () => {
                                                 <div className="space-y-2">
                                                     <p className="text-[8px] font-black uppercase tracking-[0.24em] text-gray-500 font-mono">Ordem oficial de rollout</p>
                                                     <ol className="space-y-2 text-xs text-gray-300 list-decimal list-inside leading-relaxed">
-                                                        <li>Crie o Turnstile no Cloudflare usando o domÃ­nio do projeto.</li>
+                                                        <li>Crie o Turnstile no Cloudflare usando o domínio do projeto.</li>
                                                         <li>Salve as ENVs na Vercel e publique o deploy.</li>
                                                         <li>No Supabase, ative o CAPTCHA em Attack Protection.</li>
-                                                        <li>Execute o smoke de login, cadastro e recuperaÃ§Ã£o.</li>
+                                                        <li>Execute o smoke de login, cadastro e recuperação.</li>
                                                     </ol>
                                                 </div>
 
                                                 <div className="rounded-xl border border-amber-400/15 bg-amber-400/5 p-4 space-y-2">
-                                                    <p className="text-[8px] font-black uppercase tracking-[0.22em] text-amber-300 font-mono">Modelo para instalaÃ§Ãµes de cliente</p>
+                                                    <p className="text-[8px] font-black uppercase tracking-[0.22em] text-amber-300 font-mono">Modelo para instalações de cliente</p>
                                                     <ul className="space-y-1.5 text-xs text-amber-100/90 list-disc list-inside leading-relaxed">
-                                                        <li>O cliente pode comeÃ§ar com hostname temporÃ¡rio vercel.app.</li>
-                                                        <li>Depois adiciona o domÃ­nio final no widget dele.</li>
-                                                        <li>NÃ£o centralize domÃ­nios de clientes no Cloudflare master da plataforma.</li>
+                                                        <li>O cliente pode começar com hostname temporário vercel.app.</li>
+                                                        <li>Depois adiciona o domínio final no widget dele.</li>
+                                                        <li>Não centralize domínios de clientes no Cloudflare master da plataforma.</li>
                                                     </ul>
                                                 </div>
                                             </div>
@@ -1143,7 +1143,7 @@ export const Settings = () => {
                                     </div>
                                 </div>
                                 <h3 className="text-sm font-portal-display text-white uppercase italic tracking-tight mb-1">
-                                    SaÃºde da Conta
+                                    Saúde da Conta
                                 </h3>
                             </div>
 
