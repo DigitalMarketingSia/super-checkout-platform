@@ -1,10 +1,10 @@
 import crypto from 'crypto';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { getAllowedGatewayIdsForPaymentMethod } from '../src/core/config/paymentRouting.js';
+import { verifySignature as verifyOrderSignature } from '../src/core/utils/cryptoUtils.js';
 
 const DEFAULT_ALLOWED_ORIGIN = 'https://app.supercheckout.app';
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const MIN_SECRET_LENGTH = 32;
 const RATE_LIMIT_BUCKETS = new Map<string, { count: number; resetAt: number }>();
 
 type UpsellExperienceMode = 'one_click' | 'light_confirmation' | 'repayment_explicit' | 'not_immediate';
@@ -98,52 +98,6 @@ function getSupabaseServerKey() {
     'SUPABASE_SERVICE_ROLE_KEY_NEW',
     'SUPABASE_SERVICE_ROLE_KEY',
   ]);
-}
-
-function normalizeSecretKey(value: string | undefined) {
-  const key = String(value || '').trim();
-  if (!key || key.length < MIN_SECRET_LENGTH || /^your_|placeholder|change_me/i.test(key)) {
-    return null;
-  }
-  return crypto.createHash('sha256').update(key).digest();
-}
-
-function getSigningKeys() {
-  const keys: Buffer[] = [];
-  const current = normalizeSecretKey(process.env.PAYMENT_ENCRYPTION_KEY);
-  if (current) keys.push(current);
-
-  const previousValues = String(process.env.PAYMENT_ENCRYPTION_KEY_PREVIOUS || '')
-    .split(',')
-    .map((value) => value.trim())
-    .filter(Boolean);
-
-  for (const raw of previousValues) {
-    const normalized = normalizeSecretKey(raw);
-    if (normalized) keys.push(normalized);
-  }
-
-  return keys;
-}
-
-function verifyOrderSignature(orderId: string, signature: string) {
-  if (!orderId || !signature) return false;
-
-  try {
-    const signatureBuffer = Buffer.from(signature, 'hex');
-    if (signatureBuffer.length === 0) return false;
-
-    return getSigningKeys().some((secretKey) => {
-      const expectedSignature = crypto
-        .createHmac('sha256', secretKey)
-        .update(orderId)
-        .digest('hex');
-
-      return crypto.timingSafeEqual(signatureBuffer, Buffer.from(expectedSignature, 'hex'));
-    });
-  } catch {
-    return false;
-  }
 }
 
 function getClientIp(req: VercelRequest) {

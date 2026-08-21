@@ -88,6 +88,7 @@ const TRUSTED_PROXY_ENDPOINTS = new Set([
 const CONTROL_PLANE_HMAC_ENDPOINTS = new Set([
     'manage-licenses',
     'create-commercial-license',
+    'activate-free-license',
     'create-passport-ticket',
     'revoke-passport-ticket',
 ]);
@@ -639,7 +640,7 @@ async function fetchLocalProfileAccess(
         Authorization: `Bearer ${bearerToken || localKey}`,
     };
 
-    let response = await fetch(`${baseUrl}&select=role,status,is_blocked`, {
+    let response = await fetch(`${baseUrl}&select=role,status,is_blocked,totp_enabled`, {
         method: 'GET',
         headers,
     });
@@ -647,7 +648,7 @@ async function fetchLocalProfileAccess(
 
     if (!response.ok) {
         const errorText = await response.text().catch(() => '');
-        if (response.status === 400 && /is_blocked|PGRST204|schema cache/i.test(errorText)) {
+        if (response.status === 400 && /is_blocked|totp_enabled|PGRST204|schema cache/i.test(errorText)) {
             assumesNotBlocked = true;
             response = await fetch(`${baseUrl}&select=role,status`, {
                 method: 'GET',
@@ -655,7 +656,7 @@ async function fetchLocalProfileAccess(
             });
         } else {
             console.warn(`[Central Proxy] ${label} lookup failed: ${response.status}`);
-            return { allowed: false, role: null as string | null };
+            return { allowed: false, role: null as string | null, totpEnabled: false };
         }
     }
 
@@ -674,6 +675,7 @@ async function fetchLocalProfileAccess(
             && status !== 'suspended'
             && (assumesNotBlocked || profile?.is_blocked !== true),
         role: role || null,
+        totpEnabled: assumesNotBlocked ? false : profile?.totp_enabled === true,
     };
 }
 
@@ -734,7 +736,7 @@ async function resolveCentralPlatformOwnerAccess(
     bearerToken?: string,
 ) {
     if (!centralSupabaseUrl || !centralKey || (!userId && !userEmail)) {
-        return { allowed: false, role: null as string | null };
+        return { allowed: false, role: null as string | null, totpEnabled: false };
     }
 
     try {
@@ -752,7 +754,7 @@ async function resolveCentralPlatformOwnerAccess(
         const isPlatformRole = ['owner', 'master_admin'].includes(String(profileAccess.role || '').toLowerCase());
 
         return {
-            allowed: profileAccess.allowed && isPlatformRole,
+            allowed: profileAccess.allowed && isPlatformRole && profileAccess.totpEnabled === true,
             role: profileAccess.role,
         };
     } catch (error: any) {
@@ -938,6 +940,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // --- 1. Validate endpoint parameter ---
     const endpoint = req.query.endpoint as string;
+    if (endpoint === 'pagbank-oauth') {
+        return res.status(410).json({ error: 'Gateway retired', code: 'GATEWAY_RETIRED' });
+    }
     if (!endpoint || !ALLOWED_ENDPOINTS.includes(endpoint)) {
         return res.status(403).json({ error: 'Endpoint not allowed' });
     }
@@ -1002,7 +1007,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // --- 2. Validate required env vars ---
     const centralApiUrl = getCentralApiUrl();
-    const centralSecret = process.env.CENTRAL_SHARED_SECRET || process.env.SHARED_SECRET;
     let controlPlaneHmacKey: string | null = null;
     try {
         controlPlaneHmacKey = getCentralControlPlaneHmacKey();
@@ -1131,7 +1135,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             userEmail,
             jwt,
         );
-        const isVerifiedPlatformOwner = isSystemOwnerEmail(userEmail) || centralPlatformOwnerAccess.allowed;
+        const isVerifiedPlatformOwner = isSystemOwnerEmail(userEmail) && centralPlatformOwnerAccess.allowed;
         const hasLocalAdminAccess = localAdminAccess.allowed;
         const hasSystemOwnerControlPlaneAccess = isControlPlaneRequest(req) && isVerifiedPlatformOwner;
         const hasControlPlaneAdminAccess = controlPlaneAdminAccess.allowed || hasSystemOwnerControlPlaneAccess;
@@ -1381,10 +1385,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             });
         }
 
-        if (shouldSendAdminSecret && !installationTrustScope && !controlPlaneHmacKey && !centralSecret) {
+        if (shouldSendAdminSecret && !installationTrustScope && !controlPlaneHmacKey) {
             console.error(`[Central Proxy] Missing control-plane trust configuration for endpoint ${endpoint}`);
             return res.status(500).json({
-                error: 'Server configuration error: missing control-plane trust configuration.',
+                error: 'Server configuration error: missing control-plane HMAC configuration.',
             });
         }
 
@@ -1544,10 +1548,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 rawBody,
                 queryString,
             }));
-        } else if (shouldSendAdminSecret && centralSecret && !requiresHmac) {
-            // Transitional fallback. It is used only while the control-plane
-            // HMAC migration is incomplete for this endpoint.
-            forwardHeaders['x-admin-secret'] = centralSecret;
         }
 
         const { response, responseData } = await fetchCentralWithInvokeKeyFallback({

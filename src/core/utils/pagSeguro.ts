@@ -103,25 +103,9 @@ function maskTaxId(value: string) {
   return `${'*'.repeat(Math.max(0, digits.length - 4))}${digits.slice(-4)}`;
 }
 
-function sanitizePagSeguroLogValue(value: any, keyPath: string[] = [], maskSensitiveFields: boolean = true): any {
-  if (!maskSensitiveFields) {
-    if (Array.isArray(value)) {
-      return value.map((item) => sanitizePagSeguroLogValue(item, keyPath, false));
-    }
-
-    if (value && typeof value === 'object') {
-      const output: Record<string, any> = {};
-      for (const [key, entry] of Object.entries(value)) {
-        output[key] = sanitizePagSeguroLogValue(entry, [...keyPath, key], false);
-      }
-      return output;
-    }
-
-    return value;
-  }
-
+function sanitizePagSeguroLogValue(value: any, keyPath: string[] = []): any {
   if (Array.isArray(value)) {
-    return value.map((item, index) => sanitizePagSeguroLogValue(item, [...keyPath, String(index)], true));
+    return value.map((item, index) => sanitizePagSeguroLogValue(item, [...keyPath, String(index)]));
   }
 
   if (value && typeof value === 'object') {
@@ -155,7 +139,7 @@ function sanitizePagSeguroLogValue(value: any, keyPath: string[] = [], maskSensi
         continue;
       }
 
-      output[key] = sanitizePagSeguroLogValue(entry, nextPath, true);
+      output[key] = sanitizePagSeguroLogValue(entry, nextPath);
     }
     return output;
   }
@@ -168,18 +152,16 @@ type BuildSafePagSeguroRawResponseOptions = {
   requestBody?: Record<string, any> | null;
   requestHeaders?: Record<string, string> | null;
   responseStatus?: number | null;
-  maskSensitiveFields?: boolean;
 };
 
 export function buildSafePagSeguroRawResponse(orderData: any, options?: BuildSafePagSeguroRawResponseOptions) {
   const charge = getPagSeguroCharge(orderData);
   const qrCodeText = getPagSeguroQrCodeText(orderData);
   const qrCodeImageUrl = getPagSeguroQrCodeImageUrl(orderData);
-  const shouldMaskSensitiveFields = options?.maskSensitiveFields !== false;
   const sanitizedRequestBody = options?.requestBody
-    ? sanitizePagSeguroLogValue(options.requestBody, [], shouldMaskSensitiveFields)
+    ? sanitizePagSeguroLogValue(options.requestBody)
     : undefined;
-  const sanitizedResponseBody = sanitizePagSeguroLogValue(orderData, [], shouldMaskSensitiveFields);
+  const sanitizedResponseBody = sanitizePagSeguroLogValue(orderData);
   const requestHeaders = options?.requestHeaders || undefined;
 
   return JSON.stringify({

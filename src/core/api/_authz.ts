@@ -8,6 +8,7 @@ import {
   resolveLocalSupabaseServerClient,
   validateLocalUserWithPublicKey,
 } from './_supabase-server.js';
+import { sanitizeSecurityMetadata } from '../utils/securityMetadata.js';
 
 export type ApiRole = 'owner' | 'admin' | 'master_admin' | 'partner' | 'member' | 'client';
 export type AuthzSeverity = 'INFO' | 'WARNING' | 'CRITICAL' | 'FATAL';
@@ -65,27 +66,6 @@ function isInactiveProfile(profile: ApiProfile): boolean {
   return ['blocked', 'suspended', 'revoked', 'disabled', 'inactive'].includes(status);
 }
 
-function sanitizeMetadata(metadata: Record<string, unknown> = {}) {
-  const blocked = new Set([
-    'password',
-    'secret',
-    'private_key',
-    'webhook_secret',
-    'token',
-    'access_token',
-    'refresh_token',
-    'captcha_token',
-  ]);
-  const blockedFragments = ['cpf', 'cnpj', 'document', 'phone', 'whatsapp'];
-
-  return Object.fromEntries(
-    Object.entries(metadata).filter(([key]) => {
-      const normalized = key.toLowerCase();
-      return !blocked.has(normalized) && !blockedFragments.some((fragment) => normalized.includes(fragment));
-    }),
-  );
-}
-
 export function getSupabaseServerConfig() {
   const { supabaseUrl, serverKey } = getLocalSupabaseServerConfig();
 
@@ -124,7 +104,7 @@ export async function logAuthzEvent(params: {
       severity: params.severity,
       ip_address: getIp(params.req),
       metadata: {
-        ...sanitizeMetadata(params.metadata || {}),
+        ...sanitizeSecurityMetadata(params.metadata || {}),
         user_agent: getUserAgent(params.req),
         source: params.source,
       },

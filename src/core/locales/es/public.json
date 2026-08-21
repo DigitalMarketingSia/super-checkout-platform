@@ -80,6 +80,8 @@
     "main_order_confirmed_desc": "Tu compra anterior ya está asegurada. Esta oferta es opcional y no reemplaza el pedido que acabas de pagar.",
     "original_payment_method": "Método original",
     "gateway_label": "Gateway",
+    "cardholder_label": "Titular",
+    "expiry_label": "Caducidad",
     "gateway_unknown": "Gateway predeterminado",
     "method_pix": "Pix",
     "method_credit_card": "Tarjeta de crédito",
@@ -321,5 +323,27 @@
         "note": "Capa premium para validar copy y CTA."
       }
     }
-  }
+  },
+  "preview": {"account_plan":"Plan de la cuenta","active":"ACTIVO","active_benefits":"BENEFICIOS ACTIVOS","active_license_key":"CLAVE DE LICENCIA ACTIVA","active_nodes":"{{count}} / 8 NODOS ACTIVOS","available_resources":"RECURSOS DISPONIBLES","banner_title":"PREVIEW UX: PALETA UNIFICADA NEUTRA (ESTILO STRIPE/LINEAR) Y JERARQUÍA EN 3 BLOQUES","benefit_global":"Recursos globales habilitados","benefit_installation_orders":"Pedidos de instalación disponibles","benefit_one_domain":"1 dominio disponible","benefit_partner_operations":"Operaciones de socio habilitadas","benefit_partner_services":"Servicios de socio habilitados","benefit_three_products":"Hasta 3 productos disponibles","benefit_unlimited":"Recursos ilimitados habilitados","benefit_unlimited_domains":"Dominios ilimitados habilitados","benefit_whitelabel":"White label habilitado","change_authenticator":"CONFIRMAR Y CAMBIAR AUTENTICADOR","concept":"CONCEPTO UX REFINADO","configuration_description":"Activa la autenticación de dos factores para desbloquear la protección completa del Portal.","configuration_pending":"CONFIGURACIÓN PENDIENTE","configuration_required":"CONFIGURACIÓN NECESARIA","configure_two_factor":"CONFIGURAR 2FA AHORA","copied":"COPIADO","copy":"COPIAR","current_authenticator_code":"CÓDIGO ACTUAL DEL AUTENTICADOR (6 DÍGITOS)","dashboard_description":"Configura tu licencia, gestiona instalaciones y accede al ecosistema de Super Checkout en un entorno premium de alto rendimiento.","dashboard_title":"PANEL DE ACTIVACIÓN","date_unavailable":"FECHA NO DISPONIBLE","demo_description":"Simula productos, checkout y área de miembros en tiempo real sin cambiar nada en tu servidor.","demo_interface":"Interfaz 100% real del producto","demo_members":"Área de alumnos desbloqueada","demo_sales":"Simulación de ventas y Pix","domains":"DOMINIOS","generate_key_usage":"Genera una licencia para validar tus instancias","installation_cta":"CONTRATAR INSTALACIÓN","installation_details":"VER DETALLES DE LA INSTALACIÓN","installation_key":"CLAVE DE INSTALACIÓN","installation_options":"VER OPCIONES DE INSTALACIÓN","installation_pending":"INSTALACIÓN PENDIENTE","installation_status":"ESTADO DE LA INSTALACIÓN","key_not_generated":"LICENCIA AÚN NO GENERADA","key_usage":"Se usa para validar tus instancias","main_domain":"DOMINIO PRINCIPAL","manage_key":"GESTIONAR CLAVE","manage_plan":"GESTIONAR PLAN","master_authentication":"AUTENTICACIÓN MASTER","member_since":"Miembro activo desde {{date}}","new_tab":"NUEVA PESTAÑA SIN SALIR","official_demo":"SISTEMA DEMO OFICIAL","one_click_install":"INSTALAR CON 1 CLIC","open_demo":"ABRIR SISTEMA DEMO","operational":"OPERATIVO","operational_logs":"REGISTROS OPERATIVOS","operations_center":"CENTRO DE OPERACIONES","pending":"PENDIENTE","plan_free":"PLAN GRATUITO","plan_owner":"PROPIETARIO GLOBAL","plan_partner":"PLAN DE SOCIO","plan_partner_unlimited":"PLAN DE SOCIO + ILIMITADO","plan_unlimited":"PLAN ILIMITADO","portal_security":"SEGURIDAD DEL PORTAL","products":"PRODUCTOS","protected":"PROTEGIDO","quick_checkouts":"CHECKOUTS","quick_checkouts_description":"Gestionar flujos de venta","quick_domains":"DOMINIOS","quick_domains_description":"Configuración de DNS y URLs","quick_members":"ÁREA DE MIEMBROS","quick_members_description":"Cursos y alumnos","quick_products":"PRODUCTOS","quick_products_description":"Catálogo y ofertas activas","section_demo":"02. ACCESO A MÓDULOS Y PRUEBA DEMO","section_operation":"01. OPERACIÓN ACTIVA","section_security":"03. RECURSOS DE LA CUENTA Y SEGURIDAD 2FA","test_before_install":"PRUEBA ANTES DE INSTALAR","two_factor_active":"2FA DEL PORTAL ACTIVA","two_factor_description_active":"Los nuevos accesos y operaciones de reinicio requieren tu código temporal de 6 dígitos.","two_factor_description_pending":"Configura el autenticador del Portal para proteger nuevos accesos y operaciones de reinicio.","two_factor_pending":"2FA DEL PORTAL PENDIENTE","unlimited":"ILIMITADO","url_label":"URL","verified":"VERIFICADA","waiting":"ESPERANDO","welcome":"BIENVENIDO AL PORTAL"},
+    "coverage": {
+      "paypal": {
+        "title": "Pago seguro con PayPal",
+        "description": "Revisa los artículos adicionales y completa la compra mediante el botón oficial de PayPal al final. Tus datos de acceso nunca pasan por el checkout.",
+        "expiry_placeholder": "MM/AA",
+        "loading": "Cargando el pago seguro de PayPal..."
+      },
+      "upsell": {
+        "product_image": "Imagen del producto",
+        "discount_percentage": "% DE DESCUENTO",
+        "paypal_description": "Aprueba la compra adicional en la ventana oficial de PayPal. Tu pedido principal no se cobrará de nuevo.",
+        "preview_controls": "Controles de la vista previa",
+        "original_method": "Método original",
+        "credit_card": "Tarjeta de crédito",
+        "mercado_pago": "Mercado Pago",
+        "saved_card": "Tarjeta guardada",
+        "yes_card": "Sí (Visa 4242)",
+        "no": "No",
+        "loading_payment": "Preparando el pago seguro..."
+      }
+    }
 }

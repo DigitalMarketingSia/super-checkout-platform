@@ -112,18 +112,18 @@ export const BlockPlanInfo: React.FC<BlockPlanInfoProps> = ({
                                         {t('plan_info.title')}
                                     </span>
                                     <h3 className="font-display text-xl font-black uppercase italic tracking-tight text-white">
-                                        Status da licença indisponível
+                                        {t('plan_info.load_error_title')}
                                     </h3>
                                 </div>
                             </div>
                             <span className="inline-flex items-center gap-2 rounded-full border border-amber-500/40 bg-amber-500/15 px-4 py-1.5 text-[9px] font-black uppercase tracking-widest text-amber-300">
-                                INDISPONÍVEL
+                                {t('plan_info.unavailable')}
                             </span>
                         </div>
 
                         <div className="space-y-2">
                             <span className="text-[9px] font-black uppercase tracking-widest text-amber-400 px-1">
-                                ERRO DE CONFIGURAÇÃO DO SERVIDOR
+                                {t('plan_info.server_configuration_error')}
                             </span>
                             <div className="rounded-2xl border border-amber-500/30 bg-[#0B0A12] p-4 shadow-inner">
                                 <code className="block font-mono text-xs font-bold text-amber-200 leading-relaxed select-all">
@@ -134,11 +134,11 @@ export const BlockPlanInfo: React.FC<BlockPlanInfoProps> = ({
 
                         <div className="space-y-2">
                             <span className="text-[9px] font-black uppercase tracking-widest text-gray-400 px-1">
-                                AVISO DE CLASSIFICAÇÃO DA CONTA
+                                {t('plan_info.account_classification_warning')}
                             </span>
                             <div className="rounded-2xl border border-white/[0.08] bg-[#0B0A12] p-4 shadow-inner">
                                 <p className="text-xs font-bold text-amber-300/90 leading-relaxed">
-                                    A conta não foi classificada como gratuita enquanto a consulta não for concluída.
+                                    {t('plan_info.account_classification_description')}
                                 </p>
                             </div>
                         </div>
@@ -151,7 +151,7 @@ export const BlockPlanInfo: React.FC<BlockPlanInfoProps> = ({
                             className="inline-flex items-center gap-2 rounded-full border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 px-5 py-2.5 text-[10px] font-black uppercase tracking-wider text-amber-300 transition duration-200"
                         >
                             <RefreshCcw className="h-3.5 w-3.5" />
-                            <span>TENTAR NOVAMENTE</span>
+                            <span>{t('plan_info.retry')}</span>
                         </button>
                     </div>
                 </article>

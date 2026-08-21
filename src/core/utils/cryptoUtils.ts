@@ -146,34 +146,64 @@ export function decrypt(encryptedText: string): string {
  * Gera uma assinatura HMAC-SHA256 para um ID de pedido.
  * Usado para autenticar consultas de status (check-status) sem exigir login.
  */
-export function generateSignature(orderId: string): string {
-  if (!orderId) return '';
-  const secretKey = getSecretKey();
-  return crypto
-    .createHmac('sha256', secretKey)
-    .update(orderId)
+export type OrderSignaturePurpose = 'order_session' | 'deliverable_file';
+
+const ORDER_SIGNATURE_VERSION = 'v2';
+const ORDER_SIGNATURE_DEFAULT_TTL_MS = 72 * 60 * 60 * 1000;
+
+function getOrderSigningKeys() {
+  const current = normalizeSecretKey(process.env.ORDER_LINK_SIGNING_KEY, 'ORDER_LINK_SIGNING_KEY');
+  const previous = String(process.env.ORDER_LINK_SIGNING_KEY_PREVIOUS || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .map((value) => normalizeSecretKey(value, 'ORDER_LINK_SIGNING_KEY_PREVIOUS'));
+  return [current, ...previous];
+}
+
+function orderSignaturePayload(orderId: string, purpose: OrderSignaturePurpose, expiresAt: number) {
+  return `${ORDER_SIGNATURE_VERSION}\n${orderId}\n${purpose}\n${expiresAt}`;
+}
+
+export function generateSignature(
+  orderId: string,
+  purpose: OrderSignaturePurpose = 'order_session',
+  ttlMs = ORDER_SIGNATURE_DEFAULT_TTL_MS,
+): string {
+  if (!orderId || !Number.isFinite(ttlMs) || ttlMs <= 0) return '';
+  const expiresAt = Date.now() + ttlMs;
+  const mac = crypto
+    .createHmac('sha256', getOrderSigningKeys()[0])
+    .update(orderSignaturePayload(orderId, purpose, expiresAt))
     .digest('hex');
+  return `${ORDER_SIGNATURE_VERSION}.${expiresAt.toString(36)}.${purpose}.${mac}`;
 }
 
 /**
  * Verifica se uma assinatura é válida para um determinado ID de pedido.
  */
-export function verifySignature(orderId: string, signature: string): boolean {
+export function verifySignature(
+  orderId: string,
+  signature: string,
+  purpose: OrderSignaturePurpose = 'order_session',
+): boolean {
   if (!orderId || !signature) return false;
   try {
-    const candidateKeys = [getSecretKey(), ...getPreviousSecretKeys()];
-    return candidateKeys.some((secretKey) => {
-      const expectedSignature = crypto
-        .createHmac('sha256', secretKey)
-        .update(orderId)
-        .digest('hex');
+    const match = signature.match(/^v2\.([0-9a-z]+)\.(order_session|deliverable_file)\.([0-9a-f]{64})$/i);
+    if (!match || match[2] !== purpose) return false;
 
-      return crypto.timingSafeEqual(
-        Buffer.from(signature, 'hex'),
-        Buffer.from(expectedSignature, 'hex')
-      );
+    const expiresAt = Number.parseInt(match[1], 36);
+    if (!Number.isSafeInteger(expiresAt) || expiresAt <= Date.now()) return false;
+
+    const received = Buffer.from(match[3], 'hex');
+    return getOrderSigningKeys().some((secretKey) => {
+      const expected = crypto
+        .createHmac('sha256', secretKey)
+        .update(orderSignaturePayload(orderId, purpose, expiresAt))
+        .digest();
+      return received.length === expected.length && crypto.timingSafeEqual(received, expected);
     });
-  } catch (e) {
+  } catch {
     return false;
   }
 }

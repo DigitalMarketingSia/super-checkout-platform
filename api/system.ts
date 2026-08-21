@@ -18,6 +18,7 @@ import {
     buildCentralControlPlaneTrustHeaders,
     getCentralControlPlaneHmacKey,
 } from '../src/core/api/_central-control-plane-trust.js';
+import { RETIRED_GATEWAY_RESPONSE } from '../src/core/config/gatewayAvailability.js';
 
 const DEFAULT_ALLOWED_ORIGIN = 'https://app.supercheckout.app';
 const OFFICIAL_CENTRAL_API_URL = 'https://bcmnryxjweiovrwmztpn.supabase.co/functions/v1';
@@ -362,40 +363,19 @@ function getCentralApiUrl() {
     ).trim().replace(/\/+$/, '');
 }
 
-function isValidCentralInternalSignature(req: VercelRequest, body: Record<string, any>) {
-    const secret = String(process.env.CENTRAL_SHARED_SECRET || process.env.SHARED_SECRET || '').trim();
-    const rawTimestamp = getHeaderValue(req.headers['x-admin-timestamp']);
-    const rawSignature = getHeaderValue(req.headers['x-admin-signature']).replace(/^sha256=/i, '');
-
-    if (!secret || !rawTimestamp || !rawSignature) return false;
-
-    const timestamp = Number(rawTimestamp.length === 10 ? `${rawTimestamp}000` : rawTimestamp);
-    if (!Number.isFinite(timestamp) || Math.abs(Date.now() - timestamp) > INTERNAL_SIGNATURE_TTL_MS) {
-        return false;
-    }
-
-    const payload = `${rawTimestamp}.${JSON.stringify(body)}`;
-    const expected = crypto.createHmac('sha256', secret).update(payload).digest('hex');
-
-    try {
-        const expectedBuffer = Buffer.from(expected, 'hex');
-        const receivedBuffer = Buffer.from(rawSignature, 'hex');
-        return expectedBuffer.length === receivedBuffer.length
-            && crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
-    } catch {
-        return false;
-    }
+function isValidCentralInternalSignature(_req: VercelRequest, _body: Record<string, any>) {
+    // The only remaining caller belongs to the retired PagBank finalization path.
+    // Keep it fail-closed so stale code cannot be re-enabled with a legacy secret.
+    return false;
 }
 
 function isValidAdminInternalSignature(req: VercelRequest, body: Record<string, any>) {
     const rawTimestamp = getHeaderValue(req.headers['x-admin-timestamp']);
     const rawSignature = getHeaderValue(req.headers['x-admin-signature']).replace(/^sha256=/i, '');
 
-    const secrets = [
-        process.env.ADMIN_API_SECRET,
-        process.env.CENTRAL_SHARED_SECRET,
-        process.env.SHARED_SECRET,
-    ].map((value) => String(value || '').trim()).filter(Boolean);
+    const secrets = [process.env.ADMIN_API_SECRET]
+        .map((value) => String(value || '').trim())
+        .filter(Boolean);
 
     if (secrets.length === 0 || !rawTimestamp || !rawSignature) return false;
 
@@ -772,7 +752,7 @@ async function deliverableFileHandler(req: VercelRequest, res: VercelResponse) {
   const productId = String(req.query.productId || '').trim();
   const sig = String(req.query.sig || '').trim();
 
-  if (!UUID_REGEX.test(orderId) || !UUID_REGEX.test(productId) || !verifySignature(orderId, sig)) {
+  if (!UUID_REGEX.test(orderId) || !UUID_REGEX.test(productId) || !verifySignature(orderId, sig, 'deliverable_file')) {
     return res.status(404).json({ error: 'Deliverable not found' });
   }
 
@@ -2324,13 +2304,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             case 'member-password-reset':
                 return await memberPasswordResetHandler(req, res);
             case 'pagbank-oauth-start':
-                return await pagbankOauthStartHandler(req, res);
             case 'pagbank-sandbox-connect-mock':
-                return await pagbankSandboxConnectMockHandler(req, res);
             case 'pagbank-oauth-callback':
-                return await pagbankOauthCallbackHandler(req, res);
             case 'pagbank-oauth-finalize':
-                return await pagbankOauthFinalizeHandler(req, res);
+                return res.status(410).json(RETIRED_GATEWAY_RESPONSE);
             default:
                 return res.status(404).json({ error: `Action ${action} not found in System Controller` });
         }

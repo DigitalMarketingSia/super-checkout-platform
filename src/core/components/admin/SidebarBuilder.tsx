@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { SidebarItem } from '../../types';
 import { Plus, Trash2, ChevronUp, ChevronDown, Link as LinkIcon, Folder, GripVertical, Check } from 'lucide-react';
 import { Button } from '../ui/Button';
+import { useTranslation } from 'react-i18next';
 
 interface SidebarBuilderProps {
     items: SidebarItem[];
@@ -11,11 +12,12 @@ interface SidebarBuilderProps {
 export const SidebarBuilder: React.FC<SidebarBuilderProps> = ({ items, onChange }) => {
     const [editingId, setEditingId] = useState<string | null>(null);
     const [newItemType, setNewItemType] = useState<'link' | 'section'>('link');
+    const { t } = useTranslation();
 
     const handleAddItem = (parentId?: string) => {
         const newItem: SidebarItem = {
             id: crypto.randomUUID(),
-            title: 'Novo Item',
+            title: t('coverage.sidebar_builder.new_item'),
             type: parentId ? 'link' : newItemType,
             url: parentId ? '/' : (newItemType === 'link' ? '/' : undefined),
             children: newItemType === 'section' ? [] : undefined
@@ -106,7 +108,7 @@ export const SidebarBuilder: React.FC<SidebarBuilderProps> = ({ items, onChange 
                                     value={item.title}
                                     onChange={e => handleUpdateItem(item.id, { title: e.target.value })}
                                     className="bg-white dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded px-2 py-1 text-sm w-full"
-                                    placeholder="Título"
+                                    placeholder={t('coverage.sidebar_builder.title_placeholder')}
                                     autoFocus
                                 />
                                 {item.type === 'link' && (
@@ -141,7 +143,7 @@ export const SidebarBuilder: React.FC<SidebarBuilderProps> = ({ items, onChange 
                                     <ChevronDown className="w-4 h-4" />
                                 </button>
                                 <button onClick={() => setEditingId(item.id)} className="p-1.5 hover:bg-blue-500/10 text-blue-500 rounded transition-colors text-xs font-medium px-2">
-                                    Editar
+                                    {t('coverage.sidebar_builder.edit')}
                                 </button>
                                 <button onClick={() => handleDeleteItem(item.id)} className="p-1.5 hover:bg-red-500/10 text-red-500 rounded transition-colors">
                                     <Trash2 className="w-4 h-4" />
@@ -160,7 +162,7 @@ export const SidebarBuilder: React.FC<SidebarBuilderProps> = ({ items, onChange 
                             onClick={() => handleAddItem(item.id)}
                             className="mt-2 flex items-center gap-2 text-xs text-primary hover:text-primary/80 transition-colors font-medium px-2 py-1"
                         >
-                            <Plus className="w-3 h-3" /> Adicionar Link na Seção
+                            <Plus className="w-3 h-3" /> {t('coverage.sidebar_builder.add_link')}
                         </button>
                     </div>
                 )}
@@ -176,18 +178,18 @@ export const SidebarBuilder: React.FC<SidebarBuilderProps> = ({ items, onChange 
                     onChange={(e) => setNewItemType(e.target.value as 'link' | 'section')}
                     className="bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-primary/50"
                 >
-                    <option value="link">Link Simples</option>
-                    <option value="section">Seção (Dropdown)</option>
+                    <option value="link">{t('coverage.sidebar_builder.simple_link')}</option>
+                    <option value="section">{t('coverage.sidebar_builder.section')}</option>
                 </select>
                 <Button onClick={() => handleAddItem()} variant="secondary" size="sm">
-                    <Plus className="w-4 h-4 mr-2" /> Adicionar Item
+                    <Plus className="w-4 h-4 mr-2" /> {t('coverage.sidebar_builder.add_item')}
                 </Button>
             </div>
 
             <div className="space-y-2">
                 {items.length === 0 && (
                     <div className="text-center py-8 text-gray-500 border-2 border-dashed border-gray-200 dark:border-white/10 rounded-lg">
-                        Nenhum item no menu lateral
+                        {t('coverage.sidebar_builder.empty')}
                     </div>
                 )}
                 {items.map(item => renderItem(item))}

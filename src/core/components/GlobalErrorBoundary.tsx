@@ -1,4 +1,5 @@
 import React, { ErrorInfo, ReactNode } from 'react';
+import i18n from '../i18n/config';
 
 interface Props {
     children: ReactNode;
@@ -72,7 +73,7 @@ export class GlobalErrorBoundary extends React.Component<Props, State> {
             return (
                 <div className="min-h-screen bg-[#0D1118] flex items-center justify-center p-4">
                     <div className="bg-[#1a1e26] border border-red-500/20 rounded-xl p-8 max-w-lg w-full shadow-2xl">
-                        <h1 className="text-2xl font-bold text-red-500 mb-4">Algo deu errado</h1>
+                        <h1 className="text-2xl font-bold text-red-500 mb-4">{i18n.t('coverage.common.unknown_error')}</h1>
                         <p className="text-gray-300 mb-6">
                             {isDynamicImportError
                                 ? 'Detectamos uma versao desatualizada do aplicativo ou um arquivo do deploy que mudou durante a navegacao.'

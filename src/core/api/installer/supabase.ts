@@ -90,7 +90,7 @@ function getQueryValue(value: string | string[] | undefined) {
   return value || '';
 }
 
-function normalizeVercelDeploymentDomain(value: unknown) {
+export function normalizeVercelDeploymentDomain(value: unknown) {
   const hostname = String(value || '')
     .trim()
     .replace(/^https?:\/\//i, '')
@@ -326,6 +326,8 @@ async function proxyPrepareSetupToTarget(params: {
 }) {
   const response = await fetch(`https://${params.domain}/api/installer/prepare_setup`, {
     method: 'POST',
+    redirect: 'error',
+    signal: AbortSignal.timeout(15_000),
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
@@ -2072,9 +2074,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const deploymentDomain = resolvedAction === 'verify_backend'
       ? normalizeVercelDeploymentDomain(targetDomain)
       : '';
-    const runtimeTargetDomain = resolvedAction === 'prepare_setup' || resolvedAction === 'prepare_setup_proxy'
-      ? normalizeBootstrapDomain(targetDomain)
-      : '';
+    const runtimeTargetDomain = resolvedAction === 'prepare_setup_proxy'
+      ? normalizeVercelDeploymentDomain(targetDomain)
+      : resolvedAction === 'prepare_setup'
+        ? normalizeBootstrapDomain(targetDomain)
+        : '';
 
     if (resolvedAction === 'verify_backend' && !deploymentDomain) {
       return res.status(400).json({ error: 'Invalid deployment domain' });

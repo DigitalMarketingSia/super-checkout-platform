@@ -42,6 +42,7 @@ export const getEnv = (key: string): string | undefined => {
     || key.endsWith('_SECRET_KEY')
     || key.includes('PRIVATE_KEY')
     || key.includes('PAYMENT_ENCRYPTION_KEY')
+    || key.includes('ORDER_LINK_SIGNING_KEY')
     || key === 'LICENSE_KEY'
     || key === 'MASTER_LICENSE_KEY';
   const getStoredPublishableKey = (): string | undefined => {

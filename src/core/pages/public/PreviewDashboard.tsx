@@ -19,6 +19,7 @@ import {
     Zap,
 } from 'lucide-react';
 import { Installation, License } from '../../services/licenseService';
+import { useTranslation } from 'react-i18next';
 
 const MOCK_LICENSE: License = {
     key: 'SUP-8849-XK29-9182-PRO',
@@ -44,10 +45,10 @@ const MOCK_INSTALLATIONS: Installation[] = [
 ];
 
 const QUICK_ACCESS_ITEMS = [
-    { key: 'checkouts', icon: LayoutDashboard, label: 'CHECKOUTS', desc: 'Gerenciar fluxos de venda' },
-    { key: 'domains', icon: Globe, label: 'DOMÍNIOS', desc: 'Configurações de DNS e URLs' },
-    { key: 'products', icon: Package, label: 'PRODUTOS', desc: 'Catálogo e ofertas ativas' },
-    { key: 'members', icon: Boxes, label: 'ÁREA DE MEMBROS', desc: 'Cursos e alunos' },
+    { key: 'checkouts', icon: LayoutDashboard, labelKey: 'preview.quick_checkouts', descKey: 'preview.quick_checkouts_description' },
+    { key: 'domains', icon: Globe, labelKey: 'preview.quick_domains', descKey: 'preview.quick_domains_description' },
+    { key: 'products', icon: Package, labelKey: 'preview.quick_products', descKey: 'preview.quick_products_description' },
+    { key: 'members', icon: Boxes, labelKey: 'preview.quick_members', descKey: 'preview.quick_members_description' },
 ];
 
 export interface PreviewDashboardProps {
@@ -83,6 +84,7 @@ export const PreviewDashboard: React.FC<PreviewDashboardProps> = ({
     showPreviewBanner = true,
     embedded = false,
 }) => {
+    const { t, i18n } = useTranslation('public');
     const [copiedKey, setCopiedKey] = useState(false);
     const [localDemoLoading, setLocalDemoLoading] = useState(false);
     const [localDemoError, setLocalDemoError] = useState<string | null>(null);
@@ -120,7 +122,7 @@ export const PreviewDashboard: React.FC<PreviewDashboardProps> = ({
         const domain = String(inst.domain || '').trim().toLowerCase();
         return domain && domain !== 'setup-pending';
     }) || null;
-    const installationDomain = displayedInstall?.domain || 'AGUARDANDO INSTALAÇÃO';
+    const installationDomain = displayedInstall?.domain || t('preview.installation_pending');
     const hasLicenseKey = Boolean(String(currentLicense?.key || '').trim());
     const licenseKeyAccent = hasLicenseKey
         ? {
@@ -128,7 +130,7 @@ export const PreviewDashboard: React.FC<PreviewDashboardProps> = ({
             label: 'text-purple-400',
             status: 'text-emerald-400',
             statusIcon: <ShieldCheck className="h-3 w-3" />,
-            statusText: 'VERIFICADA',
+            statusText: t('preview.verified'),
             value: currentLicense?.key || '',
         }
         : {
@@ -136,8 +138,8 @@ export const PreviewDashboard: React.FC<PreviewDashboardProps> = ({
             label: 'text-amber-300',
             status: 'text-amber-300',
             statusIcon: <RefreshCcw className="h-3 w-3" />,
-            statusText: 'PENDENTE',
-            value: 'CHAVE NÃO GERADA',
+            statusText: t('preview.pending'),
+            value: t('preview.key_not_generated'),
         };
     const installationAccent = activeInstall
         ? {
@@ -167,38 +169,38 @@ export const PreviewDashboard: React.FC<PreviewDashboardProps> = ({
         || currentLicense?.plan === 'upgrade_domains'
         || currentLicense?.plan === 'whitelabel'
     );
-    const domainLimit = hasUnlimitedPlan ? 'ILIMITADO' : '1';
-    const productLimit = hasUnlimitedPlan ? 'ILIMITADO' : '3';
+    const domainLimit = hasUnlimitedPlan ? t('preview.unlimited') : '1';
+    const productLimit = hasUnlimitedPlan ? t('preview.unlimited') : '3';
     const planLabel = isPortalOwner
-        ? 'OWNER GLOBAL'
+        ? t('preview.plan_owner')
         : currentLicense?.has_partner_panel && currentLicense.has_unlimited_domains
-            ? 'PLANO PARCEIRO + ILIMITADO'
+            ? t('preview.plan_partner_unlimited')
             : currentLicense?.has_partner_panel || currentLicense?.plan === 'saas'
-                ? 'PLANO PARCEIRO'
+                ? t('preview.plan_partner')
                 : currentLicense?.has_unlimited_domains || currentLicense?.plan === 'upgrade_domains'
-                    ? 'PLANO ILIMITADO'
-                    : 'PLANO GRATUITO';
+                    ? t('preview.plan_unlimited')
+                    : t('preview.plan_free');
     const isPartnerPlan = Boolean(currentLicense?.has_partner_panel || currentLicense?.plan === 'saas');
     const planBenefits = isPortalOwner
-        ? ['Recursos globais liberados', 'Operações de parceiro habilitadas']
+        ? [t('preview.benefit_global'), t('preview.benefit_partner_operations')]
         : currentLicense?.plan === 'whitelabel'
-            ? ['Recursos ilimitados liberados', 'White label habilitado']
+            ? [t('preview.benefit_unlimited'), t('preview.benefit_whitelabel')]
             : isPartnerPlan && hasUnlimitedPlan
-                ? ['Recursos ilimitados liberados', 'Serviços de parceiro habilitados']
+                ? [t('preview.benefit_unlimited'), t('preview.benefit_partner_services')]
                 : isPartnerPlan
-                    ? ['Serviços de parceiro habilitados', 'Pedidos de instalação disponíveis']
+                    ? [t('preview.benefit_partner_services'), t('preview.benefit_installation_orders')]
                     : hasUnlimitedPlan
-                        ? ['Recursos ilimitados liberados', 'Domínios ilimitados habilitados']
-                        : ['1 domínio disponível', 'Até 3 produtos disponíveis'];
+                        ? [t('preview.benefit_unlimited'), t('preview.benefit_unlimited_domains')]
+                        : [t('preview.benefit_one_domain'), t('preview.benefit_three_products')];
     const planBenefitsTitle = isPortalOwner || isPartnerPlan || hasUnlimitedPlan
-        ? 'BENEFÍCIOS ATIVOS'
-        : 'RECURSOS DISPONÍVEIS';
+        ? t('preview.active_benefits')
+        : t('preview.available_resources');
     const effectiveDemoLoading = demoLoading ?? localDemoLoading;
     const effectiveDemoError = demoError ?? localDemoError;
     const memberSince = currentLicense?.created_at || userCreatedAt;
     const memberSinceLabel = memberSince
         ? new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(new Date(memberSince))
-        : 'DATA NÃO DISPONÍVEL';
+        : t('preview.date_unavailable');
     const securityAccent = isTwoFactorEnabled
         ? {
             cardBorder: 'border-emerald-500/30 hover:border-emerald-500/50',
@@ -217,10 +219,10 @@ export const PreviewDashboard: React.FC<PreviewDashboardProps> = ({
             input: 'focus:border-amber-400 focus:ring-amber-400/20',
         };
     const installationCtaLabel = hasInstallationOffer
-        ? 'CONTRATAR INSTALAÇÃO'
+        ? t('preview.installation_cta')
         : isPreviewMode
-            ? 'INSTALAR COM 1-CLIQUE'
-            : 'VER OPÇÕES DE INSTALAÇÃO';
+            ? t('preview.one_click_install')
+            : t('preview.installation_options');
 
     const handleInstallationCta = () => {
         if (hasInstallationOffer && onPurchaseInstallation) {
@@ -265,15 +267,15 @@ export const PreviewDashboard: React.FC<PreviewDashboardProps> = ({
                         </div>
                         <div>
                             <p className="text-xs font-black uppercase tracking-wider text-white">
-                                PREVIEW UX: PALETA UNIFICADA NEUTRA (ESTILO STRIPE/LINEAR) & HIERARQUIA EM 3 BLOCOS
+                                {t('preview.banner_title')}
                             </p>
                             <p className="text-[11px] text-gray-400">
-                                URL: <code className="rounded bg-black/60 px-2 py-0.5 font-mono text-purple-300 border border-purple-500/30">http://localhost:5173/preview/dashboard</code>
+                                {t('preview.url_label')}: <code className="rounded bg-black/60 px-2 py-0.5 font-mono text-purple-300 border border-purple-500/30">http://localhost:5173/preview/dashboard</code>
                             </p>
                         </div>
                     </div>
                     <span className="inline-flex shrink-0 items-center justify-center rounded-full border border-purple-400/40 bg-purple-500/20 px-4 py-1.5 text-[10px] font-black uppercase tracking-widest text-purple-300">
-                        CONCEITO UX REFINADO
+                        {t('preview.concept')}
                     </span>
                 </div>}
 
@@ -283,14 +285,14 @@ export const PreviewDashboard: React.FC<PreviewDashboardProps> = ({
                         <div className="flex items-center gap-2">
                             <span className="h-2 w-2 rounded-full bg-purple-400 shadow-[0_0_8px_#a855f7]" />
                             <span className="text-[10px] font-black uppercase tracking-[0.25em] text-purple-400">
-                                BEM-VINDO AO PORTAL
+                                {t('preview.welcome')}
                             </span>
                         </div>
                         <h1 className="font-display text-3xl font-black uppercase italic tracking-tighter text-white sm:text-4xl md:text-5xl">
-                            DASHBOARD DE ATIVAÇÃO
+                            {t('preview.dashboard_title')}
                         </h1>
                         <p className="text-xs text-gray-400 max-w-2xl leading-relaxed">
-                            Configure sua licença, gerencie instalações e acesse o ecossistema Super Checkout em um ambiente premium de alta performance.
+                            {t('preview.dashboard_description')}
                         </p>
                     </div>
 
@@ -312,7 +314,7 @@ export const PreviewDashboard: React.FC<PreviewDashboardProps> = ({
                 <section className="space-y-3 text-left">
                     <div className="flex items-center gap-2 px-1">
                         <span className="text-[10px] font-black uppercase tracking-[0.25em] text-purple-400">
-                            01. OPERAÇÃO ATIVA
+                            {t('preview.section_operation')}
                         </span>
                     </div>
 
@@ -327,22 +329,22 @@ export const PreviewDashboard: React.FC<PreviewDashboardProps> = ({
                                         </div>
                                         <div>
                                             <span className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400">
-                                                STATUS DA INSTALAÇÃO
+                                                {t('preview.installation_status')}
                                             </span>
                                             <p className="text-[11px] font-bold text-gray-400">
-                                                CENTRO DE OPERAÇÕES
+                                                {t('preview.operations_center')}
                                             </p>
                                         </div>
                                     </div>
                                     <span className={`inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-[9px] font-black uppercase tracking-widest ${installationAccent.badge}`}>
                                         <span className={`h-2 w-2 rounded-full ${installationAccent.dot} ${activeInstall ? 'animate-pulse' : ''}`} />
-                                        {activeInstall ? 'ATIVO' : 'PENDENTE'}
+                                        {activeInstall ? t('preview.active') : t('preview.pending')}
                                     </span>
                                 </div>
 
                                 <div className="space-y-2">
                                     <span className="text-[9px] font-black uppercase tracking-widest text-gray-400 px-1">
-                                        DOMÍNIO PRINCIPAL
+                                        {t('preview.main_domain')}
                                     </span>
                                     <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/[0.08] bg-[#06050A] p-3.5 shadow-inner">
                                         <div className="flex items-center gap-2.5 min-w-0">
@@ -353,7 +355,7 @@ export const PreviewDashboard: React.FC<PreviewDashboardProps> = ({
                                         </div>
                                         <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-xl border px-3 py-1.5 text-[10px] font-black uppercase tracking-wider ${installationAccent.domainBadge}`}>
                                             {activeInstall ? <Check className="h-3.5 w-3.5" /> : <RefreshCcw className="h-3.5 w-3.5" />}
-                                            {activeInstall ? 'OPERACIONAL' : 'AGUARDANDO'}
+                                            {activeInstall ? t('preview.operational') : t('preview.waiting')}
                                         </span>
                                     </div>
                                 </div>
@@ -361,10 +363,10 @@ export const PreviewDashboard: React.FC<PreviewDashboardProps> = ({
                                 <div className="space-y-2">
                                     <div className="flex items-center justify-between px-1">
                                         <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">
-                                            LOGS OPERACIONAIS
+                                            {t('preview.operational_logs')}
                                         </span>
                                         <span className={`text-[10px] font-black ${installationAccent.logs}`}>
-                                            {activeInstall ? '8 / 8 NÓS ATIVOS' : '0 / 8 NÓS ATIVOS'}
+                                            {activeInstall ? t('preview.active_nodes', { count: 8 }) : t('preview.active_nodes', { count: 0 })}
                                         </span>
                                     </div>
                                     <div className="rounded-2xl border border-white/[0.08] bg-[#06050A] p-4 space-y-2.5">
@@ -388,7 +390,7 @@ export const PreviewDashboard: React.FC<PreviewDashboardProps> = ({
                                         className="mb-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-orange-300/40 bg-orange-400 px-5 py-3 text-[10px] font-black uppercase tracking-wider text-black shadow-lg shadow-orange-500/20 transition hover:bg-orange-300 active:scale-[0.99]"
                                     >
                                         <Zap className="h-3.5 w-3.5 fill-current" />
-                                        CONTRATAR INSTALAÇÃO
+                                        {t('preview.installation_cta')}
                                         <ArrowUpRight className="h-3.5 w-3.5" />
                                     </button>
                                 )}
@@ -398,7 +400,7 @@ export const PreviewDashboard: React.FC<PreviewDashboardProps> = ({
                                     className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.05] hover:bg-white/10 px-5 py-2.5 text-[10px] font-black uppercase tracking-wider text-gray-200 transition duration-200"
                                 >
                                     <RefreshCcw className="h-3.5 w-3.5 text-purple-400" />
-                                    <span>VER DETALHES DA INSTALAÇÃO</span>
+                                    <span>{t('preview.installation_details')}</span>
                                 </button>
                             </div>
                         </article>
@@ -412,10 +414,10 @@ export const PreviewDashboard: React.FC<PreviewDashboardProps> = ({
                                     </div>
                                     <div>
                                         <span className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400">
-                                            CHAVE DE INSTALAÇÃO
+                                            {t('preview.installation_key')}
                                         </span>
                                         <p className="text-[11px] font-bold text-gray-400">
-                                            AUTENTICAÇÃO MASTER
+                                            {t('preview.master_authentication')}
                                         </p>
                                     </div>
                                 </div>
@@ -423,7 +425,7 @@ export const PreviewDashboard: React.FC<PreviewDashboardProps> = ({
                                 <div className="space-y-2">
                                     <div className="flex items-center justify-between px-1">
                                         <span className={`text-[9px] font-black uppercase tracking-widest ${licenseKeyAccent.label}`}>
-                                            {hasLicenseKey ? 'CHAVE ATIVA DA LICENÇA' : 'LICENÇA AINDA NÃO GERADA'}
+                                            {hasLicenseKey ? t('preview.active_license_key') : t('preview.key_not_generated')}
                                         </span>
                                         <span className={`text-[9px] font-bold flex items-center gap-1 ${licenseKeyAccent.status}`}>
                                             {licenseKeyAccent.statusIcon} {licenseKeyAccent.statusText}
@@ -444,7 +446,7 @@ export const PreviewDashboard: React.FC<PreviewDashboardProps> = ({
                                             className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-purple-400/40 bg-purple-600 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-white shadow-md transition duration-200 hover:bg-purple-500 active:scale-95 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/5 disabled:text-gray-500 disabled:shadow-none"
                                         >
                                             {copiedKey ? <Check className="h-3.5 w-3.5 text-emerald-300" /> : <Copy className="h-3.5 w-3.5" />}
-                                            <span>{copiedKey ? 'COPIADO' : 'COPIAR'}</span>
+                                            <span>{copiedKey ? t('preview.copied') : t('preview.copy')}</span>
                                         </button>
                                     </div>
                                 </div>
@@ -452,14 +454,14 @@ export const PreviewDashboard: React.FC<PreviewDashboardProps> = ({
 
                             <div className="mt-6 flex items-center justify-between border-t border-white/[0.08] pt-4">
                                 <span className="text-[10px] font-medium text-gray-400">
-                                    {hasLicenseKey ? 'Usada para validar suas instâncias' : 'Gere uma licença para validar suas instâncias'}
+                                    {hasLicenseKey ? t('preview.key_usage') : t('preview.generate_key_usage')}
                                 </span>
                                 <button
                                     type="button"
                                     onClick={() => onNavigate?.('license')}
                                     className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-purple-400 transition hover:text-purple-300 hover:underline"
                                 >
-                                    GERENCIAR CHAVE
+                                    {t('preview.manage_key')}
                                     <ArrowUpRight className="h-3.5 w-3.5" />
                                 </button>
                             </div>
@@ -471,14 +473,14 @@ export const PreviewDashboard: React.FC<PreviewDashboardProps> = ({
                 <section className="space-y-3 text-left">
                     <div className="flex items-center gap-2 px-1">
                         <span className="text-[10px] font-black uppercase tracking-[0.25em] text-purple-400">
-                            02. ACESSO AOS MÓDULOS & TESTE DEMO
+                            {t('preview.section_demo')}
                         </span>
                     </div>
 
                     <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
                         {/* ATALHOS RÁPIDOS DOS MÓDULOS (7 COLS) */}
                         <div className="lg:col-span-7 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                            {QUICK_ACCESS_ITEMS.map(({ key, icon: Icon, label, desc }) => (
+                            {QUICK_ACCESS_ITEMS.map(({ key, icon: Icon, labelKey, descKey }) => (
                                 <button
                                     key={key}
                                     type="button"
@@ -493,10 +495,10 @@ export const PreviewDashboard: React.FC<PreviewDashboardProps> = ({
                                     </div>
                                     <div className="mt-4">
                                         <h3 className="font-display text-sm font-black uppercase italic tracking-tight text-white transition duration-300 group-hover:text-purple-300">
-                                            {label}
+                                        {t(labelKey)}
                                         </h3>
                                         <p className="text-[11px] font-semibold text-gray-400">
-                                            {desc}
+                                            {t(descKey)}
                                         </p>
                                     </div>
                                 </button>
@@ -509,31 +511,31 @@ export const PreviewDashboard: React.FC<PreviewDashboardProps> = ({
                                 <div className="flex items-center justify-between gap-3">
                                     <span className="inline-flex items-center gap-2 rounded-full border border-purple-500/30 bg-purple-500/10 px-3.5 py-1 text-[9px] font-black uppercase tracking-widest text-purple-300">
                                         <span className="h-1.5 w-1.5 rounded-full bg-purple-400" />
-                                        TESTE ANTES DE INSTALAR
+                                        {t('preview.test_before_install')}
                                     </span>
                                 </div>
 
                                 <div className="space-y-2">
                                     <h3 className="font-display text-2xl font-black uppercase italic tracking-tighter text-white">
-                                        SISTEMA DEMO OFICIAL
+                                        {t('preview.official_demo')}
                                     </h3>
                                     <p className="text-xs text-gray-400 leading-relaxed">
-                                        Simule produtos, checkout e área de membros em tempo real sem alterar nada no seu servidor.
+                                        {t('preview.demo_description')}
                                     </p>
                                 </div>
 
                                 <ul className="space-y-1.5 text-[11px] font-semibold text-gray-300 pt-1">
                                     <li className="flex items-center gap-2">
                                         <span className="h-1.5 w-1.5 rounded-full bg-purple-400 shrink-0" />
-                                        <span>Interface 100% real do produto</span>
+                                        <span>{t('preview.demo_interface')}</span>
                                     </li>
                                     <li className="flex items-center gap-2">
                                         <span className="h-1.5 w-1.5 rounded-full bg-purple-400 shrink-0" />
-                                        <span>Simulação de vendas e Pix</span>
+                                        <span>{t('preview.demo_sales')}</span>
                                     </li>
                                     <li className="flex items-center gap-2">
                                         <span className="h-1.5 w-1.5 rounded-full bg-purple-400 shrink-0" />
-                                        <span>Área de alunos liberada</span>
+                                        <span>{t('preview.demo_members')}</span>
                                     </li>
                                 </ul>
                             </div>
@@ -549,10 +551,10 @@ export const PreviewDashboard: React.FC<PreviewDashboardProps> = ({
                                         </div>
                                         <div>
                                             <p className="text-xs font-black uppercase tracking-wider text-black">
-                                                ABRIR SISTEMA DEMO
+                                                {t('preview.open_demo')}
                                             </p>
                                             <p className="text-[8px] font-extrabold uppercase tracking-widest text-gray-500">
-                                                NOVA ABA SEM SAIR
+                                                {t('preview.new_tab')}
                                             </p>
                                         </div>
                                     </div>
@@ -572,7 +574,7 @@ export const PreviewDashboard: React.FC<PreviewDashboardProps> = ({
                 <section className="space-y-3 text-left">
                     <div className="flex items-center gap-2 px-1">
                         <span className="text-[10px] font-black uppercase tracking-[0.25em] text-purple-400">
-                            03. RECURSOS DA CONTA & SEGURANÇA 2FA
+                            {t('preview.section_security')}
                         </span>
                     </div>
 
@@ -587,7 +589,7 @@ export const PreviewDashboard: React.FC<PreviewDashboardProps> = ({
                                         </div>
                                         <div>
                                             <span className="text-[9px] font-black uppercase tracking-[0.2em] text-purple-400">
-                                                PLANO DA CONTA
+                                                {t('preview.account_plan')}
                                             </span>
                                             <h3 className="font-display text-lg font-black uppercase italic tracking-tight text-white">
                                                 {planLabel}
@@ -596,17 +598,17 @@ export const PreviewDashboard: React.FC<PreviewDashboardProps> = ({
                                     </div>
                                     <span className="inline-flex items-center gap-2 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-3 py-1 text-[8px] font-black uppercase tracking-widest text-emerald-400">
                                         <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                                        ATIVO
+                                        {t('preview.active')}
                                     </span>
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-3">
                                     <div className="rounded-2xl border border-white/[0.08] bg-[#06050A] p-3.5 space-y-1">
-                                        <span className="text-[8px] font-black uppercase tracking-widest text-gray-400">DOMÍNIOS</span>
+                                        <span className="text-[8px] font-black uppercase tracking-widest text-gray-400">{t('preview.domains')}</span>
                                         <p className="font-display text-xl font-black italic tracking-tight text-white">{domainLimit}</p>
                                     </div>
                                     <div className="rounded-2xl border border-white/[0.08] bg-[#06050A] p-3.5 space-y-1">
-                                        <span className="text-[8px] font-black uppercase tracking-widest text-gray-400">PRODUTOS</span>
+                                        <span className="text-[8px] font-black uppercase tracking-widest text-gray-400">{t('preview.products')}</span>
                                         <p className="font-display text-xl font-black italic tracking-tight text-white">{productLimit}</p>
                                     </div>
                                 </div>
@@ -626,14 +628,14 @@ export const PreviewDashboard: React.FC<PreviewDashboardProps> = ({
 
                             <div className="mt-5 border-t border-white/[0.08] pt-3 flex items-center justify-between">
                                 <span className="text-[10px] font-medium text-gray-400">
-                                    Membro ativo desde {memberSinceLabel}
+                                    {t('preview.member_since', { date: memberSinceLabel })}
                                 </span>
                                 <button
                                     type="button"
                                     onClick={() => onNavigate?.('license')}
                                     className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-purple-400 hover:text-purple-300 hover:underline"
                                 >
-                                    GERENCIAR PLANO
+                                    {t('preview.manage_plan')}
                                     <ArrowUpRight className="h-3.5 w-3.5" />
                                 </button>
                             </div>
@@ -649,28 +651,28 @@ export const PreviewDashboard: React.FC<PreviewDashboardProps> = ({
                                         </div>
                                         <div>
                                             <span className={`text-[9px] font-black uppercase tracking-[0.2em] ${securityAccent.label}`}>
-                                                SEGURANÇA DO PORTAL
+                                                {t('preview.portal_security')}
                                             </span>
                                             <h3 className="font-display text-lg font-black uppercase italic tracking-tight text-white">
-                                                {isTwoFactorEnabled ? '2FA DO PORTAL ESTÁ ATIVA' : '2FA DO PORTAL PENDENTE'}
+                                                {isTwoFactorEnabled ? t('preview.two_factor_active') : t('preview.two_factor_pending')}
                                             </h3>
                                         </div>
                                     </div>
                                     <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[8px] font-black uppercase tracking-widest ${securityAccent.badge}`}>
                                         {isTwoFactorEnabled ? <Check className="h-3 w-3" /> : <Smartphone className="h-3 w-3" />}
-                                        {isTwoFactorEnabled ? 'PROTEGIDO' : 'CONFIGURAÇÃO PENDENTE'}
+                                        {isTwoFactorEnabled ? t('preview.protected') : t('preview.configuration_pending')}
                                     </span>
                                 </div>
 
                                 <p className="text-xs text-gray-300 leading-relaxed">
                                     {isTwoFactorEnabled
-                                        ? 'Novos logins e operações de reset exigem seu código temporário de 6 dígitos do autenticador.'
-                                        : 'Configure o autenticador do Portal para proteger novos logins e operações de reset.'}
+                                        ? t('preview.two_factor_description_active')
+                                        : t('preview.two_factor_description_pending')}
                                 </p>
 
                                 {isTwoFactorEnabled ? <div className="rounded-2xl border border-white/[0.08] bg-[#06050A] p-4 space-y-2.5 shadow-inner">
                                     <span className="block text-[9px] font-black uppercase tracking-widest text-gray-400">
-                                        CÓDIGO ATUAL DO AUTENTICADOR (6 DÍGITOS)
+                                        {t('preview.current_authenticator_code')}
                                     </span>
 
                                     <div className="flex items-center justify-between gap-2 max-w-xs">
@@ -690,10 +692,10 @@ export const PreviewDashboard: React.FC<PreviewDashboardProps> = ({
                                     </div>
                                 </div> : <div className="rounded-2xl border border-amber-500/20 bg-amber-500/[0.06] p-4 shadow-inner">
                                     <span className="block text-[9px] font-black uppercase tracking-widest text-amber-300">
-                                        CONFIGURAÇÃO NECESSÁRIA
+                                        {t('preview.configuration_required')}
                                     </span>
                                     <p className="mt-2 text-[11px] leading-relaxed text-gray-300">
-                                        Ative a autenticação em dois fatores para liberar a proteção completa do Portal.
+                                        {t('preview.configuration_description')}
                                     </p>
                                 </div>}
                             </div>
@@ -706,7 +708,7 @@ export const PreviewDashboard: React.FC<PreviewDashboardProps> = ({
                                     className={`inline-flex items-center gap-2 rounded-2xl border px-5 py-2.5 text-[10px] font-black uppercase tracking-wider transition duration-200 disabled:opacity-40 ${securityAccent.button}`}
                                 >
                                     <Smartphone className="h-3.5 w-3.5" />
-                                    <span>{isTwoFactorEnabled ? 'CONFIRMAR E TROCAR AUTENTICADOR' : 'CONFIGURAR 2FA AGORA'}</span>
+                                    <span>{isTwoFactorEnabled ? t('preview.change_authenticator') : t('preview.configure_two_factor')}</span>
                                 </button>
                             </div>
                         </article>

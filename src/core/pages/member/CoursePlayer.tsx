@@ -176,7 +176,7 @@ export const CoursePlayer = ({ forcedSlug }: { forcedSlug?: string } = {}) => {
         throw new Error(
           t(
             "course.errors.member_area_not_found",
-            "ÃƒÂrea de membros nÃƒÂ£o encontrada para este domÃƒÂ­nio.",
+            "Área de membros não encontrada para este domínio.",
           ),
         );
       }
@@ -197,7 +197,7 @@ export const CoursePlayer = ({ forcedSlug }: { forcedSlug?: string } = {}) => {
         throw new Error(
           t(
             "course.errors.content_not_found",
-            "ConteÃƒÂºdo nÃƒÂ£o encontrado.",
+            "Conteúdo não encontrado.",
           ),
         );
       }
@@ -567,7 +567,7 @@ export const CoursePlayer = ({ forcedSlug }: { forcedSlug?: string } = {}) => {
               {currentLesson.title}
             </h1>
             <p className="text-gray-400 text-sm">
-              {t("course.module_label", "MÃƒÂ³dulo")}:{" "}
+              {t("course.module_label", "Módulo")}:{" "}
               {modules.find((m) => m.id === currentLesson.module_id)?.title}
             </p>
           </div>
@@ -606,12 +606,12 @@ export const CoursePlayer = ({ forcedSlug }: { forcedSlug?: string } = {}) => {
               {progressMap[currentLesson.id] ? (
                 <>
                   <CheckCircle className="w-5 h-5" />{" "}
-                  {t("course.completed", "ConcluÃƒÂ­da")}
+                  {t("course.completed", "Concluída")}
                 </>
               ) : (
                 <>
                   <Circle className="w-5 h-5" />{" "}
-                  {t("course.mark_completed", "Marcar como concluÃƒÂ­da")}
+                  {t("course.mark_completed", "Marcar como concluída")}
                 </>
               )}
             </button>
@@ -1087,7 +1087,7 @@ export const CoursePlayer = ({ forcedSlug }: { forcedSlug?: string } = {}) => {
                   type="text"
                   placeholder={t(
                     "course.search_placeholder",
-                    "Buscar conteÃƒÂºdo",
+                    "Buscar conteúdo",
                   )}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}

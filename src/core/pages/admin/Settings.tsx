@@ -428,10 +428,10 @@ export const Settings = () => {
                             </h1>
                             <div className="flex items-center gap-2 mt-1">
                                 <p className="text-gray-400 font-medium uppercase tracking-[0.15em] text-[9px] font-mono">
-                                    Security Center
+                                    {t('coverage.settings.security_center')}
                                 </p>
                                 <div className="h-1.5 w-1.5 rounded-full bg-primary/45" />
-                                <span className="text-[9px] text-[#10B981] font-black uppercase tracking-[0.2em] font-mono">Active Control</span>
+                                <span className="text-[9px] text-[#10B981] font-black uppercase tracking-[0.2em] font-mono">{t('coverage.settings.active_control')}</span>
                             </div>
                         </div>
 
@@ -439,12 +439,12 @@ export const Settings = () => {
                         <div className="flex flex-row flex-wrap items-center gap-2.5">
                             <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.12em] border bg-emerald-500/10 text-emerald-400 border-emerald-500/25 font-mono shadow-[0_2px_10px_rgba(16,185,129,0.05)]">
                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)] animate-pulse" />
-                                Verified Operator
+                                {t('coverage.settings.verified_operator')}
                             </span>
 
                             <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.12em] border font-mono ${twoFactorEnabled ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25 shadow-[0_2px_10px_rgba(16,185,129,0.05)]' : 'bg-rose-500/10 text-rose-400 border-rose-500/25 shadow-[0_2px_10px_rgba(244,63,94,0.05)]'}`}>
                                 <Fingerprint className="w-3.5 h-3.5" />
-                                MFA: {twoFactorEnabled ? 'Active' : 'Inactive'}
+                                {t('coverage.settings.mfa_status')}: {twoFactorEnabled ? t('coverage.settings.active') : t('coverage.settings.inactive')}
                             </span>
                         </div>
                     </div>
@@ -550,10 +550,10 @@ export const Settings = () => {
                                             <User className="w-9 h-9 text-white animate-pulse-slow" />
                                         </div>
                                         <h3 className="text-xl font-portal-display text-white uppercase italic tracking-tight mb-1">
-                                            Dados Operacionais
+                                            {t('coverage.settings.operational_data')}
                                         </h3>
                                         <p className="text-xs text-gray-400 max-w-sm font-medium">
-                                            Gerencie o seu nome comercial e e-mail administrativo principal.
+                                            {t('coverage.settings.operational_description')}
                                         </p>
                                     </div>
 
@@ -617,10 +617,10 @@ export const Settings = () => {
                                             <Lock className="w-9 h-9 text-white animate-pulse-slow" />
                                         </div>
                                         <h3 className="text-xl font-portal-display text-white uppercase italic tracking-tight mb-1">
-                                            Credenciais de Acesso
+                                            {t('coverage.settings.access_credentials')}
                                         </h3>
                                         <p className="text-xs text-gray-400 max-w-sm font-medium">
-                                            Defina ou atualize a sua senha secreta de acesso ao painel.
+                                            {t('coverage.settings.access_description')}
                                         </p>
                                     </div>
 
@@ -641,7 +641,7 @@ export const Settings = () => {
                                                 {password && (
                                                     <div className="mt-2 space-y-1.5 px-1 animate-in fade-in duration-300">
                                                         <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-widest font-mono">
-                                                            <span className="text-gray-400">Força da Senha</span>
+                                                            <span className="text-gray-400">{t('coverage.settings.password_strength')}</span>
                                                             <span className="text-white font-bold">{pwdStrength.label}</span>
                                                         </div>
                                                         <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden flex gap-1">
@@ -695,10 +695,10 @@ export const Settings = () => {
                                         <Globe className="w-9 h-9 text-white animate-pulse-slow" />
                                     </div>
                                     <h3 className="text-xl font-portal-display text-white uppercase italic tracking-tight mb-1">
-                                        Definições Regionais
+                                        {t('coverage.settings.regional_settings')}
                                     </h3>
                                     <p className="text-xs text-gray-400 max-w-sm font-medium">
-                                        Configure o idioma e a moeda padrão do seu painel e faturas.
+                                        {t('coverage.settings.regional_description')}
                                     </p>
                                 </div>
 
@@ -766,16 +766,16 @@ export const Settings = () => {
                                         </span>
                                     </div>
                                     <h3 className="text-xl font-portal-display text-white uppercase italic tracking-tight mb-1">
-                                        Duas Etapas (MFA)
+                                        {t('coverage.settings.two_factor_title')}
                                     </h3>
                                     <p className="text-xs text-gray-400 max-w-sm font-medium">
-                                        Proteção extra exigindo código temporário no seu dispositivo autenticador.
+                                        {t('coverage.settings.two_factor_description')}
                                     </p>
                                 </div>
 
                                 <div className="space-y-6 border-t border-white/5 pt-6">
                                     <p className="text-xs text-gray-400 font-medium leading-relaxed italic border-l border-primary/30 pl-3">
-                                        Proteção extra exigindo código temporário no seu dispositivo.
+                                        {t('coverage.settings.two_factor_description_short')}
                                     </p>
 
                                     {twoFactorMessage && (
@@ -796,7 +796,7 @@ export const Settings = () => {
                                             className="w-full h-11 rounded-xl bg-primary hover:bg-primary-hover text-white font-bold uppercase italic tracking-wider text-xs flex items-center justify-center gap-2 shadow-[0_4px_16px_rgba(138,43,226,0.35)]"
                                         >
                                             {twoFactorSetupLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <QrCode className="w-4 h-4" />}
-                                            Configurar Duas Etapas
+                                            {t('coverage.settings.setup_two_factor')}
                                         </Button>
                                     )}
 
@@ -806,19 +806,19 @@ export const Settings = () => {
                                                 <div className="p-3 bg-white rounded-2xl mb-4 shadow-xl shadow-black/40">
                                                     <img
                                                         src={twoFactorQrDataUrl}
-                                                        alt="QR Code"
+                                                        alt={t('coverage.settings.qr_code_alt')}
                                                         className="w-36 h-36"
                                                     />
                                                 </div>
                                                 <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest text-center max-w-[200px] font-mono leading-none">
-                                                    Escaneie no app autenticador.
+                                                        {t('coverage.settings.scan_authenticator')}
                                                 </p>
                                             </div>
 
                                             <div className="space-y-4">
                                                 <div className="space-y-2">
                                                     <label className="block text-[9px] font-black text-gray-300 uppercase tracking-widest ml-1 font-mono">
-                                                        Código de Verificação
+                                                        {t('coverage.settings.verification_code')}
                                                     </label>
                                                     <input
                                                         type="text"
@@ -839,7 +839,7 @@ export const Settings = () => {
                                                         className="w-full h-11 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl shadow-lg shadow-emerald-500/10 text-xs uppercase"
                                                     >
                                                         {twoFactorSubmitLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4 mr-1.5" />}
-                                                        Confirmar Ativação
+                                                        {t('coverage.settings.confirm_activation')}
                                                     </Button>
                                                     <Button
                                                         type="button"
@@ -848,7 +848,7 @@ export const Settings = () => {
                                                         disabled={twoFactorSetupLoading}
                                                         className="text-gray-400 hover:text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5"
                                                     >
-                                                        <RefreshCw className="w-3.5 h-3.5" /> Gerar Novo Par
+                                                        <RefreshCw className="w-3.5 h-3.5" /> {t('coverage.settings.generate_new_pair')}
                                                     </Button>
                                                 </div>
                                             </div>
@@ -859,14 +859,14 @@ export const Settings = () => {
                                         <div className="space-y-4 animate-in fade-in duration-1000">
                                             <div className="p-4 bg-emerald-500/5 border border-emerald-500/10 rounded-xl shadow-inner">
                                                 <p className="text-xs text-emerald-400 font-semibold leading-relaxed italic">
-                                                    Sua conta está protegida com autenticação em duas etapas. Mantenha seu app autenticador seguro.
+                                                    {t('coverage.settings.protected_description')}
                                                 </p>
                                             </div>
 
                                             <div className="space-y-4 pt-4 border-t border-white/5">
                                                 <div className="space-y-2">
                                                     <label className="block text-[9px] font-black text-gray-300 uppercase tracking-widest ml-1 font-mono">
-                                                        Código p/ Desativar
+                                                        {t('coverage.settings.disable_code')}
                                                     </label>
                                                     <input
                                                         type="text"
@@ -886,7 +886,7 @@ export const Settings = () => {
                                                     className="text-rose-500 hover:bg-rose-500/10 font-bold text-xs uppercase tracking-wider h-11 w-full rounded-xl flex items-center justify-center gap-1.5 border border-rose-500/15 transition-all duration-300"
                                                 >
                                                     {twoFactorSubmitLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <AlertCircle className="w-4 h-4" />}
-                                                    Interromper Segurança (2FA)
+                                                    {t('coverage.settings.interrupt_security')}
                                                 </Button>
                                             </div>
                                         </div>
@@ -1003,33 +1003,33 @@ export const Settings = () => {
                                         </span>
                                     </div>
                                     <h3 className="text-xl font-portal-display text-white uppercase italic tracking-tight mb-1">
-                                        Auth CAPTCHA
+                                        {t('coverage.settings.captcha_title')}
                                     </h3>
                                     <p className="text-xs text-gray-400 max-w-sm font-medium">
-                                        Governança do CAPTCHA global do Supabase Auth (Cloudflare Turnstile).
+                                        {t('coverage.settings.captcha_description')}
                                     </p>
                                 </div>
 
                                 <div className="space-y-5 border-t border-white/5 pt-6">
                                     <p className="text-xs text-gray-400 font-medium leading-relaxed italic border-l border-primary/20 pl-3">
-                                        Governança do CAPTCHA global do Supabase Auth (Cloudflare Turnstile).
+                                        {t('coverage.settings.captcha_description')}
                                     </p>
 
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                                         <div className="rounded-xl border border-white/5 bg-black/20 p-3.5 shadow-inner">
-                                            <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-gray-500 font-mono">Flag Frontend</p>
+                                            <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-gray-500 font-mono">{t('coverage.settings.frontend_flag')}</p>
                                             <p className={`mt-1 text-xs font-black uppercase tracking-tight ${authCaptchaEnabled ? 'text-emerald-400' : 'text-amber-400'}`}>
                                                 {authCaptchaEnabled ? 'Ativada' : 'Pendente'}
                                             </p>
                                         </div>
                                         <div className="rounded-xl border border-white/5 bg-black/20 p-3.5 shadow-inner">
-                                            <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-gray-500 font-mono">Site Key</p>
+                                            <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-gray-500 font-mono">{t('coverage.settings.site_key')}</p>
                                             <p className={`mt-1 text-xs font-black uppercase tracking-tight ${authCaptchaSiteKey ? 'text-emerald-400' : 'text-amber-400'}`}>
                                                 {authCaptchaSiteKey ? 'Configurada' : 'Pendente'}
                                             </p>
                                         </div>
                                         <div className="rounded-xl border border-white/5 bg-black/20 p-3.5 shadow-inner">
-                                            <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-gray-500 font-mono">Hostname Atual</p>
+                                            <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-gray-500 font-mono">{t('coverage.settings.current_hostname')}</p>
                                             <p className="mt-1 text-xs font-semibold text-white break-all font-mono leading-none">
                                                 {runtimeHostname || 'Indisponível'}
                                             </p>
@@ -1037,7 +1037,7 @@ export const Settings = () => {
                                         <div className="rounded-xl border border-white/5 bg-black/20 p-3.5 shadow-inner">
                                             <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-gray-500 font-mono">Ownership</p>
                                             <p className="mt-1 text-xs font-semibold text-white leading-normal">
-                                                Chaves individuais por cliente.
+                                                {t('coverage.settings.per_customer_keys')}
                                             </p>
                                         </div>
                                     </div>
@@ -1048,14 +1048,14 @@ export const Settings = () => {
                                             onClick={() => setShowCaptchaDocs(!showCaptchaDocs)}
                                             className="w-full flex items-center justify-between p-3.5 bg-black/20 rounded-xl border border-white/5 hover:border-white/10 transition-all duration-300"
                                         >
-                                    <span className="text-xs font-bold text-white uppercase tracking-wider font-mono">Documentação e Instruções</span>
+                                    <span className="text-xs font-bold text-white uppercase tracking-wider font-mono">{t('coverage.settings.docs_instructions')}</span>
                                             <ChevronRight className={`w-4 h-4 text-gray-500 transition-transform duration-300 ${showCaptchaDocs ? 'rotate-90 text-white' : ''}`} />
                                         </button>
 
                                         {showCaptchaDocs && (
                                             <div className="mt-4 space-y-4 border-t border-white/5 pt-4 animate-in slide-in-from-top-3 duration-300">
                                                 <div className="rounded-xl border border-white/5 bg-[#0B0B12] p-4">
-                                                    <p className="text-[8px] font-black uppercase tracking-[0.24em] text-gray-500 font-mono mb-2">Env mínimo na Vercel</p>
+                                                    <p className="text-[8px] font-black uppercase tracking-[0.24em] text-gray-500 font-mono mb-2">{t('coverage.settings.minimum_vercel_env')}</p>
                                                     <div className="space-y-1.5 text-[11px] text-gray-300 font-mono">
                                                         <div><span className="text-primary">VITE_ENABLE_SUPABASE_AUTH_CAPTCHA</span>=true</div>
                                                         <div><span className="text-primary">VITE_TURNSTILE_SITE_KEY</span>=...site key pública...</div>
@@ -1064,21 +1064,21 @@ export const Settings = () => {
                                                 </div>
 
                                                 <div className="space-y-2">
-                                                    <p className="text-[8px] font-black uppercase tracking-[0.24em] text-gray-500 font-mono">Ordem oficial de rollout</p>
+                                                    <p className="text-[8px] font-black uppercase tracking-[0.24em] text-gray-500 font-mono">{t('coverage.settings.rollout_order')}</p>
                                                     <ol className="space-y-2 text-xs text-gray-300 list-decimal list-inside leading-relaxed">
-                                                        <li>Crie o Turnstile no Cloudflare usando o domínio do projeto.</li>
-                                                        <li>Salve as ENVs na Vercel e publique o deploy.</li>
-                                                        <li>No Supabase, ative o CAPTCHA em Attack Protection.</li>
-                                                        <li>Execute o smoke de login, cadastro e recuperação.</li>
+                                                        <li>{t('coverage.settings.rollout_cloudflare')}</li>
+                                                        <li>{t('coverage.settings.rollout_vercel')}</li>
+                                                        <li>{t('coverage.settings.rollout_supabase')}</li>
+                                                        <li>{t('coverage.settings.rollout_smoke')}</li>
                                                     </ol>
                                                 </div>
 
                                                 <div className="rounded-xl border border-amber-400/15 bg-amber-400/5 p-4 space-y-2">
-                                                    <p className="text-[8px] font-black uppercase tracking-[0.22em] text-amber-300 font-mono">Modelo para instalações de cliente</p>
+                                                    <p className="text-[8px] font-black uppercase tracking-[0.22em] text-amber-300 font-mono">{t('coverage.settings.client_installations_model')}</p>
                                                     <ul className="space-y-1.5 text-xs text-amber-100/90 list-disc list-inside leading-relaxed">
-                                                        <li>O cliente pode começar com hostname temporário vercel.app.</li>
-                                                        <li>Depois adiciona o domínio final no widget dele.</li>
-                                                        <li>Não centralize domínios de clientes no Cloudflare master da plataforma.</li>
+                                                        <li>{t('coverage.settings.client_temp_hostname')}</li>
+                                                        <li>{t('coverage.settings.client_final_domain')}</li>
+                                                        <li>{t('coverage.settings.client_cloudflare')}</li>
                                                     </ul>
                                                 </div>
                                             </div>
@@ -1143,32 +1143,32 @@ export const Settings = () => {
                                     </div>
                                 </div>
                                 <h3 className="text-sm font-portal-display text-white uppercase italic tracking-tight mb-1">
-                                    Saúde da Conta
+                                    {t('coverage.settings.account_health')}
                                 </h3>
                             </div>
 
                             <div className="space-y-4 border-t border-white/5 pt-6">
                                 <div className="flex items-center justify-between text-[10px] font-semibold font-mono">
-                                    <span className="text-gray-500">Checklist Operacional</span>
+                                    <span className="text-gray-500">{t('coverage.settings.operational_checklist')}</span>
                                     <span className="text-primary font-bold">{(hasName?1:0) + (hasEmail?1:0) + (isMfaActive?1:0) + (isCaptchaActive?1:0)} / 4</span>
                                 </div>
 
                                 <div className="space-y-2.5 pt-2 border-t border-white/5 text-left">
                                     <div className="flex items-center gap-2 text-xs">
                                         {hasName ? <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" /> : <div className="w-4 h-4 rounded-full border border-white/15 flex-shrink-0" />}
-                                        <span className={hasName ? 'text-gray-200 font-semibold font-sans' : 'text-gray-500 font-sans'}>Nome Cadastrado</span>
+                                        <span className={hasName ? 'text-gray-200 font-semibold font-sans' : 'text-gray-500 font-sans'}>{t('coverage.settings.registered_name')}</span>
                                     </div>
                                     <div className="flex items-center gap-2 text-xs">
                                         {hasEmail ? <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" /> : <div className="w-4 h-4 rounded-full border border-white/15 flex-shrink-0" />}
-                                        <span className={hasEmail ? 'text-gray-200 font-semibold font-sans' : 'text-gray-500 font-sans'}>E-mail Configurado</span>
+                                        <span className={hasEmail ? 'text-gray-200 font-semibold font-sans' : 'text-gray-500 font-sans'}>{t('coverage.settings.configured_email')}</span>
                                     </div>
                                     <div className="flex items-center gap-2 text-xs">
                                         {isMfaActive ? <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" /> : <div className="w-4 h-4 rounded-full border border-white/15 flex-shrink-0" />}
-                                        <span className={isMfaActive ? 'text-gray-200 font-semibold font-sans' : 'text-gray-500 font-sans'}>2FA TOTP Ativado</span>
+                                        <span className={isMfaActive ? 'text-gray-200 font-semibold font-sans' : 'text-gray-500 font-sans'}>{t('coverage.settings.totp_active')}</span>
                                     </div>
                                     <div className="flex items-center gap-2 text-xs">
                                         {isCaptchaActive ? <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" /> : <div className="w-4 h-4 rounded-full border border-white/15 flex-shrink-0" />}
-                                        <span className={isCaptchaActive ? 'text-gray-200 font-semibold font-sans' : 'text-gray-500 font-sans'}>Blindagem CAPTCHA</span>
+                                        <span className={isCaptchaActive ? 'text-gray-200 font-semibold font-sans' : 'text-gray-500 font-sans'}>{t('coverage.settings.captcha_shield')}</span>
                                     </div>
                                 </div>
                             </div>

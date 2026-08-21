@@ -80,6 +80,8 @@
     "main_order_confirmed_desc": "Your previous purchase is already secured. This offer is optional and does not replace the order you just paid for.",
     "original_payment_method": "Original method",
     "gateway_label": "Gateway",
+    "cardholder_label": "Cardholder",
+    "expiry_label": "Expiry",
     "gateway_unknown": "Default gateway",
     "method_pix": "Pix",
     "method_credit_card": "Credit card",
@@ -321,5 +323,27 @@
         "note": "Premium layer for validating copy and CTA."
       }
     }
-  }
+  },
+  "preview": {"account_plan":"Account plan","active":"ACTIVE","active_benefits":"ACTIVE BENEFITS","active_license_key":"ACTIVE LICENSE KEY","active_nodes":"{{count}} / 8 ACTIVE NODES","available_resources":"AVAILABLE RESOURCES","banner_title":"PREVIEW UX: NEUTRAL UNIFIED PALETTE (STRIPE/LINEAR STYLE) & 3-BLOCK HIERARCHY","benefit_global":"Global features enabled","benefit_installation_orders":"Installation orders available","benefit_one_domain":"1 domain available","benefit_partner_operations":"Partner operations enabled","benefit_partner_services":"Partner services enabled","benefit_three_products":"Up to 3 products available","benefit_unlimited":"Unlimited features enabled","benefit_unlimited_domains":"Unlimited domains enabled","benefit_whitelabel":"White label enabled","change_authenticator":"CONFIRM AND CHANGE AUTHENTICATOR","concept":"REFINED UX CONCEPT","configuration_description":"Enable two-factor authentication to unlock complete Portal protection.","configuration_pending":"CONFIGURATION PENDING","configuration_required":"CONFIGURATION REQUIRED","configure_two_factor":"CONFIGURE 2FA NOW","copied":"COPIED","copy":"COPY","current_authenticator_code":"CURRENT AUTHENTICATOR CODE (6 DIGITS)","dashboard_description":"Configure your license, manage installations, and access the Super Checkout ecosystem in a premium high-performance environment.","dashboard_title":"ACTIVATION DASHBOARD","date_unavailable":"DATE NOT AVAILABLE","demo_description":"Simulate products, checkout, and members area in real time without changing anything on your server.","demo_interface":"100% real product interface","demo_members":"Members area unlocked","demo_sales":"Simulated sales and Pix","domains":"DOMAINS","generate_key_usage":"Generate a license to validate your instances","installation_cta":"HIRE INSTALLATION","installation_details":"VIEW INSTALLATION DETAILS","installation_key":"INSTALLATION KEY","installation_options":"VIEW INSTALLATION OPTIONS","installation_pending":"INSTALLATION PENDING","installation_status":"INSTALLATION STATUS","key_not_generated":"LICENSE KEY NOT GENERATED","key_usage":"Used to validate your instances","main_domain":"MAIN DOMAIN","manage_key":"MANAGE KEY","manage_plan":"MANAGE PLAN","master_authentication":"MASTER AUTHENTICATION","member_since":"Active member since {{date}}","new_tab":"NEW TAB WITHOUT LEAVING","official_demo":"OFFICIAL DEMO SYSTEM","one_click_install":"INSTALL WITH 1 CLICK","open_demo":"OPEN DEMO SYSTEM","operational":"OPERATIONAL","operational_logs":"OPERATIONAL LOGS","operations_center":"OPERATIONS CENTER","pending":"PENDING","plan_free":"FREE PLAN","plan_owner":"GLOBAL OWNER","plan_partner":"PARTNER PLAN","plan_partner_unlimited":"PARTNER PLAN + UNLIMITED","plan_unlimited":"UNLIMITED PLAN","portal_security":"PORTAL SECURITY","products":"PRODUCTS","protected":"PROTECTED","quick_checkouts":"CHECKOUTS","quick_checkouts_description":"Manage sales flows","quick_domains":"DOMAINS","quick_domains_description":"DNS and URL settings","quick_members":"MEMBERS AREA","quick_members_description":"Courses and students","quick_products":"PRODUCTS","quick_products_description":"Catalog and active offers","section_demo":"02. MODULE ACCESS & DEMO TEST","section_operation":"01. ACTIVE OPERATION","section_security":"03. ACCOUNT FEATURES & 2FA SECURITY","test_before_install":"TEST BEFORE INSTALLING","two_factor_active":"PORTAL 2FA IS ACTIVE","two_factor_description_active":"New logins and reset operations require your 6-digit temporary authenticator code.","two_factor_description_pending":"Configure the Portal authenticator to protect new logins and reset operations.","two_factor_pending":"PORTAL 2FA PENDING","unlimited":"UNLIMITED","url_label":"URL","verified":"VERIFIED","waiting":"WAITING","welcome":"WELCOME TO THE PORTAL"},
+    "coverage": {
+      "paypal": {
+        "title": "Secure PayPal payment",
+        "description": "Review the extra items below and complete the purchase through the official PayPal button at the bottom. Your login details never pass through checkout.",
+        "expiry_placeholder": "MM/YY",
+        "loading": "Loading secure PayPal payment..."
+      },
+      "upsell": {
+        "product_image": "Product image",
+        "discount_percentage": "% OFF",
+        "paypal_description": "Approve the additional purchase in the official PayPal window. Your main order will not be charged again.",
+        "preview_controls": "Preview controls",
+        "original_method": "Original method",
+        "credit_card": "Credit card",
+        "mercado_pago": "Mercado Pago",
+        "saved_card": "Saved card",
+        "yes_card": "Yes (Visa 4242)",
+        "no": "No",
+        "loading_payment": "Preparing secure payment..."
+      }
+    }
 }

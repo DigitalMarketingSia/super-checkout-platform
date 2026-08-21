@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import { Home, ShoppingBag, Package, User, ChevronLeft, BookOpen } from 'lucide-react';
 
 interface IconSidebarProps {
@@ -83,6 +84,7 @@ const IconButton: React.FC<IconButtonProps> = ({ icon: Icon, label, to, onClick,
 
 export const IconSidebar: React.FC<IconSidebarProps> = ({ onToggleMenu, isMenuOpen, memberAreaSlug, primaryColor }) => {
     const location = useLocation();
+    const { t } = useTranslation('member');
 
     // Detect if we're on a custom domain
     const isCustomDomain = typeof window !== 'undefined' &&
@@ -110,7 +112,7 @@ export const IconSidebar: React.FC<IconSidebarProps> = ({ onToggleMenu, isMenuOp
             <div className="flex-shrink-0">
                 <IconButton
                     icon={isMenuOpen ? ChevronLeft : BookOpen}
-                    label={isMenuOpen ? 'Fechar Menu' : 'Abrir Menu'}
+                    label={isMenuOpen ? t('nav.close_menu') : t('nav.open_menu')}
                     onClick={onToggleMenu}
                     isActive={isMenuOpen}
                     color={primaryColor}
@@ -124,7 +126,7 @@ export const IconSidebar: React.FC<IconSidebarProps> = ({ onToggleMenu, isMenuOp
                 {/* Home */}
                 <IconButton
                     icon={Home}
-                    label="Início"
+                    label={t('nav.home')}
                     to={`${appLink}/`}
                     isActive={isActive('/')}
                     color={primaryColor}
@@ -134,7 +136,7 @@ export const IconSidebar: React.FC<IconSidebarProps> = ({ onToggleMenu, isMenuOp
                 {/* Vitrine (Products for Sale) */}
                 <IconButton
                     icon={ShoppingBag}
-                    label="Vitrine"
+                    label={t('nav.products_for_sale')}
                     to={`${appLink}/products`}
                     isActive={isActive('/products')}
                     color={primaryColor}
@@ -143,7 +145,7 @@ export const IconSidebar: React.FC<IconSidebarProps> = ({ onToggleMenu, isMenuOp
                 {/* My Products */}
                 <IconButton
                     icon={Package}
-                    label="Meus Produtos"
+                    label={t('nav.my_products')}
                     to={`${appLink}/my-products`}
                     isActive={isActive('/my-products')}
                     color={primaryColor}
@@ -154,7 +156,7 @@ export const IconSidebar: React.FC<IconSidebarProps> = ({ onToggleMenu, isMenuOp
                 {/* Profile */}
                 <IconButton
                     icon={User}
-                    label="Perfil"
+                    label={t('nav.profile')}
                     to={`${appLink}/profile`}
                     isActive={isActive('/profile')}
                     color={primaryColor}

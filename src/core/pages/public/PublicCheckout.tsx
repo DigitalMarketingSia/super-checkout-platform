@@ -423,7 +423,7 @@ const ProcessingModal = ({
                      {hostedCardRedirect
                         ? t('checkout.asaas_card_redirect_modal_desc', 'Você vai concluir o pagamento no ambiente seguro do Asaas.')
                         : isCardPendingConfirmation
-                           ? t('checkout.payment_pending_desc', 'A operadora ainda estÃ¡ confirmando o pagamento. A prÃ³xima tela vai acompanhar a atualizaÃ§Ã£o automaticamente.')
+                           ? t('checkout.payment_pending_desc', 'A operadora ainda está confirmando o pagamento. A próxima tela vai acompanhar a atualização automaticamente.')
                            : t('checkout.redirecting', 'Redirecionando...')}
                   </p>
                </>
@@ -2141,9 +2141,9 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                   {paymentMethod === 'paypal' && canPayWithPayPal && (
                      <div className="p-6 bg-blue-50 border border-blue-100 rounded-xl text-center animate-in fade-in duration-300">
                         <img src="/paypal-dark.svg" alt="PayPal" className="h-8 w-auto max-w-[126px] mx-auto mb-3 object-contain" />
-                        <h3 className="text-lg font-medium text-gray-900 mb-1">Pagamento seguro com PayPal</h3>
+                        <h3 className="text-lg font-medium text-gray-900 mb-1">{t('coverage.paypal.title')}</h3>
                         <p className="text-sm text-gray-500">
-                           Revise os itens extras abaixo e conclua pelo botao oficial do PayPal ao final da pagina. Seus dados de login nao passam pelo checkout.
+                           {t('coverage.paypal.description')}
                         </p>
                      </div>
                   )}
@@ -2338,7 +2338,7 @@ const PublicCheckoutUI = ({ checkoutId: propId, stripe, elements }: { checkoutId
                                           <input
                                              type="text"
                                              className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/20 transition-all"
-                                             placeholder="MM/AA"
+                                             placeholder={t('coverage.paypal.expiry_placeholder')}
                                              maxLength={5}
                                              value={customer.expiry}
                                              onChange={e => {
@@ -2946,6 +2946,7 @@ const PayPalCheckoutButton = ({
    onCancel: () => void;
    onError: (message: string) => void;
 }) => {
+   const { t } = useTranslation('public');
    const containerRef = useRef<HTMLDivElement | null>(null);
    const callbacksRef = useRef({ onCreateOrder, onApprove, onCancel, onError });
    const suppressPreparationErrorRef = useRef(false);
@@ -3042,7 +3043,7 @@ const PayPalCheckoutButton = ({
       <div className="w-full">
          {state === 'loading' && (
             <div className="mb-3 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-center text-sm text-blue-700">
-               Carregando pagamento seguro do PayPal...
+               {t('coverage.paypal.loading')}
             </div>
          )}
          <div ref={containerRef} />

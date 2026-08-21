@@ -4,9 +4,11 @@ import { centralSupabase } from '../services/centralClient';
 import { useNavigate, useParams } from 'react-router';
 import { Lock, Loader2, AlertCircle, CheckCircle, ArrowRight } from 'lucide-react';
 import { logSecurityEvent } from '../services/securityAuditClient';
+import { useTranslation } from 'react-i18next';
 
 export const UpdatePassword = () => {
     const navigate = useNavigate();
+    const { t } = useTranslation('auth');
     const { slug } = useParams<{ slug: string }>();
     const searchParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
     const isCentralRecovery = searchParams.get('scope') === 'central';
@@ -34,7 +36,7 @@ export const UpdatePassword = () => {
 
                 if (cancelled) return;
                 if (error) {
-                    setError('Link invalido ou expirado. Solicite um novo link de recuperacao.');
+                    setError(t('coverage.password.invalid_link'));
                     return;
                 }
 
@@ -58,7 +60,7 @@ export const UpdatePassword = () => {
     const handleUpdate = async (e: React.FormEvent) => {
         e.preventDefault();
         if (password !== confirmPassword) {
-            setError('As senhas nao coincidem');
+            setError(t('coverage.password.mismatch'));
             return;
         }
 
@@ -74,14 +76,14 @@ export const UpdatePassword = () => {
             if (error) throw error;
 
             await logSecurityEvent('password_changed', { flow: isMemberRecovery ? 'member_recovery' : 'recovery' }, 'INFO');
-            setSuccess('Senha atualizada com sucesso! Redirecionando...');
+            setSuccess(t('coverage.password.updated'));
             setTimeout(() => {
                 const fallbackPath = isMemberRecovery ? defaultMemberNext : '/admin';
                 navigate(nextPath.startsWith('/') && !nextPath.startsWith('//') ? nextPath : fallbackPath);
             }, 2000);
         } catch (err: any) {
             console.error(err);
-            setError(err.message || 'Erro ao atualizar senha.');
+            setError(err.message || t('coverage.password.update_error'));
         } finally {
             setLoading(false);
         }
@@ -96,12 +98,10 @@ export const UpdatePassword = () => {
                             <Lock className="w-6 h-6 text-primary" />
                         </div>
                         <h2 className="text-xl font-bold mb-2">
-                            {isMemberRecovery ? 'Definir senha da area de membros' : 'Definir Nova Senha'}
+                            {isMemberRecovery ? t('coverage.password.member_title') : t('coverage.password.title')}
                         </h2>
                         <p className="text-gray-400 text-sm">
-                            {isMemberRecovery
-                                ? 'Digite uma nova senha para acessar seus produtos pela area de membros.'
-                                : 'Digite sua nova senha abaixo para recuperar o acesso a sua conta.'}
+                            {isMemberRecovery ? t('coverage.password.member_description') : t('coverage.password.description')}
                         </p>
                     </div>
 
@@ -119,7 +119,7 @@ export const UpdatePassword = () => {
 
                     <form onSubmit={handleUpdate} className="space-y-4">
                         <div className="space-y-1.5">
-                            <label className="text-sm font-medium text-gray-300 ml-1">Nova Senha</label>
+                            <label className="text-sm font-medium text-gray-300 ml-1">{t('coverage.password.new_password')}</label>
                             <div className="relative group">
                                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-primary transition-colors" />
                                 <input
@@ -135,7 +135,7 @@ export const UpdatePassword = () => {
                         </div>
 
                         <div className="space-y-1.5">
-                            <label className="text-sm font-medium text-gray-300 ml-1">Confirmar Senha</label>
+                            <label className="text-sm font-medium text-gray-300 ml-1">{t('coverage.password.confirm_password')}</label>
                             <div className="relative group">
                                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-primary transition-colors" />
                                 <input
@@ -157,7 +157,7 @@ export const UpdatePassword = () => {
                         >
                             {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (
                                 <>
-                                    Atualizar Senha
+                                    {t('coverage.password.update')}
                                     <ArrowRight className="w-4 h-4" />
                                 </>
                             )}

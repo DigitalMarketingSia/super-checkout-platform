@@ -33,19 +33,19 @@ import {
 } from '../../utils/legalDocuments';
 
 const formatDocumentPublication = (value?: string | null) => {
-    if (!value) return 'nÃ£o publicado';
+    if (!value) return 'não publicado';
 
     const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return 'nÃ£o publicado';
+    if (Number.isNaN(date.getTime())) return 'não publicado';
 
     return date.toLocaleDateString('pt-BR');
 };
 
 const formatHistoryTimestamp = (value?: string | null) => {
-    if (!value) return 'nÃ£o registrado';
+    if (!value) return 'não registrado';
 
     const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return 'nÃ£o registrado';
+    if (Number.isNaN(date.getTime())) return 'não registrado';
 
     return date.toLocaleString('pt-BR');
 };
@@ -170,7 +170,7 @@ export const BusinessSettings = () => {
 
         if (historyError) {
             if (!isMissingLegalHistoryTableError(historyError)) {
-                console.warn('[BusinessSettings] Falha ao carregar histÃ³rico legal:', historyError);
+                console.warn('[BusinessSettings] Falha ao carregar histórico legal:', historyError);
             }
             setDocumentHistory([]);
             setHistoryLoading(false);
@@ -225,7 +225,7 @@ export const BusinessSettings = () => {
         try {
             if (demoRuntime) {
                 if (!formData.agree_terms) {
-                    throw new Error(t('business_settings.form.agree_error', 'VocÃª precisa concordar com os termos.'));
+                    throw new Error(t('business_settings.form.agree_error', 'Você precisa concordar com os termos.'));
                 }
 
                 const now = new Date();
@@ -355,7 +355,7 @@ export const BusinessSettings = () => {
             }
 
             if (!formData.agree_terms) {
-                throw new Error(t('business_settings.form.agree_error', 'VocÃª precisa concordar com os termos.'));
+                throw new Error(t('business_settings.form.agree_error', 'Você precisa concordar com os termos.'));
             }
 
             const now = new Date();
@@ -508,7 +508,7 @@ export const BusinessSettings = () => {
 
         } catch (err: any) {
             console.error(err);
-            setError(err.message || t('business_settings.error', 'Erro ao salvar configuraÃ§Ãµes.'));
+            setError(err.message || t('business_settings.error', 'Erro ao salvar configurações.'));
         } finally {
             setLoading(false);
         }
@@ -534,7 +534,7 @@ export const BusinessSettings = () => {
                                     {t('business_settings.header.badge')}
                                 </p>
                                 <div className="h-1.5 w-1.5 rounded-full bg-primary/45"></div>
-                                <span className="text-[9px] text-[#10B981] font-black uppercase tracking-[0.2em] font-mono">Live Control</span>
+                                <span className="text-[9px] text-[#10B981] font-black uppercase tracking-[0.2em] font-mono">{t('coverage.business_settings.live_control')}</span>
                             </div>
                         </div>
 
@@ -542,17 +542,17 @@ export const BusinessSettings = () => {
                         <div className="flex flex-row flex-wrap items-center gap-2.5 font-mono">
                             <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.12em] border ${hasLegalDocuments ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25 shadow-[0_2px_10px_rgba(16,185,129,0.05)]' : 'bg-rose-500/10 text-rose-400 border-rose-500/25 shadow-[0_2px_10px_rgba(244,63,94,0.05)]'}`}>
                                 <ShieldCheck className="w-3.5 h-3.5" />
-                                {hasLegalDocuments ? 'Documentos Publicados' : 'Documentos Pendentes'}
+                                {hasLegalDocuments ? t('coverage.business_settings.published_documents') : t('coverage.business_settings.pending_documents')}
                             </span>
 
                             <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.12em] border ${isBusinessIdentityComplete ? 'bg-[#8A2BE2]/10 text-[#C77DFF] border-[#8A2BE2]/30 shadow-[0_2px_10px_rgba(138,43,226,0.05)]' : 'bg-white/5 text-gray-500 border-white/10'}`}>
                                 <Building2 className="w-3.5 h-3.5" />
-                                {isBusinessIdentityComplete ? 'Identidade Completa' : 'Identidade Incompleta'}
+                                {isBusinessIdentityComplete ? t('coverage.business_settings.identity_complete') : t('coverage.business_settings.identity_incomplete')}
                             </span>
                         </div>
                     </div>
                     <p className="text-xs text-gray-300 max-w-2xl leading-relaxed italic border-l border-primary/30 pl-4 font-medium">
-                        Configure as bases estratÃ©gicas do seu ecossistema. Estas informaÃ§Ãµes definem a autoridade da sua marca no checkout e comunicaÃ§Ãµes automÃ¡ticas.
+                        {t('coverage.business_settings.description')}
                     </p>
                 </div>
 
@@ -564,7 +564,7 @@ export const BusinessSettings = () => {
                                 <AlertCircle className="w-5 h-5" />
                             </div>
                             <div>
-                                <p className="text-[8px] font-black text-rose-400 uppercase tracking-widest font-mono">Alerta do Sistema</p>
+                                <p className="text-[8px] font-black text-rose-400 uppercase tracking-widest font-mono">{t('coverage.business_settings.system_alert')}</p>
                                 <p className="text-xs font-bold text-rose-500 tracking-tight">{error}</p>
                             </div>
                         </div>
@@ -576,8 +576,8 @@ export const BusinessSettings = () => {
                                 <CheckCircle className="w-5 h-5" />
                             </div>
                             <div>
-                                <p className="text-[8px] font-black text-emerald-500/50 uppercase tracking-widest font-mono">SincronizaÃ§Ã£o Efetuada</p>
-                                <p className="text-xs font-bold text-emerald-400 tracking-tight">{t('business_settings.success', 'Processamento concluÃ­do com sucesso. A identidade do seu negÃ³cio foi propagada.')}</p>
+                                <p className="text-[8px] font-black text-emerald-500/50 uppercase tracking-widest font-mono">{t('coverage.business_settings.sync_complete')}</p>
+                                <p className="text-xs font-bold text-emerald-400 tracking-tight">{t('business_settings.success', 'Processamento concluído com sucesso. A identidade do seu negócio foi propagada.')}</p>
                             </div>
                         </div>
                     )}
@@ -605,10 +605,10 @@ export const BusinessSettings = () => {
                                         <Building2 className="w-9 h-9 text-white animate-pulse-slow" />
                                     </div>
                                     <h3 className="text-xl font-portal-display text-white uppercase italic tracking-tight mb-1">
-                                        Identidade Comercial
+                                        {t('coverage.business_settings.commercial_identity')}
                                     </h3>
                                     <p className="text-xs text-gray-400 max-w-sm font-medium">
-                                        Cadastre as informaÃ§Ãµes da sua empresa para faturas e compliance.
+                                        {t('coverage.business_settings.commercial_identity_description')}
                                     </p>
                                 </div>
 
@@ -635,7 +635,7 @@ export const BusinessSettings = () => {
 
                                     <div className="space-y-2">
                                         <label className="flex items-center gap-2 text-[9px] font-black text-gray-300 uppercase tracking-widest ml-1 font-mono">
-                                            {t('business_settings.form.support_email', 'Suporte TÃ©cnico')}
+                                            {t('business_settings.form.support_email', 'Suporte Técnico')}
                                         </label>
                                         <div className="relative group/input">
                                             <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within/input:text-primary transition-colors duration-300" size={16} />
@@ -649,13 +649,13 @@ export const BusinessSettings = () => {
                                             />
                                         </div>
                                         <p className="text-[10px] text-gray-400 mt-1.5 italic px-1 flex items-center gap-1.5 font-medium leading-none">
-                                            <AlertCircle className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" /> {t('business_settings.form.support_email_hint', 'Usado em e-mails, suporte e rodapÃ© legal.')}
+                                            <AlertCircle className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" /> {t('business_settings.form.support_email_hint', 'Usado em e-mails, suporte e rodapé legal.')}
                                         </p>
                                     </div>
 
                                     <div className="space-y-2">
                                         <label className="flex items-center gap-2 text-[9px] font-black text-gray-300 uppercase tracking-widest ml-1 font-mono">
-                                            Contato Legal / Privacidade
+                                            {t('coverage.business_settings.legal_contact')}
                                         </label>
                                         <div className="relative group/input">
                                             <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within/input:text-primary transition-colors duration-300" size={16} />
@@ -664,11 +664,11 @@ export const BusinessSettings = () => {
                                                 value={formData.legal_responsible_email}
                                                 onChange={e => setFormData({ ...formData, legal_responsible_email: e.target.value })}
                                                 className="w-full bg-[#07070F] border border-white/[0.12] rounded-xl pl-12 pr-4 py-3.5 text-sm text-white focus:border-primary focus:ring-1 focus:ring-primary/30 outline-none transition-all duration-300 placeholder:text-gray-600 font-semibold shadow-inner"
-                                                placeholder="privacidade@empresa.com"
+                                                placeholder={t('coverage.business_settings.legal_email_placeholder')}
                                             />
                                         </div>
                                         <p className="text-[10px] text-gray-400 mt-1.5 italic px-1 flex items-center gap-1.5 font-medium leading-none">
-                                            <AlertCircle className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" /> Exibido como canal legal. Se vazio, usa o e-mail de suporte.
+                                            <AlertCircle className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" /> {t('coverage.business_settings.legal_contact_hint')}
                                         </p>
                                     </div>
                                 </div>
@@ -679,8 +679,8 @@ export const BusinessSettings = () => {
                                             <Globe className="w-4 h-4" />
                                         </div>
                                         <div>
-                                            <p className="text-xs font-bold text-white leading-none">RodapÃ© de Checkout</p>
-                                            <p className="text-[8px] text-gray-400 uppercase tracking-wider mt-1.5 font-mono">ExibiÃ§Ã£o de Compliance e Termos</p>
+                                            <p className="text-xs font-bold text-white leading-none">{t('coverage.business_settings.checkout_footer')}</p>
+                                            <p className="text-[8px] text-gray-400 uppercase tracking-wider mt-1.5 font-mono">{t('coverage.business_settings.checkout_footer_description')}</p>
                                         </div>
                                     </div>
                                     <label className="relative inline-flex items-center cursor-pointer scale-90 font-semibold">
@@ -700,7 +700,7 @@ export const BusinessSettings = () => {
                                             {formData.agree_terms && <Check className="w-3.5 h-3.5 text-white" />}
                                         </div>
                                         <span className="text-[11px] text-gray-300 font-medium leading-relaxed italic select-none">
-                                            Declaro que as informaÃ§Ãµes e documentos cadastrados sÃ£o verÃ­dicos e representam a realidade comercial da operaÃ§Ã£o.
+                                            {t('coverage.business_settings.legal_declaration')}
                                         </span>
                                     </div>
                                 </div>
@@ -713,7 +713,7 @@ export const BusinessSettings = () => {
                                     >
                                         {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                                         <span className="text-xs font-black uppercase tracking-wider">
-                                            {loading ? 'Salvando...' : 'Salvar AlteraÃ§Ãµes'}
+                                            {loading ? t('coverage.business_settings.saving') : t('coverage.business_settings.save_changes')}
                                         </span>
                                     </Button>
                                 </div>
@@ -743,10 +743,10 @@ export const BusinessSettings = () => {
                                         <ShieldCheck className="w-9 h-9 text-white animate-pulse-slow" />
                                     </div>
                                     <h3 className="text-xl font-portal-display text-white uppercase italic tracking-tight mb-1">
-                                        Documentos Legais
+                                        {t('coverage.business_settings.legal_documents')}
                                     </h3>
                                     <p className="text-xs text-gray-400 max-w-sm font-medium">
-                                        Publique as regras de compliance e pÃ³s-venda que aparecem no checkout.
+                                        {t('coverage.business_settings.legal_documents_description')}
                                     </p>
                                 </div>
 
@@ -774,13 +774,13 @@ export const BusinessSettings = () => {
                                                     <span className={`block text-[8px] font-black uppercase tracking-widest font-mono leading-none mb-1 ${
                                                         formData.privacy_policy ? 'text-emerald-400' : 'text-rose-400'
                                                     }`}>
-                                                        {formData.privacy_policy ? 'Publicado' : 'Pendente'}
+                                                        {formData.privacy_policy ? t('coverage.business_settings.published') : t('coverage.business_settings.pending')}
                                                     </span>
                                                     <h4 className="text-sm font-bold text-white transition-colors group-hover:text-primary leading-tight">
-                                                        PolÃ­tica de Privacidade
+                                                        {t('coverage.business_settings_meta.privacy_policy')}
                                                     </h4>
                                                     <p className="text-[11px] text-gray-400 mt-1 leading-normal font-mono uppercase tracking-wider text-[8px]">
-                                                        Compliance e RelaÃ§Ã£o de Dados
+                                                        {t('coverage.business_settings_meta.compliance_relationship')}
                                                     </p>
                                                 </div>
                                             </div>
@@ -813,15 +813,15 @@ export const BusinessSettings = () => {
                                                             <span className={`relative inline-flex rounded-full h-2 w-2 ${formData.privacy_policy ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-rose-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]'}`}></span>
                                                         </div>
                                                         <span className="text-xs font-semibold text-white leading-none">
-                                                            {formData.privacy_policy ? 'Configurada & Ativa' : 'Pendente de ConfiguraÃ§Ã£o'}
+                                                            {formData.privacy_policy ? 'Configurada & Ativa' : 'Pendente de Configuração'}
                                                         </span>
                                                     </div>
                                                     <div className="text-right font-mono">
                                                         <span className="block text-[9px] font-black text-gray-400 uppercase tracking-widest leading-none">
-                                                            VersÃ£o {privacyDocumentInfo.version || '1.0.0'}
+                                                            {t('coverage.business_settings.version')} {privacyDocumentInfo.version || '1.0.0'}
                                                         </span>
                                                         <span className="block text-[8px] text-gray-500 mt-1.5 leading-none">
-                                                            Publicado: {formatDocumentPublication(privacyDocumentInfo.publishedAt)}
+                                                            {t('coverage.business_settings.published_at')} {formatDocumentPublication(privacyDocumentInfo.publishedAt)}
                                                         </span>
                                                     </div>
                                                 </div>
@@ -834,14 +834,14 @@ export const BusinessSettings = () => {
                                                         className="px-4 py-2 rounded-xl bg-primary/10 hover:bg-primary/20 border border-primary/25 text-xs font-bold text-primary transition-all duration-300 flex items-center gap-1.5"
                                                     >
                                                         <FileSignature className="w-3.5 h-3.5 text-primary" />
-                                                        Editar ConteÃºdo
+                                                        {t('coverage.business_settings.edit_content')}
                                                     </button>
                                                 </div>
 
                                                 {/* History Section */}
                                                 <div className="space-y-3">
                                                     <div className="flex items-center justify-between px-1">
-                                                        <h4 className="text-[9px] font-black text-gray-500 uppercase tracking-widest font-mono">HistÃ³rico de Snapshots</h4>
+                                                        <h4 className="text-[9px] font-black text-gray-500 uppercase tracking-widest font-mono">{t('coverage.business_settings_meta.snapshot_history')}</h4>
                                                         <span className="text-[9px] text-gray-500 font-bold uppercase tracking-widest font-mono">
                                                             {historyLoading ? 'Carregando' : `${privacyHistory.length} registros`}
                                                         </span>
@@ -850,13 +850,13 @@ export const BusinessSettings = () => {
                                                     <div className="space-y-2 max-h-[160px] overflow-y-auto scrollbar-thin scrollbar-thumb-white/5 pr-1.5 text-left">
                                                         {historyLoading && (
                                                             <div className="rounded-xl border border-white/10 bg-[#07070F] px-4 py-3 text-[11px] text-gray-400 font-medium">
-                                                                Sincronizando histÃ³rico legal...
+                                                                {t('coverage.business_settings.syncing_history')}
                                                             </div>
                                                         )}
 
                                                         {!historyLoading && privacyHistory.length === 0 && (
                                                             <div className="rounded-xl border border-dashed border-white/5 bg-[#07070F] px-4 py-4 text-[11px] text-gray-500 text-center leading-relaxed italic">
-                                                                Nenhum snapshot registrado ainda para este documento.
+                                                                {t('coverage.business_settings.no_snapshot')}
                                                             </div>
                                                         )}
 
@@ -870,12 +870,12 @@ export const BusinessSettings = () => {
                                                                         </span>
                                                                     </div>
                                                                     <span className="block text-[10px] text-gray-400 font-medium font-sans">
-                                                                        Titular: {entry.legal_name || 'nÃ£o informado'} | Contato: {entry.legal_contact || entry.support_email || 'nÃ£o informado'}
+                                                                        {t('coverage.business_settings.owner')} {entry.legal_name || t('coverage.business_settings.not_provided')} | {t('coverage.business_settings.contact')} {entry.legal_contact || entry.support_email || t('coverage.business_settings.not_provided')}
                                                                     </span>
                                                                 </div>
                                                                 <div className="text-left sm:text-right text-[10px] text-gray-500 whitespace-nowrap leading-relaxed font-mono">
-                                                                    <span className="block">Publicado: {formatHistoryTimestamp(entry.published_at)}</span>
-                                                                    <span className="block text-[9px] text-gray-600 font-bold">Registrado: {formatHistoryTimestamp(entry.created_at)}</span>
+                                                                    <span className="block">{t('coverage.business_settings.published_at')} {formatHistoryTimestamp(entry.published_at)}</span>
+                                                                    <span className="block text-[9px] text-gray-600 font-bold">{t('coverage.business_settings.recorded_at')} {formatHistoryTimestamp(entry.created_at)}</span>
                                                                 </div>
                                                             </div>
                                                         ))}
@@ -906,13 +906,13 @@ export const BusinessSettings = () => {
                                                     <span className={`block text-[8px] font-black uppercase tracking-widest font-mono leading-none mb-1 ${
                                                         formData.terms_of_purchase ? 'text-emerald-400' : 'text-rose-400'
                                                     }`}>
-                                                        {formData.terms_of_purchase ? 'Publicado' : 'Pendente'}
+                                                        {formData.terms_of_purchase ? t('coverage.business_settings.published') : t('coverage.business_settings.pending')}
                                                     </span>
                                                     <h4 className="text-sm font-bold text-white transition-colors group-hover:text-primary leading-tight">
-                                                        Termos de Compra
+                                                        {t('coverage.business_settings.terms_of_purchase')}
                                                     </h4>
                                                     <p className="text-[11px] text-gray-400 mt-1 leading-normal font-mono uppercase tracking-wider text-[8px]">
-                                                        Regras Comerciais e PÃ³s-Venda
+                                                        {t('coverage.business_settings.terms_description')}
                                                     </p>
                                                 </div>
                                             </div>
@@ -945,15 +945,15 @@ export const BusinessSettings = () => {
                                                             <span className={`relative inline-flex rounded-full h-2 w-2 ${formData.terms_of_purchase ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-rose-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]'}`}></span>
                                                         </div>
                                                         <span className="text-xs font-semibold text-white leading-none">
-                                                            {formData.terms_of_purchase ? 'Configurado & Ativo' : 'Pendente de ConfiguraÃ§Ã£o'}
+                                                            {formData.terms_of_purchase ? 'Configurado & Ativo' : 'Pendente de Configuração'}
                                                         </span>
                                                     </div>
                                                     <div className="text-right font-mono">
                                                         <span className="block text-[9px] font-black text-gray-400 uppercase tracking-widest leading-none">
-                                                            VersÃ£o {termsDocumentInfo.version || '1.0.0'}
+                                                            {t('coverage.business_settings.version')} {termsDocumentInfo.version || '1.0.0'}
                                                         </span>
                                                         <span className="block text-[8px] text-gray-500 mt-1.5 leading-none">
-                                                            Publicado: {formatDocumentPublication(termsDocumentInfo.publishedAt)}
+                                                            {t('coverage.business_settings.published_at')} {formatDocumentPublication(termsDocumentInfo.publishedAt)}
                                                         </span>
                                                     </div>
                                                 </div>
@@ -966,14 +966,14 @@ export const BusinessSettings = () => {
                                                         className="px-4 py-2 rounded-xl bg-primary/10 hover:bg-primary/20 border border-primary/25 text-xs font-bold text-primary transition-all duration-300 flex items-center gap-1.5"
                                                     >
                                                         <FileSignature className="w-3.5 h-3.5 text-primary" />
-                                                        Editar ConteÃºdo
+                                                        {t('coverage.business_settings.edit_content')}
                                                     </button>
                                                 </div>
 
                                                 {/* History Section */}
                                                 <div className="space-y-3">
                                                     <div className="flex items-center justify-between px-1">
-                                                        <h4 className="text-[9px] font-black text-gray-500 uppercase tracking-widest font-mono">HistÃ³rico de Snapshots</h4>
+                                                        <h4 className="text-[9px] font-black text-gray-500 uppercase tracking-widest font-mono">{t('coverage.business_settings_meta.snapshot_history')}</h4>
                                                         <span className="text-[9px] text-gray-500 font-bold uppercase tracking-widest font-mono">
                                                             {historyLoading ? 'Carregando' : `${termsHistory.length} registros`}
                                                         </span>
@@ -982,13 +982,13 @@ export const BusinessSettings = () => {
                                                     <div className="space-y-2 max-h-[160px] overflow-y-auto scrollbar-thin scrollbar-thumb-white/5 pr-1.5 text-left">
                                                         {historyLoading && (
                                                             <div className="rounded-xl border border-white/10 bg-[#07070F] px-4 py-3 text-[11px] text-gray-400 font-medium">
-                                                                Sincronizando histÃ³rico legal...
+                                                                {t('coverage.business_settings.syncing_history')}
                                                             </div>
                                                         )}
 
                                                         {!historyLoading && termsHistory.length === 0 && (
                                                             <div className="rounded-xl border border-dashed border-white/5 bg-[#07070F] px-4 py-4 text-[11px] text-gray-500 text-center leading-relaxed italic">
-                                                                Nenhum snapshot registrado ainda para este documento.
+                                                                {t('coverage.business_settings.no_snapshot')}
                                                             </div>
                                                         )}
 
@@ -1002,12 +1002,12 @@ export const BusinessSettings = () => {
                                                                         </span>
                                                                     </div>
                                                                     <span className="block text-[10px] text-gray-400 font-medium font-sans">
-                                                                        Titular: {entry.legal_name || 'nÃ£o informado'} | Contato: {entry.legal_contact || entry.support_email || 'nÃ£o informado'}
+                                                                        {t('coverage.business_settings.owner')} {entry.legal_name || t('coverage.business_settings.not_provided')} | {t('coverage.business_settings.contact')} {entry.legal_contact || entry.support_email || t('coverage.business_settings.not_provided')}
                                                                     </span>
                                                                 </div>
                                                                 <div className="text-left sm:text-right text-[10px] text-gray-500 whitespace-nowrap leading-relaxed font-mono">
-                                                                    <span className="block">Publicado: {formatHistoryTimestamp(entry.published_at)}</span>
-                                                                    <span className="block text-[9px] text-gray-600 font-bold">Registrado: {formatHistoryTimestamp(entry.created_at)}</span>
+                                                                    <span className="block">{t('coverage.business_settings.published_at')} {formatHistoryTimestamp(entry.published_at)}</span>
+                                                                    <span className="block text-[9px] text-gray-600 font-bold">{t('coverage.business_settings.recorded_at')} {formatHistoryTimestamp(entry.created_at)}</span>
                                                                 </div>
                                                             </div>
                                                         ))}
@@ -1029,7 +1029,7 @@ export const BusinessSettings = () => {
                 <Modal
                     isOpen={!!editingDoc}
                     onClose={() => setEditingDoc(null)}
-                    title={editingDoc === 'privacy' ? 'EDITAR POLÃTICA DE PRIVACIDADE' : 'EDITAR TERMOS DE COMPRA'}
+                    title={editingDoc === 'privacy' ? 'EDITAR POLÍTICA DE PRIVACIDADE' : 'EDITAR TERMOS DE COMPRA'}
                     className="max-w-4xl"
                 >
                     <div className="space-y-6 p-1">
@@ -1039,9 +1039,9 @@ export const BusinessSettings = () => {
                                 <Settings className="w-5 h-5" />
                             </div>
                             <div className="relative z-10 space-y-1.5">
-                                <p className="text-[9px] text-primary font-black uppercase tracking-widest italic">SincronizaÃ§Ã£o de ConteÃºdo DinÃ¢mico</p>
+                                <p className="text-[9px] text-primary font-black uppercase tracking-widest italic">{t('coverage.business_settings_meta.dynamic_content_sync')}</p>
                                 <p className="text-xs text-gray-400 leading-relaxed font-medium">
-                                    Este documento aceita variÃ¡veis. Use <code className="bg-white/5 px-1.5 py-0.5 rounded text-primary font-mono text-[10px]">{"{{business_name}}"}</code>, <code className="bg-white/5 px-1.5 py-0.5 rounded text-primary font-mono text-[10px]">{"{{legal_name}}"}</code>, <code className="bg-white/5 px-1.5 py-0.5 rounded text-primary font-mono text-[10px]">{"{{support_email}}"}</code> ou <code className="bg-white/5 px-1.5 py-0.5 rounded text-primary font-mono text-[10px]">{"{{legal_contact}}"}</code> para exibir os dados correspondentes de forma automÃ¡tica.
+                                    {t('coverage.business_settings.variable_hint_before')} <code className="bg-white/5 px-1.5 py-0.5 rounded text-primary font-mono text-[10px]">{"{{business_name}}"}</code>, <code className="bg-white/5 px-1.5 py-0.5 rounded text-primary font-mono text-[10px]">{"{{legal_name}}"}</code>, <code className="bg-white/5 px-1.5 py-0.5 rounded text-primary font-mono text-[10px]">{"{{support_email}}"}</code> {t('coverage.business_settings.variable_hint_or')} <code className="bg-white/5 px-1.5 py-0.5 rounded text-primary font-mono text-[10px]">{"{{legal_contact}}"}</code> {t('coverage.business_settings.variable_hint_after')}
                                 </p>
                             </div>
                         </div>
@@ -1049,7 +1049,7 @@ export const BusinessSettings = () => {
                         <div className="relative">
                             <textarea
                                 className="w-full h-[400px] bg-[#05050A] border border-white/[0.12] rounded-2xl p-6 text-white focus:border-primary focus:ring-0 outline-none transition-all font-mono text-xs leading-relaxed shadow-inner scrollbar-thin scrollbar-thumb-white/5"
-                                placeholder="Redija o documento legal do seu negÃ³cio de acordo com a sua operaÃ§Ã£o real..."
+                                placeholder={t('coverage.business_settings.editor_placeholder')}
                                 value={editingDoc === 'privacy' ? formData.privacy_policy : formData.terms_of_purchase}
                                 onChange={(e) => setFormData({
                                     ...formData,
@@ -1057,7 +1057,7 @@ export const BusinessSettings = () => {
                                 })}
                             />
                             <div className="absolute top-4 right-4 px-3 py-1 rounded-full bg-[#0C0C14] border border-white/10 text-[9px] font-black text-gray-500 uppercase tracking-widest">
-                                Editor Live
+                                {t('coverage.business_settings.live_editor')}
                             </div>
                         </div>
 
@@ -1067,7 +1067,7 @@ export const BusinessSettings = () => {
                                 onClick={() => setEditingDoc(null)}
                                 className="px-8 h-12 rounded-xl bg-primary hover:bg-primary-hover text-white font-bold text-xs uppercase tracking-wider shadow-[0_4px_16px_rgba(138,43,226,0.35)] active:scale-95 transition-all duration-300"
                             >
-                                Salvar e Fechar
+                                {t('coverage.business_settings.save_close')}
                             </Button>
                         </div>
                     </div>

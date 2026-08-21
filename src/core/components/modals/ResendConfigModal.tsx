@@ -5,6 +5,7 @@ import { emailService } from '../../services/emailService';
 import { isDemoDataRuntime } from '../../services/demoDataService';
 import { Order, OrderStatus } from '../../types';
 import { Check, Loader2, Key } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface ResendConfigModalProps {
     isOpen: boolean;
@@ -12,6 +13,7 @@ interface ResendConfigModalProps {
 }
 
 export const ResendConfigModal: React.FC<ResendConfigModalProps> = ({ isOpen, onClose }) => {
+    const { t } = useTranslation();
     const isDemoMode = isDemoDataRuntime();
     const [apiKey, setApiKey] = useState('');
     const [senderEmail, setSenderEmail] = useState('');
@@ -65,7 +67,7 @@ export const ResendConfigModal: React.FC<ResendConfigModalProps> = ({ isOpen, on
 
             if (isDemoMode) {
                 const simulatedTarget = senderEmail || 'lead.demo@supercheckout.app';
-                alert(`Modo demo: simulamos 2 e-mails de teste para ${simulatedTarget} sem usar a API real do Resend.`);
+                alert(t('coverage.resend.demo_test', { email: simulatedTarget }));
                 return;
             }
 
@@ -73,7 +75,7 @@ export const ResendConfigModal: React.FC<ResendConfigModalProps> = ({ isOpen, on
             const targetEmail = user?.email;
 
             if (!targetEmail) {
-                throw new Error('Nao foi possivel identificar seu e-mail para envio dos testes.');
+                throw new Error(t('coverage.resend.target_email_error'));
             }
 
             const mockOrder: Order = {
@@ -95,13 +97,13 @@ export const ResendConfigModal: React.FC<ResendConfigModalProps> = ({ isOpen, on
             ]);
 
             if (!approvedSent || !boletoSent) {
-                throw new Error('Falha ao enviar e-mails. Verifique se a API Key esta ativa e se o dominio de remetente e valido.');
+                throw new Error(t('coverage.resend.send_error'));
             }
 
-            alert(`Sucesso! Enviamos 2 e-mails de teste para: ${targetEmail}.`);
+            alert(t('coverage.resend.test_success', { email: targetEmail }));
         } catch (error: any) {
             console.error('Test error:', error);
-            alert(`Erro ao testar: ${error.message || 'Erro desconhecido'}`);
+            alert(t('coverage.resend.test_error', { message: error.message || t('coverage.common.unknown_error') }));
         } finally {
             setTesting(false);
         }
@@ -111,7 +113,7 @@ export const ResendConfigModal: React.FC<ResendConfigModalProps> = ({ isOpen, on
         <Modal
             isOpen={isOpen}
             onClose={onClose}
-            title="Configurar Resend"
+            title={t('coverage.resend.configure')}
             className="max-w-md"
         >
             <div className="space-y-6">
@@ -121,9 +123,9 @@ export const ResendConfigModal: React.FC<ResendConfigModalProps> = ({ isOpen, on
                             <span className="text-white font-bold text-lg">R</span>
                         </div>
                         <div>
-                            <h3 className="font-medium text-gray-900 dark:text-white">Resend Email API</h3>
+                            <h3 className="font-medium text-gray-900 dark:text-white">{t('coverage.resend.api_title')}</h3>
                             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                Envie emails transacionais com alta entregabilidade.
+                                {t('coverage.resend.api_description')}
                             </p>
                         </div>
                     </div>
@@ -131,7 +133,7 @@ export const ResendConfigModal: React.FC<ResendConfigModalProps> = ({ isOpen, on
 
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        API Key
+                        {t('coverage.resend.api_key')}
                     </label>
                     <div className="relative">
                         <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -144,13 +146,13 @@ export const ResendConfigModal: React.FC<ResendConfigModalProps> = ({ isOpen, on
                         />
                     </div>
                     <p className="text-xs text-gray-500 mt-2">
-                        Você pode gerar uma chave em <a href="https://resend.com/api-keys" target="_blank" rel="noreferrer" className="text-primary hover:underline">resend.com/api-keys</a>
+                        {t('coverage.resend.api_key_hint')} <a href="https://resend.com/api-keys" target="_blank" rel="noreferrer" className="text-primary hover:underline">resend.com/api-keys</a>
                     </p>
                 </div>
 
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        E-mail de Envio (Remetente)
+                        {t('coverage.resend.sender_label')}
                     </label>
                     <div className="relative">
                         <div className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 flex items-center justify-center">@</div>
@@ -158,12 +160,12 @@ export const ResendConfigModal: React.FC<ResendConfigModalProps> = ({ isOpen, on
                             type="email"
                             value={senderEmail}
                             onChange={(e) => setSenderEmail(e.target.value)}
-                            placeholder="ex: contato@suaempresa.com.br"
+                            placeholder={t('coverage.resend.sender_placeholder')}
                             className="w-full pl-10 pr-4 py-2 bg-white dark:bg-[#0f0f1a] border border-gray-200 dark:border-white/10 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all text-gray-900 dark:text-white"
                         />
                     </div>
                     <p className="text-xs text-gray-500 mt-2">
-                        Use um domínio verificado no Resend. Se deixar em branco, usaremos <strong>onboarding@resend.dev</strong> (apenas para testes).
+                        {t('coverage.resend.sender_hint_before')} <strong>onboarding@resend.dev</strong> {t('coverage.resend.sender_hint_after')}
                     </p>
                 </div>
 
@@ -176,7 +178,7 @@ export const ResendConfigModal: React.FC<ResendConfigModalProps> = ({ isOpen, on
                         className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
                     />
                     <label htmlFor="active" className="text-sm text-gray-700 dark:text-gray-300 select-none">
-                        Ativar integração
+                        {t('coverage.resend.enable')}
                     </label>
                 </div>
 
@@ -186,14 +188,14 @@ export const ResendConfigModal: React.FC<ResendConfigModalProps> = ({ isOpen, on
                         disabled={testing || !apiKey}
                         className="text-sm text-primary hover:text-primary-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
-                        {testing ? 'Enviando...' : 'Testar Conexão'}
+                        {testing ? t('coverage.resend.sending') : t('coverage.resend.test_connection')}
                     </button>
                     <div className="flex gap-3">
                         <button
                             onClick={onClose}
                             className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg transition-colors"
                         >
-                            Cancelar
+                            {t('coverage.common.cancel')}
                         </button>
                         <button
                             onClick={handleSave}
@@ -203,12 +205,12 @@ export const ResendConfigModal: React.FC<ResendConfigModalProps> = ({ isOpen, on
                             {saving ? (
                                 <>
                                     <Loader2 className="w-4 h-4 animate-spin" />
-                                    Salvando...
+                                    {t('coverage.common.saving')}
                                 </>
                             ) : (
                                 <>
                                     <Check className="w-4 h-4" />
-                                    Salvar Configuração
+                                    {t('coverage.resend.save')}
                                 </>
                             )}
                         </button>

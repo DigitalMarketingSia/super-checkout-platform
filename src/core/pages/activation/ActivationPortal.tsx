@@ -64,15 +64,15 @@ const SidebarItem = ({ icon: Icon, label, active, onClick, collapsed, highlighte
     </button>
 );
 
-const SidebarDemoButton = ({ onClick, collapsed = false, active = false }: { onClick: () => void; collapsed?: boolean; active?: boolean }) => (
+const SidebarDemoButton = ({ onClick, label, collapsed = false, active = false }: { onClick: () => void; label: string; collapsed?: boolean; active?: boolean }) => (
     <button
         type="button"
         onClick={onClick}
-        title={collapsed ? 'Testar Sistema' : undefined}
+        title={collapsed ? label : undefined}
         className={`group relative flex h-16 w-full items-center justify-center gap-3 overflow-hidden border-y border-white/5 bg-[#05050A] text-gray-500 transition-all duration-300 before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-orange-500 before:shadow-[4px_0_12px_rgba(249,115,22,0.55)] hover:bg-orange-500/10 hover:text-gray-300 ${collapsed ? 'px-0' : 'px-4'} ${active ? 'bg-gradient-to-r from-orange-600/90 via-orange-500 to-orange-400 text-white shadow-lg shadow-orange-500/20' : ''}`}
     >
         <Rocket className={`shrink-0 transition-transform duration-300 group-hover:scale-110 ${collapsed ? 'h-7 w-7' : 'h-5 w-5'}`} />
-        {!collapsed && <span className="text-[12px] font-black uppercase italic tracking-wider">Testar Sistema</span>}
+        {!collapsed && <span className="text-[12px] font-black uppercase italic tracking-wider">{label}</span>}
     </button>
 );
 
@@ -731,7 +731,7 @@ export const ActivationPortal: React.FC = () => {
                         <SidebarItem icon={PlayCircle} label={t('sidebar.tutorials')} active={activeTab === 'tutorials'} onClick={() => setActiveTab('tutorials')} collapsed={isCollapsed} />
                         <SidebarItem icon={Key} label={t('sidebar.access_data')} active={activeTab === 'license'} onClick={() => setActiveTab('license')} collapsed={isCollapsed} />
                         <SidebarItem icon={Download} label={t('sidebar.installation')} active={activeTab === 'install'} onClick={() => setActiveTab('install')} collapsed={isCollapsed} />
-                        <SidebarItem icon={ClipboardCheck} label="Serviços" active={activeTab === 'services'} onClick={() => setActiveTab('services')} collapsed={isCollapsed} />
+                        <SidebarItem icon={ClipboardCheck} label={t('sidebar.services')} active={activeTab === 'services'} onClick={() => setActiveTab('services')} collapsed={isCollapsed} />
                         {installationOffer && <SidebarItem icon={Wrench} label="Instalação assistida" active={activeTab === 'installation-assistance'} onClick={() => setActiveTab('installation-assistance')} collapsed={isCollapsed} highlighted />}
                         
                         {showPartnerOpportunityTab ? (
@@ -745,7 +745,7 @@ export const ActivationPortal: React.FC = () => {
                     </nav>
 
                     <div className={`mt-4 shrink-0 ${isCollapsed ? 'w-[calc(100%+2rem)] -mx-4' : 'w-[calc(100%+3rem)] -mx-6'}`}>
-                        <SidebarDemoButton onClick={() => setActiveTab('demo')} active={activeTab === 'demo'} collapsed={isCollapsed} />
+                        <SidebarDemoButton label={t('basic_dashboard.demo.eyebrow')} onClick={() => setActiveTab('demo')} active={activeTab === 'demo'} collapsed={isCollapsed} />
                     </div>
                 </div>
             </aside>
@@ -773,7 +773,7 @@ export const ActivationPortal: React.FC = () => {
                             <SidebarItem icon={PlayCircle} label={t('sidebar.tutorials')} active={activeTab === 'tutorials'} onClick={() => setActiveTab('tutorials')} />
                             <SidebarItem icon={Key} label={t('sidebar.access_data')} active={activeTab === 'license'} onClick={() => setActiveTab('license')} />
                             <SidebarItem icon={Download} label={t('sidebar.installation')} active={activeTab === 'install'} onClick={() => setActiveTab('install')} />
-                            <SidebarItem icon={ClipboardCheck} label="Serviços" active={activeTab === 'services'} onClick={() => setActiveTab('services')} />
+                            <SidebarItem icon={ClipboardCheck} label={t('sidebar.services')} active={activeTab === 'services'} onClick={() => setActiveTab('services')} />
                             {installationOffer && <SidebarItem icon={Wrench} label="Instalação assistida" active={activeTab === 'installation-assistance'} onClick={() => setActiveTab('installation-assistance')} highlighted />}
                             {showPartnerOpportunityTab ? (
                                 <SidebarItem icon={Crown} label={t('sidebar.upgrade_business')} active={activeTab === 'opportunity'} onClick={() => setActiveTab('opportunity')} />
@@ -784,7 +784,7 @@ export const ActivationPortal: React.FC = () => {
                                 <SidebarItem icon={TrendingUp} label={t('sidebar.earnings_simulator')} active={activeTab === 'simulator'} onClick={() => setActiveTab('simulator')} />
                             )}
                         </nav>
-                        <SidebarDemoButton onClick={() => { setActiveTab('demo'); setSidebarOpen(false); }} active={activeTab === 'demo'} />
+                        <SidebarDemoButton label={t('basic_dashboard.demo.eyebrow')} onClick={() => { setActiveTab('demo'); setSidebarOpen(false); }} active={activeTab === 'demo'} />
                         <button onClick={handleLogout} className="mt-auto flex items-center justify-center gap-3 px-4 py-4 text-red-500 font-black uppercase italic tracking-tighter border border-red-500/20 rounded-2xl bg-red-500/5 hover:bg-red-500 hover:text-white transition-all duration-300">
                             <LogOut className="w-4 h-4" /> 
                             {t('sidebar.logout')}

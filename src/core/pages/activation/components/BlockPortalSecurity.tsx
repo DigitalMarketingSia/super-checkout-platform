@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { AlertTriangle, Check, Loader2, ShieldCheck, Smartphone } from 'lucide-react';
 import { centralSupabase } from '../../../services/centralClient';
 import { getApiUrl } from '../../../utils/apiUtils';
+import { useTranslation } from 'react-i18next';
 
 interface BlockPortalSecurityProps {
   enabled: boolean;
@@ -9,15 +10,16 @@ interface BlockPortalSecurityProps {
   onEnabled: () => void;
 }
 
-async function getCentralSessionToken() {
+async function getCentralSessionToken(expiredMessage: string) {
   const { data: { session } } = await centralSupabase.auth.getSession();
   if (!session?.access_token) {
-    throw new Error('Sua sessão do Portal expirou. Entre novamente para configurar a 2FA.');
+    throw new Error(expiredMessage);
   }
   return session.access_token;
 }
 
 export const BlockPortalSecurity: React.FC<BlockPortalSecurityProps> = ({ enabled, isOwner, onEnabled }) => {
+  const { t } = useTranslation('portal');
   const [loading, setLoading] = useState(false);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
   const [code, setCode] = useState('');
@@ -30,7 +32,7 @@ export const BlockPortalSecurity: React.FC<BlockPortalSecurityProps> = ({ enable
     setLoading(true);
     setMessage('');
     try {
-      const token = await getCentralSessionToken();
+      const token = await getCentralSessionToken(t('portal_security.session_expired'));
       const response = await fetch(getApiUrl('/api/auth?route=2fa&action=setup&target=central'), {
         method: 'POST',
         headers: {
@@ -41,13 +43,13 @@ export const BlockPortalSecurity: React.FC<BlockPortalSecurityProps> = ({ enable
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload?.qr_code_data_url) {
-        throw new Error(payload?.error || 'Não foi possível preparar a 2FA do Portal.');
+        throw new Error(payload?.error || t('portal_security.prepare_error'));
       }
       setQrCodeDataUrl(String(payload.qr_code_data_url));
       setCode('');
       setCurrentCode('');
     } catch (error: any) {
-      setMessage(error?.message || 'Não foi possível preparar a 2FA do Portal.');
+      setMessage(error?.message || t('portal_security.prepare_error'));
     } finally {
       setLoading(false);
     }
@@ -56,14 +58,14 @@ export const BlockPortalSecurity: React.FC<BlockPortalSecurityProps> = ({ enable
   const enable = async () => {
     const normalizedCode = code.replace(/[^\d]/g, '');
     if (normalizedCode.length !== 6) {
-      setMessage('Digite o código de 6 dígitos mostrado pelo seu aplicativo autenticador.');
+      setMessage(t('portal_security.invalid_code'));
       return;
     }
 
     setLoading(true);
     setMessage('');
     try {
-      const token = await getCentralSessionToken();
+      const token = await getCentralSessionToken(t('portal_security.session_expired'));
       const response = await fetch(getApiUrl('/api/auth?route=2fa&action=verify&target=central'), {
         method: 'POST',
         headers: {
@@ -74,13 +76,13 @@ export const BlockPortalSecurity: React.FC<BlockPortalSecurityProps> = ({ enable
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload?.totp_enabled) {
-        throw new Error(payload?.error || 'O código 2FA não foi aceito.');
+        throw new Error(payload?.error || t('portal_security.code_not_accepted'));
       }
       setQrCodeDataUrl('');
       setCode('');
       onEnabled();
     } catch (error: any) {
-      setMessage(error?.message || 'O código 2FA não foi aceito.');
+      setMessage(error?.message || t('portal_security.code_not_accepted'));
     } finally {
       setLoading(false);
     }
@@ -121,25 +123,25 @@ export const BlockPortalSecurity: React.FC<BlockPortalSecurityProps> = ({ enable
               </div>
               <div>
                 <span className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-400">
-                  {isOwner ? 'Proteção do owner' : 'Proteção do Portal'}
+                  {isOwner ? t('portal_security.owner_protection') : t('portal_security.portal_protection')}
                 </span>
                 <h3 className="font-display text-xl font-black uppercase italic tracking-tight text-white">
-                  2FA do Portal está ativa
+                  {t('portal_security.active_title')}
                 </h3>
               </div>
             </div>
             <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-3.5 py-1.5 text-[9px] font-black uppercase tracking-widest text-emerald-400">
-              <Check className="h-3.5 w-3.5" /> PROTEGIDO
+              <Check className="h-3.5 w-3.5" /> {t('portal_security.protected')}
             </span>
           </div>
 
           <p className="text-xs text-gray-300 leading-relaxed font-medium">
-            Novos logins por senha e operações destrutivas exigem seu aplicativo autenticador.
+            {t('portal_security.active_description')}
           </p>
 
           <div className="rounded-2xl border border-white/[0.08] bg-[#060B09] p-5 space-y-3 shadow-inner">
             <span className="block text-[9px] font-black uppercase tracking-widest text-emerald-400">
-              CÓDIGO ATUAL DO AUTENTICADOR DO PORTAL (6 DÍGITOS)
+              {t('portal_security.current_code')}
             </span>
 
             <div className="flex items-center justify-between gap-2 pt-1 max-w-xs">
@@ -169,7 +171,7 @@ export const BlockPortalSecurity: React.FC<BlockPortalSecurityProps> = ({ enable
             className="inline-flex items-center gap-2.5 rounded-2xl border border-emerald-500/40 bg-emerald-500/20 hover:bg-emerald-500/30 px-6 py-3.5 text-xs font-black uppercase tracking-wider text-emerald-300 transition duration-200 disabled:opacity-40"
           >
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Smartphone className="h-4 w-4" />}
-            <span>Confirmar e trocar autenticador</span>
+            <span>{t('portal_security.change_authenticator')}</span>
           </button>
         </div>
 
@@ -190,26 +192,26 @@ export const BlockPortalSecurity: React.FC<BlockPortalSecurityProps> = ({ enable
           </div>
           <div>
             <span className="text-[9px] font-black uppercase tracking-[0.2em] text-amber-400">
-              {enabled ? 'Troca protegida de autenticador' : (isOwner ? 'Ação obrigatória do owner' : 'Proteção recomendada')}
+              {enabled ? t('portal_security.protected_change') : (isOwner ? t('portal_security.owner_required') : t('portal_security.recommended'))}
             </span>
             <h3 className="font-display text-xl font-black uppercase italic tracking-tight text-white">
-              {enabled ? 'Cadastre o novo autenticador' : 'Proteja o Portal com 2FA'}
+              {enabled ? t('portal_security.register_new') : t('portal_security.protect_portal')}
             </h3>
           </div>
         </div>
 
         <p className="text-xs text-gray-300 leading-relaxed font-medium">
           {enabled
-            ? 'A 2FA permanece obrigatória. Escaneie e confirme o novo QR Code nesta mesma tela; o código antigo deixa de valer quando o novo QR for preparado.'
+            ? t('portal_security.change_description')
             : isOwner
-            ? 'Sem 2FA, uma sessão recuperada por e-mail poderia solicitar o reset da instalação. Ative agora para que essa ação passe a pedir seu código temporário.'
-            : 'Ações como reset ou revogação da sua instalação pedem um código temporário. Ative agora para manter esse recurso disponível com proteção adicional.'}
+            ? t('portal_security.owner_description')
+            : t('portal_security.recommended_description')}
         </p>
 
         {!qrCodeDataUrl ? (
           <div className="rounded-2xl border border-white/[0.08] bg-[#07060B] p-5 space-y-3 shadow-inner">
             <span className="block text-[9px] font-black uppercase tracking-widest text-amber-400/90">
-              DIGITE O CÓDIGO DE 6 DÍGITOS PARA ATIVAR
+              {t('portal_security.activation_code')}
             </span>
 
             <div className="flex items-center justify-between gap-2 pt-1 max-w-xs">
@@ -231,10 +233,10 @@ export const BlockPortalSecurity: React.FC<BlockPortalSecurityProps> = ({ enable
           </div>
         ) : (
           <div className="rounded-2xl border border-white/10 bg-[#07060B] p-5 space-y-4">
-            <p className="text-xs font-bold text-white">1. Escaneie este QR Code no Google Authenticator, Authy ou app equivalente:</p>
-            <img className="mx-auto my-3 h-44 w-44 rounded-xl bg-white p-2" src={qrCodeDataUrl} alt="QR Code para configurar 2FA do Portal" />
+            <p className="text-xs font-bold text-white">{t('portal_security.scan_qr')}</p>
+            <img className="mx-auto my-3 h-44 w-44 rounded-xl bg-white p-2" src={qrCodeDataUrl} alt={t('portal_security.qr_alt')} />
             <span className="block text-[9px] font-black uppercase tracking-widest text-amber-400">
-              2. DIGITE O CÓDIGO DE 6 DÍGITOS GERADO NO APP
+              {t('portal_security.generated_code')}
             </span>
             <div className="flex items-center justify-between gap-2 pt-1 max-w-xs mx-auto">
               {[0, 1, 2, 3, 4, 5].map((idx) => (
@@ -265,7 +267,7 @@ export const BlockPortalSecurity: React.FC<BlockPortalSecurityProps> = ({ enable
             className="inline-flex items-center gap-2.5 rounded-2xl border border-amber-400/50 bg-amber-400 hover:bg-amber-300 px-6 py-3.5 text-xs font-black uppercase tracking-wider text-black shadow-xl shadow-amber-950/40 transition duration-200 active:scale-95 disabled:opacity-60"
           >
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Smartphone className="h-4 w-4" />}
-            <span>Configurar 2FA agora</span>
+            <span>{t('portal_security.configure')}</span>
           </button>
         ) : (
           <button
@@ -275,7 +277,7 @@ export const BlockPortalSecurity: React.FC<BlockPortalSecurityProps> = ({ enable
             className="inline-flex items-center gap-2.5 rounded-2xl border border-emerald-400/50 bg-emerald-400 hover:bg-emerald-300 px-6 py-3.5 text-xs font-black uppercase tracking-wider text-black shadow-xl shadow-emerald-950/40 transition duration-200 active:scale-95 disabled:opacity-60"
           >
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-            <span>Confirmar e ativar 2FA</span>
+            <span>{t('portal_security.confirm')}</span>
           </button>
         )}
       </div>

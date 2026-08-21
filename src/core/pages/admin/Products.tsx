@@ -685,7 +685,7 @@ export const Products = () => {
                   <>
                     <div className="h-1 w-1 rounded-full bg-gray-800"></div>
                     <span className="text-[10px] text-primary font-black uppercase tracking-[0.2em]">
-                       {products.length} / {productLimit === 'unlimited' ? 'âˆž' : productLimit} {t('products.limit_label')}
+                       {products.length} / {productLimit === 'unlimited' ? '∞' : productLimit} {t('products.limit_label')}
                     </span>
                   </>
                )}
@@ -788,7 +788,7 @@ export const Products = () => {
                     <div className="flex items-center gap-2 flex-wrap mb-8">
                        {product.is_order_bump && (
                          <span className="text-[8px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-400 border border-emerald-500/15 px-2.5 py-1 rounded-lg">
-                           Order Bump
+                           {t('coverage.products.order_bump')}
                          </span>
                        )}
                        {product.is_upsell && (
@@ -798,12 +798,12 @@ export const Products = () => {
                        )}
                        {product.member_area_action === 'checkout' && (
                          <span className="text-[8px] font-black uppercase tracking-widest bg-purple-500/10 text-purple-400 border border-purple-500/15 px-2.5 py-1 rounded-lg">
-                           Ãrea de Membros
+                           {t('coverage.products.member_area')}
                          </span>
                        )}
                        {product.member_area_action === 'file' && (
                          <span className="text-[8px] font-black uppercase tracking-widest bg-amber-500/10 text-amber-400 border border-amber-500/15 px-2.5 py-1 rounded-lg">
-                           Download PDF/ZIP
+                           {t('coverage.products.download_pdf_zip')}
                          </span>
                        )}
                     </div>
@@ -855,7 +855,7 @@ export const Products = () => {
           </button>
           <div>
             <h1 className="text-4xl font-portal-display text-white uppercase leading-none">{editingId ? t('products.edit_title') : t('products.new_title')}</h1>
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-600 mt-2">ConfiguraÃ§Ã£o de Produto</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-600 mt-2">{t('coverage.products.config_title')}</p>
           </div>
         </div>
         <Button onClick={handleSave} isLoading={loading} variant="primary" className="px-10 py-5 font-black uppercase text-xs tracking-widest rounded-3xl border-none shadow-2xl transition-all active:scale-95 flex items-center gap-3">
@@ -905,15 +905,15 @@ export const Products = () => {
                 <Aurora colorStops={['#8A2BE2', '#4B0082', '#0000FF']} amplitude={0.5} speed={0.2} />
              </div>
              <div className="relative z-10">
-                <h3 className="text-[10px] font-black text-gray-600 uppercase tracking-widest mb-6 px-1">Resumo Financeiro</h3>
+                <h3 className="text-[10px] font-black text-gray-600 uppercase tracking-widest mb-6 px-1">{t('coverage.products.financial_summary')}</h3>
                 <div className="space-y-6">
                    <div>
-                      <p className="text-[10px] font-black uppercase tracking-widest text-primary mb-1">PreÃ§o Final</p>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-primary mb-1">{t('coverage.products.final_price')}</p>
                       <p className="text-4xl font-portal-display text-white">{formatCurrency(formData.price_real)}</p>
                    </div>
                    {formData.price_fake > 0 && (
                      <div>
-                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-700 mb-1">PreÃ§o Comparativo</p>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-700 mb-1">{t('coverage.products.compare_price')}</p>
                         <p className="text-2xl font-portal-display text-gray-800 line-through decoration-red-500/50">{formatCurrency(formData.price_fake)}</p>
                      </div>
                    )}
@@ -923,13 +923,13 @@ export const Products = () => {
         </div>
 
         <div className="lg:col-span-2 space-y-10">
-          {/* InformaÃ§Ãµes BÃ¡sicas */}
+          {/* Informações Básicas */}
           <section className="space-y-6">
              <div className="flex items-center gap-3 mb-6">
                 <div className="w-10 h-10 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
                    <Layers className="w-5 h-5" />
                 </div>
-                <h2 className="text-2xl font-portal-display text-white uppercase tracking-tight">InformaÃ§Ãµes BÃ¡sicas</h2>
+                <h2 className="text-2xl font-portal-display text-white uppercase tracking-tight">{t('coverage.products.basic_info')}</h2>
              </div>
 
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -944,7 +944,7 @@ export const Products = () => {
                 </div>
 
                 <div>
-                   <label className="block text-[10px] text-gray-600 font-black uppercase tracking-widest mb-3">SKU / Identificador Externo</label>
+                   <label className="block text-[10px] text-gray-600 font-black uppercase tracking-widest mb-3">{t('coverage.products.sku')}</label>
                    <input type="text" className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-4 text-white placeholder:text-gray-800 focus:border-white/20 transition-all font-mono text-xs uppercase" placeholder="PROD-001" value={formData.sku} onChange={e => setFormData({ ...formData, sku: e.target.value !== '' && e.target.value ? e.target.value : '' })} />
                 </div>
 
@@ -973,7 +973,7 @@ export const Products = () => {
                   <div className="md:col-span-2">
                     <div className="rounded-[2rem] border border-amber-500/20 bg-amber-500/5 p-6">
                       <label className="block text-[10px] font-black text-amber-300 uppercase tracking-widest mb-3">
-                        Tipo comercial do produto
+                        {t('coverage.products.commercial_type')}
                       </label>
                       <select
                         className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-4 text-white outline-none focus:border-amber-400/50 transition-all font-medium appearance-none cursor-pointer"
@@ -1002,16 +1002,16 @@ export const Products = () => {
                           if (hasAutomaticNonContentDelivery) setSelectedContentIds([]);
                         }}
                       >
-                        <option value={PRODUCT_TYPE_REGULAR}>Produto regular</option>
+                        <option value={PRODUCT_TYPE_REGULAR}>{t('coverage.products.regular')}</option>
                         {canManageInstallationService && (
-                          <option value={PRODUCT_TYPE_INSTALLATION_SERVICE}>Servico de instalacao do sistema</option>
+                          <option value={PRODUCT_TYPE_INSTALLATION_SERVICE}>{t('coverage.products.installation_service')}</option>
                         )}
                         {canManageSaasPlanMapping && (
-                          <option value={PRODUCT_TYPE_SYSTEM_UPGRADE}>Upgrade de plano do sistema</option>
+                          <option value={PRODUCT_TYPE_SYSTEM_UPGRADE}>{t('coverage.products.system_upgrade')}</option>
                         )}
                       </select>
                       <p className="text-[11px] text-gray-400 mt-3">
-                        Produtos de upgrade alteram entitlements; servicos de instalacao geram uma ordem de servico e nao alteram o plano.
+                        {t('coverage.products.commercial_type_hint')}
                       </p>
                     </div>
                   </div>
@@ -1041,21 +1041,21 @@ export const Products = () => {
              </div>
           </section>
 
-          {/* ConfiguraÃ§Ãµes de Fluxo */}
+          {/* Configurações de Fluxo */}
           <section className="space-y-8 pt-10 border-t border-white/5">
               <div className="flex items-center gap-3 mb-6">
                 <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
                    <Zap className="w-5 h-5" />
                 </div>
-                <h2 className="text-2xl font-portal-display text-white uppercase tracking-tight">Fluxo & EstratÃ©gia</h2>
+                <h2 className="text-2xl font-portal-display text-white uppercase tracking-tight">{t('coverage.products.flow_strategy')}</h2>
              </div>
 
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Switchers em formato de Cards Premium */}
                 {[
                   { id: 'active', label: t('products.active_label'), desc: t('products.active_desc'), icon: Check, color: 'text-emerald-500' },
-                  { id: 'is_order_bump', label: 'Order Bump', desc: 'Permitir que este produto seja ofertado no checkout', icon: Layers, color: 'text-blue-400' },
-                  { id: 'is_upsell', label: 'Upsell pÃ³s-compra', desc: 'Permitir que este produto seja ofertado apÃ³s a compra principal', icon: ArrowRight, color: 'text-primary' }
+                  { id: 'is_order_bump', label: t('coverage.products.order_bump'), desc: t('coverage.products.order_bump_description'), icon: Layers, color: 'text-blue-400' },
+                  { id: 'is_upsell', label: t('coverage.products.upsell'), desc: t('coverage.products.upsell_description'), icon: ArrowRight, color: 'text-primary' }
                 ].map(sw => (
                   <div key={sw.id} onClick={() => setFormData({ ...formData, [sw.id]: !(formData as any)[sw.id] })} className={`p-6 rounded-[2rem] border transition-all cursor-pointer flex items-center justify-between group ${ (formData as any)[sw.id] ? 'bg-white/5 border-white/20' : 'bg-black/20 border-white/5 opacity-50 hover:opacity-80'}`}>
                      <div className="flex items-center gap-4">
@@ -1075,18 +1075,18 @@ export const Products = () => {
              </div>
           </section>
 
-          {/* Entrega AutomÃ¡tica */}
+          {/* Entrega Automática */}
           <section className="pt-10 border-t border-white/5">
               <div className="flex items-center gap-3 mb-8">
                 <div className="w-10 h-10 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
                    <Users className="w-5 h-5" />
                 </div>
-                <h2 className="text-2xl font-portal-display text-white uppercase tracking-tight">Entrega AutomÃ¡tica</h2>
+                <h2 className="text-2xl font-portal-display text-white uppercase tracking-tight">{t('coverage.products.automatic_delivery')}</h2>
              </div>
 
              <div className="space-y-6">
                 <div className="p-8 rounded-[2rem] bg-black/40 border border-white/5">
-                   <label className="text-[10px] text-gray-600 font-black uppercase tracking-widest mb-4 block">Entrega do Produto apos Compra</label>
+                   <label className="text-[10px] text-gray-600 font-black uppercase tracking-widest mb-4 block">{t('coverage.products.delivery_after_purchase')}</label>
                    {isSystemUpgradeProduct ? (
                      <div className="rounded-[1.5rem] border border-primary bg-primary/10 p-5 shadow-lg shadow-primary/10">
                         <div className="flex items-center gap-4">
@@ -1094,8 +1094,8 @@ export const Products = () => {
                               <div className="w-2.5 h-2.5 rounded-full bg-primary" />
                            </div>
                            <div>
-                              <p className="text-sm font-bold text-white mb-0.5">Upgrade aplicado automaticamente</p>
-                              <p className="text-[10px] text-gray-300">Apos o pagamento aprovado, a plataforma aplica o plano vinculado a conta beneficiaria. Nao entrega area de membros, link ou arquivo.</p>
+                              <p className="text-sm font-bold text-white mb-0.5">{t('coverage.products.upgrade_applied')}</p>
+                              <p className="text-[10px] text-gray-300">{t('coverage.products.upgrade_applied_description')}</p>
                            </div>
                         </div>
                      </div>
@@ -1106,8 +1106,8 @@ export const Products = () => {
                               <div className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
                            </div>
                            <div>
-                              <p className="text-sm font-bold text-white mb-0.5">Solicitacao de instalacao recebida</p>
-                              <p className="text-[10px] text-gray-300">Apos o pagamento aprovado, a plataforma cria uma ordem de servico e nossa equipe entra em contato. Nao entrega area de membros, link ou arquivo.</p>
+                              <p className="text-sm font-bold text-white mb-0.5">{t('coverage.products.installation_request_received')}</p>
+                              <p className="text-[10px] text-gray-300">{t('coverage.products.installation_request_description')}</p>
                            </div>
                         </div>
                      </div>
@@ -1116,18 +1116,18 @@ export const Products = () => {
                         {[
                         {
                           id: 'checkout',
-                          title: 'Painel de Membros',
-                          description: 'Libera acesso na area de membros apos pagamento.',
+                          title: t('coverage.products.member_area'),
+                          description: t('coverage.products.member_area_description'),
                         },
                         {
                           id: 'sales_page',
-                          title: 'Link Externo',
-                          description: 'Entrega um link externo na pagina de obrigado e no email.',
+                          title: t('coverage.products.external_link'),
+                          description: t('coverage.products.external_link_description'),
                         },
                         {
                           id: 'file',
-                          title: 'Arquivo / PDF Privado',
-                          description: 'Entrega um arquivo com link assinado temporario.',
+                          title: t('coverage.products.private_file'),
+                          description: t('coverage.products.private_file_description'),
                         },
                         ].map((option) => (
                          <label key={option.id} className={`flex-1 flex items-center gap-4 p-5 rounded-[1.5rem] border transition-all cursor-pointer ${formData.member_area_action === option.id ? 'bg-primary/10 border-primary shadow-lg shadow-primary/10' : 'bg-black/40 border-white/5 hover:border-white/10'}`}>
@@ -1147,7 +1147,7 @@ export const Products = () => {
                    {!hasAutomaticNonContentDelivery && formData.member_area_action === 'checkout' && (
                      <div className="space-y-6">
                         <div>
-                           <label className="text-[10px] text-gray-600 font-black uppercase tracking-widest mb-3 block">ConteÃºdos Oferecidos (Multi-seleÃ§Ã£o)</label>
+                           <label className="text-[10px] text-gray-600 font-black uppercase tracking-widest mb-3 block">{t('coverage.products.offered_contents')}</label>
                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-80 overflow-y-auto pr-2 custom-scrollbar">
                               {availableContents.map(cnt => (
                                 <div key={cnt.id} onClick={() => {
@@ -1167,13 +1167,13 @@ export const Products = () => {
                         </div>
 
                         <div>
-                           <label className="text-[10px] text-gray-600 font-black uppercase tracking-widest mb-3 block">Direcionar para Checkout (Opcional)</label>
+                           <label className="text-[10px] text-gray-600 font-black uppercase tracking-widest mb-3 block">{t('coverage.products.checkout_redirect')}</label>
                            <select
                               className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-4 text-white outline-none focus:border-white/20 transition-all font-medium appearance-none cursor-pointer"
                               value={formData.member_area_checkout_id}
                               onChange={e => setFormData({ ...formData, member_area_checkout_id: e.target.value })}
                            >
-                              <option value="">Nenhum</option>
+                              <option value="">{t('coverage.products.none')}</option>
                               {checkouts.map(ck => <option key={ck.id} value={ck.id}>{ck.name}</option>)}
                            </select>
                         </div>
@@ -1182,7 +1182,7 @@ export const Products = () => {
 
                    {!hasAutomaticNonContentDelivery && formData.member_area_action === 'sales_page' && (
                      <div className="animate-in fade-in slide-in-from-top-2 duration-300">
-                         <label className="text-[10px] text-gray-600 font-black uppercase tracking-widest mb-3 block">Link de Entrega</label>
+                         <label className="text-[10px] text-gray-600 font-black uppercase tracking-widest mb-3 block">{t('coverage.products.delivery_link')}</label>
                         <input type="text" className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-4 text-white focus:border-white/20" placeholder="https://..." value={formData.redirect_link || ''} onChange={e => setFormData({ ...formData, redirect_link: e.target.value })} />
                      </div>
                    )}
@@ -1192,7 +1192,7 @@ export const Products = () => {
                         <div className="rounded-[1.5rem] border border-white/5 bg-black/30 p-5">
                            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                               <div className="min-w-0">
-                                 <p className="text-[10px] text-gray-600 font-black uppercase tracking-widest mb-2">Arquivo Privado de Entrega</p>
+                                 <p className="text-[10px] text-gray-600 font-black uppercase tracking-widest mb-2">{t('coverage.products.private_delivery')}</p>
                                  <p className="text-sm text-white font-bold truncate">
                                    {formData.delivery_file_name || 'Nenhum arquivo enviado'}
                                  </p>
@@ -1233,14 +1233,14 @@ export const Products = () => {
                                      onClick={handleRemoveDeliverable}
                                      disabled={uploadingDeliverable}
                                    >
-                                     Remover arquivo
+                                     {t('coverage.products.remove_file')}
                                    </Button>
                                  ) : null}
                               </div>
                            </div>
                         </div>
                         <p className="text-[11px] text-gray-500">
-                          O comprador recebe um botao na pagina de obrigado e no email. O download final usa um link temporario assinado pelo servidor.
+                          {t('coverage.products.delivery_note')}
                         </p>
                      </div>
                    )}
@@ -1252,10 +1252,10 @@ export const Products = () => {
           <Card className="bg-black/40 border border-white/5 p-6">
              <div className="flex flex-col md:flex-row items-center justify-between gap-6">
                 <div>
-                   <p className="text-[10px] font-black uppercase tracking-widest text-gray-700 mb-1">Link de Tracking Base</p>
+                   <p className="text-[10px] font-black uppercase tracking-widest text-gray-700 mb-1">{t('coverage.products.tracking_base')}</p>
                    <p className="text-xs font-mono text-primary truncate max-w-[400px]">/checkout?p={editingId || 'new'}</p>
                 </div>
-                <button onClick={() => handleCopyId(editingId || '')} className="px-6 py-3 bg-white/5 hover:bg-white/10 text-white rounded-xl text-[10px] font-black uppercase tracking-widest border border-white/10 transition-all">Copiar Link</button>
+                <button onClick={() => handleCopyId(editingId || '')} className="px-6 py-3 bg-white/5 hover:bg-white/10 text-white rounded-xl text-[10px] font-black uppercase tracking-widest border border-white/10 transition-all">{t('coverage.products.copy_link')}</button>
              </div>
           </Card>
         </div>

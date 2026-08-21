@@ -39,6 +39,7 @@
     "demo": "See the System",
     "access_data": "Access Data",
     "installation": "Installation",
+    "services": "Services",
     "tutorials": "Tutorials",
     "security": "Security",
     "upgrade_business": "Upgrade & Business",
@@ -118,6 +119,7 @@
       "license_validated": "License: Validated in Cloud",
       "domains_monitored": "Domains: Active Monitoring"
     },
+    "key_usage": "Used to validate your instances",
     "limited_desc": "Your free account includes 1 domain and up to 3 products. Release Unlimited Features when you need to grow.",
     "unlimited_desc": "Unlimited Features is active: unlimited products, checkouts, member areas, and domains.",
     "demo": {
@@ -227,17 +229,13 @@
       "whitelabel": "White Label layer enabled",
       "owner_global": "Global platform management",
       "owner_operations": "Central audit, licenses, and operations"
-    }
-  },
-  "license": {
-    "title": "Access Credentials",
-    "master_key": "Master Activation Key",
-    "copied": "Copied!",
-    "copy_token": "Copy Token",
-    "installations": "Installations",
-    "domain": "Domain",
-    "any_domain": "Any domain",
-    "unlimited": "Unlimited"
+    },
+    "account_classification_description": "The account was not classified as free while the lookup is incomplete.",
+    "account_classification_warning": "ACCOUNT CLASSIFICATION NOTICE",
+    "load_error_title": "License status unavailable",
+    "retry": "TRY AGAIN",
+    "server_configuration_error": "SERVER CONFIGURATION ERROR",
+    "unavailable": "UNAVAILABLE"
   },
   "install": {
     "title": "Infrastructure & Deploy",
@@ -251,6 +249,8 @@
     "link_expired": "The installation link expired. Generate a new link to continue.",
     "reinstall_button": "REINSTALL",
     "reinstall_confirm": "This action will disconnect the checkout at {{domain}}. Continue?",
+    "reinstall_2fa_label": "Portal 2FA code",
+    "reinstall_2fa_hint": "This confirmation can be used once and expires in 5 minutes.",
     "confirm_yes": "YES, NOW",
     "confirm_back": "BACK",
     "generate_token": "GENERATE TOKEN",
@@ -517,5 +517,8 @@
     "button": "Generate Free License",
     "activate_error": "Error activating license",
     "connection_error": "Connection error"
-  }
+  },
+  "portal_security": {"account_classification_description":"The account was not classified as free while the lookup is incomplete.","activation_code":"ENTER THE 6-DIGIT CODE TO ACTIVATE","active_description":"New password logins and destructive operations require your authenticator app.","active_title":"Portal 2FA is active","change_authenticator":"Confirm and change authenticator","change_description":"2FA remains required. Scan and confirm the new QR code on this screen; the old code stops working when the new QR is prepared.","code_not_accepted":"The 2FA code was not accepted.","confirm":"Confirm and activate 2FA","configure":"Configure 2FA now","current_code":"CURRENT PORTAL AUTHENTICATOR CODE (6 DIGITS)","generated_code":"2. ENTER THE 6-DIGIT CODE GENERATED IN THE APP","invalid_code":"Enter the 6-digit code shown by your authenticator app.","owner_description":"Without 2FA, an email-recovered session could request an installation reset. Activate it now so this action requires your temporary code.","owner_protection":"Owner protection","owner_required":"Owner action required","portal_protection":"Portal protection","prepare_error":"Unable to prepare Portal 2FA.","protect_portal":"Protect the Portal with 2FA","protected":"PROTECTED","protected_change":"Protected authenticator change","qr_alt":"QR code to configure Portal 2FA","recommended":"Recommended protection","recommended_description":"Actions such as resetting or revoking your installation require a temporary code. Activate it to keep this feature available with additional protection.","register_new":"Register the new authenticator","scan_qr":"1. Scan this QR code in Google Authenticator, Authy, or an equivalent app:","session_expired":"Your Portal session expired. Sign in again to configure 2FA.","unavailable":"License status unavailable","server_configuration_error":"SERVER CONFIGURATION ERROR","account_classification_warning":"ACCOUNT CLASSIFICATION NOTICE","retry":"TRY AGAIN"},
+  "license": {"any_domain":"Any domain","copied":"Copied!","copy_token":"Copy Token","domain":"Domain","installations":"Installations","load_error":"Unable to load access data","master_key":"Master Activation Key","platform_owner":"Platform owner account","platform_owner_description":"This account's operational access is recognized by Central and does not depend on generating a free license.","refresh":"Refresh license data","retry":"Try again","title":"Access Credentials","unlimited":"Unlimited"}
+  ,"service_orders": {"active_filter":"Active filter","approval_expiry":"It expires in 30 minutes and can only be used once.","approval_link":"Approval link created. Copy and send it to the client.","approval_link_copied":"Approval link copied.","approval_ready":"Approval link ready","beneficiary_description":"Follow and manage only requests linked to your account.","breadcrumb":"Portal / Operations","clear_filters":"Clear filters","copy_error":"Unable to copy the link.","copy_link":"Copy link","count":"{{filtered}} of {{total}} service(s)","email_cancelled":"Email canceled","email_failed":"Email failed — retry available","email_pending":"Email waiting to send","email_sending":"Email sending","email_sent":"Email sent","empty_description":"When a service purchase is made, it will appear here.","empty_title":"No requests yet","filter":"Filter","filters":{"active":"In progress","all":"All","cancelled":"Canceled","completed":"Completed","support":"Support","waiting":"Waiting"},"installation_link_copied":"Secure installation link copied.","installation_link_copy_error":"Unable to copy the installation link.","load_error":"Unable to load services.","loading":"Loading services","new_approval_link":"New approval link created without a new charge. Copy and send it to the client.","no_results_description":"Adjust the search or remove filters to see other requests.","no_results_title":"No service found","overview":"Overview","owner_description":"Global queue of requests, approvals, and execution.","partner_description":"You see only your referrals, sales, and assigned services.","refresh":"Refresh","search_label":"Search services","search_placeholder":"Search service, client, provider, or ID...","sort":{"oldest":"Oldest","price":"Highest value","recent":"Most recent"},"sort_label":"Sort services","started_with_access":"Service started and secure installation access generated.","started_without_access":"Service started. Generate installation access before continuing.","status":{"approved":"Approved by client","assigned":"Provider assigned","awaiting_client_approval":"Waiting for client approval","cancelled":"Canceled","completed":"Completed","in_progress":"In progress","paid":"Waiting for preparation","rejected":"Rejected by client","revoked":"Installation canceled"},"summary":{"active":"In progress","active_hint":"Installations underway","completed":"Completed","completed_hint":"Finished services","waiting":"Waiting for action","waiting_hint":"Pending items to release"},"support":{"acknowledged":"In support","open":"Support requested","resolved":"Support completed"},"support_acknowledged":"Support accepted. The client was notified in the Portal.","support_already_open":"A support request is already open for this request.","support_minimum":"Describe what you need in at least 10 characters.","support_resolved":"Support marked as completed.","support_sent":"Support request sent to the responsible provider.","support_updated":"Support updated","title":"Installation services","update_error":"Unable to update the order.","updated":"Service order updated.","warnings":{"beneficiary_license":"Waiting for the client to activate the free license before approval.","activate_license":"Activate your free license so the partner can request approval. This does not install the system or require an upgrade.","provider_preparing":"The provider is preparing your authorization. You will be notified when you can authorize it.","finish_installation":"Complete the secure installation before closing this service.","installation_attached":"The installation is securely linked to this order."},"actions":{"activate_free_license":"Activate free license","request_approval":"Request approval","request_new_approval":"Request new approval","review_approval":"Review approval","request_support":"I need help","acknowledge_support":"Take support request","resolve_support":"Complete support","assign_to_me":"Assign to me","assign":"Assign","take_service":"Take service","start":"Start","generate_new_access":"Generate new access","generate_access":"Generate installer access","complete":"Complete","retry_failed_emails":"Retry emails","cancel":"Cancel","cancel_request":"Cancel request","cancel_installation":"Cancel installation","open_installer":"Open installer","back":"Back","send_request":"Send request"},"installation_access_ready":"Secure installation access ready","installation_access_expires":"Expires {{date}} and is exclusive to this order.","pagination":{"showing":"Showing {{from}}-{{to}} of {{total}}","previous":"Previous page","next":"Next page","page":"Page {{page}} / {{total}}"},"support_modal":{"title":"Request support","description":"Describe your question about this service. The request will be sent to the responsible provider and recorded in the Portal.","placeholder":"e.g. I have a question about the next installation steps."},"cancel_modal":{"title":"Confirm installation cancellation","paid_message":"Are you sure you want to cancel this installation? It will not start. The payment will not be refunded automatically, and the owner can send a new approval later without a new charge.","pending_message":"Are you sure you want to cancel this installation? This cancels your authorization and interrupts pending operational access. The payment will not be refunded automatically, and installation can continue only after a new approval.","confirm":"Yes, cancel installation"}}
 }

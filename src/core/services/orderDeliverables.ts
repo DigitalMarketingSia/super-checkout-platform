@@ -66,7 +66,7 @@ function buildProductFileAccessUrl(origin: string, orderId: string, productId: s
     action: 'deliverable-file',
     orderId,
     productId,
-    sig: generateSignature(orderId),
+    sig: generateSignature(orderId, 'deliverable_file'),
   });
 
   return `${normalizeOrigin(origin)}/api/system?${query.toString()}`;

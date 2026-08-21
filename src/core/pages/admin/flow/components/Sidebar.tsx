@@ -43,7 +43,7 @@ export const Sidebar = () => {
       label: t(`flow.templates.${template.id}.nodes.${node.id}`, { defaultValue: node.data.label }),
       category: node.data.category === 'Rede Social'
         ? t('flow.toolbar.categories.social')
-        : node.data.category === 'Página' || node.data.category === 'PÃ¡gina'
+        : node.data.category === 'Página'
           ? t('flow.toolbar.categories.page')
           : node.data.category === 'Produto'
             ? t('flow.toolbar.categories.product')

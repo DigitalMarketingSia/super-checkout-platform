@@ -8,7 +8,9 @@
     "profile": "Profile",
     "logout": "Logout",
     "signup": "Sign Up",
-    "login": "Login"
+    "login": "Login",
+    "open_menu": "Open menu",
+    "close_menu": "Close menu"
   },
   "status": {
     "suspended": "Access Suspended",

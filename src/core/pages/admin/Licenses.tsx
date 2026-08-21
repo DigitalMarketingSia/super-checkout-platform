@@ -333,7 +333,7 @@ export const Licenses = () => {
                                         MY <span className="text-primary font-black">LICENSE</span>
                                     </h1>
                                     <p className="text-sm text-gray-400 font-medium max-w-2xl leading-relaxed italic border-l-2 border-primary/20 pl-6">
-                                        Você está visualizando uma instância gerenciada. As chaves criptográficas e infraestrutura são administradas pelo protocolo Master da sua agência.
+                                        {t('licenses.client.managed_instance_notice')}
                                     </p>
                                 </div>
                             </div>
@@ -428,7 +428,7 @@ export const Licenses = () => {
                                 </h3>
                             </div>
                             <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-[9px] font-black uppercase tracking-widest w-fit">
-                                <CheckCircle className="w-3.5 h-3.5" /> Protocol Active
+                                <CheckCircle className="w-3.5 h-3.5" /> {t('licenses.status.protocol_active')}
                             </div>
                         </div>
                     </Card>
@@ -472,7 +472,7 @@ export const Licenses = () => {
                             </div>
                             <div className="rounded-2xl border border-white/5 bg-white/[0.02] px-5 py-4">
                                 <p className="text-[10px] font-black uppercase tracking-[0.24em] text-gray-500">
-                                    Portal separado da instalacao
+                                    {t('licenses.status.separate_portal')}
                                 </p>
                             </div>
                         </div>
@@ -522,7 +522,7 @@ export const Licenses = () => {
                                             {t('installed_at', { date: new Date(inst.installed_at).toLocaleDateString(i18n.language === 'en' ? 'en-US' : i18n.language === 'es' ? 'es-ES' : 'pt-BR') })}
                                         </span>
                                         <div className="w-1 h-1 rounded-full bg-gray-800" />
-                                        <span className="text-[10px] text-gray-600 font-black uppercase tracking-widest">Node ID: {inst.id.split('-')[0]}</span>
+                                        <span className="text-[10px] text-gray-600 font-black uppercase tracking-widest">{t('licenses.status.node_id')}: {inst.id.split('-')[0]}</span>
                                     </div>
                                 </div>
                             </div>
@@ -533,7 +533,7 @@ export const Licenses = () => {
                                         ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-500' 
                                         : 'bg-rose-500/5 border-rose-500/20 text-rose-500'
                                 }`}>
-                                    {inst.status === 'active' ? 'Operational' : 'Terminated'}
+                                    {inst.status === 'active' ? t('licenses.status.operational') : t('licenses.status.terminated')}
                                 </div>
 
                                 <Button

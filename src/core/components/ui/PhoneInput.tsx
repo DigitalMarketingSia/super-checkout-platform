@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown, Search, Check } from 'lucide-react';
 import { COUNTRIES, Country } from '../../utils/countries';
+import { useTranslation } from 'react-i18next';
 
 interface PhoneInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange'> {
     value: string;
@@ -22,6 +23,7 @@ export const PhoneInput: React.FC<PhoneInputProps> = ({
     onBlur,
     ...props 
 }) => {
+    const { t } = useTranslation();
     const [selectedCountry, setSelectedCountry] = useState<Country>(COUNTRIES[0]); // Default BR
     const [isOpen, setIsOpen] = useState(false);
     const [search, setSearch] = useState('');
@@ -167,7 +169,7 @@ export const PhoneInput: React.FC<PhoneInputProps> = ({
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
                             <input
                                 type="text"
-                                placeholder="Buscar país..."
+                                placeholder={t('coverage.phone.search')}
                                 className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-gray-200 rounded-md focus:outline-none focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/10"
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
@@ -200,7 +202,7 @@ export const PhoneInput: React.FC<PhoneInputProps> = ({
                             ))
                         ) : (
                             <div className="p-3 text-center text-xs text-gray-500">
-                                Nenhum país encontrado
+                                {t('coverage.phone.empty')}
                             </div>
                         )}
                     </div>

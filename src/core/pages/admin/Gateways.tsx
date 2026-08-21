@@ -14,6 +14,7 @@ import { isDemoDataRuntime } from '../../services/demoDataService';
 import { Gateway, GatewayProvider } from '../../types';
 import { detectAsaasApiKeyEnvironment } from '../../utils/asaas';
 import { sanitizeTranslationHtml } from '../../utils/sanitize';
+import { PAGBANK_GATEWAY_ENABLED } from '../../config/gatewayAvailability';
 
 type MercadoPagoConfigState = {
   public_key: string;
@@ -108,8 +109,6 @@ const DEFAULT_PAYPAL_CONFIG: PayPalConfigState = {
   has_webhook_secret: false,
   last_verified_at: null,
 };
-
-const PAGBANK_GATEWAY_ENABLED = false;
 
 type PagbankStatusTone = 'success' | 'warning' | 'danger' | 'neutral';
 
@@ -355,7 +354,7 @@ export const Gateways = () => {
       setTimeout(() => showAlert('Conexão Cancelada', 'Você cancelou a autorização do PagBank.', 'info'), 500);
       window.history.replaceState({}, '', window.location.pathname);
     } else if (errorParam === 'pagbank_oauth_provider_error') {
-      const detail = providerErrorDescription || providerError || 'O PagBank recusou a autorizaÃ§Ã£o.';
+      const detail = providerErrorDescription || providerError || 'O PagBank recusou a autorização.';
       setTimeout(() => showAlert('Erro do PagBank', detail, 'error'), 500);
       window.history.replaceState({}, '', window.location.pathname);
     } else if (errorParam === 'pagbank_oauth_failed') {
@@ -515,6 +514,19 @@ export const Gateways = () => {
         const hasWebhookId = Boolean(String(restConfig.webhook_secret || '').trim()) || Boolean(hasWebhookSecret);
         if (!hasClientId || !hasClientSecret || !hasWebhookId || !paypalConfig.last_verified_at) {
           showAlert('Configuracao PayPal incompleta', 'Para habilitar o PayPal, informe Client ID, Client Secret e o Webhook ID da assinatura oficial.', 'error');
+          return;
+        }
+      }
+
+      if (activeModalApp === 'asaas' && restConfig.active) {
+        const hasApiKey = Boolean(String(restConfig.private_key || '').trim()) || Boolean(hasPrivateKey);
+        const hasWebhookToken = Boolean(String(restConfig.webhook_secret || '').trim()) || Boolean(hasWebhookSecret);
+        if (!hasApiKey || !hasWebhookToken) {
+          showAlert(
+            t('coverage.gateways.asaas_incomplete_title'),
+            t('coverage.gateways.asaas_incomplete_message'),
+            'error',
+          );
           return;
         }
       }
@@ -860,83 +872,83 @@ export const Gateways = () => {
     if (pagbankDisconnectRequested) {
       return {
         tone: 'neutral' as PagbankStatusTone,
-        badge: 'Desconexao pendente',
-        title: 'Desconexao pronta para salvar',
-        message: 'Ao salvar, o gateway sera desativado e os tokens OAuth do PagBank serao removidos desta conta.',
-        actionLabel: 'Conectar com PagBank',
+        badge: t('coverage.gateways.status.disconnect_pending_badge'),
+        title: t('coverage.gateways.status.disconnect_pending_title'),
+        message: t('coverage.gateways.status.disconnect_pending_message'),
+        actionLabel: t('coverage.gateways.status.connect_pagbank'),
       };
     }
 
     if (pagbankEnvironmentMismatch) {
       return {
         tone: 'warning' as PagbankStatusTone,
-        badge: 'Reautorizacao necessaria',
-        title: 'Ambiente alterado apos a conexao',
-        message: `A conta foi autorizada em ${formatPagbankEnvironmentLabel(pagbankOauthEnvironment)} e o gateway agora esta em ${formatPagbankEnvironmentLabel(pagSeguroConfig.environment)}. Reconecte para emitir um token no ambiente correto.`,
-        actionLabel: 'Reautorizar com PagBank',
+        badge: t('coverage.gateways.status.reauthorization_required_badge'),
+        title: t('coverage.gateways.status.environment_changed_title'),
+        message: t('coverage.gateways.status.environment_changed_message', { authorized: formatPagbankEnvironmentLabel(pagbankOauthEnvironment), current: formatPagbankEnvironmentLabel(pagSeguroConfig.environment) }),
+        actionLabel: t('coverage.gateways.status.reauthorize_pagbank'),
       };
     }
 
     if (pagbankReconnectRequired || pagbankIncompleteOauth) {
       return {
         tone: 'danger' as PagbankStatusTone,
-        badge: 'Reconexao obrigatoria',
-        title: 'O PagBank exige nova autorizacao',
+        badge: t('coverage.gateways.status.reconnect_required_badge'),
+        title: t('coverage.gateways.status.pagbank_reauthorization_title'),
         message: pagbankTokenExpired
-          ? 'O token atual ja expirou e o PagBank pediu nova autorizacao. Reconecte antes de liberar novos pagamentos por este gateway.'
-          : 'O refresh expirou, foi recusado ou ficou incompleto. Reconecte antes de liberar novos pagamentos por este gateway.',
-        actionLabel: 'Reconectar com PagBank',
+          ? t('coverage.gateways.status.token_expired_message')
+          : t('coverage.gateways.status.refresh_expired_message'),
+        actionLabel: t('coverage.gateways.status.reconnect_pagbank'),
       };
     }
 
     if (pagbankFallbackMode) {
       return {
         tone: 'warning' as PagbankStatusTone,
-        badge: 'Operando em fallback',
-        title: 'Refresh falhou, mas o token atual segue em uso',
-        message: 'O sistema manteve o ultimo token valido para evitar parada imediata. Reautorize o PagBank para restaurar a renovacao automatica.',
-        actionLabel: 'Reautorizar com PagBank',
+        badge: t('coverage.gateways.status.fallback_badge'),
+        title: t('coverage.gateways.status.fallback_title'),
+        message: t('coverage.gateways.status.fallback_message'),
+        actionLabel: t('coverage.gateways.status.reauthorize_pagbank'),
       };
     }
 
     if (pagbankManualMode) {
       return {
         tone: 'warning' as PagbankStatusTone,
-        badge: 'Modo manual ativo',
-        title: 'Gateway funcionando fora da conexao oficial',
-        message: 'Existe um token salvo manualmente. O fluxo funciona, mas sem refresh automatico. Recomendado migrar para a conexao oficial do PagBank.',
-        actionLabel: 'Migrar para Conexao Oficial',
+        badge: t('coverage.gateways.status.manual_mode_badge'),
+        title: t('coverage.gateways.status.manual_mode_title'),
+        message: t('coverage.gateways.status.manual_mode_message'),
+        actionLabel: t('coverage.gateways.status.migrate_official'),
       };
     }
 
     if (pagbankOauthConnected && pagSeguroConfig.has_private_key) {
       return {
         tone: 'success' as PagbankStatusTone,
-        badge: 'Conexao oficial ativa',
-        title: pagbankTokenExpiringSoon ? 'Conta conectada com renovacao proxima' : 'Conta conectada e pronta para uso',
+        badge: t('coverage.gateways.status.official_connected_badge'),
+        title: pagbankTokenExpiringSoon ? t('coverage.gateways.status.expiring_soon_title') : t('coverage.gateways.status.connected_ready_title'),
         message: pagbankTokenExpiringSoon
-          ? 'A conexao oficial esta ativa. O sistema deve renovar o token sozinho na proxima operacao, mas voce ja pode reautorizar se quiser antecipar.'
-          : 'A conta esta autorizada via OAuth oficial, com refresh automatico e chaves operacionais mantidas pelo sistema.',
-        actionLabel: 'Reautorizar com PagBank',
+          ? t('coverage.gateways.status.expiring_soon_message')
+          : t('coverage.gateways.status.connected_ready_message'),
+        actionLabel: t('coverage.gateways.status.reauthorize_pagbank'),
       };
     }
 
     if (pagbankDisconnected) {
       return {
         tone: 'neutral' as PagbankStatusTone,
-        badge: 'Conta desconectada',
-        title: 'Nenhum token oficial salvo',
-        message: 'Esta conta foi desconectada do PagBank. Use a conexao oficial para gerar um novo token e reativar o gateway.',
-        actionLabel: 'Conectar com PagBank',
+        badge: t('coverage.gateways.status.disconnected_badge'),
+        title: t('coverage.gateways.status.disconnected_title'),
+        message: t('coverage.gateways.status.disconnected_message'),
+        actionLabel: t('coverage.gateways.status.connect_pagbank'),
       };
     }
 
     return {
       tone: 'neutral' as PagbankStatusTone,
-      badge: 'Conta nao conectada',
-      title: 'Conecte o PagBank para operar',
-      message: 'A autorizacao oficial cria e renova o token automaticamente. Se preferir rollback, voce pode desconectar e salvar para desativar o gateway.',
-      actionLabel: 'Conectar com PagBank',
+      badge: t('coverage.gateways.status.not_connected_badge'),
+      title: t('coverage.gateways.status.not_connected_title'),
+      message: t('coverage.gateways.status.not_connected_message'),
+      actionLabel: t('coverage.gateways.status.connect_pagbank'),
     };
   })();
   const pagbankOperationalBadgeClass = pagbankOperationalStatus.tone === 'success'
@@ -947,17 +959,17 @@ export const Gateways = () => {
         ? 'text-amber-300'
         : 'text-gray-400';
   const pagbankOperationalMeta = [
-    { label: 'Ambiente do gateway', value: formatPagbankEnvironmentLabel(pagSeguroConfig.environment) },
-    ...(pagbankOauthEnvironment ? [{ label: 'Ambiente autorizado', value: formatPagbankEnvironmentLabel(pagbankOauthEnvironment) }] : []),
-    ...(pagbankAccountId ? [{ label: 'Conta OAuth', value: pagbankAccountId }] : []),
-    ...(pagbankConnectedAt ? [{ label: 'Ultima conexao', value: formatStatusDate(pagbankConnectedAt) }] : []),
-    ...(pagbankExpiresAt ? [{ label: 'Expira em', value: formatStatusDate(pagbankExpiresAt) }] : []),
-    ...(pagbankLastAttemptAt ? [{ label: 'Ultima tentativa de refresh', value: formatStatusDate(pagbankLastAttemptAt) }] : []),
-    ...(pagbankRefreshSource ? [{ label: 'Origem da ultima atualizacao', value: pagbankRefreshSource }] : []),
-    ...(pagbankReconnectRequiredAt ? [{ label: 'Reconexao exigida em', value: formatStatusDate(pagbankReconnectRequiredAt) }] : []),
+    { label: t('coverage.gateways.status.gateway_environment'), value: formatPagbankEnvironmentLabel(pagSeguroConfig.environment) },
+    ...(pagbankOauthEnvironment ? [{ label: t('coverage.gateways.status.authorized_environment'), value: formatPagbankEnvironmentLabel(pagbankOauthEnvironment) }] : []),
+    ...(pagbankAccountId ? [{ label: t('coverage.gateways.status.oauth_account'), value: pagbankAccountId }] : []),
+    ...(pagbankConnectedAt ? [{ label: t('coverage.gateways.status.last_connection'), value: formatStatusDate(pagbankConnectedAt) }] : []),
+    ...(pagbankExpiresAt ? [{ label: t('coverage.gateways.status.expires_at'), value: formatStatusDate(pagbankExpiresAt) }] : []),
+    ...(pagbankLastAttemptAt ? [{ label: t('coverage.gateways.status.last_refresh_attempt'), value: formatStatusDate(pagbankLastAttemptAt) }] : []),
+    ...(pagbankRefreshSource ? [{ label: t('coverage.gateways.status.last_update_source'), value: pagbankRefreshSource }] : []),
+    ...(pagbankReconnectRequiredAt ? [{ label: t('coverage.gateways.status.reconnect_required_at'), value: formatStatusDate(pagbankReconnectRequiredAt) }] : []),
     ...((pagbankRefreshErrorCode || pagbankRefreshError)
       ? [{
-          label: 'Ultimo erro',
+          label: t('coverage.gateways.status.last_error'),
           value: [pagbankRefreshErrorCode, pagbankRefreshError].filter(Boolean).join(' - '),
         }]
       : []),
@@ -1058,13 +1070,13 @@ export const Gateways = () => {
           <div className="flex items-center gap-3">
             <p className="text-gray-600 font-medium uppercase tracking-[0.1em] text-[10px]">{t('gateways.subtitle')}</p>
             <div className="h-1 w-1 rounded-full bg-gray-800"></div>
-            <span className="text-[10px] text-primary font-black uppercase tracking-[0.2em]">Transaction Core</span>
+            <span className="text-[10px] text-primary font-black uppercase tracking-[0.2em]">{t('coverage.gateways.transaction_core')}</span>
           </div>
         </div>
         <div className="flex items-center gap-4">
           <div className="px-6 py-3 rounded-2xl bg-black/40 border border-white/5 flex items-center gap-3">
             <ShieldCheck className="w-4 h-4 text-primary" />
-            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Criptografia de Ponta-a-Ponta Ativa</span>
+            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">{t('coverage.gateways.encryption_active')}</span>
           </div>
         </div>
       </div>
@@ -1110,15 +1122,15 @@ export const Gateways = () => {
             <Lock className="w-7 h-7 text-gray-700 group-hover:text-primary transition-colors" />
           </div>
           <div>
-            <h3 className="text-xl font-portal-display text-white uppercase tracking-tight">Cofre de Seguranca v4</h3>
+            <h3 className="text-xl font-portal-display text-white uppercase tracking-tight">{t('coverage.gateways.vault_title')}</h3>
             <p className="text-[10px] font-black text-gray-700 uppercase tracking-widest mt-1 leading-relaxed">
-              Suas credenciais sao criptografadas com AES-256 e nunca sao armazenadas em texto plano. O processamento e direto via API segura.
+              {t('coverage.gateways.vault_description')}
             </p>
           </div>
         </div>
         <div className="flex gap-4">
-          <div className="px-5 py-3 rounded-xl bg-white/5 border border-white/5 text-[10px] font-black text-gray-500 uppercase tracking-widest">PCI DSS Compliant</div>
-          <div className="px-5 py-3 rounded-xl bg-white/5 border border-white/5 text-[10px] font-black text-gray-500 uppercase tracking-widest">SSL Secure</div>
+          <div className="px-5 py-3 rounded-xl bg-white/5 border border-white/5 text-[10px] font-black text-gray-500 uppercase tracking-widest">{t('coverage.gateways.pci_compliant')}</div>
+          <div className="px-5 py-3 rounded-xl bg-white/5 border border-white/5 text-[10px] font-black text-gray-500 uppercase tracking-widest">{t('coverage.gateways.ssl_secure')}</div>
         </div>
       </div>
 
@@ -1145,7 +1157,7 @@ export const Gateways = () => {
             {!isPagSeguroModal && !isAsaasModal && (
               <div className="grid grid-cols-1 gap-6">
                 <div>
-                  <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-3 block">Chave Publica (Public Key)</label>
+                  <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-3 block">{t('coverage.gateways.public_key')}</label>
                   <input
                     type="text"
                     className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-4 focus:border-primary/50 outline-none text-white font-mono text-sm transition-all"
@@ -1157,7 +1169,7 @@ export const Gateways = () => {
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-3 block">Chave Secreta (Secret Key)</label>
+                  <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-3 block">{t('coverage.gateways.secret_key')}</label>
                   <input
                     type="password"
                     className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-4 focus:border-primary/50 outline-none text-white font-mono text-sm transition-all"
@@ -1176,14 +1188,14 @@ export const Gateways = () => {
             {isMercadoPagoModal && (
               <div className="rounded-[1.6rem] border border-amber-500/20 bg-amber-500/5 px-5 py-4 text-left">
                 <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">
-                  Ambiente de testes do Mercado Pago
+                  {t('coverage.gateways.mercado_pago_test_environment')}
                 </div>
                 <p className="mt-2 text-xs leading-relaxed text-amber-100">
-                  O Mercado Pago nao usa uma aba sandbox separada neste painel. Para homologar, use credenciais `TEST-` da aplicacao correta e realize a compra com conta/cartao de teste compativeis.
+                  {t('coverage.gateways.mercado_pago_test_description')}
                 </p>
                 {inferredMercadoPagoEnvironment && (
                   <p className="mt-3 text-[10px] font-black uppercase tracking-[0.18em] text-amber-200">
-                    Ambiente detectado pelas chaves: {inferredMercadoPagoEnvironment === 'sandbox' ? 'Sandbox' : 'Producao'}.
+                    {t('coverage.gateways.detected_environment')}: {inferredMercadoPagoEnvironment === 'sandbox' ? t('coverage.gateways.sandbox') : t('coverage.gateways.production')}.
                   </p>
                 )}
               </div>
@@ -1193,19 +1205,19 @@ export const Gateways = () => {
               <div className="grid grid-cols-1 gap-6">
                 <div className="rounded-[1.6rem] border border-amber-500/20 bg-amber-500/5 px-5 py-4 text-left">
                   <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">
-                    Escopo atual do Asaas
+                    {t('coverage.gateways.asaas_scope')}
                   </div>
                   <p className="mt-2 text-xs leading-relaxed text-amber-100">
-                    No Super Checkout, o Asaas está liberado apenas para Pix neste momento. Cartão e boleto permanecem desativados nesse gateway.
+                    {t('coverage.gateways.asaas_scope_description')}
                   </p>
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-3 block">Access Token (API Key)</label>
+                  <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-3 block">{t('coverage.gateways.access_token')}</label>
                   <input
                     type="password"
                     className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-4 focus:border-primary/50 outline-none text-white font-mono text-sm transition-all"
-                    placeholder="Insira a API Key do Asaas"
+                    placeholder={t('coverage.gateways.asaas_key_placeholder')}
                     value={activeConfig.private_key}
                     onChange={event => {
                       const nextValue = event.target.value;
@@ -1222,7 +1234,7 @@ export const Gateways = () => {
                   </p>
                   {inferredAsaasEnvironment && (
                     <p className="mt-2 text-[10px] font-black text-gray-600 uppercase tracking-widest leading-relaxed">
-                      Ambiente detectado pela chave: {formatAsaasEnvironmentLabel(inferredAsaasEnvironment === 'sandbox')}.
+                      {t('coverage.gateways.detected_environment')}: {formatAsaasEnvironmentLabel(inferredAsaasEnvironment === 'sandbox')}.
                     </p>
                   )}
                 </div>
@@ -1235,9 +1247,9 @@ export const Gateways = () => {
                   <ShieldCheck className="w-8 h-8 text-primary" />
                 </div>
                 <div>
-                  <h3 className="text-white font-bold text-lg mb-2">Conexão Oficial PagBank</h3>
+                  <h3 className="text-white font-bold text-lg mb-2">{t('coverage.gateways.pagbank_connection')}</h3>
                   <p className="text-gray-400 text-xs max-w-sm mx-auto">
-                    Ao conectar sua conta, nós configuraremos automaticamente as chaves e permissões necessárias com segurança.
+                    {t('coverage.gateways.pagbank_connection_description')}
                   </p>
                 </div>
                 
@@ -1286,7 +1298,7 @@ export const Gateways = () => {
                   variant="primary" 
                   className="px-8 py-4 font-black uppercase text-xs tracking-widest rounded-full w-full max-w-sm"
                 >
-                  {isConnectingOauth ? 'Conectando...' : pagbankOperationalStatus.actionLabel}
+                  {isConnectingOauth ? t('coverage.gateways.status.connecting') : pagbankOperationalStatus.actionLabel}
                 </Button>
 
                 {pagbankDebugUnlocked && pagSeguroConfig.environment === 'sandbox' && (
@@ -1294,7 +1306,7 @@ export const Gateways = () => {
                     <input
                       type="email"
                       className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-4 focus:border-primary/50 outline-none text-white text-sm transition-all"
-                      placeholder="E-mail do vendedor teste Sandbox"
+                      placeholder={t('coverage.gateways.sandbox_seller_placeholder')}
                       value={pagbankSandboxSellerEmail}
                       onChange={event => setPagbankSandboxSellerEmail(event.target.value)}
                     />
@@ -1305,10 +1317,10 @@ export const Gateways = () => {
                       variant="secondary"
                       className="px-8 py-4 font-black uppercase text-xs tracking-widest rounded-full w-full"
                     >
-                      {isConnectingOauth ? 'Conectando...' : 'Conectar Sandbox via SMS Mock'}
+                      {isConnectingOauth ? t('coverage.gateways.status.connecting') : t('coverage.gateways.status.connect_sandbox_mock')}
                     </Button>
                     <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest leading-relaxed">
-                      Usa o fluxo oficial de Connect via SMS do sandbox para contornar instabilidades da tela de login do PagBank.
+                    {t('coverage.gateways.pagbank_sandbox_description')}
                     </p>
                   </div>
                 )}
@@ -1329,7 +1341,7 @@ export const Gateways = () => {
                         onClick={handlePagbankDisconnect}
                         className="text-[10px] font-black text-red-500 uppercase tracking-widest hover:underline"
                       >
-                        Desconectar
+                        {t('coverage.gateways.status.disconnect')}
                       </button>
                     )}
                   </div>
@@ -1339,7 +1351,7 @@ export const Gateways = () => {
 
             {isPagSeguroModal && (
               <Card className="bg-white/5 border-white/5 rounded-[1.8rem]">
-                <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-4 block">Ambiente</label>
+                <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-4 block">{t('coverage.gateways.environment')}</label>
                 <div className="grid grid-cols-2 gap-3">
                   {[
                     { id: 'production', label: 'Producao' },
@@ -1365,10 +1377,10 @@ export const Gateways = () => {
 
             {isPayPalModal && (
               <Card className="bg-white/5 border-white/5 rounded-[1.8rem]">
-                <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-4 block">Ambiente</label>
+                <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-4 block">{t('coverage.gateways.environment')}</label>
                 <div className="grid grid-cols-2 gap-3">
                   {[
-                    { id: 'production', label: 'Producao' },
+                    { id: 'production', label: t('coverage.gateways.production') },
                     { id: 'sandbox', label: 'Sandbox' },
                   ].map(option => (
                     <button
@@ -1382,7 +1394,7 @@ export const Gateways = () => {
                   ))}
                 </div>
                 <p className="mt-4 text-[10px] font-black text-gray-600 uppercase tracking-widest leading-relaxed">
-                  Use credenciais do mesmo ambiente. O Webhook ID e informado abaixo depois de criar o webhook no painel PayPal para `/api/stripe?action=paypal`.
+                  {t('coverage.gateways.paypal_credentials_description')}
                 </p>
               </Card>
             )}
@@ -1391,9 +1403,9 @@ export const Gateways = () => {
               <div className="rounded-[1.8rem] border border-blue-500/20 bg-blue-500/5 p-5">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-200">Validacao de credenciais</p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-200">{t('coverage.gateways.credential_validation')}</p>
                     <p className="mt-2 text-xs leading-relaxed text-blue-50/80">
-                      O teste cria apenas um token OAuth efemero no servidor. Nenhuma cobranca e nenhum pedido sao criados.
+                      {t('coverage.gateways.credential_validation_description')}
                     </p>
                   </div>
                   <Button
@@ -1408,7 +1420,7 @@ export const Gateways = () => {
                 </div>
                 {paypalConfig.last_verified_at && (
                   <p className="mt-3 text-[10px] font-black uppercase tracking-widest text-emerald-300">
-                    Ultima validacao: {formatStatusDate(paypalConfig.last_verified_at)}
+                    {t('coverage.gateways.last_validation')}: {formatStatusDate(paypalConfig.last_verified_at)}
                   </p>
                 )}
               </div>
@@ -1416,7 +1428,7 @@ export const Gateways = () => {
 
             {isAsaasModal && (
               <Card className="bg-white/5 border-white/5 rounded-[1.8rem]">
-                <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-4 block">Ambiente</label>
+                <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-4 block">{t('coverage.gateways.environment')}</label>
                 <div className="grid grid-cols-2 gap-3">
                   {[
                     { id: 'production', label: 'Producao' },
@@ -1433,14 +1445,14 @@ export const Gateways = () => {
                   ))}
                 </div>
                 <p className="mt-4 text-[10px] font-black text-gray-600 uppercase tracking-widest leading-relaxed">
-                  Escolha o mesmo ambiente da sua chave do Asaas. Chaves com prefixo `$aact_hmlg_` usam Sandbox e chaves com `$aact_prod_` usam Producao.
+                  {t('coverage.gateways.asaas_environment_description')}
                 </p>
               </Card>
             )}
 
             {!isPayPalModal && <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <Card className="bg-white/5 border-white/5 rounded-[1.8rem]">
-                <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-4 block">Parcelamento Maximo</label>
+                <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-4 block">{t('coverage.gateways.max_installments')}</label>
                 <div className="grid grid-cols-4 gap-2">
                   {[1, 2, 3, 6, 8, 10, 12].map(installments => (
                     <button
@@ -1456,7 +1468,7 @@ export const Gateways = () => {
               </Card>
 
               <Card className="bg-white/5 border-white/5 rounded-[1.8rem]">
-                <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-4 block">Minimo por Parcela</label>
+                <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-4 block">{t('coverage.gateways.minimum_installment')}</label>
                 <div className="relative">
                   <span className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-700 font-bold">R$</span>
                   <input
@@ -1472,7 +1484,7 @@ export const Gateways = () => {
 
             {isStripeModal && (
               <div className="p-6 rounded-[1.8rem] bg-white/5 border border-white/5">
-                <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-3 block">Taxa de Juros Mensal (%)</label>
+                <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-3 block">{t('coverage.gateways.monthly_interest')}</label>
                 <input
                   type="number"
                   step="0.01"
@@ -1484,7 +1496,13 @@ export const Gateways = () => {
             )}
 
             <div>
-              <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-3 block">{isPayPalModal ? 'Webhook ID do PayPal' : 'Secret de Webhook (Opcional)'}</label>
+              <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-3 block">
+                {isPayPalModal
+                  ? 'Webhook ID do PayPal'
+                  : isAsaasModal
+                    ? t('coverage.gateways.asaas_webhook_required')
+                    : 'Secret de Webhook (Opcional)'}
+              </label>
               <input
                 type="text"
                 className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-4 focus:border-primary/50 outline-none text-white font-mono text-xs transition-all"
@@ -1497,12 +1515,12 @@ export const Gateways = () => {
               </p>
               {isPagSeguroModal && (
                 <p className="mt-3 text-[10px] font-black text-gray-600 uppercase tracking-widest leading-relaxed">
-                  Se voce configurar o token de autenticidade do webhook no PagBank, informe o mesmo valor aqui para validacao forte do evento.
+                  {t('coverage.gateways.pagbank_webhook_description')}
                 </p>
               )}
               {isPayPalModal && (
                 <p className="mt-3 text-[10px] font-black text-gray-600 uppercase tracking-widest leading-relaxed">
-                  Este campo guarda o Webhook ID (nao o Client Secret) cifrado no servidor e e usado para validar a assinatura oficial do PayPal.
+                  {t('coverage.gateways.paypal_webhook_description')}
                 </p>
               )}
             </div>
@@ -1523,7 +1541,7 @@ export const Gateways = () => {
               >
                 <div className={`absolute top-1 w-6 h-6 rounded-full bg-white transition-all ${activeConfig.active ? 'left-7 shadow-xl' : 'left-1'}`} />
               </button>
-              <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Habilitar Gateway</span>
+              <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{t('coverage.gateways.enable_gateway')}</span>
             </div>
             <div className="flex gap-4">
               <button
@@ -1535,10 +1553,10 @@ export const Gateways = () => {
                 }}
                 className="px-6 py-4 text-[10px] font-black text-gray-600 uppercase tracking-widest"
               >
-                Abortar
+                {t('coverage.gateways.cancel')}
               </button>
               <Button type="submit" variant="primary" className="px-10 py-5 font-black uppercase text-xs tracking-widest rounded-3xl border-none shadow-2xl">
-                {isPagSeguroModal ? 'Salvar Configurações' : 'Vincular Motor'}
+                {isPagSeguroModal ? t('coverage.gateways.save_settings') : t('coverage.gateways.link_gateway')}
               </Button>
             </div>
           </div>

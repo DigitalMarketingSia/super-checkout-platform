@@ -40,8 +40,14 @@ const RESOURCE_CONFIG: Record<UploadResourceType, UploadResourceConfig> = {
 };
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const IMAGE_MIME_TYPE_PATTERN = /^image\/[a-z0-9.+-]+$/i;
-const SAFE_EXTENSION_PATTERN = /^[a-z0-9]{1,10}$/i;
+const MAX_PUBLIC_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024;
+const IMAGE_EXTENSION_BY_MIME_TYPE: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+  'image/avif': 'avif',
+};
 
 function parseBody(req: VercelRequest) {
   if (!req.body) return {};
@@ -53,15 +59,6 @@ function parseBody(req: VercelRequest) {
     }
   }
   return req.body;
-}
-
-function getFileExtension(fileName: unknown, contentType: unknown) {
-  const rawName = String(fileName || '').trim();
-  const fromName = rawName.includes('.') ? rawName.split('.').pop()?.toLowerCase() : '';
-  if (fromName && SAFE_EXTENSION_PATTERN.test(fromName)) return fromName;
-
-  const subtype = String(contentType || '').split('/')[1]?.split('+')[0]?.toLowerCase() || '';
-  return SAFE_EXTENSION_PATTERN.test(subtype) ? subtype : 'img';
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -76,6 +73,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const resourceId = String(body.resource_id || '').trim();
   const assetKind = String(body.asset_kind || '').trim().toLowerCase();
   const contentType = String(body.content_type || '').trim().toLowerCase();
+  const fileSize = Number(body.file_size || 0);
   const config = RESOURCE_CONFIG[resourceType];
 
   const rateLimit = enforceApiRateLimit(req, res, {
@@ -90,8 +88,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: 'Invalid upload target' });
   }
 
-  if (!IMAGE_MIME_TYPE_PATTERN.test(contentType)) {
-    return res.status(400).json({ error: 'Only image uploads are allowed' });
+  if (!IMAGE_EXTENSION_BY_MIME_TYPE[contentType]) {
+    return res.status(400).json({ error: 'Only JPEG, PNG, WebP, GIF or AVIF images are allowed' });
+  }
+  if (!Number.isSafeInteger(fileSize) || fileSize <= 0 || fileSize > MAX_PUBLIC_IMAGE_UPLOAD_BYTES) {
+    return res.status(400).json({ error: 'Image size must be between 1 byte and 10 MB' });
   }
 
   const authHeader = String(req.headers.authorization || '');
@@ -125,7 +126,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(403).json({ error: 'Upload target is not owned by the current user' });
   }
 
-  const extension = getFileExtension(body.file_name, contentType);
+  const extension = IMAGE_EXTENSION_BY_MIME_TYPE[contentType];
   const nonce = crypto.randomBytes(8).toString('hex');
   const path = `${resourceId}/${assetKind}_${Date.now()}_${nonce}.${extension}`;
   const { data: upload, error: uploadError } = await supabase.storage

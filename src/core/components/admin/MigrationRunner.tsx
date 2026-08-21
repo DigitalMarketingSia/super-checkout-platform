@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router';
 import { ArrowRight, Database } from 'lucide-react';
 import { SCHEMA_VERSION } from '../../config/version';
 import { SYSTEM_SCHEMA_STATE_CHANGED_EVENT, SystemManager } from '../../services/systemManager';
+import { useTranslation } from 'react-i18next';
 
 export const MigrationRunner: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [status, setStatus] = useState<'idle' | 'pending'>('idle');
   const [ready, setReady] = useState(false);
 
@@ -46,15 +48,15 @@ export const MigrationRunner: React.FC = () => {
 
         <div className="flex flex-col">
           <span className="text-xs font-bold uppercase tracking-wider">
-            Banco requer atualizacao
+            {t('coverage.update_banner.title')}
           </span>
-          <span className="text-[10px] opacity-70">Migrations aprovadas so executam apos confirmacao no painel. Clique em Atualizar Banco. Schema alvo v{SCHEMA_VERSION}.</span>
+          <span className="text-[10px] opacity-70">{t('coverage.migration_runner.description', { version: SCHEMA_VERSION })}</span>
         </div>
 
         <button
           type="button"
           onClick={() => navigate('/admin/updates')}
-          title="Abrir atualizacoes do banco"
+          title={t('coverage.migration_runner.open')}
           className="ml-2 inline-flex h-9 w-9 items-center justify-center rounded-xl border border-blue-400/20 bg-blue-500 text-white transition-colors hover:bg-blue-400"
         >
           <ArrowRight className="w-4 h-4" />

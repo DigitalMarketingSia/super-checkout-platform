@@ -71,10 +71,7 @@ export function isConfiguredPlatformOwnerEmail(email?: string | null) {
   return allowedEmails.size > 0 && allowedEmails.has(normalizeEmail(email));
 }
 
-/**
- * Authorizes the one official-platform owner without conflating that identity
- * with `profiles.role`, which belongs to each local installation.
- */
+/** Authorizes the official owner only when allowlist, profile and MFA agree. */
 export async function requireConfiguredPlatformOwner(
   req: VercelRequest,
   res: VercelResponse,
@@ -91,10 +88,6 @@ export async function requireConfiguredPlatformOwner(
     return null;
   }
 
-  // The official owner is identified by a server-side email allowlist. A
-  // valid local JWT is enough to establish that identity; requiring a local
-  // `profiles` row before evaluating the allowlist creates an inconsistent
-  // state where the UI recognizes the owner but protected writes reject it.
   const user = await validateLocalUserWithPublicKey(token);
   if (!user?.id) {
     res.status(401).json({ error: 'Unauthorized' });
@@ -126,11 +119,22 @@ export async function requireConfiguredPlatformOwner(
   // identity: the session-authz endpoint already follows this same model.
   const { data: profile, error: profileError } = await supabaseAdmin
     .from('profiles')
-    .select('id,email,status,installation_id,central_user_id')
+    .select('id,email,role,status,is_blocked,totp_enabled,installation_id,central_user_id')
     .eq('id', user.id)
     .maybeSingle();
 
-  if (profile?.id && isInactiveStatus(profile.status)) {
+  const profileRole = String(profile?.role || '').trim().toLowerCase();
+  const profileIsOwner = ['owner', 'master_admin'].includes(profileRole);
+  const profileIsUsable = Boolean(
+    !profileError
+    && profile?.id
+    && !isInactiveStatus(profile.status)
+    && profile.is_blocked !== true
+    && profileIsOwner
+    && profile.totp_enabled === true,
+  );
+
+  if (!profileIsUsable) {
     await logAuthzEvent({
       supabaseAdmin,
       req,
@@ -138,22 +142,20 @@ export async function requireConfiguredPlatformOwner(
       eventType: 'platform_owner_authorization_rejected',
       severity: 'CRITICAL',
       userId: user.id,
-      metadata: { reason: 'inactive_profile' },
+      metadata: {
+        reason: profileError
+          ? 'profile_lookup_failed'
+          : !profile?.id
+            ? 'profile_missing'
+            : profile.is_blocked === true || isInactiveStatus(profile.status)
+              ? 'inactive_profile'
+              : !profileIsOwner
+                ? 'profile_role_not_owner'
+                : 'mfa_not_enabled',
+      },
     });
     res.status(403).json({ error: 'Access denied' });
     return null;
-  }
-
-  if (profileError || !profile?.id) {
-    await logAuthzEvent({
-      supabaseAdmin,
-      req,
-      source,
-      eventType: 'platform_owner_profile_fallback',
-      severity: 'WARNING',
-      userId: user.id,
-      metadata: { reason: profileError ? 'profile_lookup_failed' : 'profile_missing' },
-    });
   }
 
   return {
@@ -161,11 +163,11 @@ export async function requireConfiguredPlatformOwner(
     user,
     profile: {
       id: user.id,
-      email: profile?.email || user.email || null,
+      email: profile.email || user.email || null,
       role: 'master_admin',
-      status: profile?.status || 'active',
-      installation_id: profile?.installation_id || null,
-      central_user_id: profile?.central_user_id || null,
+      status: profile.status || 'active',
+      installation_id: profile.installation_id || null,
+      central_user_id: profile.central_user_id || null,
     },
     role: 'master_admin',
     supabaseAdmin,

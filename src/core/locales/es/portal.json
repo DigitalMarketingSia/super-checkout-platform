@@ -39,6 +39,7 @@
     "demo": "Ver el Sistema",
     "access_data": "Datos de Acceso",
     "installation": "Instalación",
+    "services": "Servicios",
     "tutorials": "Tutoriales",
     "security": "Seguridad",
     "upgrade_business": "Upgrade y Negocios",
@@ -118,6 +119,7 @@
       "license_validated": "Licencia: Validada en Cloud",
       "domains_monitored": "Dominios: Monitoreo Activo"
     },
+    "key_usage": "Se usa para validar tus instancias",
     "limited_desc": "Tu cuenta gratuita incluye 1 dominio y hasta 3 productos. Libera Recursos Ilimitados cuando necesites crecer.",
     "unlimited_desc": "Recursos Ilimitados está activo: productos, checkouts, áreas de miembros y dominios sin límite.",
     "demo": {
@@ -227,17 +229,13 @@
       "whitelabel": "Capa White Label habilitada",
       "owner_global": "Gestión global de la plataforma",
       "owner_operations": "Auditoría, licencias y operaciones centrales"
-    }
-  },
-  "license": {
-    "title": "Credenciales de Acceso",
-    "master_key": "Clave de Activación Maestra",
-    "copied": "¡Copiado!",
-    "copy_token": "Copiar Token",
-    "installations": "Instalaciones",
-    "domain": "Dominio",
-    "any_domain": "Cualquier dominio",
-    "unlimited": "Ilimitado"
+    },
+    "account_classification_description": "La cuenta no se clasificó como gratuita mientras la consulta no termine.",
+    "account_classification_warning": "AVISO DE CLASIFICACIÓN DE LA CUENTA",
+    "load_error_title": "Estado de licencia no disponible",
+    "retry": "INTENTAR DE NUEVO",
+    "server_configuration_error": "ERROR DE CONFIGURACIÓN DEL SERVIDOR",
+    "unavailable": "NO DISPONIBLE"
   },
   "install": {
     "title": "Infraestructura y Deploy",
@@ -251,6 +249,8 @@
     "link_expired": "El enlace de instalación expiró. Genera un nuevo enlace para continuar.",
     "reinstall_button": "REINSTALAR",
     "reinstall_confirm": "Esta acción desconectará el checkout en {{domain}}. ¿Continuar?",
+    "reinstall_2fa_label": "Código 2FA del Portal",
+    "reinstall_2fa_hint": "Esta confirmación puede usarse una vez y caduca en 5 minutos.",
     "confirm_yes": "SÍ, AHORA",
     "confirm_back": "VOLVER",
     "generate_token": "GENERAR TOKEN",
@@ -517,5 +517,8 @@
     "button": "Generar Licencia Gratis",
     "activate_error": "Error al activar la licencia",
     "connection_error": "Error de conexión"
-  }
+  },
+  "portal_security": {"account_classification_description":"La cuenta no se clasificó como gratuita mientras la consulta no termine.","activation_code":"INTRODUCE EL CÓDIGO DE 6 DÍGITOS PARA ACTIVAR","active_description":"Los nuevos accesos por contraseña y las operaciones destructivas requieren tu aplicación autenticadora.","active_title":"La 2FA del Portal está activa","change_authenticator":"Confirmar y cambiar autenticador","change_description":"La 2FA sigue siendo obligatoria. Escanea y confirma el nuevo código QR en esta pantalla; el código anterior dejará de funcionar al preparar el nuevo QR.","code_not_accepted":"No se aceptó el código 2FA.","confirm":"Confirmar y activar 2FA","configure":"Configurar 2FA ahora","current_code":"CÓDIGO ACTUAL DEL AUTENTICADOR DEL PORTAL (6 DÍGITOS)","generated_code":"2. INTRODUCE EL CÓDIGO DE 6 DÍGITOS GENERADO EN LA APP","invalid_code":"Introduce el código de 6 dígitos que muestra tu aplicación autenticadora.","owner_description":"Sin 2FA, una sesión recuperada por correo podría solicitar un reinicio de la instalación. Actívala para que esta acción requiera tu código temporal.","owner_protection":"Protección del propietario","owner_required":"Acción obligatoria del propietario","portal_protection":"Protección del Portal","prepare_error":"No se pudo preparar la 2FA del Portal.","protect_portal":"Protege el Portal con 2FA","protected":"PROTEGIDO","protected_change":"Cambio de autenticador protegido","qr_alt":"Código QR para configurar la 2FA del Portal","recommended":"Protección recomendada","recommended_description":"Acciones como restablecer o revocar tu instalación requieren un código temporal. Actívala para mantener esta función con protección adicional.","register_new":"Registra el nuevo autenticador","scan_qr":"1. Escanea este código QR en Google Authenticator, Authy o una aplicación equivalente:","session_expired":"Tu sesión del Portal ha caducado. Vuelve a iniciar sesión para configurar la 2FA.","unavailable":"Estado de licencia no disponible","server_configuration_error":"ERROR DE CONFIGURACIÓN DEL SERVIDOR","account_classification_warning":"AVISO DE CLASIFICACIÓN DE LA CUENTA","retry":"INTENTAR DE NUEVO"},
+  "license": {"any_domain":"Cualquier dominio","copied":"¡Copiado!","copy_token":"Copiar Token","domain":"Dominio","installations":"Instalaciones","load_error":"No se pudieron consultar los datos de acceso","master_key":"Clave de Activación Maestra","platform_owner":"Cuenta propietaria de la plataforma","platform_owner_description":"El acceso operativo de esta cuenta es reconocido por Central y no depende de generar una licencia gratuita.","refresh":"Actualizar datos de la licencia","retry":"Intentar de nuevo","title":"Credenciales de Acceso","unlimited":"Ilimitado"}
+  ,"service_orders": {"active_filter":"Filtro activo","approval_expiry":"Caduca en 30 minutos y solo puede utilizarse una vez.","approval_link":"Enlace de aprobación creado. Cópialo y envíalo al cliente.","approval_link_copied":"Enlace de aprobación copiado.","approval_ready":"Enlace de aprobación listo","beneficiary_description":"Sigue y gestiona solo las solicitudes vinculadas a tu cuenta.","breadcrumb":"Portal / Operaciones","clear_filters":"Limpiar filtros","copy_error":"No se pudo copiar el enlace.","copy_link":"Copiar enlace","count":"{{filtered}} de {{total}} servicio(s)","email_cancelled":"Correo cancelado","email_failed":"Error de correo — reintento disponible","email_pending":"Correo pendiente de envío","email_sending":"Enviando correo","email_sent":"Correo enviado","empty_description":"Cuando haya una compra de servicio, aparecerá aquí.","empty_title":"Aún no hay solicitudes","filter":"Filtrar","filters":{"active":"En curso","all":"Todos","cancelled":"Cancelados","completed":"Completados","support":"Atención","waiting":"Pendientes"},"installation_link_copied":"Enlace seguro de instalación copiado.","installation_link_copy_error":"No se pudo copiar el enlace de instalación.","load_error":"No se pudieron cargar los servicios.","loading":"Cargando servicios","new_approval_link":"Nuevo enlace de aprobación creado sin un cargo adicional. Cópialo y envíalo al cliente.","no_results_description":"Ajusta la búsqueda o elimina los filtros para ver otras solicitudes.","no_results_title":"No se encontró ningún servicio","overview":"Vista general","owner_description":"Cola global de solicitudes, aprobaciones y ejecución.","partner_description":"Solo ves tus referidos, ventas y servicios asignados.","refresh":"Actualizar","search_label":"Buscar servicios","search_placeholder":"Buscar servicio, cliente, proveedor o ID...","sort":{"oldest":"Más antiguos","price":"Mayor valor","recent":"Más recientes"},"sort_label":"Ordenar servicios","started_with_access":"Servicio iniciado y acceso seguro de instalación generado.","started_without_access":"Servicio iniciado. Genera el acceso de instalación antes de continuar.","status":{"approved":"Aprobado por el cliente","assigned":"Proveedor asignado","awaiting_client_approval":"Esperando aprobación del cliente","cancelled":"Cancelado","completed":"Completado","in_progress":"En curso","paid":"Esperando preparación","rejected":"Rechazado por el cliente","revoked":"Instalación cancelada"},"summary":{"active":"En ejecución","active_hint":"Instalaciones en curso","completed":"Completados","completed_hint":"Servicios finalizados","waiting":"Esperando acción","waiting_hint":"Pendientes por liberar"},"support":{"acknowledged":"En atención","open":"Atención solicitada","resolved":"Atención completada"},"support_acknowledged":"Atención asumida. El cliente fue avisado en el Portal.","support_already_open":"Ya existe una solicitud de atención abierta para esta solicitud.","support_minimum":"Describe lo que necesitas en al menos 10 caracteres.","support_resolved":"Atención marcada como completada.","support_sent":"Solicitud de atención enviada al proveedor responsable.","support_updated":"Atención actualizada","title":"Servicios de instalación","update_error":"No se pudo actualizar la orden.","updated":"Orden de servicio actualizada.","warnings":{"beneficiary_license":"Esperando a que el cliente active la licencia gratuita antes de la aprobación.","activate_license":"Activa tu licencia gratuita para que el socio pueda solicitar tu aprobación. Esto no instala el sistema ni exige una mejora.","provider_preparing":"El proveedor está preparando tu autorización. Se te avisará cuando puedas autorizarla.","finish_installation":"Completa la instalación segura antes de cerrar este servicio.","installation_attached":"La instalación está vinculada de forma segura a este pedido."},"actions":{"activate_free_license":"Activar licencia gratuita","request_approval":"Solicitar aprobación","request_new_approval":"Solicitar nueva aprobación","review_approval":"Revisar aprobación","request_support":"Necesito ayuda","acknowledge_support":"Asumir soporte","resolve_support":"Completar soporte","assign_to_me":"Asignarme","assign":"Asignar","take_service":"Asumir servicio","start":"Iniciar","generate_new_access":"Generar nuevo acceso","generate_access":"Generar acceso del instalador","complete":"Completar","retry_failed_emails":"Reprocesar correos","cancel":"Cancelar","cancel_request":"Cancelar solicitud","cancel_installation":"Cancelar instalación","open_installer":"Abrir instalador","back":"Volver","send_request":"Enviar solicitud"},"installation_access_ready":"Acceso seguro de instalación listo","installation_access_expires":"Caduca {{date}} y es exclusivo de este pedido.","pagination":{"showing":"Mostrando {{from}}-{{to}} de {{total}}","previous":"Página anterior","next":"Página siguiente","page":"Página {{page}} / {{total}}"},"support_modal":{"title":"Solicitar soporte","description":"Describe tu duda sobre este servicio. La solicitud se enviará al proveedor responsable y quedará registrada en el Portal.","placeholder":"Ej.: Tengo una duda sobre los próximos pasos de la instalación."},"cancel_modal":{"title":"Confirmar cancelación de la instalación","paid_message":"¿Seguro que quieres cancelar esta instalación? No se iniciará. El pago no se reembolsará automáticamente y el propietario podrá enviar una nueva aprobación después sin un nuevo cobro.","pending_message":"¿Seguro que quieres cancelar esta instalación? Esto cancela tu autorización e interrumpe el acceso operativo pendiente. El pago no se reembolsará automáticamente y la instalación solo podrá continuar tras una nueva aprobación.","confirm":"Sí, cancelar instalación"}}
 }

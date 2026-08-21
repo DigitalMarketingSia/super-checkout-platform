@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { centralSupabase } from '../../../services/centralClient';
+import { useTranslation } from 'react-i18next';
 
 type ServiceOrder = {
   id: string;
@@ -68,24 +69,6 @@ type Provider = { id: string; name: string; email: string };
 type InstallationAccess = { url: string; expiresAt: string };
 type ServiceFilter = 'all' | 'waiting' | 'active' | 'completed' | 'support' | 'cancelled';
 
-const statusLabels: Record<string, string> = {
-  paid: 'Aguardando preparação',
-  awaiting_client_approval: 'Aguardando aprovação do cliente',
-  approved: 'Aprovado pelo cliente',
-  assigned: 'Prestador atribuído',
-  in_progress: 'Em andamento',
-  completed: 'Concluído',
-  rejected: 'Recusado pelo cliente',
-  cancelled: 'Cancelado',
-  revoked: 'Instalação cancelada',
-};
-
-const supportStatusLabels: Record<string, string> = {
-  open: 'Atendimento solicitado',
-  acknowledged: 'Em atendimento',
-  resolved: 'Atendimento concluído',
-};
-
 function formatMoney(value: number, currency: string) {
   try {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: currency || 'BRL' }).format(value || 0);
@@ -103,13 +86,13 @@ function formatDate(value?: string | null) {
   }
 }
 
-function getEmailDeliveryLabel(delivery?: ServiceOrder['email_delivery']) {
+function getEmailDeliveryLabel(delivery: ServiceOrder['email_delivery'] | undefined, t: (key: string) => string) {
   if (!delivery?.total) return null;
-  if (delivery.failed > 0) return { label: 'Falha de e-mail — reprocessamento disponível', tone: 'text-red-300' };
-  if (delivery.sending > 0) return { label: 'E-mail em envio', tone: 'text-blue-300' };
-  if (delivery.pending > 0) return { label: 'E-mail aguardando envio', tone: 'text-amber-300' };
-  if (delivery.sent > 0) return { label: 'E-mail enviado', tone: 'text-emerald-300' };
-  return { label: 'E-mail cancelado', tone: 'text-gray-400' };
+  if (delivery.failed > 0) return { label: t('service_orders.email_failed'), tone: 'text-red-300' };
+  if (delivery.sending > 0) return { label: t('service_orders.email_sending'), tone: 'text-blue-300' };
+  if (delivery.pending > 0) return { label: t('service_orders.email_pending'), tone: 'text-amber-300' };
+  if (delivery.sent > 0) return { label: t('service_orders.email_sent'), tone: 'text-emerald-300' };
+  return { label: t('service_orders.email_cancelled'), tone: 'text-gray-400' };
 }
 
 async function invokeServiceOrdersDirect(action: string, payload: Record<string, unknown> = {}) {
@@ -181,6 +164,23 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
   focusOrderId,
 }) => {
   const navigate = useNavigate();
+  const { t, i18n } = useTranslation('portal');
+  const localizedStatusLabels: Record<string, string> = {
+    paid: t('service_orders.status.paid'),
+    awaiting_client_approval: t('service_orders.status.awaiting_client_approval'),
+    approved: t('service_orders.status.approved'),
+    assigned: t('service_orders.status.assigned'),
+    in_progress: t('service_orders.status.in_progress'),
+    completed: t('service_orders.status.completed'),
+    rejected: t('service_orders.status.rejected'),
+    cancelled: t('service_orders.status.cancelled'),
+    revoked: t('service_orders.status.revoked'),
+  };
+  const localizedSupportStatusLabels: Record<string, string> = {
+    open: t('service_orders.support.open'),
+    acknowledged: t('service_orders.support.acknowledged'),
+    resolved: t('service_orders.support.resolved'),
+  };
   const [orders, setOrders] = useState<ServiceOrder[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [providerSelection, setProviderSelection] = useState<Record<string, string>>({});
@@ -208,7 +208,7 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
       setOrders(Array.isArray(ordersResult.orders) ? ordersResult.orders : []);
       setProviders(Array.isArray(providersResult.providers) ? providersResult.providers : []);
     } catch (error: any) {
-      toast.error(error?.message || 'Não foi possível carregar os serviços.');
+      toast.error(error?.message || t('service_orders.load_error'));
     } finally {
       setLoading(false);
     }
@@ -238,7 +238,7 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
         order.beneficiary_name,
         order.beneficiary_email,
         order.provider_name,
-        statusLabels[order.status],
+        localizedStatusLabels[order.status],
         order.id,
       ].filter(Boolean).join(' ').toLowerCase();
       return haystack.includes(query);
@@ -250,7 +250,7 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
       const rightDate = new Date(right.updated_at || right.created_at).getTime();
       return sortBy === 'recent' ? rightDate - leftDate : leftDate - rightDate;
     });
-  }, [activeFilter, orders, searchTerm, sortBy]);
+  }, [activeFilter, localizedStatusLabels, orders, searchTerm, sortBy]);
 
   const totalPages = Math.max(1, Math.ceil(filteredOrders.length / pageSize));
   const paginatedOrders = filteredOrders.slice((page - 1) * pageSize, page * pageSize);
@@ -286,18 +286,18 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
       if (result.approval_url) {
         setApprovalUrl(String(result.approval_url));
         toast.success(action === 'request_new_approval'
-          ? 'Novo link de aprovação criado sem nova cobrança. Copie e envie ao cliente.'
-          : 'Link de aprovação criado. Copie e envie ao cliente.');
+          ? t('service_orders.new_approval_link')
+          : t('service_orders.approval_link'));
       } else if (action === 'request_support') {
         toast.success(result.created === false
-          ? 'Já existe um pedido de atendimento em aberto para esta solicitação.'
-          : 'Pedido de atendimento enviado ao prestador responsável.');
+          ? t('service_orders.support_already_open')
+          : t('service_orders.support_sent'));
       } else if (action === 'acknowledge_support') {
-        toast.success('Atendimento assumido. O cliente foi avisado no Portal.');
+        toast.success(t('service_orders.support_acknowledged'));
       } else if (action === 'resolve_support') {
-        toast.success('Atendimento marcado como concluído.');
+        toast.success(t('service_orders.support_resolved'));
       } else {
-        toast.success('Ordem de serviço atualizada.');
+        toast.success(t('service_orders.updated'));
       }
       if (action === 'start') {
         try {
@@ -307,14 +307,14 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
             ...current,
             [order.id]: { url: String(access.install_url), expiresAt: String(access.expires_at || '') },
           }));
-          toast.success('Servico iniciado e acesso seguro de instalacao gerado.');
+          toast.success(t('service_orders.started_with_access'));
         } catch (accessError: any) {
-          toast.warning(accessError?.message || 'Servico iniciado. Gere o acesso de instalacao antes de continuar.');
+          toast.warning(accessError?.message || t('service_orders.started_without_access'));
         }
       }
       await loadOrders();
     } catch (error: any) {
-      toast.error(error?.message || 'Não foi possível atualizar a ordem.');
+      toast.error(error?.message || t('service_orders.update_error'));
     } finally {
       setBusyOrderId(null);
     }
@@ -324,9 +324,9 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
     if (!approvalUrl) return;
     try {
       await navigator.clipboard.writeText(approvalUrl);
-      toast.success('Link de aprovação copiado.');
+      toast.success(t('service_orders.approval_link_copied'));
     } catch {
-      toast.error('Não foi possível copiar o link.');
+      toast.error(t('service_orders.copy_error'));
     }
   };
 
@@ -335,9 +335,9 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
     if (!access) return;
     try {
       await navigator.clipboard.writeText(access.url);
-      toast.success('Link seguro de instalacao copiado.');
+      toast.success(t('service_orders.installation_link_copied'));
     } catch {
-      toast.error('Nao foi possivel copiar o link de instalacao.');
+      toast.error(t('service_orders.installation_link_copy_error'));
     }
   };
 
@@ -353,7 +353,7 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
     const message = supportMessage.trim();
     if (!order) return;
     if (message.length < 10) {
-      toast.error('Descreva o que você precisa em pelo menos 10 caracteres.');
+      toast.error(t('service_orders.support_minimum'));
       return;
     }
     setSupportRequestOrder(null);
@@ -367,14 +367,14 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="mb-1 text-[9px] font-black uppercase tracking-[0.28em] text-gray-600">Portal / Operações</p>
-          <h2 className="text-3xl font-portal-display leading-none text-white">Serviços de instalação</h2>
+          <p className="mb-1 text-[9px] font-black uppercase tracking-[0.28em] text-gray-600">{t('service_orders.breadcrumb')}</p>
+          <h2 className="text-3xl font-portal-display leading-none text-white">{t('service_orders.title')}</h2>
           <p className="mt-2 max-w-2xl text-[9px] font-medium uppercase tracking-[0.1em] text-gray-600">
             {isPlatformOwner
-              ? 'Fila global de solicitações, aprovações e execução.'
+              ? t('service_orders.owner_description')
               : hasPartnerAccess
-                ? 'Você vê somente os próprios indicados, vendas e serviços atribuídos.'
-                : 'Acompanhe e controle somente as solicitações vinculadas à sua conta.'}
+                ? t('service_orders.partner_description')
+                : t('service_orders.beneficiary_description')}
           </p>
         </div>
         <button
@@ -383,7 +383,7 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
           disabled={loading}
           className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/5 bg-[#111116] px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-gray-400 transition-colors hover:border-white/10 hover:bg-[#15151e] hover:text-white disabled:opacity-50"
         >
-          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Atualizar
+          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> {t('service_orders.refresh')}
         </button>
       </div>
 
@@ -391,11 +391,11 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
         <div className="rounded-2xl border border-emerald-400/20 bg-[#111116] p-4 sm:p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <p className="text-sm font-black uppercase tracking-tight text-emerald-200">Link de aprovação pronto</p>
-              <p className="mt-1 text-xs text-emerald-100/70">Ele expira em 30 minutos e só pode ser usado uma vez.</p>
+              <p className="text-sm font-black uppercase tracking-tight text-emerald-200">{t('service_orders.approval_ready')}</p>
+              <p className="mt-1 text-xs text-emerald-100/70">{t('service_orders.approval_expiry')}</p>
             </div>
             <button type="button" onClick={() => void copyApprovalUrl()} className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-emerald-300 transition hover:bg-emerald-400/15">
-              <Copy className="h-4 w-4" /> Copiar link
+              <Copy className="h-4 w-4" /> {t('service_orders.copy_link')}
             </button>
           </div>
           <input readOnly value={approvalUrl} className="mt-4 w-full rounded-xl border border-white/5 bg-[#07070F] px-3 py-2 text-xs text-emerald-100 outline-none" />
@@ -404,9 +404,9 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
 
       <div className="grid gap-3 md:grid-cols-3">
         {[
-          { label: 'Aguardando ação', value: summary.waiting, icon: Clock3, tone: 'text-amber-300', iconTone: 'bg-amber-400/10 text-amber-300 border-amber-300/20', wash: 'from-amber-400/[0.12] via-amber-400/[0.03] to-transparent', hint: 'Pendências para liberar' },
-          { label: 'Em execução', value: summary.active, icon: ClipboardCheck, tone: 'text-[#A78BFA]', iconTone: 'bg-[#8A2BE2]/10 text-[#C77DFF] border-[#8A2BE2]/25', wash: 'from-[#8A2BE2]/[0.14] via-[#8A2BE2]/[0.03] to-transparent', hint: 'Instalações em andamento' },
-          { label: 'Concluídos', value: summary.complete, icon: CheckCircle2, tone: 'text-emerald-300', iconTone: 'bg-emerald-400/10 text-emerald-300 border-emerald-300/20', wash: 'from-emerald-400/[0.13] via-emerald-400/[0.03] to-transparent', hint: 'Serviços finalizados' },
+          { label: t('service_orders.summary.waiting'), value: summary.waiting, icon: Clock3, tone: 'text-amber-300', iconTone: 'bg-amber-400/10 text-amber-300 border-amber-300/20', wash: 'from-amber-400/[0.12] via-amber-400/[0.03] to-transparent', hint: t('service_orders.summary.waiting_hint') },
+          { label: t('service_orders.summary.active'), value: summary.active, icon: ClipboardCheck, tone: 'text-[#A78BFA]', iconTone: 'bg-[#8A2BE2]/10 text-[#C77DFF] border-[#8A2BE2]/25', wash: 'from-[#8A2BE2]/[0.14] via-[#8A2BE2]/[0.03] to-transparent', hint: t('service_orders.summary.active_hint') },
+          { label: t('service_orders.summary.completed'), value: summary.complete, icon: CheckCircle2, tone: 'text-emerald-300', iconTone: 'bg-emerald-400/10 text-emerald-300 border-emerald-300/20', wash: 'from-emerald-400/[0.13] via-emerald-400/[0.03] to-transparent', hint: t('service_orders.summary.completed_hint') },
         ].map(({ label, value, icon: Icon, tone, iconTone, wash, hint }) => (
           <div key={label} className="group relative min-h-[142px] overflow-hidden rounded-[2rem] border border-white/[0.06] bg-[#0B0B12]/80 p-4 backdrop-blur-sm transition hover:border-white/10 hover:bg-[#111116] sm:p-5">
             <div className={`pointer-events-none absolute inset-y-0 left-0 z-0 w-1/2 bg-gradient-to-r ${wash} opacity-80`} />
@@ -425,20 +425,20 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
             <input
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="Buscar servico, cliente, prestador ou ID..."
-              aria-label="Buscar servicos"
+              placeholder={t('service_orders.search_placeholder')}
+              aria-label={t('service_orders.search_label')}
               className="h-10 w-full rounded-xl border border-white/5 bg-[#07070F] pl-10 pr-3 text-sm text-white outline-none transition placeholder:text-gray-600 focus:border-[#10B981]/40 focus:ring-1 focus:ring-[#10B981]/20"
             />
           </label>
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-gray-500"><Filter className="h-3.5 w-3.5" /> Filtrar</div>
+            <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-gray-500"><Filter className="h-3.5 w-3.5" /> {t('service_orders.filter')}</div>
             {([
-              ['all', 'Todos'],
-              ['waiting', 'Aguardando'],
-              ['active', 'Em execucao'],
-              ['completed', 'Concluidos'],
-              ['support', 'Atendimento'],
-              ['cancelled', 'Cancelados'],
+              ['all', t('service_orders.filters.all')],
+              ['waiting', t('service_orders.filters.waiting')],
+              ['active', t('service_orders.filters.active')],
+              ['completed', t('service_orders.filters.completed')],
+              ['support', t('service_orders.filters.support')],
+              ['cancelled', t('service_orders.filters.cancelled')],
             ] as [ServiceFilter, string][]).map(([filter, label]) => (
               <button
                 key={filter}
@@ -451,17 +451,17 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
             ))}
             <label className="relative flex items-center">
               <ArrowUpDown className="pointer-events-none absolute left-2.5 h-3.5 w-3.5 text-gray-500" />
-              <select value={sortBy} onChange={(event) => setSortBy(event.target.value as typeof sortBy)} aria-label="Ordenar servicos" className="h-9 appearance-none rounded-xl border border-white/5 bg-[#07070F] pl-8 pr-3 text-[10px] font-bold uppercase tracking-wider text-gray-400 outline-none focus:border-[#10B981]/40">
-                <option value="recent">Mais recentes</option>
-                <option value="oldest">Mais antigos</option>
-                <option value="price">Maior valor</option>
+              <select value={sortBy} onChange={(event) => setSortBy(event.target.value as typeof sortBy)} aria-label={t('service_orders.sort_label')} className="h-9 appearance-none rounded-xl border border-white/5 bg-[#07070F] pl-8 pr-3 text-[10px] font-bold uppercase tracking-wider text-gray-400 outline-none focus:border-[#10B981]/40">
+                <option value="recent">{t('service_orders.sort.recent')}</option>
+                <option value="oldest">{t('service_orders.sort.oldest')}</option>
+                <option value="price">{t('service_orders.sort.price')}</option>
               </select>
             </label>
           </div>
         </div>
         <div className="mt-3 flex items-center justify-between border-t border-white/5 pt-3 text-[10px] font-bold uppercase tracking-widest text-gray-600">
-          <span>{filteredOrders.length} de {orders.length} servico{orders.length === 1 ? '' : 's'}</span>
-          {searchTerm || activeFilter !== 'all' ? <span className="text-primary">Filtro ativo</span> : <span>Visao geral</span>}
+          <span>{t('service_orders.count', { filtered: filteredOrders.length, total: orders.length })}</span>
+          {searchTerm || activeFilter !== 'all' ? <span className="text-primary">{t('service_orders.active_filter')}</span> : <span>{t('service_orders.overview')}</span>}
         </div>
       </div>
 
@@ -469,18 +469,18 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
         {loading ? (
           <div className="flex min-h-64 flex-col items-center justify-center gap-3 text-gray-400">
             <Loader2 className="h-7 w-7 animate-spin text-primary" />
-            <span className="text-[10px] font-black uppercase tracking-[0.25em]">Carregando serviços</span>
+            <span className="text-[10px] font-black uppercase tracking-[0.25em]">{t('service_orders.loading')}</span>
           </div>
         ) : orders.length === 0 ? (
           <div className="flex min-h-64 flex-col items-center justify-center gap-4 px-6 text-center">
             <ClipboardCheck className="h-10 w-10 text-gray-600" />
-            <div><p className="font-display font-black uppercase italic text-white">Nenhuma solicitação por enquanto</p><p className="mt-2 text-sm text-gray-500">Quando houver uma compra de serviço, ela aparecerá aqui.</p></div>
+            <div><p className="font-display font-black uppercase italic text-white">{t('service_orders.empty_title')}</p><p className="mt-2 text-sm text-gray-500">{t('service_orders.empty_description')}</p></div>
           </div>
         ) : filteredOrders.length === 0 ? (
           <div className="flex min-h-64 flex-col items-center justify-center gap-4 px-6 text-center">
             <Search className="h-10 w-10 text-gray-600" />
-            <div><p className="font-display font-black uppercase italic text-white">Nenhum servico encontrado</p><p className="mt-2 text-sm text-gray-500">Ajuste a busca ou remova os filtros para ver outras solicitacoes.</p></div>
-            <button type="button" onClick={() => { setSearchTerm(''); setActiveFilter('all'); }} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-gray-300 transition hover:bg-white/10">Limpar filtros</button>
+            <div><p className="font-display font-black uppercase italic text-white">{t('service_orders.no_results_title')}</p><p className="mt-2 text-sm text-gray-500">{t('service_orders.no_results_description')}</p></div>
+            <button type="button" onClick={() => { setSearchTerm(''); setActiveFilter('all'); }} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-gray-300 transition hover:bg-white/10">{t('service_orders.clear_filters')}</button>
           </div>
         ) : (
           <div className="space-y-3">
@@ -505,7 +505,7 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
               const needsBeneficiaryLicense = order.status === 'paid' && order.beneficiary_license_ready === false;
               const canActivateFreeLicense = order.scope === 'beneficiary' && needsBeneficiaryLicense;
               const installationAccess = installationAccessByOrder[order.id];
-              const emailDeliveryLabel = getEmailDeliveryLabel(order.email_delivery);
+              const emailDeliveryLabel = getEmailDeliveryLabel(order.email_delivery, t);
               const canRetryFailedEmails = isPlatformOwner && Boolean(order.email_delivery?.failed);
               const supportRequest = order.support_request || null;
               const canRequestSupport = order.scope === 'beneficiary' && (!supportRequest || supportRequest.status === 'resolved');
@@ -529,7 +529,7 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="truncate text-base font-display font-black uppercase italic tracking-tight text-white sm:text-lg">{order.product_name}</h3>
-                        <span className={`inline-flex max-w-full items-center gap-1.5 rounded-full border px-2 py-1 text-[8px] font-black uppercase tracking-widest ${statusVisual.badge}`}><span className={`h-1.5 w-1.5 shrink-0 rounded-full ${statusVisual.dot}`} /><span className="truncate">{statusLabels[order.status] || order.status}</span></span>
+                        <span className={`inline-flex max-w-full items-center gap-1.5 rounded-full border px-2 py-1 text-[8px] font-black uppercase tracking-widest ${statusVisual.badge}`}><span className={`h-1.5 w-1.5 shrink-0 rounded-full ${statusVisual.dot}`} /><span className="truncate">{localizedStatusLabels[order.status] || order.status}</span></span>
                       </div>
                       <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] font-medium uppercase tracking-wider text-gray-600">
                         <span>{formatDate(order.created_at)}</span>
@@ -548,13 +548,13 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
                   <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
                     <div className="min-w-0">
                       {operator && needsBeneficiaryLicense && (
-                        <p className="mt-3 inline-flex items-center gap-2 text-xs text-amber-300"><ShieldAlert className="h-4 w-4" /> Aguardando o cliente ativar a licença gratuita antes da aprovação.</p>
+                        <p className="mt-3 inline-flex items-center gap-2 text-xs text-amber-300"><ShieldAlert className="h-4 w-4" /> {t('service_orders.warnings.beneficiary_license')}</p>
                       )}
                       {canActivateFreeLicense && (
-                        <p className="mt-3 inline-flex items-center gap-2 text-xs text-amber-200"><KeyRound className="h-4 w-4" /> Ative sua licença gratuita para que o parceiro possa solicitar sua aprovação. Isso não instala o sistema nem exige upgrade.</p>
+                        <p className="mt-3 inline-flex items-center gap-2 text-xs text-amber-200"><KeyRound className="h-4 w-4" /> {t('service_orders.warnings.activate_license')}</p>
                       )}
                       {!operator && order.status === 'paid' && !canActivateFreeLicense && (
-                        <p className="mt-3 inline-flex items-center gap-2 text-xs text-amber-200"><Clock3 className="h-4 w-4" /> O prestador está preparando sua autorização. Você será avisado quando puder autorizar.</p>
+                        <p className="mt-3 inline-flex items-center gap-2 text-xs text-amber-200"><Clock3 className="h-4 w-4" /> {t('service_orders.warnings.provider_preparing')}</p>
                       )}
                       {emailDeliveryLabel && (
                         <p className={`mt-3 inline-flex items-center gap-2 text-xs ${emailDeliveryLabel.tone}`}>
@@ -563,7 +563,7 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
                       )}
                       {supportRequest && (
                         <div className="mt-4 max-w-2xl rounded-xl border border-white/5 bg-[#07070F] p-3 text-xs text-sky-100/90">
-                          <div className="flex items-center gap-2 font-bold text-sky-200"><MessageCircleMore className="h-4 w-4" /> {supportStatusLabels[supportRequest.status] || 'Atendimento atualizado'}</div>
+                          <div className="flex items-center gap-2 font-bold text-sky-200"><MessageCircleMore className="h-4 w-4" /> {localizedSupportStatusLabels[supportRequest.status] || t('service_orders.support_updated')}</div>
                           <p className="mt-2 leading-relaxed text-sky-100/75">{supportRequest.message}</p>
                         </div>
                       )}
@@ -572,75 +572,75 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
                     <div className="flex flex-wrap gap-2 border-t border-white/5 pt-3 xl:max-w-xl xl:justify-end xl:border-t-0 xl:pt-0">
                       {canActivateFreeLicense && (
                         <button type="button" onClick={() => navigate('/activate/setup?tab=license')} className="action-button bg-amber-300 text-amber-950 hover:bg-amber-200">
-                          <KeyRound className="h-4 w-4" /> Ativar licença gratuita
+                          <KeyRound className="h-4 w-4" /> {t('service_orders.actions.activate_free_license')}
                         </button>
                       )}
                       {operator && order.status === 'paid' && !needsBeneficiaryLicense && (
                         <button disabled={busy} onClick={() => void runOrderAction(order, 'request_approval')} className="action-button bg-primary text-white hover:bg-primary/80">
-                          <UserRoundCheck className="h-4 w-4" /> Solicitar aprovação
+                          <UserRoundCheck className="h-4 w-4" /> {t('service_orders.actions.request_approval')}
                         </button>
                       )}
                       {canRequestNewApproval && (
                         <button disabled={busy} onClick={() => void runOrderAction(order, 'request_new_approval')} className="action-button bg-primary text-white hover:bg-primary/80">
-                          <UserRoundCheck className="h-4 w-4" /> Solicitar nova aprovação
+                          <UserRoundCheck className="h-4 w-4" /> {t('service_orders.actions.request_new_approval')}
                         </button>
                       )}
                       {canReviewApproval && (
                         <button disabled={busy} onClick={() => navigate(`/service-approval/${encodeURIComponent(order.id)}`)} className="action-button bg-primary text-white hover:bg-primary/80">
-                          <UserRoundCheck className="h-4 w-4" /> Revisar aprovação
+                          <UserRoundCheck className="h-4 w-4" /> {t('service_orders.actions.review_approval')}
                         </button>
                       )}
                       {canRequestSupport && (
                         <button disabled={busy} onClick={() => { setSupportMessage(''); setSupportRequestOrder(order); }} className="action-button bg-sky-300/15 text-sky-100 hover:bg-sky-300/25">
-                          <MessageCircleMore className="h-4 w-4" /> Preciso de ajuda
+                          <MessageCircleMore className="h-4 w-4" /> {t('service_orders.actions.request_support')}
                         </button>
                       )}
                       {canAcknowledgeSupport && (
                         <button disabled={busy} onClick={() => void runOrderAction(order, 'acknowledge_support')} className="action-button bg-sky-300 text-sky-950 hover:bg-sky-200">
-                          <MessageCircleMore className="h-4 w-4" /> Assumir atendimento
+                          <MessageCircleMore className="h-4 w-4" /> {t('service_orders.actions.acknowledge_support')}
                         </button>
                       )}
                       {canResolveSupport && (
                         <button disabled={busy} onClick={() => void runOrderAction(order, 'resolve_support')} className="action-button bg-white/10 text-sky-100 hover:bg-white/15">
-                          <CheckCircle2 className="h-4 w-4" /> Concluir atendimento
+                          <CheckCircle2 className="h-4 w-4" /> {t('service_orders.actions.resolve_support')}
                         </button>
                       )}
                       {canAssign && isPlatformOwner && (
                         <select value={providerSelection[order.id] || ''} onChange={(event) => setProviderSelection((current) => ({ ...current, [order.id]: event.target.value }))} className="rounded-xl border border-white/5 bg-[#07070F] px-3 py-2 text-xs text-gray-300 outline-none focus:border-[#8A2BE2]/40">
-                          <option value="">Atribuir a mim</option>
+                          <option value="">{t('service_orders.actions.assign_to_me')}</option>
                           {providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.name}</option>)}
                         </select>
                       )}
                       {canAssign && (
                         <button disabled={busy} onClick={() => void runOrderAction(order, 'assign', isPlatformOwner && providerSelection[order.id] ? { provider_user_id: providerSelection[order.id] } : {})} className="action-button bg-blue-400 text-blue-950 hover:bg-blue-300">
-                          <ClipboardCheck className="h-4 w-4" /> {isPlatformOwner ? 'Atribuir' : 'Assumir serviço'}
+                          <ClipboardCheck className="h-4 w-4" /> {isPlatformOwner ? t('service_orders.actions.assign') : t('service_orders.actions.take_service')}
                         </button>
                       )}
-                      {canStart && <button disabled={busy} onClick={() => void runOrderAction(order, 'start')} className="action-button bg-amber-300 text-amber-950 hover:bg-amber-200"><Play className="h-4 w-4" /> Iniciar</button>}
-                      {canIssueInstallationAccess && <button disabled={busy} onClick={() => void runOrderAction(order, 'issue_installation_access')} className="action-button bg-violet-300 text-violet-950 hover:bg-violet-200"><Copy className="h-4 w-4" /> {order.installation_access_issued_at ? 'Gerar novo acesso' : 'Gerar acesso de instalacao'}</button>}
-                      {canComplete && <button disabled={busy} onClick={() => void runOrderAction(order, 'complete')} className="action-button bg-emerald-300 text-emerald-950 hover:bg-emerald-200"><CheckCircle2 className="h-4 w-4" /> Concluir</button>}
-                      {canRetryFailedEmails && <button disabled={busy} onClick={() => void runOrderAction(order, 'retry_failed_emails')} className="action-button bg-amber-300 text-amber-950 hover:bg-amber-200"><RefreshCw className="h-4 w-4" /> Reprocessar e-mails</button>}
-                      {canCancel && <button disabled={busy} onClick={() => void runOrderAction(order, 'cancel')} className="action-button bg-white/5 text-gray-300 hover:bg-white/10">Cancelar</button>}
-                      {canCancelRequest && <button disabled={busy} onClick={() => setConsentRevocationOrder(order)} className="action-button bg-red-400/15 text-red-200 hover:bg-red-400/25"><ShieldAlert className="h-4 w-4" /> Cancelar solicitação</button>}
-                      {canRevoke && <button disabled={busy} onClick={() => setConsentRevocationOrder(order)} className="action-button bg-red-400/15 text-red-200 hover:bg-red-400/25"><ShieldAlert className="h-4 w-4" /> Cancelar instalação</button>}
+                      {canStart && <button disabled={busy} onClick={() => void runOrderAction(order, 'start')} className="action-button bg-amber-300 text-amber-950 hover:bg-amber-200"><Play className="h-4 w-4" /> {t('service_orders.actions.start')}</button>}
+                      {canIssueInstallationAccess && <button disabled={busy} onClick={() => void runOrderAction(order, 'issue_installation_access')} className="action-button bg-violet-300 text-violet-950 hover:bg-violet-200"><Copy className="h-4 w-4" /> {order.installation_access_issued_at ? t('service_orders.actions.generate_new_access') : t('service_orders.actions.generate_access')}</button>}
+                      {canComplete && <button disabled={busy} onClick={() => void runOrderAction(order, 'complete')} className="action-button bg-emerald-300 text-emerald-950 hover:bg-emerald-200"><CheckCircle2 className="h-4 w-4" /> {t('service_orders.actions.complete')}</button>}
+                      {canRetryFailedEmails && <button disabled={busy} onClick={() => void runOrderAction(order, 'retry_failed_emails')} className="action-button bg-amber-300 text-amber-950 hover:bg-amber-200"><RefreshCw className="h-4 w-4" /> {t('service_orders.actions.retry_failed_emails')}</button>}
+                      {canCancel && <button disabled={busy} onClick={() => void runOrderAction(order, 'cancel')} className="action-button bg-white/5 text-gray-300 hover:bg-white/10">{t('service_orders.actions.cancel')}</button>}
+                      {canCancelRequest && <button disabled={busy} onClick={() => setConsentRevocationOrder(order)} className="action-button bg-red-400/15 text-red-200 hover:bg-red-400/25"><ShieldAlert className="h-4 w-4" /> {t('service_orders.actions.cancel_request')}</button>}
+                      {canRevoke && <button disabled={busy} onClick={() => setConsentRevocationOrder(order)} className="action-button bg-red-400/15 text-red-200 hover:bg-red-400/25"><ShieldAlert className="h-4 w-4" /> {t('service_orders.actions.cancel_installation')}</button>}
                     </div>
                   </div>
                   {operator && order.status === 'in_progress' && !order.installation_ready && (
-                    <p className="mt-4 inline-flex items-center gap-2 text-xs text-amber-300"><ShieldAlert className="h-4 w-4" /> Conclua a instalacao segura antes de encerrar este servico.</p>
+                    <p className="mt-4 inline-flex items-center gap-2 text-xs text-amber-300"><ShieldAlert className="h-4 w-4" /> {t('service_orders.warnings.finish_installation')}</p>
                   )}
                   {operator && order.installation_ready && (
-                    <p className="mt-4 inline-flex items-center gap-2 text-xs text-emerald-300"><CheckCircle2 className="h-4 w-4" /> Instalacao vinculada com seguranca a esta ordem.</p>
+                    <p className="mt-4 inline-flex items-center gap-2 text-xs text-emerald-300"><CheckCircle2 className="h-4 w-4" /> {t('service_orders.warnings.installation_attached')}</p>
                   )}
                   {installationAccess && (
                     <div className="mt-5 rounded-2xl border border-[#8A2BE2]/20 bg-[#07070F] p-4">
                       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                         <div>
-                          <p className="text-xs font-black uppercase tracking-widest text-violet-100">Acesso seguro de instalacao pronto</p>
-                          <p className="mt-1 text-xs text-violet-100/70">Expira em {formatDate(installationAccess.expiresAt)} e e exclusivo desta ordem.</p>
+                          <p className="text-xs font-black uppercase tracking-widest text-violet-100">{t('service_orders.installation_access_ready')}</p>
+                          <p className="mt-1 text-xs text-violet-100/70">{t('service_orders.installation_access_expires', { date: formatDate(installationAccess.expiresAt) })}</p>
                         </div>
                         <div className="flex flex-wrap gap-2">
-                          <button type="button" onClick={() => void copyInstallationUrl(order.id)} className="action-button bg-violet-200 text-violet-950 hover:bg-violet-100"><Copy className="h-4 w-4" /> Copiar link</button>
-                          <a href={installationAccess.url} target="_blank" rel="noreferrer" className="action-button bg-white/10 text-white hover:bg-white/15"><Play className="h-4 w-4" /> Abrir instalador</a>
+                          <button type="button" onClick={() => void copyInstallationUrl(order.id)} className="action-button bg-violet-200 text-violet-950 hover:bg-violet-100"><Copy className="h-4 w-4" /> {t('service_orders.copy_link')}</button>
+                          <a href={installationAccess.url} target="_blank" rel="noreferrer" className="action-button bg-white/10 text-white hover:bg-white/15"><Play className="h-4 w-4" /> {t('service_orders.actions.open_installer')}</a>
                         </div>
                       </div>
                       <input readOnly value={installationAccess.url} className="mt-3 w-full rounded-xl border border-white/5 bg-[#05050A] px-3 py-2 text-xs text-violet-100 outline-none" />
@@ -657,11 +657,11 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
 
       {!loading && filteredOrders.length > 0 && (
         <div className="flex flex-col gap-3 border-t border-white/10 pt-3 text-[10px] font-bold uppercase tracking-widest text-gray-500 sm:flex-row sm:items-center sm:justify-between">
-          <span>Mostrando {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, filteredOrders.length)} de {filteredOrders.length}</span>
+          <span>{t('service_orders.pagination.showing', { from: (page - 1) * pageSize + 1, to: Math.min(page * pageSize, filteredOrders.length), total: filteredOrders.length })}</span>
           <div className="flex items-center gap-1.5">
-            <button type="button" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page === 1} aria-label="Página anterior" className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/5 bg-[#07070F] text-gray-500 transition hover:border-white/10 hover:bg-[#15151e] hover:text-white disabled:cursor-not-allowed disabled:opacity-30"><ChevronLeft className="h-4 w-4" /></button>
-            <span className="min-w-20 text-center text-gray-300">Pagina {page} / {totalPages}</span>
-            <button type="button" onClick={() => setPage((current) => Math.min(totalPages, current + 1))} disabled={page === totalPages} aria-label="Proxima pagina" className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/5 bg-[#07070F] text-gray-500 transition hover:border-white/10 hover:bg-[#15151e] hover:text-white disabled:cursor-not-allowed disabled:opacity-30"><ChevronRight className="h-4 w-4" /></button>
+            <button type="button" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page === 1} aria-label={t('service_orders.pagination.previous')} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/5 bg-[#07070F] text-gray-500 transition hover:border-white/10 hover:bg-[#15151e] hover:text-white disabled:cursor-not-allowed disabled:opacity-30"><ChevronLeft className="h-4 w-4" /></button>
+            <span className="min-w-20 text-center text-gray-300">{t('service_orders.pagination.page', { page, total: totalPages })}</span>
+            <button type="button" onClick={() => setPage((current) => Math.min(totalPages, current + 1))} disabled={page === totalPages} aria-label={t('service_orders.pagination.next')} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/5 bg-[#07070F] text-gray-500 transition hover:border-white/10 hover:bg-[#15151e] hover:text-white disabled:cursor-not-allowed disabled:opacity-30"><ChevronRight className="h-4 w-4" /></button>
           </div>
         </div>
       )}
@@ -670,21 +670,21 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-5 backdrop-blur-sm" role="presentation">
           <section role="dialog" aria-modal="true" aria-labelledby="support-request-title" className="w-full max-w-lg rounded-[2rem] border border-sky-300/20 bg-[#11111a] p-6 shadow-2xl shadow-black/60 sm:p-7">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-300/10 text-sky-200"><MessageCircleMore className="h-6 w-6" /></div>
-            <h3 id="support-request-title" className="mt-5 text-xl font-display font-black uppercase italic text-white">Solicitar atendimento</h3>
-            <p className="mt-3 text-sm leading-relaxed text-gray-300">Descreva sua dúvida sobre este serviço. O pedido será enviado ao prestador responsável e ficará registrado no Portal.</p>
+            <h3 id="support-request-title" className="mt-5 text-xl font-display font-black uppercase italic text-white">{t('service_orders.support_modal.title')}</h3>
+            <p className="mt-3 text-sm leading-relaxed text-gray-300">{t('service_orders.support_modal.description')}</p>
             <textarea
               value={supportMessage}
               onChange={(event) => setSupportMessage(event.target.value.slice(0, 1200))}
               minLength={10}
               maxLength={1200}
               rows={5}
-              placeholder="Ex.: Tenho uma dúvida sobre os próximos passos da instalação."
+              placeholder={t('service_orders.support_modal.placeholder')}
               className="mt-5 w-full resize-y rounded-xl border border-white/10 bg-black/25 px-4 py-3 text-sm text-white outline-none placeholder:text-gray-600 focus:border-sky-300/50"
             />
             <p className="mt-2 text-right text-[10px] font-bold text-gray-500">{supportMessage.trim().length}/1200</p>
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <button type="button" onClick={() => { setSupportRequestOrder(null); setSupportMessage(''); }} className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-200 transition hover:bg-white/10">Voltar</button>
-              <button type="button" onClick={() => void submitSupportRequest()} className="rounded-xl bg-sky-300 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-sky-950 transition hover:bg-sky-200">Enviar pedido</button>
+              <button type="button" onClick={() => { setSupportRequestOrder(null); setSupportMessage(''); }} className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-200 transition hover:bg-white/10">{t('service_orders.actions.back')}</button>
+              <button type="button" onClick={() => void submitSupportRequest()} className="rounded-xl bg-sky-300 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-sky-950 transition hover:bg-sky-200">{t('service_orders.actions.send_request')}</button>
             </div>
           </section>
         </div>
@@ -694,15 +694,15 @@ export const BlockServiceOrders: React.FC<{ isPlatformOwner: boolean; hasPartner
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-5 backdrop-blur-sm" role="presentation">
           <section role="dialog" aria-modal="true" aria-labelledby="cancel-installation-title" className="w-full max-w-md rounded-[2rem] border border-red-400/20 bg-[#11111a] p-6 shadow-2xl shadow-black/60 sm:p-7">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-400/10 text-red-200"><ShieldAlert className="h-6 w-6" /></div>
-            <h3 id="cancel-installation-title" className="mt-5 text-xl font-display font-black uppercase italic text-white">Confirmar cancelamento da instalação</h3>
+            <h3 id="cancel-installation-title" className="mt-5 text-xl font-display font-black uppercase italic text-white">{t('service_orders.cancel_modal.title')}</h3>
             <p className="mt-3 text-sm leading-relaxed text-gray-300">
               {['paid', 'awaiting_client_approval'].includes(consentRevocationOrder.status)
-                ? 'Tem certeza que deseja cancelar esta instalação? Ela não será iniciada. O pagamento não será reembolsado automaticamente, e o proprietário poderá enviar uma nova aprovação depois, sem nova cobrança.'
-                : 'Tem certeza que deseja cancelar esta instalação? Isso cancela sua autorização e interrompe o acesso operacional pendente. O pagamento não será reembolsado automaticamente, e a instalação só poderá continuar após uma nova aprovação.'}
+                ? t('service_orders.cancel_modal.paid_message')
+                : t('service_orders.cancel_modal.pending_message')}
             </p>
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
-              <button type="button" onClick={() => setConsentRevocationOrder(null)} className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-200 transition hover:bg-white/10">Voltar</button>
-              <button type="button" onClick={() => void confirmConsentRevocation()} className="rounded-xl bg-red-400 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-red-950 transition hover:bg-red-300">Sim, cancelar instalação</button>
+              <button type="button" onClick={() => setConsentRevocationOrder(null)} className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-200 transition hover:bg-white/10">{t('service_orders.actions.back')}</button>
+              <button type="button" onClick={() => void confirmConsentRevocation()} className="rounded-xl bg-red-400 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-red-950 transition hover:bg-red-300">{t('service_orders.cancel_modal.confirm')}</button>
             </div>
           </section>
         </div>

@@ -79,19 +79,19 @@ export const DemoExperienceCard: React.FC<DemoExperienceCardProps> = ({
                         <ul className="space-y-2 text-[11px] font-semibold text-gray-300 pt-1">
                             <li className="flex items-center gap-2">
                                 <span className="h-1.5 w-1.5 rounded-full bg-purple-400 shrink-0" />
-                                <span>Interface 100% real do produto</span>
+                                <span>{t('basic_dashboard.demo.bullets.ui')}</span>
                             </li>
                             <li className="flex items-center gap-2">
                                 <span className="h-1.5 w-1.5 rounded-full bg-purple-400 shrink-0" />
-                                <span>Simulação de vendas, compras e Pix</span>
+                                <span>{t('basic_dashboard.demo.bullets.checkout')}</span>
                             </li>
                             <li className="flex items-center gap-2">
                                 <span className="h-1.5 w-1.5 rounded-full bg-purple-400 shrink-0" />
-                                <span>Área de alunos interativa liberada</span>
+                                <span>{t('basic_dashboard.demo.bullets.members')}</span>
                             </li>
                             <li className="flex items-center gap-2">
                                 <span className="h-1.5 w-1.5 rounded-full bg-purple-400 shrink-0" />
-                                <span>Teste completo em ambiente seguro</span>
+                                <span>{t('basic_dashboard.demo.bullets.full_test')}</span>
                             </li>
                         </ul>
                     </div>
@@ -335,7 +335,7 @@ export const BlockBasicDashboard: React.FC<BlockBasicDashboardProps> = ({
                                     {t('basic_dashboard.cards.installation_key')}
                                 </span>
                                 <p className="text-[11px] font-bold text-purple-300/70">
-                                    CHAVE MASTER DE AUTENTICAÇÃO
+                                    {t('license.master_key')}
                                 </p>
                             </div>
                         </div>
@@ -367,7 +367,7 @@ export const BlockBasicDashboard: React.FC<BlockBasicDashboardProps> = ({
                                         className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-purple-400/40 bg-purple-600 hover:bg-purple-500 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-white shadow-md transition duration-200 active:scale-95 disabled:opacity-40"
                                     >
                                         {copiedKey ? <Check className="h-3.5 w-3.5 text-emerald-300" /> : <Copy className="h-3.5 w-3.5" />}
-                                        <span>{copiedKey ? 'COPIADO' : 'COPIAR'}</span>
+                                        <span>{copiedKey ? t('license.copied') : t('license.copy_token')}</span>
                                     </button>
                                 </div>
                             </div>
@@ -381,7 +381,7 @@ export const BlockBasicDashboard: React.FC<BlockBasicDashboardProps> = ({
                     {/* Rodapé Separado */}
                     <div className="mt-6 flex items-center justify-between border-t border-white/[0.08] pt-4">
                         <span className="text-[10px] font-medium text-gray-400">
-                            Usada para validar suas instâncias
+                            {t('basic_dashboard.key_usage')}
                         </span>
                         <button
                             type="button"
@@ -410,7 +410,7 @@ export const BlockBasicDashboard: React.FC<BlockBasicDashboardProps> = ({
                                         {t('basic_dashboard.cards.current_limits')}
                                     </span>
                                     <p className="text-[11px] font-bold text-sky-300/70">
-                                        RECURSOS LIBERADOS
+                                        {t('benefits.title')}
                                     </p>
                                 </div>
                             </div>

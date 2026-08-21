@@ -105,7 +105,7 @@ export const ConfigModal = () => {
               <div className="flex items-center gap-3">
                 <h2 className="text-sm font-black text-white uppercase tracking-wider">{node.data.label}</h2>
                 <span className="px-2 py-0.5 rounded-md bg-white/5 text-[9px] font-bold text-slate-500 uppercase tracking-widest border border-white/5">
-                  {node.data.category} â€¢ {node.id}
+                  {node.data.category} • {node.id}
                 </span>
               </div>
             </div>

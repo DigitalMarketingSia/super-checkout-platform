@@ -3,6 +3,7 @@ import { encrypt } from '../../utils/cryptoUtils.js';
 import { stripGatewayPrivateConfig } from '../../utils/gatewayPublicConfig.js';
 import { logAuthzEvent, requireApiAuth } from '../_authz.js';
 import { enforceApiRateLimit } from '../_rate-limit.js';
+import { isRetiredGatewayProvider } from '../../config/gatewayAvailability.js';
 
 /**
  * ADMIN API: SAVE GATEWAY (v4)
@@ -166,6 +167,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Keep existing encrypted secrets when the UI leaves the field blank.
     const encryptedPrivateKey = resolveSecretToPersist(private_key, existingGateway?.private_key, Boolean(clear_private_key));
     const encryptedWebhookSecret = resolveSecretToPersist(webhook_secret, existingGateway?.webhook_secret, Boolean(clear_webhook_secret));
+
+    if (isRetiredGatewayProvider(normalizedProvider) && active !== false) {
+      await logAuthzEvent({
+        supabaseAdmin,
+        req,
+        source: 'admin_save_gateway',
+        eventType: 'retired_gateway_activation_rejected',
+        severity: 'WARNING',
+        userId: user.id,
+        metadata: { provider: normalizedProvider },
+      });
+      return res.status(409).json({ error: 'Gateway retired', code: 'GATEWAY_RETIRED' });
+    }
+
+    const gatewayWillBeActive = active ?? true;
+    if (normalizedProvider === 'asaas' && gatewayWillBeActive && (!encryptedPrivateKey || !encryptedWebhookSecret)) {
+      await logAuthzEvent({
+        supabaseAdmin,
+        req,
+        source: 'admin_save_gateway',
+        eventType: 'gateway_activation_rejected',
+        severity: 'WARNING',
+        userId: user.id,
+        metadata: {
+          provider: 'asaas',
+          missing_private_key: !encryptedPrivateKey,
+          missing_webhook_secret: !encryptedWebhookSecret,
+        },
+      });
+      return res.status(400).json({
+        error: 'Asaas API key and webhook token are required before activation',
+        code: 'GATEWAY_VERIFICATION_REQUIRED',
+      });
+    }
     const shouldClearOauthCredentials = Boolean(clear_oauth_credentials) && normalizedProvider === 'pagseguro';
     const nextCredentials = shouldClearOauthCredentials
       ? {
@@ -195,7 +230,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       private_key: encryptedPrivateKey,
       webhook_secret: encryptedWebhookSecret,
       config: stripGatewayPrivateConfig(config || {}),
-      active: active ?? true,
+      active: gatewayWillBeActive,
       user_id: user.id,
       ...(nextCredentials ? { credentials: nextCredentials } : {}),
     };

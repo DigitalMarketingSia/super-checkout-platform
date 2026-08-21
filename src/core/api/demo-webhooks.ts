@@ -1,5 +1,4 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { createHmac } from 'node:crypto';
 import { enforceApiRateLimit } from './_rate-limit.js';
 import { encrypt, decrypt } from '../utils/cryptoUtils.js';
 import {
@@ -13,7 +12,6 @@ const COOKIE_TTL_SECONDS = 24 * 60 * 60;
 const MAX_WEBHOOKS = 6;
 const MAX_HEADERS = 8;
 const MAX_EVENTS = 10;
-const MAX_RESPONSE_BODY_LENGTH = 600;
 const MAX_SECRET_LENGTH = 240;
 const MAX_NAME_LENGTH = 120;
 const MAX_DESCRIPTION_LENGTH = 180;
@@ -212,14 +210,6 @@ function decodeWebhookCookie(req: VercelRequest): WebhookConfig[] {
   }
 }
 
-function buildGetUrl(baseUrl: string, payload: Record<string, unknown>) {
-  const url = new URL(baseUrl);
-  url.searchParams.set('event', String(payload.event || ''));
-  url.searchParams.set('demo', String(payload.demo === true));
-  url.searchParams.set('payload', JSON.stringify(payload));
-  return url.toString();
-}
-
 function shouldDispatchWebhook(params: {
   hook: WebhookConfig;
   event: string;
@@ -237,76 +227,27 @@ function shouldDispatchWebhook(params: {
   return params.aliases.some((alias) => allowedEvents.has(alias));
 }
 
-async function dispatchToWebhook(params: {
+export async function simulateDemoWebhookDispatch(params: {
   hook: WebhookConfig;
   event: string;
   payload: Record<string, unknown>;
 }): Promise<WebhookLog> {
   const startedAt = Date.now();
   const body = JSON.stringify(params.payload);
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'X-Super-Checkout-Event': params.event,
-    'X-Super-Checkout-Demo': 'true',
+
+  // Demo workspaces must never create external effects. The UI receives a
+  // realistic delivery log, while the server performs no DNS lookup or fetch.
+  return {
+    id: `demo-whlog-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+    webhook_id: params.hook.id,
+    direction: 'outgoing',
+    event: params.event,
+    payload: body,
+    response_status: 202,
+    response_body: 'Simulated demo delivery; no external request was sent.',
+    duration_ms: Date.now() - startedAt,
+    created_at: new Date().toISOString(),
   };
-
-  for (const header of params.hook.headers || []) {
-    headers[header.key] = header.value;
-  }
-
-  if (params.hook.secret) {
-    if (params.hook.signature_mode === 'hmac_sha256') {
-      const timestamp = Math.floor(Date.now() / 1000).toString();
-      const signedBody = params.hook.method === 'GET' ? '' : body;
-      const signature = createHmac('sha256', params.hook.secret)
-        .update(`${timestamp}.${signedBody}`)
-        .digest('hex');
-      headers['X-Super-Checkout-Timestamp'] = timestamp;
-      headers['X-Super-Checkout-Signature'] = `sha256=${signature}`;
-      headers['X-Super-Checkout-Signature-Version'] = 'v1';
-    } else {
-      headers['X-Super-Checkout-Signature'] = params.hook.secret;
-    }
-  }
-
-  try {
-    const response = await fetch(
-      params.hook.method === 'GET'
-        ? buildGetUrl(params.hook.url, params.payload)
-        : params.hook.url,
-      {
-        method: params.hook.method || 'POST',
-        headers,
-        body: params.hook.method === 'GET' ? undefined : body,
-      },
-    );
-
-    const responseBody = await response.text().catch(() => '');
-
-    return {
-      id: `demo-whlog-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
-      webhook_id: params.hook.id,
-      direction: 'outgoing',
-      event: params.event,
-      payload: body,
-      response_status: response.status,
-      response_body: responseBody.slice(0, MAX_RESPONSE_BODY_LENGTH),
-      duration_ms: Date.now() - startedAt,
-      created_at: new Date().toISOString(),
-    };
-  } catch (error: any) {
-    return {
-      id: `demo-whlog-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
-      webhook_id: params.hook.id,
-      direction: 'outgoing',
-      event: params.event,
-      payload: body,
-      response_status: 599,
-      response_body: String(error?.message || 'Webhook request failed').slice(0, MAX_RESPONSE_BODY_LENGTH),
-      duration_ms: Date.now() - startedAt,
-      created_at: new Date().toISOString(),
-    };
-  }
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -400,7 +341,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const logs = await Promise.all(
-      matchingHooks.map((hook) => dispatchToWebhook({
+      matchingHooks.map((hook) => simulateDemoWebhookDispatch({
         hook,
         event,
         payload,

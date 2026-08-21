@@ -127,7 +127,7 @@ export const LanguageSelector: React.FC<{ variant?: 'sidebar' | 'header' | 'port
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-2 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-white/5 text-gray-400 hover:text-gray-900 dark:hover:text-white transition-all shadow-sm"
-        title="Alterar Idioma"
+        title={t('common.language', 'Idioma')}
       >
         <span className="text-lg">{currentLanguage.flag}</span>
       </button>

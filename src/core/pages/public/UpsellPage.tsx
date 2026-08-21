@@ -306,6 +306,7 @@ function UpsellCardPreview(props: {
     flipped?: boolean;
     onToggle?: () => void;
 }) {
+    const { t } = useTranslation('public');
     const resolvedBrand = props.cardNumber ? detectUpsellCardBrand(props.cardNumber) : normalizeUpsellCardBrand(props.brand);
     const cardStyle = upsellCardStyles[resolvedBrand];
     const displayNumber = formatUpsellCardPreviewNumber(undefined, props.last4);
@@ -333,11 +334,11 @@ function UpsellCardPreview(props: {
                         </div>
                         <div className="flex justify-between items-end">
                             <div>
-                                <p className="text-[7px] uppercase text-gray-400">Titular</p>
+                                <p className="text-[7px] uppercase text-gray-400">{t('upsell.cardholder_label')}</p>
                                 <p className="font-medium uppercase text-xs tracking-wide">{displayHolder}</p>
                             </div>
                             <div>
-                                <p className="text-[7px] uppercase text-gray-400">Validade</p>
+                                <p className="text-[7px] uppercase text-gray-400">{t('upsell.expiry_label')}</p>
                                 <p className="font-medium text-xs tracking-widest">{displayExpiry}</p>
                             </div>
                         </div>
@@ -1924,7 +1925,7 @@ export const UpsellPage = () => {
                             ) : (
                                 <div className="w-full aspect-square rounded-2xl bg-gradient-to-tr from-white/10 via-white/5 to-transparent border border-white/10 flex flex-col items-center justify-center gap-3 shadow-lg shadow-white/5 p-4 text-center">
                                     <Package className="w-12 h-12 text-gray-500 animate-pulse" />
-                                    <span className="text-xs text-gray-500 font-medium">Imagem do Produto</span>
+                                    <span className="text-xs text-gray-500 font-medium">{t('coverage.upsell.product_image')}</span>
                                 </div>
                             )}
                         </div>
@@ -1942,7 +1943,7 @@ export const UpsellPage = () => {
                                     {discountPercentage ? (
                                         <div className="flex justify-center md:justify-start">
                                             <span className="text-[10px] px-2 py-0.5 rounded bg-red-950/60 text-red-400 border border-red-500/20 font-black uppercase tracking-wider">
-                                                -{discountPercentage}% DE DESCONTO
+                                                -{discountPercentage}% {t('coverage.upsell.discount_percentage')}
                                             </span>
                                         </div>
                                     ) : null}
@@ -1973,7 +1974,7 @@ export const UpsellPage = () => {
                             {canUsePayPalUpsell ? (
                                 <div className="w-full max-w-sm rounded-2xl border border-blue-400/25 bg-white p-3 shadow-xl shadow-blue-950/30">
                                     <p className="mb-3 px-1 text-center text-xs font-medium leading-relaxed text-gray-600">
-                                        Aprove a compra adicional na janela oficial do PayPal. Seu pedido principal nao sera cobrado novamente.
+                                        {t('coverage.upsell.paypal_description')}
                                     </p>
                                     <PayPalUpsellButton
                                         clientId={gateway?.public_key || ''}
@@ -2143,11 +2144,11 @@ export const UpsellPage = () => {
                 <div className="fixed bottom-4 right-4 bg-[#111]/90 backdrop-blur-md border border-white/10 p-4 rounded-xl shadow-2xl z-50 text-left space-y-3 max-w-[280px]">
                     <div className="flex items-center gap-1.5 text-xs font-black uppercase text-emerald-400 tracking-wider">
                         <Sliders className="w-3.5 h-3.5" />
-                        Controles do Preview
+                        {t('coverage.upsell.preview_controls')}
                     </div>
                     <div className="space-y-2 text-xs">
                         <div>
-                            <label className="block text-[10px] text-gray-400 font-bold mb-1">Método Original</label>
+                            <label className="block text-[10px] text-gray-400 font-bold mb-1">{t('coverage.upsell.original_method')}</label>
                             <select 
                                 value={originalOrder?.payment_method || 'credit_card'} 
                                 onChange={(e) => {
@@ -2158,7 +2159,7 @@ export const UpsellPage = () => {
                                 }}
                                 className="w-full bg-black border border-white/10 p-1.5 rounded text-white font-semibold"
                             >
-                                <option value="credit_card">Cartão de Crédito</option>
+                                <option value="credit_card">{t('coverage.upsell.credit_card')}</option>
                                 <option value="pix">Pix</option>
                             </select>
                         </div>
@@ -2176,11 +2177,11 @@ export const UpsellPage = () => {
                             >
                                 <option value="asaas">Asaas</option>
                                 <option value="stripe">Stripe</option>
-                                <option value="mercado_pago">Mercado Pago</option>
+                                <option value="mercado_pago">{t('coverage.upsell.mercado_pago')}</option>
                             </select>
                         </div>
                         <div>
-                            <label className="block text-[10px] text-gray-400 font-bold mb-1">Cartão Salvo</label>
+                            <label className="block text-[10px] text-gray-400 font-bold mb-1">{t('coverage.upsell.saved_card')}</label>
                             <select 
                                 value={upsellCapability.reusable_profile_available ? 'true' : 'false'} 
                                 onChange={(e) => {
@@ -2191,8 +2192,8 @@ export const UpsellPage = () => {
                                 }}
                                 className="w-full bg-black border border-white/10 p-1.5 rounded text-white font-semibold"
                             >
-                                <option value="true">Sim (Visa 4242)</option>
-                                <option value="false">Não</option>
+                                <option value="true">{t('coverage.upsell.yes_card')}</option>
+                                <option value="false">{t('coverage.upsell.no')}</option>
                             </select>
                         </div>
                     </div>
@@ -2219,6 +2220,7 @@ const PayPalUpsellButton = ({
     onCancel: () => void;
     onError: (message: string) => void;
 }) => {
+    const { t } = useTranslation('public');
     const containerRef = useRef<HTMLDivElement | null>(null);
     const callbacksRef = useRef({ onCreateOrder, onApprove, onCancel, onError });
     const suppressPreparationErrorRef = useRef(false);
@@ -2309,7 +2311,7 @@ const PayPalUpsellButton = ({
             <div ref={containerRef} />
             {processing && (
                 <p className="pt-2 text-center text-xs font-medium text-gray-500">
-                    Preparando pagamento seguro...
+                    {t('coverage.upsell.loading_payment')}
                 </p>
             )}
         </div>

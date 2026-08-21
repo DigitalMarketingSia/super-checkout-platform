@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import crypto from 'crypto';
+import net from 'node:net';
 
 type Bucket = {
     count: number;
@@ -17,12 +18,15 @@ const buckets = new Map<string, Bucket>();
 const MAX_BUCKETS = 5000;
 
 function getClientIp(req: VercelRequest) {
-    const forwarded = req.headers['x-forwarded-for'];
-    const firstForwarded = Array.isArray(forwarded) ? forwarded[0] : forwarded;
-    return firstForwarded?.split(',')[0]?.trim()
-        || String(req.headers['cf-connecting-ip'] || '')
-        || String(req.socket?.remoteAddress || '')
-        || 'unknown';
+    const first = (value: string | string[] | undefined) =>
+        String(Array.isArray(value) ? value[0] || '' : value || '').split(',')[0].trim();
+    const candidates = [
+        first(req.headers['cf-connecting-ip']),
+        first(req.headers['x-real-ip']),
+        first(req.headers['x-forwarded-for']),
+        String(req.socket?.remoteAddress || '').replace(/^::ffff:/, ''),
+    ];
+    return candidates.find((candidate) => net.isIP(candidate) !== 0) || 'unknown';
 }
 
 function hashIdentifier(value: string) {

@@ -262,7 +262,7 @@ export const SystemLicenses = () => {
                         onClick={() => setIsCreateModalOpen(true)}
                         className="bg-primary hover:bg-primary/90 text-white h-12 px-6 rounded-xl font-bold shadow-[0_0_20px_rgba(138,43,226,0.3)] transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] flex items-center gap-2"
                     >
-                        <Plus className="w-5 h-5" /> Nova Licença
+                        <Plus className="w-5 h-5" /> {t('coverage.system_licenses.new_license')}
                     </Button>
                 </div>
             </div>
@@ -324,7 +324,7 @@ export const SystemLicenses = () => {
                                         <td colSpan={5} className="p-20 text-center">
                                             <div className="flex flex-col items-center gap-4 max-w-xl mx-auto">
                                                 <AlertTriangle className="w-16 h-16 text-orange-400/70" />
-                                                <span className="text-xl font-bold tracking-tighter italic text-white uppercase">Gestao global indisponivel</span>
+                                                <span className="text-xl font-bold tracking-tighter italic text-white uppercase">{t('coverage.system_licenses.global_unavailable')}</span>
                                                 <p className="text-sm text-gray-500 leading-relaxed">
                                                     {fetchError}
                                                 </p>
@@ -334,7 +334,7 @@ export const SystemLicenses = () => {
                                                     className="bg-white/5 hover:bg-white/10 text-white rounded-xl px-6 h-11 font-bold text-xs uppercase tracking-widest"
                                                 >
                                                     <RefreshCw className="w-4 h-4 mr-2" />
-                                                    Tentar novamente
+                                                    {t('coverage.system_licenses.retry')}
                                                 </Button>
                                             </div>
                                         </td>
@@ -419,17 +419,17 @@ export const SystemLicenses = () => {
                                                 {isProtected ? (
                                                     <div className="inline-flex items-center gap-2 bg-yellow-400/10 text-yellow-300 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-tighter border border-yellow-400/20">
                                                         <Shield className="w-3 h-3" />
-                                                        Protected
+                                                        {t('coverage.system_licenses.protected')}
                                                     </div>
                                                 ) : lic.status === 'active' ? (
                                                     <div className="inline-flex items-center gap-2 bg-emerald-500/10 text-emerald-500 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-tighter border border-emerald-500/20">
                                                         <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
-                                                        Operational
+                                                        {t('coverage.system_licenses.operational')}
                                                     </div>
                                                 ) : (
                                                     <div className="inline-flex items-center gap-2 bg-red-500/10 text-red-500 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-tighter border border-red-500/20">
                                                         <div className="w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
-                                                        Suspended
+                                                        {t('coverage.system_licenses.suspended')}
                                                     </div>
                                                 )}
                                             </td>
@@ -461,9 +461,9 @@ export const SystemLicenses = () => {
                                                             variant="outline"
                                                             className="h-9 px-4 border-yellow-400/20 bg-yellow-400/5 text-yellow-300/80 text-[10px] font-black uppercase tracking-wider rounded-xl cursor-not-allowed"
                                                             disabled
-                                                            title="Licenca estrutural do Super Checkout protegida contra suspensao e exclusao"
+                                                            title={t('coverage.system_licenses.structural_license_protected')}
                                                         >
-                                                            Protected
+                                                            {t('coverage.system_licenses.protected')}
                                                         </Button>
                                                     ) : lic.status === 'active' ? (
                                                         <Button 
@@ -472,7 +472,7 @@ export const SystemLicenses = () => {
                                                             className="h-9 px-4 border-orange-500/30 hover:bg-orange-500/10 text-orange-400 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all"
                                                             onClick={() => handleAction(lic, 'suspend')}
                                                         >
-                                                            Suspend
+                                                            {t('coverage.system_licenses.suspend')}
                                                         </Button>
                                                     ) : (
                                                         <Button 
@@ -481,14 +481,14 @@ export const SystemLicenses = () => {
                                                             className="h-9 px-4 border-emerald-500/30 hover:bg-emerald-500/10 text-emerald-400 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all"
                                                             onClick={() => handleAction(lic, 'activate')}
                                                         >
-                                                            Restore
+                                                            {t('coverage.system_licenses.restore')}
                                                         </Button>
                                                     )}
                                                     <Button 
                                                         size="icon" 
                                                         variant="ghost" 
                                                         disabled={isProtected}
-                                                        title={isProtected ? 'Licenca estrutural protegida contra exclusao' : 'Excluir licenca'}
+                                                        title={isProtected ? t('coverage.system_licenses.protected_delete') : t('coverage.system_licenses.delete_license')}
                                                         className="h-9 w-9 text-gray-600 hover:text-red-500 hover:bg-red-500/5 transition-all disabled:opacity-30 disabled:hover:text-gray-600 disabled:hover:bg-transparent disabled:cursor-not-allowed"
                                                         onClick={() => handleAction(lic, 'delete')}
                                                     >
@@ -517,7 +517,7 @@ export const SystemLicenses = () => {
                                 onClick={() => setPage(p => Math.max(1, p - 1))}
                                 className="bg-white/5 hover:bg-white/10 text-white disabled:opacity-20 h-10 px-4 rounded-xl font-bold text-xs uppercase tracking-tighter"
                             >
-                                <ChevronLeft className="w-4 h-4 mr-1" /> Prev
+                                <ChevronLeft className="w-4 h-4 mr-1" /> {t('coverage.system_licenses.previous')}
                             </Button>
                             <Button
                                 variant="ghost"
@@ -526,7 +526,7 @@ export const SystemLicenses = () => {
                                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                                 className="bg-white/5 hover:bg-white/10 text-white disabled:opacity-20 h-10 px-4 rounded-xl font-bold text-xs uppercase tracking-tighter"
                             >
-                                Next <ChevronRight className="w-4 h-4 ml-1" />
+                                {t('coverage.system_licenses.next')} <ChevronRight className="w-4 h-4 ml-1" />
                             </Button>
                         </div>
                     </div>
@@ -537,7 +537,7 @@ export const SystemLicenses = () => {
             <Modal
                 isOpen={isCreateModalOpen}
                 onClose={() => setIsCreateModalOpen(false)}
-                title="CONTRATAR NOVA LICENÇA"
+                title={t('coverage.system_licenses.create_title')}
             >
                 <div className="space-y-6">
                     <div className="p-4 bg-primary/5 border border-primary/20 rounded-2xl flex items-center gap-4 animate-in zoom-in duration-500">
@@ -545,35 +545,35 @@ export const SystemLicenses = () => {
                             <Plus className="w-6 h-6 text-primary" />
                         </div>
                         <p className="text-xs text-primary/80 font-bold leading-relaxed uppercase tracking-tighter">
-                            Gerando ativos comerciais autorizados. Preencha os protocolos de identificação abaixo.
+                            {t('coverage.system_licenses.create_description')}
                         </p>
                     </div>
 
                     <div className="space-y-4">
                         <div className="group">
-                            <label className="block text-[10px] font-black text-gray-500 mb-1.5 uppercase tracking-widest pl-1">Identidade do Cliente</label>
+                            <label className="block text-[10px] font-black text-gray-500 mb-1.5 uppercase tracking-widest pl-1">{t('coverage.system_licenses.client_identity')}</label>
                             <input
                                 type="text"
                                 className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white outline-none focus:border-primary focus:bg-white/[0.08] transition-all font-medium"
                                 value={newLicense.name}
                                 onChange={(e) => setNewLicense({ ...newLicense, name: e.target.value })}
-                                placeholder="NOME COMPLETO OU RAZÃO"
+                                placeholder={t('coverage.system_licenses.client_name_placeholder')}
                             />
                         </div>
                         <div className="group">
-                            <label className="block text-[10px] font-black text-gray-500 mb-1.5 uppercase tracking-widest pl-1">Protocolo de Comunicação (E-mail)</label>
+                            <label className="block text-[10px] font-black text-gray-500 mb-1.5 uppercase tracking-widest pl-1">{t('coverage.system_licenses.email_protocol')}</label>
                             <input
                                 type="email"
                                 className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white outline-none focus:border-primary focus:bg-white/[0.08] transition-all font-medium"
                                 value={newLicense.email}
                                 onChange={(e) => setNewLicense({ ...newLicense, email: e.target.value })}
-                                placeholder="CLIENTE@EMAIL.COM"
+                                placeholder={t('coverage.system_licenses.email_placeholder')}
                             />
                         </div>
                     </div>
 
                     <div>
-                        <label className="block text-[10px] font-black text-gray-500 mb-3 uppercase tracking-widest pl-1">Nível de Acesso (Tier Plan)</label>
+                        <label className="block text-[10px] font-black text-gray-500 mb-3 uppercase tracking-widest pl-1">{t('coverage.system_licenses.access_level')}</label>
                         <div className="grid grid-cols-1 gap-3">
                             {loadingPlans ? (
                                 <div className="p-8 text-center text-gray-600 animate-pulse font-bold tracking-tighter">{t('system_licenses.syncing_plans', 'Sincronizando planos...')}</div>
@@ -620,7 +620,7 @@ export const SystemLicenses = () => {
                             onClick={() => setIsCreateModalOpen(false)} 
                             className="flex-1 bg-white/5 hover:bg-white/10 text-white rounded-xl h-12 font-bold text-xs uppercase tracking-widest"
                         >
-                            Abortar
+                            {t('coverage.system_licenses.abort')}
                         </Button>
                         <Button 
                             onClick={handleCreateLicense} 
@@ -629,9 +629,9 @@ export const SystemLicenses = () => {
                         >
                             {creating ? (
                                 <div className="flex items-center gap-2">
-                                    <RefreshCw className="w-4 h-4 animate-spin" /> EXECUTANDO...
+                                    <RefreshCw className="w-4 h-4 animate-spin" /> {t('coverage.system_licenses.executing')}
                                 </div>
-                            ) : 'Gerar Licença'}
+                            ) : t('coverage.system_licenses.generate_license')}
                         </Button>
                     </div>
                 </div>
@@ -641,7 +641,7 @@ export const SystemLicenses = () => {
             <Modal
                 isOpen={isInstallationsModalOpen}
                 onClose={() => setIsInstallationsModalOpen(false)}
-                title="MONITORAMENTO DE NÓS"
+                title={t('coverage.system_licenses.node_monitoring')}
             >
                 <div className="space-y-6">
                     <div className="flex items-center justify-between p-4 bg-white/5 border border-white/5 rounded-2xl animate-in fade-in duration-500">
@@ -709,7 +709,7 @@ export const SystemLicenses = () => {
                             onClick={() => setIsInstallationsModalOpen(false)}
                             className="bg-white/5 hover:bg-white/10 text-white rounded-xl px-8 h-12 font-bold text-xs uppercase tracking-widest"
                         >
-                            Fechar
+                            {t('coverage.system_licenses.close')}
                         </Button>
                     </div>
                 </div>
@@ -719,7 +719,7 @@ export const SystemLicenses = () => {
             <Modal
                 isOpen={isFeaturesModalOpen}
                 onClose={() => setIsFeaturesModalOpen(false)}
-                title="PROTOCOLO DE RECURSOS"
+                title={t('coverage.system_licenses.resource_protocol')}
             >
                 <div className="space-y-6">
                     <div className="bg-primary/5 border border-primary/20 p-5 rounded-2xl flex items-start gap-4">
@@ -729,7 +729,7 @@ export const SystemLicenses = () => {
                         <div>
                             <h4 className="text-white font-black italic tracking-tighter uppercase text-sm">{t('system_licenses.feature_sync_title', 'Sincronização de recursos')}</h4>
                             <p className="text-xs text-primary/70 mt-1 font-medium leading-relaxed">
-                                Sincronize módulos e capacidades de processamento remotamente. Estas definições sobrepõem as travas locais do nó cliente.
+                                {t('coverage.system_licenses.resource_description')}
                             </p>
                         </div>
                     </div>
@@ -779,7 +779,7 @@ export const SystemLicenses = () => {
                             onClick={() => setIsFeaturesModalOpen(false)}
                             className="bg-white/5 hover:bg-white/10 text-white rounded-xl px-10 h-12 font-bold text-xs uppercase tracking-widest"
                         >
-                            Confirmar Protocolo
+                            {t('coverage.system_licenses.confirm_protocol')}
                         </Button>
                     </div>
                 </div>
@@ -789,7 +789,7 @@ export const SystemLicenses = () => {
             <Modal
                 isOpen={!!createdLicenseData}
                 onClose={() => setCreatedLicenseData(null)}
-                title="ATIVO GERADO COM SUCESSO"
+                title={t('coverage.system_licenses.generated_title')}
             >
                 <div className="space-y-6">
                     <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-6 text-emerald-400 text-sm flex flex-col items-center text-center gap-4 animate-in zoom-in duration-700">
@@ -798,7 +798,7 @@ export const SystemLicenses = () => {
                         </div>
                         <div>
                             <h3 className="font-black italic text-xl uppercase tracking-tighter text-white">{t('system_licenses.created_title', 'Licença pronta')}</h3>
-                            <p className="text-emerald-500/70 font-bold text-xs uppercase tracking-tight mt-1">O token de implantação foi ativado e expira em 60 minutos.</p>
+                            <p className="text-emerald-500/70 font-bold text-xs uppercase tracking-tight mt-1">{t('coverage.system_licenses.token_description')}</p>
                         </div>
                     </div>
 
@@ -855,7 +855,7 @@ export const SystemLicenses = () => {
                             onClick={() => setCreatedLicenseData(null)}
                             className="bg-white/5 hover:bg-white/10 text-white rounded-xl px-8 h-12 font-bold text-xs uppercase tracking-widest"
                         >
-                            Fechar Portal
+                            {t('coverage.system_licenses.close_portal')}
                         </Button>
                     </div>
                 </div>

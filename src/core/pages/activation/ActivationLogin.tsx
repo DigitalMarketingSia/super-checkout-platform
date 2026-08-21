@@ -386,16 +386,16 @@ export const ActivationLogin = () => {
                                 <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4">
                                     <div className="flex items-center gap-2 text-emerald-300 text-sm font-bold mb-1">
                                         <ShieldCheck className="w-4 h-4" />
-                                        Validacao em duas etapas
+                                        {t('coverage.two_factor.title', { ns: 'auth' })}
                                     </div>
                                     <p className="text-xs text-gray-400">
-                                        Digite o codigo de 6 digitos do app autenticador para concluir o acesso ao portal.
+                                        {t('coverage.two_factor.description', { ns: 'auth' })}
                                     </p>
                                 </div>
 
                                 <div>
                                     <div className="flex items-center justify-between mb-2">
-                                        <label className="block text-sm font-medium text-gray-400">Codigo 2FA</label>
+                                        <label className="block text-sm font-medium text-gray-400">{t('coverage.two_factor.code_label', { ns: 'auth' })}</label>
                                         <button
                                             type="button"
                                             onClick={() => {

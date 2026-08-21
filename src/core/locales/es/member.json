@@ -8,7 +8,9 @@
     "profile": "Perfil",
     "logout": "Cerrar sesión",
     "signup": "Regístrese aquí",
-    "login": "Entrar"
+    "login": "Entrar",
+    "open_menu": "Abrir menú",
+    "close_menu": "Cerrar menú"
   },
   "status": {
     "suspended": "Acceso Suspendido",
@@ -173,13 +175,13 @@
     "footer_legal_contact": "Contacto legal: {{contact}}"
   },
   "session_switch_guard": {
-    "eyebrow": "SesiÃ³n administrativa activa",
-    "title": "Este enlace cambiarÃ¡ tu sesiÃ³n actual",
-    "description": "Ya tienes una cuenta administrativa abierta en este navegador. Si continÃºas, el acceso actual serÃ¡ sustituido por la cuenta del alumno de este enlace.",
-    "current_session_label": "SesiÃ³n actual",
+    "eyebrow": "Sesión administrativa activa",
+    "title": "Este enlace cambiará tu sesión actual",
+    "description": "Ya tienes una cuenta administrativa abierta en este navegador. Si continúas, el acceso actual será sustituido por la cuenta del alumno de este enlace.",
+    "current_session_label": "Sesión actual",
     "current_session_fallback": "Cuenta administrativa autenticada",
-    "recommendation": "Para probar la experiencia del comprador sin salir del admin, abre este enlace en una ventana de incÃ³gnito o en otro navegador.",
-    "continue": "Continuar y cambiar sesiÃ³n",
+    "recommendation": "Para probar la experiencia del comprador sin salir del admin, abre este enlace en una ventana de incógnito o en otro navegador.",
+    "continue": "Continuar y cambiar sesión",
     "cancel": "Volver sin cambiar",
     "switching": "Entrando..."
   }

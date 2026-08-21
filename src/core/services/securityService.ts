@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { sanitizeSecurityMetadata } from '../utils/securityMetadata.js';
 
 /**
  * SERVICE: SECURITY (BACKEND-ONLY)
@@ -8,27 +9,6 @@ import { createClient } from '@supabase/supabase-js';
  */
 
 let supabaseAdmin: ReturnType<typeof createClient> | null | undefined;
-
-function sanitizeSecurityMetadata(metadata: Record<string, any> = {}) {
-  const blocked = new Set([
-    'password',
-    'secret',
-    'private_key',
-    'webhook_secret',
-    'token',
-    'access_token',
-    'refresh_token',
-    'captcha_token',
-  ]);
-  const blockedFragments = ['cpf', 'cnpj', 'document', 'phone', 'whatsapp'];
-
-  return Object.fromEntries(
-    Object.entries(metadata).filter(([key]) => {
-      const normalized = String(key || '').toLowerCase();
-      return !blocked.has(normalized) && !blockedFragments.some((fragment) => normalized.includes(fragment));
-    }),
-  );
-}
 
 function getSupabaseAdmin() {
   if (supabaseAdmin !== undefined) {
@@ -117,14 +97,14 @@ export class SecurityService {
 
   /**
    * Checks whether an IP exceeded the invalid-attempt threshold.
-   * If the audit database is unavailable, the payments flow stays open and the
-   * incident is logged to stderr instead of crashing the lambda cold start.
+   * Payment abuse checks fail closed in production when the shared audit store
+   * is unavailable. Local development remains usable without production keys.
    */
   async isRateLimited(ip: string, limit: number = 5): Promise<boolean> {
     const admin = getSupabaseAdmin();
 
     if (!admin) {
-      return false;
+      return process.env.NODE_ENV === 'production';
     }
 
     try {
@@ -138,14 +118,14 @@ export class SecurityService {
         .gt('created_at', tenMinutesAgo);
 
       if (error) {
-        console.error('[SecurityService] Rate limit DB check error. Allowing request in degraded mode:', error.message);
-        return false;
+        console.error('[SecurityService] Rate limit DB check error. Blocking production request:', error.message);
+        return process.env.NODE_ENV === 'production';
       }
 
       return (count || 0) >= limit;
     } catch (err) {
-      console.error('[SecurityService] Rate limit unexpected error. Allowing request in degraded mode:', err);
-      return false;
+      console.error('[SecurityService] Rate limit unexpected error. Blocking production request:', err);
+      return process.env.NODE_ENV === 'production';
     }
   }
 }

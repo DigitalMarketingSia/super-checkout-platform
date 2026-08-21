@@ -510,40 +510,39 @@ export const Login = () => {
               </div>
               <div>
                 <h3 className="text-xl font-bold text-white">
-                  {setupErrorReason === 'sql_missing' ? 'Banco de Dados Incompleto' : 'Falha na Conexão'}
+                  {setupErrorReason === 'sql_missing' ? t('coverage.login.database_incomplete') : t('coverage.login.connection_failed')}
                 </h3>
                 <p className="text-sm text-gray-400">
-                  {setupErrorReason === 'sql_missing' ? 'A instalação não criou as tabelas necessárias.' : 'Não foi possível conectar ao banco de dados.'}
+                  {setupErrorReason === 'sql_missing' ? t('coverage.login.database_incomplete_desc') : t('coverage.login.connection_failed_desc')}
                 </p>
               </div>
             </div>
 
             <p className="text-gray-300 text-sm mb-6 leading-relaxed">
-              {setupErrorReason === 'keys_missing' && "O aplicativo não encontrou as chaves de conexão. Isso pode acontecer se o deploy na Vercel não recebeu as variáveis de ambiente."}
-              {setupErrorReason === 'connection' && "Verifique se suas chaves do Supabase estão corretas e se o projeto está ativo."}
+              {setupErrorReason === 'keys_missing' && t('coverage.login.keys_missing_message')}
+              {setupErrorReason === 'connection' && t('coverage.login.connection_message')}
               {setupErrorReason === 'sql_missing' && (
                 <>
-                  Parece que você <b>pulou a etapa de Migração</b> no instalador, ou ela falhou.<br /><br />
-                  O sistema conectou, mas não encontrou as funções do banco. Execute o SQL de instalação ou reinstale o sistema.
+                  {t('coverage.login.migration_missing_message')}
                 </>
               )}
             </p>
 
             {setupErrorMessage && (
               <div className="mb-6 p-3 bg-red-500/5 border border-red-500/10 rounded-lg">
-                <p className="text-[10px] text-red-400 uppercase font-bold mb-1">Erro do Sistema:</p>
+                <p className="text-[10px] text-red-400 uppercase font-bold mb-1">{t('coverage.login.system_error')}</p>
                 <p className="text-xs text-gray-500 font-mono break-all">{setupErrorMessage}</p>
               </div>
             )}
 
             {setupErrorReason !== 'sql_missing' && (
               <>
-                <p className="text-xs text-gray-500 mb-4 uppercase font-bold">Solução Manual (Reconectar)</p>
+                <p className="text-xs text-gray-500 mb-4 uppercase font-bold">{t('coverage.login.manual_reconnect')}</p>
                 <form onSubmit={handleManualSetup} className="space-y-4">
                   <div>
                     <input
                       type="text"
-                      placeholder="Project URL (https://...)"
+                      placeholder={t('coverage.login.project_url_placeholder')}
                       value={manualUrl}
                       onChange={e => setManualUrl(e.target.value)}
                       required
@@ -553,7 +552,7 @@ export const Login = () => {
                   <div>
                     <input
                       type="text"
-                      placeholder="Anon Public Key"
+                      placeholder={t('coverage.login.anon_public_key_placeholder')}
                       value={manualKey}
                       onChange={e => setManualKey(e.target.value)}
                       required
@@ -564,7 +563,7 @@ export const Login = () => {
                     type="submit"
                     className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 mt-2"
                   >
-                    Salvar e Reconectar
+                    {t('coverage.login.save_reconnect')}
                   </button>
                 </form>
               </>
@@ -658,7 +657,7 @@ export const Login = () => {
             <p className="text-gray-400">
               {mode === 'login' && t('auth:login.manage_freedom')}
               {mode === 'recovery' && t('auth:login.recovery_desc')}
-              {mode === 'two_factor' && 'Digite o código de 6 dígitos do seu app autenticador.'}
+              {mode === 'two_factor' && t('coverage.two_factor.description')}
             </p>
           </div>
 
@@ -688,7 +687,7 @@ export const Login = () => {
                   type="email"
                   required
                   className="w-full bg-[#16161F] border border-white/10 rounded-xl pl-12 pr-4 py-3.5 text-white outline-none focus:bg-white focus:text-black focus:border-white focus:ring-0 transition-all placeholder:text-gray-600"
-                  placeholder="seu@email.com"
+                  placeholder={t('coverage.login.email_placeholder')}
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                 />
@@ -729,7 +728,7 @@ export const Login = () => {
                 <div className="flex items-center justify-between ml-1">
                   <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
                     <ShieldCheck className="w-4 h-4 text-primary" />
-                    Código de 2FA
+                    {t('coverage.two_factor.code_label')}
                   </label>
                   <button
                     type="button"
@@ -743,7 +742,7 @@ export const Login = () => {
                     }}
                     className="text-xs text-primary hover:text-primary-light transition-colors"
                   >
-                    Voltar
+                    {t('common:coverage.common.back')}
                   </button>
                 </div>
                 <div className="relative group">

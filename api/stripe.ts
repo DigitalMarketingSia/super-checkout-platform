@@ -12,6 +12,7 @@ import {
     mapPagSeguroStatusToLocal,
 } from '../src/core/utils/pagSeguro.js';
 import { getAllowedGatewayIdsForPaymentMethod } from '../src/core/config/paymentRouting.js';
+import { isRetiredGatewayProvider, RETIRED_GATEWAY_RESPONSE } from '../src/core/config/gatewayAvailability.js';
 
 // --- CONFIG ---
 export const config = {
@@ -199,11 +200,7 @@ function verifyMercadoPagoSignature(req: VercelRequest, webhookSecret: string) {
 }
 
 function verifyCentralSignature(req: VercelRequest, rawBody: string) {
-    const centralSecret =
-        process.env.CENTRAL_WEBHOOK_HMAC_SECRET ||
-        process.env.CENTRAL_SHARED_SECRET ||
-        process.env.SHARED_SECRET ||
-        '';
+    const centralSecret = process.env.CENTRAL_WEBHOOK_HMAC_SECRET || '';
     const timestamp = getHeaderValue(req.headers['x-super-checkout-timestamp']);
     const signatureHeader = getHeaderValue(req.headers['x-super-checkout-signature']);
     const signature = signatureHeader.replace(/^sha256=/i, '');
@@ -271,6 +268,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { action } = req.query;
 
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+    if (isRetiredGatewayProvider(action)) {
+        return res.status(410).json(RETIRED_GATEWAY_RESPONSE);
+    }
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
     const supabaseKey =
@@ -718,11 +718,9 @@ async function handlePagSeguro(req: VercelRequest, res: VercelResponse, rawBody:
 
     const validationToken = decrypt(gatewayRecord.webhook_secret || gatewayRecord.private_key || '').trim();
     const signatureHeader = req.headers['x-authenticity-token'];
-    const isSandboxGateway = String(gatewayRecord?.config?.environment || '').trim().toLowerCase() === 'sandbox';
     const signatureIsValid = verifyPagSeguroSignature(rawBody, validationToken, signatureHeader);
-    const signatureMissing = !signatureHeader || (Array.isArray(signatureHeader) ? !signatureHeader[0] : !signatureHeader);
 
-    if (!signatureIsValid && !(isSandboxGateway && signatureMissing)) {
+    if (!signatureIsValid) {
         await logWebhook(supabaseAdmin, 'webhook.pagseguro_invalid_signature', 'INVALID_SIGNATURE', 401, rawBody);
         return res.status(401).json({ status: 'INVALID_SIGNATURE' });
     }

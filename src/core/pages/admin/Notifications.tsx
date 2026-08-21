@@ -576,10 +576,10 @@ export const Notifications = () => {
               <Layers className="w-9 h-9 text-white animate-pulse-slow" />
             </div>
             <h3 className="text-xl font-portal-display text-white uppercase italic tracking-tight mb-1">
-              Escolha o Template
+              {t('coverage.notifications_page.choose_template')}
             </h3>
             <p className="text-xs text-gray-400 max-w-xs font-medium">
-              Selecione o fluxo pós-venda ou controle de acesso que deseja gerenciar.
+              {t('coverage.notifications_page.choose_template_description')}
             </p>
 
             {/* Discreet inline help toggles */}
@@ -596,7 +596,7 @@ export const Notifications = () => {
                 }`}
               >
                 <Info className="w-3.5 h-3.5" />
-                Como Funciona: Compra Aprovada
+                {t('coverage.notifications_page.approved_purchase_how_it_works')}
               </button>
               <button
                 onClick={() => {
@@ -610,20 +610,20 @@ export const Notifications = () => {
                 }`}
               >
                 <Info className="w-3.5 h-3.5" />
-                Como Funciona: Acesso Manual
+                {t('coverage.notifications_page.manual_access_how_it_works')}
               </button>
             </div>
 
             {/* Explanation Boxes */}
             {showHelpCompleted && (
               <div className="mt-4 p-4 rounded-2xl bg-primary/5 border border-primary/20 text-xs text-gray-300 text-left leading-relaxed animate-in slide-in-from-top-2 duration-200">
-                Compra aprovada funciona como fallback quando não existe um e-mail específico de entrega. Entrega direta e área de membros substituem a confirmação genérica e enviam apenas os acessos reais gerados no servidor.
+                {t('coverage.notifications_page.approved_purchase_description')}
               </div>
             )}
 
             {showHelpManual && (
               <div className="mt-4 p-4 rounded-2xl bg-blue-500/5 border border-blue-500/20 text-xs text-gray-300 text-left leading-relaxed animate-in slide-in-from-top-2 duration-200">
-                Acesso manual de aluno é um fluxo separado do pós-compra. Ele só entra quando você reenvia manualmente o acesso de um membro.
+                {t('coverage.notifications_page.manual_access_description')}
               </div>
             )}
           </div>
@@ -660,10 +660,10 @@ export const Notifications = () => {
               <Zap className="w-9 h-9 text-white animate-pulse-slow" />
             </div>
             <h3 className="text-xl font-portal-display text-white uppercase italic tracking-tight mb-1">
-              Templates do Sistema
+              {t('coverage.notifications_page.system_templates')}
             </h3>
             <p className="text-xs text-gray-400 max-w-sm font-medium">
-              Templates de e-mail de disparos internos e segurança da infraestrutura SAAS.
+              {t('coverage.notifications_page.system_templates_description')}
             </p>
           </div>
 
@@ -727,7 +727,7 @@ export const Notifications = () => {
                   {t('notifications.hero.badge')}
                 </p>
                 <div className="hidden h-1.5 w-1.5 rounded-full bg-primary/45 sm:block"></div>
-                <span className="text-[9px] text-[#10B981] font-black uppercase tracking-[0.2em] font-mono">System Online</span>
+                <span className="text-[9px] text-[#10B981] font-black uppercase tracking-[0.2em] font-mono">{t('coverage.notifications_page.system_online')}</span>
               </div>
             </div>
           </div>

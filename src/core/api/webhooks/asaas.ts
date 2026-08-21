@@ -16,6 +16,17 @@ function getHeaderValue(value: string | string[] | undefined) {
   return value || '';
 }
 
+export function verifyAsaasWebhookToken(expectedToken: string, providedToken: string) {
+  const expected = String(expectedToken || '').replace(/\s/g, '').trim();
+  const provided = String(providedToken || '').trim();
+  if (!expected || !provided) return false;
+
+  const expectedBuffer = Buffer.from(expected, 'utf8');
+  const providedBuffer = Buffer.from(provided, 'utf8');
+  return expectedBuffer.length === providedBuffer.length
+    && crypto.timingSafeEqual(expectedBuffer, providedBuffer);
+}
+
 function isMissingCheckoutBackupGatewayColumn(error: any) {
   const normalized = String(
     error?.message
@@ -249,7 +260,19 @@ export async function handleAsaasWebhook(
 
     const expectedWebhookToken = decrypt(gateway.webhook_secret || '').replace(/\s/g, '').trim();
     const providedWebhookToken = getHeaderValue(req.headers['asaas-access-token']).trim();
-    if (expectedWebhookToken && expectedWebhookToken !== providedWebhookToken) {
+    if (!verifyAsaasWebhookToken(expectedWebhookToken, providedWebhookToken)) {
+      if (!expectedWebhookToken) {
+        console.error('[Asaas Webhook] Active gateway has no webhook token configured.', { gatewayId });
+      }
+      await logWebhook(supabaseAdmin, {
+        eventId,
+        gatewayId,
+        processed: false,
+        payload: rawPayloadForLog,
+        providerPaymentId,
+        providerEvent,
+        orderId: resolvedOrderId,
+      });
       return res.status(401).json({ status: 'INVALID_SIGNATURE' });
     }
 

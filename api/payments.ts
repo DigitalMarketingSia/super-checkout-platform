@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { isRetiredGatewayProvider, RETIRED_GATEWAY_RESPONSE } from '../src/core/config/gatewayAvailability.js';
 
 /**
  * PAYMENTS HUB (v4)
@@ -208,6 +209,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
     const { action } = req.query;
+    if (isRetiredGatewayProvider(action)) {
+        return res.status(410).json(RETIRED_GATEWAY_RESPONSE);
+    }
     const forwardedFor = Array.isArray(req.headers['x-forwarded-for'])
         ? req.headers['x-forwarded-for'][0]
         : req.headers['x-forwarded-for'];

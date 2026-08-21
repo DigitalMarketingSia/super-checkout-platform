@@ -92,26 +92,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(status === 500 ? 500 : 401).json({ error: status === 500 ? 'Internal Server Error' : 'Unauthorized' });
   }
 
-  const masterEmails = getMasterAdminEmails();
-  const userEmail = normalizeEmail(user.email);
-  const isConfiguredPlatformOwner = masterEmails.size > 0 && masterEmails.has(userEmail);
-
-  // The official platform owner is an operational identity, defined only by
-  // the server-side allowlist. It is deliberately *not* a mutation of the
-  // tenant profile role: a local profile role represents the installation,
-  // while this allowlist represents the single official control plane.
-  //
-  // Keeping these two concepts separate makes the owner UI independent from
-  // a best-effort database write and prevents a failed role sync from
-  // degrading the official account into a regular tenant owner.
-  if (isConfiguredPlatformOwner) {
-    return res.status(200).json({
-      success: true,
-      role: 'master_admin',
-      is_master_admin: true,
-    });
-  }
-
   const fallbackSupabaseAdmin = createSupabaseAdminClient();
   if (!fallbackSupabaseAdmin) {
     return res.status(200).json({
@@ -128,7 +108,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const { data: profile, error: profileError } = await supabaseAdmin
     .from('profiles')
-    .select('id,email,role,status')
+    .select('id,email,role,status,is_blocked,totp_enabled')
     .eq('id', user.id)
     .maybeSingle();
 
@@ -136,7 +116,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: getLocalSupabaseServerKeyErrorMessage() });
   }
 
-  if (profileError || !profile?.id || isInactiveStatus(profile.status)) {
+  if (profileError || !profile?.id || isInactiveStatus(profile.status) || profile.is_blocked === true) {
     await logAuthzEvent({
       supabaseAdmin,
       req,
@@ -150,7 +130,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const profileRole = normalizeRole(profile.role);
-  const isMasterAdmin = profileRole === 'master_admin';
+  const masterEmails = getMasterAdminEmails();
+  const userEmail = normalizeEmail(user.email);
+  const isConfiguredPlatformOwner = masterEmails.size > 0 && masterEmails.has(userEmail);
+  const isMasterAdmin = isConfiguredPlatformOwner
+    && ['owner', 'master_admin'].includes(profileRole)
+    && profile.totp_enabled === true;
   const effectiveRole = isMasterAdmin ? 'master_admin' : profileRole;
 
   return res.status(200).json({

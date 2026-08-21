@@ -52,12 +52,13 @@
     "desc": "Crie seu site automaticamente na Vercel.",
     "step1": "1. Preencha as seis vari\u00e1veis abaixo no formul\u00e1rio de deploy da Vercel:",
     "server_only_title": "Chaves privadas obrigat\u00f3rias",
-    "server_only_desc": "SUPABASE_SERVICE_ROLE_KEY e PAYMENT_ENCRYPTION_KEY tamb\u00e9m entram na Vercel, mas ficam somente no servidor. Nunca renomeie-as com VITE_ nem as exponha no frontend. Elas existem apenas nesta tela e ser\u00e3o apagadas ao continuar.",
+    "server_only_desc": "SUPABASE_SERVICE_ROLE_KEY, PAYMENT_ENCRYPTION_KEY e ORDER_LINK_SIGNING_KEY tamb\u00e9m entram na Vercel, mas ficam somente no servidor. Nunca renomeie-as com VITE_ nem as exponha no frontend. Elas existem apenas nesta tela e ser\u00e3o apagadas ao continuar.",
     "copy_success": "Copiado!",
     "copy_btn": "Copiar",
     "domain_activated": "Domínio Ativado!",
     "already_deployed": "Já fiz o Deploy, quero configurar",
-    "secrets_configured_continue": "Já configurei as chaves na Vercel, continuar"
+    "secrets_configured_continue": "Já configurei as chaves na Vercel, continuar",
+    "open_vercel": "Fazer deploy na Vercel"
   },
   "vercel_config": {
     "title": "Configuração Pós-Deploy",
@@ -72,7 +73,8 @@
     "progress_activate": "Validando a licen\u00e7a no dom\u00ednio final.",
     "progress_verify": "Verificando se o backend da Vercel j\u00e1 ficou online. Isso pode levar alguns segundos.",
     "progress_finalize": "Finalizando a ativa\u00e7\u00e3o e consumindo o token de instala\u00e7\u00e3o.",
-    "progress_hint": "Depois de salvar as vari\u00e1veis na Vercel, pode ser necess\u00e1rio fazer um Redeploy. Esta etapa pode levar at\u00e9 cerca de 1 minuto."
+    "progress_hint": "Depois de salvar as vari\u00e1veis na Vercel, pode ser necess\u00e1rio fazer um Redeploy. Esta etapa pode levar at\u00e9 cerca de 1 minuto.",
+    "domain_placeholder": "minha-loja.vercel.app"
   },
   "central_trust": {
     "title": "Credencial privada da Central",
@@ -100,5 +102,8 @@
     "token_required": "Modo de atualização requer login administrativo.",
     "bypass_auth_failed": "Acesso negado: Login necessário para atualização.",
     "invalid_token": "Token inválido ou expirado"
+  },
+  "coverage": {
+    "step_progress": "Etapa {{current}} de {{total}}"
   }
 }

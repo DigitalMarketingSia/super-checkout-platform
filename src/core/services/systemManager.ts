@@ -13,12 +13,12 @@ export const SystemManager = {
   async invokeCentralUpdateRunner(action: 'test' | 'sync' | 'rollback', payload: Record<string, any> = {}) {
     const info = await this.getSystemInfo();
     if (!info?.github_installation_id || !info?.github_repository) {
-      throw new Error('Configure o GitHub App e o repositÃ³rio antes de testar ou sincronizar.');
+      throw new Error('Configure o GitHub App e o repositório antes de testar ou sincronizar.');
     }
 
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) {
-      throw new Error('SessÃ£o expirada. Entre novamente para continuar.');
+      throw new Error('Sessão expirada. Entre novamente para continuar.');
     }
 
     const localInstallationId = typeof window !== 'undefined'
@@ -54,10 +54,10 @@ export const SystemManager = {
 
     if (!response.ok || data.success === false) {
       if (data.code === 'INSTALLATION_AUTH_FAILED') {
-        throw new Error(data.error || 'Falha de autenticaÃ§Ã£o com a Central. Revise as credenciais privadas CENTRAL_INSTALLATION_* desta instalaÃ§Ã£o e tente novamente.');
+        throw new Error(data.error || 'Falha de autenticação com a Central. Revise as credenciais privadas CENTRAL_INSTALLATION_* desta instalação e tente novamente.');
       }
 
-      throw new Error(data.message || data.error || 'Falha no serviÃ§o central de atualizaÃ§Ã£o.');
+      throw new Error(data.message || data.error || 'Falha no serviço central de atualização.');
     }
 
     return data;
@@ -261,7 +261,7 @@ export const SystemManager = {
   async updateGitHubIntegration(installationId: string, repository: string): Promise<boolean> {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error('SessÃ£o expirada.');
+      if (!session?.access_token) throw new Error('Sessão expirada.');
 
       const response = await fetch('/api/admin/system-info', {
         method: 'POST',
@@ -277,7 +277,7 @@ export const SystemManager = {
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || 'Erro ao atualizar integraÃ§Ã£o.');
+        throw new Error(data.error || 'Erro ao atualizar integração.');
       }
 
       return true;

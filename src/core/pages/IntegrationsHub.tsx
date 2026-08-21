@@ -12,6 +12,7 @@ import {
   Mail
 } from 'lucide-react';
 import { useNavigate } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import { Layout } from '../components/Layout';
 import { Card } from '../components/ui/Card';
 import { ResendConfigModal } from '../components/modals/ResendConfigModal';
@@ -20,6 +21,7 @@ import { Button } from '../components/ui/Button';
 
 export const IntegrationsHub: React.FC = () => {
     const navigate = useNavigate();
+    const { t } = useTranslation();
     const [isResendModalOpen, setIsResendModalOpen] = useState(false);
     const [isResendActive, setIsResendActive] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -56,14 +58,14 @@ export const IntegrationsHub: React.FC = () => {
                     <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                         <div>
                             <h1 className="text-3xl lg:text-4xl font-portal-display text-white mb-1 leading-none uppercase italic tracking-tight">
-                                Hub de <span className="text-primary font-black">IntegraÃ§Ãµes</span>
+                                {t('coverage.integration.title_prefix')} <span className="text-primary font-black">{t('coverage.integration.title_suffix')}</span>
                             </h1>
                             <div className="flex items-center gap-2 mt-1">
                                 <p className="text-gray-400 font-medium uppercase tracking-[0.15em] text-[9px] font-mono">
-                                    Integrations Center
+                                    {t('coverage.integration.center')}
                                 </p>
                                 <div className="h-1.5 w-1.5 rounded-full bg-primary/45"></div>
-                                <span className="text-[9px] text-[#10B981] font-black uppercase tracking-[0.2em] font-mono">Active Control</span>
+                                <span className="text-[9px] text-[#10B981] font-black uppercase tracking-[0.2em] font-mono">{t('coverage.integration.active_control')}</span>
                             </div>
                         </div>
 
@@ -71,12 +73,12 @@ export const IntegrationsHub: React.FC = () => {
                         <div className="flex flex-row flex-wrap items-center gap-2.5 font-mono">
                             <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.12em] border ${isResendActive ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25 shadow-[0_2px_10px_rgba(16,185,129,0.05)]' : 'bg-white/5 text-gray-500 border-white/10'}`}>
                                 <Plug className="w-3.5 h-3.5" />
-                                API Status: {isResendActive ? 'Connected' : 'Setup Required'}
+                                {t('coverage.integration.api_status')}: {isResendActive ? t('coverage.integration.connected') : t('coverage.integration.setup_required')}
                             </span>
                         </div>
                     </div>
                     <p className="text-xs text-gray-300 max-w-2xl leading-relaxed italic border-l border-primary/30 pl-4 font-medium">
-                        Conecte o Super Checkout Ã s suas ferramentas favoritas e automatize sua operaÃ§Ã£o global de forma centralizada.
+                        {t('coverage.integration.description')}
                     </p>
                 </div>
 
@@ -93,11 +95,11 @@ export const IntegrationsHub: React.FC = () => {
                             {isResendActive ? (
                                 <span className="flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 rounded-full text-[9px] font-black uppercase tracking-wider shadow-[0_0_10px_rgba(16,185,129,0.1)]">
                                     <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                                    Conectado
+                                    {t('coverage.integration.connected')}
                                 </span>
                             ) : (
                                 <span className="px-3 py-1 bg-white/5 text-gray-400 border border-white/10 rounded-full text-[9px] font-black uppercase tracking-wider">
-                                    E-mail API
+                                    {t('coverage.integration.email_api')}
                                 </span>
                             )}
                         </div>
@@ -113,13 +115,13 @@ export const IntegrationsHub: React.FC = () => {
                                 Resend
                             </h3>
                             <p className="text-xs text-gray-400 mb-8 font-medium leading-relaxed">
-                                Envio de e-mails transacionais com entregabilidade premium via API do Resend.
+                                {t('coverage.integration.resend_description')}
                             </p>
 
                             <div className="flex items-center justify-between pt-6 border-t border-white/5">
                                 <div className="flex items-center gap-2 text-[9px] uppercase font-black tracking-widest text-gray-500 font-mono">
                                     <ShieldCheck className="w-3.5 h-3.5 text-primary" />
-                                    SSL Seguro
+                                    {t('coverage.integration.ssl_secure')}
                                 </div>
                                 <Button
                                     type="button"
@@ -131,7 +133,7 @@ export const IntegrationsHub: React.FC = () => {
                                             : 'bg-primary hover:bg-primary-hover text-white shadow-[0_4px_12px_rgba(138,43,226,0.3)]'
                                     }`}
                                 >
-                                    {isResendActive ? 'Configurar' : 'Conectar'} <ChevronRight className="w-4 h-4 ml-1" />
+                                    {isResendActive ? t('coverage.integration.configure') : t('coverage.integration.connect')} <ChevronRight className="w-4 h-4 ml-1" />
                                 </Button>
                             </div>
                         </div>
@@ -145,7 +147,7 @@ export const IntegrationsHub: React.FC = () => {
                     >
                         <div className="absolute top-6 right-6 z-10 font-mono">
                             <span className="px-3 py-1 bg-white/5 text-gray-400 border border-white/10 rounded-full text-[9px] font-black uppercase tracking-wider">
-                                Webhook Hub
+                                {t('coverage.integration.webhook_hub')}
                             </span>
                         </div>
 
@@ -160,20 +162,20 @@ export const IntegrationsHub: React.FC = () => {
                                 Webhooks
                             </h3>
                             <p className="text-xs text-gray-400 mb-8 font-medium leading-relaxed">
-                                Sincronize eventos de compras com plataformas externas em tempo real.
+                                {t('coverage.integration.webhook_description')}
                             </p>
 
                             <div className="flex items-center justify-between pt-6 border-t border-white/5">
                                 <div className="flex items-center gap-2 text-[9px] uppercase font-black tracking-widest text-gray-500 font-mono">
                                     <Code className="w-3.5 h-3.5 text-orange-500" />
-                                    REST API
+                                    {t('coverage.integration.rest_api')}
                                 </div>
                                 <Button
                                     size="sm"
                                     variant="ghost"
                                     className="h-9 px-4 rounded-xl border border-white/10 hover:border-orange-500/50 hover:bg-orange-500/10 hover:text-orange-400 text-white font-bold transition-all duration-300"
                                 >
-                                    Gerenciar <ChevronRight className="w-4 h-4 ml-1" />
+                                    {t('coverage.integration.manage')} <ChevronRight className="w-4 h-4 ml-1" />
                                 </Button>
                             </div>
                         </div>
@@ -187,7 +189,7 @@ export const IntegrationsHub: React.FC = () => {
                     >
                         <div className="absolute top-6 right-6 z-10 font-mono">
                             <span className="px-3 py-1 bg-white/5 text-gray-400 border border-white/10 rounded-full text-[9px] font-black uppercase tracking-wider">
-                                Pixel Hub
+                                {t('coverage.integration.pixel_hub')}
                             </span>
                         </div>
 
@@ -202,20 +204,20 @@ export const IntegrationsHub: React.FC = () => {
                                 Analytics
                             </h3>
                             <p className="text-xs text-gray-400 mb-8 font-medium leading-relaxed">
-                                Rastreie conversÃµes do Facebook, TikTok e Google por checkout de forma centralizada.
+                                {t('coverage.integration.analytics_description')}
                             </p>
 
                             <div className="flex items-center justify-between pt-6 border-t border-white/5">
                                 <div className="flex items-center gap-2 text-[9px] uppercase font-black tracking-widest text-gray-500 font-mono">
                                     <Globe className="w-3.5 h-3.5 text-blue-500" />
-                                    Global Tracking
+                                    {t('coverage.integration.global_tracking')}
                                 </div>
                                 <Button
                                     size="sm"
                                     variant="ghost"
                                     className="h-9 px-4 rounded-xl border border-white/10 hover:border-blue-500/50 hover:bg-blue-500/10 hover:text-blue-400 text-white font-bold transition-all duration-300"
                                 >
-                                    Checkouts <ChevronRight className="w-4 h-4 ml-1" />
+                                    {t('coverage.integration.checkouts')} <ChevronRight className="w-4 h-4 ml-1" />
                                 </Button>
                             </div>
                         </div>
@@ -228,8 +230,8 @@ export const IntegrationsHub: React.FC = () => {
                 <div className="mt-12 p-8 rounded-[2.5rem] bg-[#0C0C14] border border-dashed border-white/10 text-center relative overflow-hidden transition-all duration-300 hover:border-white/20 group">
                     <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-64 bg-primary/5 blur-[80px] opacity-0 group-hover:opacity-100 transition-opacity duration-1000" />
                     <Zap className="w-10 h-10 text-primary mx-auto mb-4 animate-bounce" />
-                    <h4 className="text-lg font-portal-display text-gray-400 italic">Novas IntegraÃ§Ãµes em Breve</h4>
-                    <p className="text-xs text-gray-500 font-semibold mt-2 leading-relaxed">Estamos trabalhando em conectores nativos para ActiveCampaign, Hotmart e outros sistemas globais.</p>
+                    <h4 className="text-lg font-portal-display text-gray-400 italic">{t('coverage.integration.coming_soon_title')}</h4>
+                    <p className="text-xs text-gray-500 font-semibold mt-2 leading-relaxed">{t('coverage.integration.coming_soon_description')}</p>
                 </div>
 
                 <ResendConfigModal

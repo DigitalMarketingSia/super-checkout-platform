@@ -215,7 +215,7 @@ export const BlockInstall: React.FC<BlockInstallProps> = ({ license, installatio
                                 <p className="text-red-200 text-sm font-bold leading-relaxed italic">{t('install.reinstall_confirm', { domain: activeInstall?.domain })}</p>
                                 <div className="space-y-2">
                                     <label className="block text-[10px] uppercase tracking-[0.16em] font-black text-red-200/80">
-                                        Código 2FA do Portal
+                                        {t('install.reinstall_2fa_label')}
                                     </label>
                                     <input
                                         value={twoFactorCode}
@@ -226,7 +226,7 @@ export const BlockInstall: React.FC<BlockInstallProps> = ({ license, installatio
                                         className="w-full rounded-xl border border-red-400/30 bg-black/20 px-4 py-3 text-center text-lg tracking-[0.35em] font-black text-white outline-none focus:border-red-300"
                                     />
                                     <p className="text-xs text-red-100/70 leading-relaxed">
-                                        Esta confirmação vale uma única vez e expira em 5 minutos.
+                                        {t('install.reinstall_2fa_hint')}
                                     </p>
                                 </div>
                                 <div className="flex gap-3">

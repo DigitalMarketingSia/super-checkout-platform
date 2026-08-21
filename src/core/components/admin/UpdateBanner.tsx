@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router';
 import { ArrowRight, Database } from 'lucide-react';
 import { SYSTEM_SCHEMA_STATE_CHANGED_EVENT, SystemManager } from '../../services/systemManager';
 import { SCHEMA_VERSION } from '../../config/version';
+import { useTranslation } from 'react-i18next';
 
 export const UpdateBanner: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [updateRequired, setUpdateRequired] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -49,13 +51,13 @@ export const UpdateBanner: React.FC = () => {
           </div>
           <div>
             <h4 className="text-white font-bold text-base flex items-center gap-2">
-              Banco Requer Atualizacao
+              {t('coverage.update_banner.title')}
               <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 text-[10px] uppercase font-black tracking-widest border border-blue-500/20">
                 v{SCHEMA_VERSION}
               </span>
             </h4>
             <p className="text-gray-400 text-xs mt-1">
-              Existem migrations aprovadas para este schema. Abra Atualizacoes e clique em Atualizar Banco.
+              {t('coverage.update_banner.description')}
             </p>
           </div>
         </div>
@@ -64,7 +66,7 @@ export const UpdateBanner: React.FC = () => {
           onClick={() => navigate('/admin/updates')}
           className="relative z-10 w-full md:w-auto px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm rounded-xl transition-all shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2 group/btn active:scale-95"
         >
-          Abrir Atualizacoes
+          {t('coverage.update_banner.action')}
           <ArrowRight className="w-4 h-4 transition-transform group-hover/btn:translate-x-1" />
         </button>
       </div>

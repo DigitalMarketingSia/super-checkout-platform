@@ -258,7 +258,6 @@ export async function processPagSeguroPayment(payload: PagSeguroPaymentPayload) 
     const apiBaseUrl = getPagSeguroApiBaseUrl(gateway);
     const customerPhones = buildPagSeguroPhoneList(customerPhone);
     const isSandboxGateway = gateway?.config?.environment === 'sandbox';
-    const enableFullSandboxLogs = isSandboxGateway && String(process.env.PAGBANK_SANDBOX_FULL_LOGS || '').trim().toLowerCase() === 'true';
 
     const requestBody: Record<string, any> = {
       reference_id: orderId,
@@ -339,7 +338,6 @@ export async function processPagSeguroPayment(payload: PagSeguroPaymentPayload) 
       requestBody,
       requestHeaders,
       responseStatus: response.status,
-      maskSensitiveFields: !enableFullSandboxLogs,
     });
 
     await supabaseAdmin

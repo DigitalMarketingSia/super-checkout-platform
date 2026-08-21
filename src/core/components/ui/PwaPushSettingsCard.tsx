@@ -21,89 +21,92 @@ import { useInstallation } from '../../context/InstallationContext';
 import { usePwaPushNotifications } from '../../hooks/usePwaPushNotifications';
 import type { PushPreferences } from '../../types/pwaPush';
 import { Button } from './Button';
+import { useTranslation } from 'react-i18next';
 
 const PREFERENCE_ROWS: Array<{
   key: keyof PushPreferences;
-  title: string;
-  description: string;
-  badge?: string;
+  titleKey: string;
+  descriptionKey: string;
+  badgeKey?: string;
 }> = [
   {
     key: 'enabled',
-    title: 'Canal push deste usuario',
-    description: 'Liga ou desliga o recebimento de push operacional para este usuario.',
+    titleKey: 'coverage.pwa.preference.enabled_title',
+    descriptionKey: 'coverage.pwa.preference.enabled_description',
   },
   {
     key: 'sale_approved',
-    title: 'Venda aprovada',
-    description: 'Ja ativo: envia push automatico quando uma venda e aprovada.',
-    badge: 'Ativo',
+    titleKey: 'coverage.pwa.preference.sale_approved_title',
+    descriptionKey: 'coverage.pwa.preference.sale_approved_description',
+    badgeKey: 'coverage.pwa.active',
   },
   {
     key: 'payment_failed',
-    title: 'Pagamento com falha',
-    description: 'Ja ativo: envia push automatico quando um pagamento relevante falhar.',
-    badge: 'Ativo',
+    titleKey: 'coverage.pwa.preference.payment_failed_title',
+    descriptionKey: 'coverage.pwa.preference.payment_failed_description',
+    badgeKey: 'coverage.pwa.active',
   },
   {
     key: 'lead_captured',
-    title: 'Lead relevante',
-    description: 'Preparado para avisar novas capturas que merecem acao rapida.',
+    titleKey: 'coverage.pwa.preference.lead_captured_title',
+    descriptionKey: 'coverage.pwa.preference.lead_captured_description',
   },
   {
     key: 'system_alerts',
-    title: 'Alertas do sistema',
-    description: 'Reservado para avisos operacionais e de infraestrutura.',
+    titleKey: 'coverage.pwa.preference.system_alerts_title',
+    descriptionKey: 'coverage.pwa.preference.system_alerts_description',
   },
 ];
 
 const SURFACE_LABEL: Record<'admin' | 'portal', string> = {
-  admin: 'Painel',
-  portal: 'Portal',
+  admin: 'coverage.pwa.surface.admin',
+  portal: 'coverage.pwa.surface.portal',
 };
 
-function getPermissionLabel(permission: string) {
+type TranslationFn = (key: string, options?: Record<string, unknown>) => string;
+
+function getPermissionLabel(permission: string, t: TranslationFn) {
   switch (permission) {
     case 'granted':
-      return 'Permissao liberada';
+      return t('coverage.pwa.permission.granted');
     case 'denied':
-      return 'Permissao bloqueada';
+      return t('coverage.pwa.permission.denied');
     case 'revoked':
-      return 'Permissao revogada';
+      return t('coverage.pwa.permission.revoked');
     default:
-      return 'Permissao pendente';
+      return t('coverage.pwa.permission.pending');
   }
 }
 
-function getDeliveryStateLabel(state: string | null | undefined) {
+function getDeliveryStateLabel(state: string | null | undefined, t: TranslationFn) {
   switch (state) {
     case 'registered':
-      return 'Assinatura registrada';
+      return t('coverage.pwa.delivery.registered');
     case 'sent':
-      return 'Push enviado pelo servidor';
+      return t('coverage.pwa.delivery.sent');
     case 'received':
-      return 'Recebido no aparelho';
+      return t('coverage.pwa.delivery.received');
     case 'clicked':
-      return 'Notificacao clicada';
+      return t('coverage.pwa.delivery.clicked');
     case 'error':
-      return 'Falha no envio';
+      return t('coverage.pwa.delivery.error');
     case 'reset':
-      return 'Resetado manualmente';
+      return t('coverage.pwa.delivery.reset');
     case 'revoked':
-      return 'Assinatura revogada';
+      return t('coverage.pwa.delivery.revoked');
     default:
-      return 'Sem historico ainda';
+      return t('coverage.pwa.delivery.empty');
   }
 }
 
-function formatDateTime(value: string | null | undefined) {
+function formatDateTime(value: string | null | undefined, t: TranslationFn) {
   if (!value) {
-    return 'Ainda nao registrado';
+    return t('coverage.pwa.not_recorded');
   }
 
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) {
-    return 'Data invalida';
+    return t('coverage.pwa.invalid_date');
   }
 
   return new Intl.DateTimeFormat('pt-BR', {
@@ -112,9 +115,9 @@ function formatDateTime(value: string | null | undefined) {
   }).format(parsed);
 }
 
-function maskEndpoint(value: string | null | undefined) {
+function maskEndpoint(value: string | null | undefined, t: TranslationFn) {
   if (!value) {
-    return 'Nenhum endpoint local encontrado';
+    return t('coverage.pwa.no_endpoint');
   }
 
   return value.length > 52
@@ -123,6 +126,7 @@ function maskEndpoint(value: string | null | undefined) {
 }
 
 export const PwaPushSettingsCard: React.FC = () => {
+  const { t } = useTranslation();
   const location = useLocation();
   const { installationId } = useInstallation();
   const [showDiagnostics, setShowDiagnostics] = useState(false);
@@ -176,7 +180,7 @@ export const PwaPushSettingsCard: React.FC = () => {
   const canSendSurfaceTest = pushEnabled && isSupported && hasPublicKey && serverConfigured && preferences.enabled && activeSurfaceSubscriptions.length > 1;
   const canDisablePush = Boolean(localSubscriptionEndpoint);
   const canResetPush = pushEnabled && isSupported;
-  const currentSurfaceLabel = SURFACE_LABEL[surfaceKey];
+  const currentSurfaceLabel = t(SURFACE_LABEL[surfaceKey]);
   const orderedActiveSubscriptions = [...activeSubscriptions].sort((left, right) => {
     const leftCurrent = left.endpoint === localSubscriptionEndpoint ? 1 : 0;
     const rightCurrent = right.endpoint === localSubscriptionEndpoint ? 1 : 0;
@@ -192,25 +196,25 @@ export const PwaPushSettingsCard: React.FC = () => {
     return 0;
   });
 
-  let operationalStatus = 'Push pronto para assinatura e teste real do aparelho.';
+  let operationalStatus = t('coverage.pwa.status.ready');
   if (!isSupported) {
-    operationalStatus = 'Este navegador ainda nao oferece suporte completo a Push API + Service Worker.';
+    operationalStatus = t('coverage.pwa.status.unsupported');
   } else if (!pushEnabled) {
-    operationalStatus = 'O rollout de push ainda esta desligado por flag neste ambiente.';
+    operationalStatus = t('coverage.pwa.status.disabled');
   } else if (!hasPublicKey) {
-    operationalStatus = 'Falta configurar a chave publica do push para o navegador poder assinar este aparelho.';
+    operationalStatus = t('coverage.pwa.status.no_public_key');
   } else if (!serverConfigured) {
-    operationalStatus = 'A assinatura do aparelho pode ser preparada, mas o servidor ainda precisa da chave privada VAPID para enviar push real.';
+    operationalStatus = t('coverage.pwa.status.no_server_key');
   } else if (permission === 'denied') {
-    operationalStatus = 'A permissao de notificacao foi bloqueada no navegador. Libere manualmente nas configuracoes do browser.';
+    operationalStatus = t('coverage.pwa.status.permission_denied');
   } else if (!isServiceWorkerRegistered) {
-    operationalStatus = 'O service worker ainda nao ficou estavel neste aparelho. Clique em resetar para sincronizar.';
+    operationalStatus = t('coverage.pwa.status.worker_unstable');
   } else if (permission === 'granted' && !hasCurrentDeviceSubscription) {
-    operationalStatus = 'Permissao liberada! Clique em "Ativar neste aparelho" para conectar as notificacoes push.';
+    operationalStatus = t('coverage.pwa.status.ready_to_activate');
   } else if (currentDeviceSubscription?.last_delivery_state === 'error') {
-    operationalStatus = 'O ultimo push falhou no servidor. Verifique o diagnostico tecnico no rodape.';
+    operationalStatus = t('coverage.pwa.status.last_failed');
   } else if (activeSurfaceSubscriptions.length > 1) {
-    operationalStatus = `Este usuario ja tem ${activeSurfaceSubscriptions.length} aparelhos ativos em ${currentSurfaceLabel.toLowerCase()}. O push real vai para todos os aparelhos ativos.`;
+    operationalStatus = t('coverage.pwa.status.multiple_devices', { count: activeSurfaceSubscriptions.length, surface: currentSurfaceLabel.toLowerCase() });
   }
 
   return (
@@ -235,10 +239,10 @@ export const PwaPushSettingsCard: React.FC = () => {
             <Bell className="w-9 h-9 text-cyan-400 animate-pulse-slow" />
           </div>
           <h3 className="text-xl font-portal-display text-white uppercase italic tracking-tight mb-1">
-            Push Operacional
+            {t('coverage.pwa.title')}
           </h3>
           <p className="text-xs text-gray-400 max-w-xs font-medium">
-            Gerencie o canal de notificações push do PWA e ative os eventos que deseja receber.
+            {t('coverage.pwa.description')}
           </p>
 
           {/* Device Status Badge */}
@@ -253,23 +257,23 @@ export const PwaPushSettingsCard: React.FC = () => {
               {permission === 'granted' && hasCurrentDeviceSubscription ? (
                 <>
                   <CheckCircle2 className="w-3.5 h-3.5" />
-                  Push Ativo neste Aparelho
+                  {t('coverage.pwa.active_on_device')}
                 </>
               ) : permission === 'denied' ? (
                 <>
                   <TriangleAlert className="w-3.5 h-3.5" />
-                  Permissao Bloqueada no Browser
+                  {t('coverage.pwa.permission_blocked_browser')}
                 </>
               ) : (
                 <>
                   <Smartphone className="w-3.5 h-3.5" />
-                  Aparelho Pendente de Assinatura
+                  {t('coverage.pwa.device_pending')}
                 </>
               )}
             </span>
 
             <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-gray-300">
-              {activeSurfaceSubscriptions.length} aparelho(s) ativos
+              {t('coverage.pwa.active_devices', { count: activeSurfaceSubscriptions.length })}
             </span>
           </div>
         </div>
@@ -290,7 +294,7 @@ export const PwaPushSettingsCard: React.FC = () => {
               disabled={isMutating}
             >
               <Smartphone className="mr-2 h-4 w-4" />
-              Ativar neste aparelho
+              {t('coverage.pwa.activate_device')}
             </Button>
           )}
 
@@ -299,13 +303,13 @@ export const PwaPushSettingsCard: React.FC = () => {
               onClick={() => void sendTest({
                 endpoint: localSubscriptionEndpoint,
                 surfaceKey,
-                successMessage: 'Push de teste enviado para este aparelho.',
+                successMessage: t('coverage.pwa.test_sent_current'),
               })}
               className="h-11 rounded-xl bg-white px-5 text-xs font-black uppercase tracking-widest text-black hover:bg-white/90 shadow-lg"
               disabled={isMutating}
             >
               <Bell className="mr-2 h-4 w-4 text-black" />
-              Testar este aparelho
+              {t('coverage.pwa.test_device')}
             </Button>
           )}
 
@@ -314,14 +318,14 @@ export const PwaPushSettingsCard: React.FC = () => {
               variant="ghost"
               onClick={() => void sendTest({
                 surfaceKey,
-                successMessage: `Push de teste enviado para os aparelhos ativos de ${currentSurfaceLabel.toLowerCase()}.`,
-                emptyMessage: `Nenhum aparelho ativo de ${currentSurfaceLabel.toLowerCase()} recebeu o push de teste.`,
+                successMessage: t('coverage.pwa.test_sent_surface', { surface: currentSurfaceLabel.toLowerCase() }),
+                emptyMessage: t('coverage.pwa.test_empty_surface', { surface: currentSurfaceLabel.toLowerCase() }),
               })}
               className="h-11 rounded-xl border border-cyan-400/20 bg-cyan-400/10 px-4 text-xs font-black uppercase tracking-widest text-cyan-100 hover:bg-cyan-400/15"
               disabled={isMutating}
             >
               <Bell className="mr-2 h-4 w-4" />
-              Testar todos
+              {t('coverage.pwa.test_all')}
             </Button>
           )}
 
@@ -331,7 +335,7 @@ export const PwaPushSettingsCard: React.FC = () => {
             className="h-11 rounded-xl border border-white/10 bg-white/5 px-4 text-xs font-black uppercase tracking-widest text-gray-300 hover:bg-white/10"
           >
             <RefreshCcw className="mr-2 h-4 w-4" />
-            Atualizar
+            {t('coverage.common.refresh')}
           </Button>
 
           {canDisablePush && (
@@ -342,7 +346,7 @@ export const PwaPushSettingsCard: React.FC = () => {
               disabled={isMutating}
             >
               <BellOff className="mr-2 h-4 w-4" />
-              Desativar
+              {t('coverage.pwa.disable')}
             </Button>
           )}
 
@@ -354,7 +358,7 @@ export const PwaPushSettingsCard: React.FC = () => {
               disabled={isMutating}
             >
               <RefreshCcw className="mr-2 h-4 w-4" />
-              Resetar
+              {t('coverage.common.reset')}
             </Button>
           )}
         </div>
@@ -365,10 +369,10 @@ export const PwaPushSettingsCard: React.FC = () => {
             <div className="flex items-center gap-2">
               <Sliders className="w-4 h-4 text-cyan-400" />
               <h4 className="text-sm font-black uppercase tracking-wider text-white">
-                Eventos de Notificação Ativos
+                {t('coverage.pwa.active_events')}
               </h4>
             </div>
-            <span className="text-[10px] text-gray-500 font-mono">Preferencias Salvas</span>
+            <span className="text-[10px] text-gray-500 font-mono">{t('coverage.pwa.saved_preferences')}</span>
           </div>
 
           <div className="space-y-3">
@@ -396,7 +400,7 @@ export const PwaPushSettingsCard: React.FC = () => {
                             : 'text-amber-200 font-bold text-base'
                           : 'text-white font-bold group-hover:text-cyan-300'
                       }`}>
-                        {row.title}
+                        {t(row.titleKey)}
                       </p>
                       {isMaster && (
                         <span className={`rounded-full px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider ${
@@ -404,19 +408,19 @@ export const PwaPushSettingsCard: React.FC = () => {
                             ? 'bg-cyan-400 text-black shadow-md shadow-cyan-400/40 font-black'
                             : 'bg-amber-500/20 border border-amber-500/40 text-amber-300 font-bold'
                         }`}>
-                          {value ? 'CANAL PRINCIPAL MESTRE (ATIVO)' : 'CANAL DESATIVADO'}
+                          {value ? t('coverage.pwa.master_channel_active') : t('coverage.pwa.channel_disabled')}
                         </span>
                       )}
-                      {!isMaster && row.badge && (
+                      {!isMaster && row.badgeKey && (
                         <span className="rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[8px] font-black uppercase text-emerald-400">
-                          {row.badge}
+                          {row.badgeKey ? t(row.badgeKey) : null}
                         </span>
                       )}
                     </div>
                     <p className={`mt-1 text-xs leading-normal ${
                       isMaster ? (value ? 'text-cyan-100/90 font-medium' : 'text-amber-200/80') : 'text-gray-400'
                     }`}>
-                      {row.description}
+                      {t(row.descriptionKey)}
                     </p>
                   </div>
 
@@ -450,15 +454,15 @@ export const PwaPushSettingsCard: React.FC = () => {
             <div className="flex items-center gap-2">
               <Smartphone className="w-4 h-4 text-cyan-400" />
               <h4 className="text-sm font-black uppercase tracking-wider text-white">
-                Aparelhos Conectados nesta Conta
+                {t('coverage.pwa.connected_devices')}
               </h4>
             </div>
-            <span className="text-[10px] text-gray-500 font-mono">{activeSubscriptions.length} Ativos</span>
+            <span className="text-[10px] text-gray-500 font-mono">{t('coverage.pwa.active_count', { count: activeSubscriptions.length })}</span>
           </div>
 
           {activeSubscriptions.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-5 text-center text-xs text-gray-400">
-              Nenhum aparelho conectado no momento. Clique no botao "Ativar neste aparelho" acima para conectar este dispositivo.
+              {t('coverage.pwa.no_connected_devices')}
             </div>
           ) : (
             <div className="space-y-3">
@@ -478,19 +482,19 @@ export const PwaPushSettingsCard: React.FC = () => {
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="text-sm font-bold text-white">
-                            {subscription.device_label || 'Dispositivo sem nome'}
+                            {subscription.device_label || t('coverage.pwa.unnamed_device')}
                           </p>
                           <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-black uppercase text-gray-300">
                             {SURFACE_LABEL[subscription.surface_key]}
                           </span>
                           {isCurrentDevice && (
                             <span className="rounded-full border border-cyan-400/30 bg-cyan-400/10 px-2 py-0.5 text-[9px] font-black uppercase text-cyan-300">
-                              Este Aparelho
+                              {t('coverage.pwa.this_device')}
                             </span>
                           )}
                         </div>
                         <p className="mt-1 text-xs text-gray-400">
-                          Estado: {getDeliveryStateLabel(subscription.last_delivery_state)} • Visto em {formatDateTime(subscription.last_seen_at)}
+                          {t('coverage.pwa.device_state', { state: getDeliveryStateLabel(subscription.last_delivery_state, t), date: formatDateTime(subscription.last_seen_at, t) })}
                         </p>
                       </div>
 
@@ -504,14 +508,14 @@ export const PwaPushSettingsCard: React.FC = () => {
                           endpoint: subscription.endpoint,
                           surfaceKey: subscription.surface_key,
                           successMessage: isCurrentDevice
-                            ? 'Push de teste reenviado para este aparelho.'
-                            : 'Push de teste enviado para o aparelho selecionado.',
+                            ? t('coverage.pwa.test_resent_current')
+                            : t('coverage.pwa.test_sent_selected'),
                         })}
                         className="h-8 rounded-lg border border-cyan-400/20 bg-cyan-400/10 px-3 text-[10px] font-black uppercase tracking-wider text-cyan-200 hover:bg-cyan-400/15"
                         disabled={isMutating || !pushEnabled || !isSupported || !hasPublicKey || !serverConfigured || !preferences.enabled}
                       >
                         <Bell className="mr-1.5 h-3 w-3" />
-                        Testar
+                        {t('coverage.pwa.test')}
                       </Button>
 
                       <Button
@@ -520,14 +524,14 @@ export const PwaPushSettingsCard: React.FC = () => {
                           endpoint: subscription.endpoint,
                           surfaceKey: subscription.surface_key,
                           successMessage: isCurrentDevice
-                            ? 'Push desativado neste aparelho.'
-                            : 'Assinatura do aparelho desativada com sucesso.',
+                            ? t('coverage.pwa.disabled_current')
+                            : t('coverage.pwa.disabled_selected'),
                         })}
                         className="h-8 rounded-lg border border-red-500/20 bg-red-500/10 px-3 text-[10px] font-black uppercase tracking-wider text-red-200 hover:bg-red-500/15"
                         disabled={isMutating}
                       >
                         <BellOff className="mr-1.5 h-3 w-3" />
-                        Desativar
+                        {t('coverage.pwa.disable')}
                       </Button>
                     </div>
                   </div>
@@ -547,7 +551,7 @@ export const PwaPushSettingsCard: React.FC = () => {
             <div className="flex items-center gap-2.5">
               <Zap className="w-4 h-4 text-gray-400" />
               <span className="text-xs font-black uppercase tracking-wider text-gray-300">
-                Diagnóstico Técnico e Status PWA (Desenvolvedor)
+                {t('coverage.pwa.diagnostics.title')}
               </span>
             </div>
             {showDiagnostics ? (
@@ -561,20 +565,20 @@ export const PwaPushSettingsCard: React.FC = () => {
             <div className="mt-4 space-y-4 animate-in slide-in-from-top-2 duration-300">
               <div className="rounded-2xl border border-white/10 bg-black/40 p-4 space-y-2 text-left">
                 <h5 className="text-xs font-bold text-white uppercase tracking-wider mb-3">
-                  Estado do Dispositivo Local
+                  {t('coverage.pwa.local_device_state')}
                 </h5>
                 {[
-                  ['Modo instalado (Standalone)', isStandalone ? 'Sim' : 'Nao'],
-                  ['Worker registrado', isServiceWorkerRegistered ? 'Sim' : 'Nao'],
-                  ['Controller ativo', controllerPresent ? 'Sim' : 'Nao'],
-                  ['Versao do worker ativa', serviceWorkerVersion || 'Ainda nao detectada'],
-                  ['Versao esperada', targetServiceWorkerVersion],
-                  ['Permissao local', getPermissionLabel(permission)],
-                  ['Endpoint local', maskEndpoint(localSubscriptionEndpoint)],
-                  ['Assinatura no servidor', hasCurrentDeviceSubscription ? 'Encontrada' : 'Nao encontrada'],
-                  ['Servidor VAPID', serverConfigured ? 'Configurado' : 'Sem chave privada'],
-                  ['Ultima leitura local', formatDateTime(lastLoadedAt)],
-                  ['Horario do servidor', formatDateTime(serverTime)],
+                  [t('coverage.pwa.diagnostics.installed_mode'), isStandalone ? t('coverage.common.yes') : t('coverage.common.no')],
+                  [t('coverage.pwa.diagnostics.worker_registered'), isServiceWorkerRegistered ? t('coverage.common.yes') : t('coverage.common.no')],
+                  [t('coverage.pwa.diagnostics.controller_active'), controllerPresent ? t('coverage.common.yes') : t('coverage.common.no')],
+                  [t('coverage.pwa.diagnostics.worker_version'), serviceWorkerVersion || t('coverage.pwa.not_detected')],
+                  [t('coverage.pwa.diagnostics.expected_version'), targetServiceWorkerVersion],
+                  [t('coverage.pwa.diagnostics.local_permission'), getPermissionLabel(permission, t)],
+                  [t('coverage.pwa.diagnostics.local_endpoint'), maskEndpoint(localSubscriptionEndpoint, t)],
+                  [t('coverage.pwa.diagnostics.server_subscription'), hasCurrentDeviceSubscription ? t('coverage.pwa.found') : t('coverage.pwa.not_found')],
+                  [t('coverage.pwa.diagnostics.vapid_server'), serverConfigured ? t('coverage.pwa.configured') : t('coverage.pwa.no_private_key')],
+                  [t('coverage.pwa.diagnostics.last_local_read'), formatDateTime(lastLoadedAt, t)],
+                  [t('coverage.pwa.diagnostics.server_time'), formatDateTime(serverTime, t)],
                 ].map(([label, value]) => (
                   <div key={label} className="flex justify-between text-[11px] py-1 border-b border-white/5 last:border-0">
                     <span className="text-gray-400">{label}:</span>
@@ -585,16 +589,16 @@ export const PwaPushSettingsCard: React.FC = () => {
 
               <div className="rounded-2xl border border-white/10 bg-black/40 p-4 space-y-2 text-left">
                 <h5 className="text-xs font-bold text-white uppercase tracking-wider mb-3">
-                  Último Histórico de Envio
+                  {t('coverage.pwa.last_delivery_history')}
                 </h5>
                 {[
-                  ['Estado registrado', getDeliveryStateLabel(currentDeviceSubscription?.last_delivery_state)],
-                  ['Ultimo envio de teste', formatDateTime(currentDeviceSubscription?.last_test_sent_at)],
-                  ['Recebido confirmado', formatDateTime(currentDeviceSubscription?.last_push_received_at)],
-                  ['Clique confirmado', formatDateTime(currentDeviceSubscription?.last_push_clicked_at)],
-                  ['Tag do ultimo push', currentDeviceSubscription?.last_delivery_tag || 'Ainda sem tag'],
-                  ['Worker que confirmou', currentDeviceSubscription?.last_delivery_sw_version || 'Ainda nao confirmado'],
-                  ['Ultimo erro', currentDeviceSubscription?.last_delivery_error || 'Nenhum erro salvo'],
+                  [t('coverage.pwa.history.state'), getDeliveryStateLabel(currentDeviceSubscription?.last_delivery_state, t)],
+                  [t('coverage.pwa.history.last_test'), formatDateTime(currentDeviceSubscription?.last_test_sent_at, t)],
+                  [t('coverage.pwa.history.received'), formatDateTime(currentDeviceSubscription?.last_push_received_at, t)],
+                  [t('coverage.pwa.history.clicked'), formatDateTime(currentDeviceSubscription?.last_push_clicked_at, t)],
+                  [t('coverage.pwa.history.last_tag'), currentDeviceSubscription?.last_delivery_tag || t('coverage.pwa.no_tag')],
+                  [t('coverage.pwa.history.confirming_worker'), currentDeviceSubscription?.last_delivery_sw_version || t('coverage.pwa.not_confirmed')],
+                  [t('coverage.pwa.history.last_error'), currentDeviceSubscription?.last_delivery_error || t('coverage.pwa.no_saved_error')],
                 ].map(([label, value]) => (
                   <div key={label} className="flex justify-between text-[11px] py-1 border-b border-white/5 last:border-0">
                     <span className="text-gray-400">{label}:</span>

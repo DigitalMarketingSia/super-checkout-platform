@@ -43,7 +43,8 @@ const MAX_PUBLIC_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 function resolveImageContentType(file: File) {
   const declaredType = String(file.type || '').trim().toLowerCase();
-  if (/^image\/[a-z0-9.+-]+$/i.test(declaredType)) return declaredType;
+  const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif']);
+  if (allowedTypes.has(declaredType)) return declaredType;
 
   const extension = String(file.name || '').split('.').pop()?.trim().toLowerCase();
   const typeByExtension: Record<string, string> = {
@@ -53,7 +54,6 @@ function resolveImageContentType(file: File) {
     webp: 'image/webp',
     gif: 'image/gif',
     avif: 'image/avif',
-    svg: 'image/svg+xml',
   };
 
   return extension ? typeByExtension[extension] || '' : '';
@@ -420,7 +420,7 @@ class StorageService {
       } else if (files && files.length > 0) {
         console.log('Arquivos encontrados no caminho legado:', files);
       } else {
-        console.warn('Nenhum arquivo encontrado tambÃƒÂ©m no caminho legado.');
+        console.warn('Nenhum arquivo encontrado também no caminho legado.');
       }
     } else {
       console.log('Arquivos encontrados:', files);
@@ -436,7 +436,7 @@ class StorageService {
         .remove(filesToRemove);
 
       if (removeError) {
-        console.error('Erro ao remover arquivos (Provavel erro de RLS/PermissÃƒÂ£o):', removeError);
+        console.error('Erro ao remover arquivos (Provavel erro de RLS/Permissão):', removeError);
       } else {
         console.log('Arquivos removidos com sucesso');
       }
@@ -511,6 +511,7 @@ class StorageService {
         asset_kind: assetKind,
         file_name: file.name,
         content_type: contentType,
+        file_size: file.size,
       }),
     });
 
@@ -881,7 +882,7 @@ class StorageService {
     const user = await this.getUser();
     if (!user) throw new Error('No user logged in');
 
-    console.log('Iniciando exclusÃƒÂ£o do checkout:', id);
+    console.log('Iniciando exclusão do checkout:', id);
 
     // 1. Limpar Storage (Bucket 'checkouts')
     // Lista arquivos na pasta do checkout
@@ -891,7 +892,7 @@ class StorageService {
 
     if (listError) {
       console.error('Erro ao listar arquivos do checkout:', listError);
-      // NÃƒÂ£o interrompe, tenta deletar o registro mesmo assim
+      // Não interrompe, tenta deletar o registro mesmo assim
     } else if (files && files.length > 0) {
       const filesToRemove = files.map(f => `${id}/${f.name}`);
       console.log('Removendo arquivos do checkout:', filesToRemove);

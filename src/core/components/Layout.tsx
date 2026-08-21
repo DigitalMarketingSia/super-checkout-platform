@@ -125,10 +125,10 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
     || (location.pathname === '/admin/updates' ? t('nav.updates', 'Atualizações') : null)
     || (location.pathname === '/admin/upgrade-intents' ? t('nav.upgrade_intents', 'Upgrade Intents') : null)
     || (location.pathname === '/admin/activation-content' ? t('nav.activation_portal', 'Conteúdo do Portal') : null)
-    || (location.pathname === '/admin/privacy' ? 'Privacidade' : null)
+    || (location.pathname === '/admin/privacy' ? t('coverage.layout.privacy') : null)
     || (location.pathname === '/admin/partner-dashboard' ? t('nav.service_provider', 'Prestador de Serviços') : null)
     || (location.pathname.startsWith('/admin/free-users') ? t('nav.leads_crm', 'Leads CRM') : null)
-    || (location.pathname === '/admin/flow' ? 'Flow Builder' : 'System');
+    || (location.pathname === '/admin/flow' ? t('coverage.layout.flow_builder') : t('coverage.layout.system'));
 
   const handleFlowCtaClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
     if (!isDemoMode) return;
@@ -144,15 +144,15 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
         <div className="shrink-0 border-b border-amber-400/20 bg-amber-400/10 px-4 py-2 text-amber-100">
           <div className="mx-auto flex max-w-[1600px] flex-col gap-2 text-[10px] font-black uppercase tracking-[0.22em] md:flex-row md:items-center md:justify-between">
             <span>
-              Modo Demo ativo
+              {t('coverage.layout.demo_active')}
               {demoWorkspace?.expires_at ? ` - expira em ${new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(demoWorkspace.expires_at))}` : ''}
             </span>
             <div className="flex flex-wrap items-center gap-3">
               <Link to="/demo?launchpad=1" className="text-white underline-offset-4 hover:underline">
-                Detalhes e reset
+                {t('coverage.layout.demo_details')}
               </Link>
               <a href={`${platformUrls.portal}/activate`} className="text-white underline-offset-4 hover:underline">
-                Instalar meu ambiente
+                {t('coverage.layout.install_environment')}
               </a>
             </div>
           </div>
@@ -309,7 +309,7 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
                         ? 'text-white bg-white/10 border border-white/5'
                         : 'text-gray-600 hover:text-white hover:bg-white/5'
                         }`}
-                      title="Gestão de Leads (CRM)"
+                      title={t('nav.leads_crm')}
                     >
                       <Users className="w-5 h-5 flex-shrink-0" />
                     <div className={`ml-3 truncate transition-all duration-300 ${(!sidebarOpen && !mobileMenuOpen) ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
@@ -327,7 +327,7 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
                         ? 'text-white bg-white/10 border border-white/5'
                         : 'text-gray-600 hover:text-white hover:bg-white/5'
                         }`}
-                      title="Minha Licença"
+                      title={t('nav.my_license')}
                     >
                       <Key className="w-5 h-5 flex-shrink-0" />
                     <div className={`ml-3 truncate transition-all duration-300 ${(!sidebarOpen && !mobileMenuOpen) ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
@@ -345,7 +345,7 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
                         ? 'text-white bg-white/10 border border-white/5'
                         : 'text-gray-600 hover:text-white hover:bg-white/5'
                         }`}
-                      title="Instalações"
+                      title={t('nav.installations')}
                     >
                       <Terminal className="w-5 h-5 flex-shrink-0" />
                     <div className={`ml-3 truncate transition-all duration-300 ${(!sidebarOpen && !mobileMenuOpen) ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
@@ -364,7 +364,7 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
                         ? 'text-yellow-400 bg-yellow-400/10 border border-yellow-400/20'
                         : 'text-gray-600 hover:text-yellow-400 hover:bg-white/5'
                         }`}
-                      title="Gestão de Licenças (Admin)"
+                      title={t('nav.global_management')}
                     >
                       <ShieldCheck className="w-5 h-5 flex-shrink-0" />
                       <div className={`ml-3 truncate transition-all duration-300 ${(!sidebarOpen && !mobileMenuOpen) ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
@@ -380,7 +380,7 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
                           ? 'text-emerald-400 bg-emerald-400/10 border border-emerald-400/20'
                           : 'text-gray-600 hover:text-emerald-400 hover:bg-white/5'
                           }`}
-                        title="Upgrade Intents"
+                        title={t('nav.upgrade_intents')}
                       >
                         <Link2 className="w-5 h-5 flex-shrink-0" />
                         <div className={`ml-3 truncate transition-all duration-300 ${(!sidebarOpen && !mobileMenuOpen) ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
@@ -396,7 +396,7 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
                         ? 'text-red-400 bg-red-400/10 border border-red-400/20'
                         : 'text-gray-600 hover:text-red-400 hover:bg-white/5'
                         }`}
-                      title="Auditoria de Segurança"
+                      title={t('nav.security_auditory')}
                     >
                       <Activity className="w-5 h-5 flex-shrink-0" />
                       <div className={`ml-3 truncate transition-all duration-300 ${(!sidebarOpen && !mobileMenuOpen) ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
@@ -412,7 +412,7 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
                         ? 'text-green-400 bg-green-400/10 border border-green-400/20'
                         : 'text-gray-600 hover:text-green-400 hover:bg-white/5'
                         }`}
-                      title="Editor de Conteúdo do Portal"
+                      title={t('nav.activation_portal')}
                     >
                       <BookOpen className="w-5 h-5 flex-shrink-0" />
                       <div className={`ml-3 truncate transition-all duration-300 ${(!sidebarOpen && !mobileMenuOpen) ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
@@ -428,7 +428,7 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
                         ? 'text-primary bg-primary/10 border border-primary/20'
                         : 'text-gray-600 hover:text-white hover:bg-white/5'
                         }`}
-                      title="Atualizações do Sistema"
+                      title={t('nav.updates')}
                     >
                       <RefreshCw className={`w-5 h-5 flex-shrink-0 ${location.pathname === '/admin/updates' ? 'animate-spin-slow text-primary' : ''}`} />
                       <div className={`ml-3 truncate transition-all duration-300 ${(!sidebarOpen && !mobileMenuOpen) ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
@@ -447,7 +447,7 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
                       ? 'text-primary bg-primary/10 border border-primary/20'
                       : 'text-gray-600 hover:text-white hover:bg-white/5'
                       }`}
-                    title="Atualizações do Sistema"
+                    title={t('nav.updates')}
                   >
                     <RefreshCw className={`w-5 h-5 flex-shrink-0 ${location.pathname === '/admin/updates' ? 'animate-spin-slow text-primary' : ''}`} />
                     <div className={`ml-3 truncate transition-all duration-300 ${(!sidebarOpen && !mobileMenuOpen) ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
@@ -464,7 +464,7 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
                       ? 'text-emerald-300 bg-emerald-400/10 border border-emerald-400/20'
                       : 'text-gray-600 hover:text-emerald-300 hover:bg-white/5'
                       }`}
-                    title="Privacidade"
+                    title={t('coverage.layout.privacy')}
                   >
                     <Shield className="w-5 h-5 flex-shrink-0" />
                     <div className={`ml-3 truncate transition-all duration-300 ${(!sidebarOpen && !mobileMenuOpen) ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
@@ -481,7 +481,7 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
                       ? 'text-orange-400 bg-orange-400/10 border border-orange-400/20'
                       : 'text-gray-600 hover:text-orange-400 hover:bg-white/5'
                       }`}
-                    title="Prestador de Serviços"
+                    title={t('nav.service_provider')}
                   >
                     <Crown className="w-5 h-5 flex-shrink-0" />
                     <div className={`ml-3 truncate transition-all duration-300 ${(!sidebarOpen && !mobileMenuOpen) ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
@@ -527,7 +527,7 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
               <Link 
                 to="/admin/flow" 
                 className="block group relative"
-                title="Flow Builder Beta"
+                title={t('coverage.layout.flow_builder_beta')}
                 onClick={handleFlowCtaClick}
               >
                 {/* Outer Glow Effects - Using #27CBEF Gradient - Active by Default */}
@@ -593,7 +593,7 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
                   {currentPageLabel}
                 </h2>
                 <div className="text-[9px] text-primary/60 font-black uppercase tracking-[0.3em] mt-0.5 animate-in fade-in">
-                  <span className="text-[7px] lowercase opacity-40 mr-1">versão</span> v{APP_VERSION}
+                  <span className="text-[7px] lowercase opacity-40 mr-1">{t('coverage.layout.version')}</span> v{APP_VERSION}
                 </div>
               </div>
             </div>
@@ -649,7 +649,7 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
         onClose={() => setIsFlowBetaModalOpen(false)}
         title={
           <div className="flex items-center gap-3">
-            <span className="text-lg font-black uppercase tracking-[0.12em] text-white">Flow Builder</span>
+            <span className="text-lg font-black uppercase tracking-[0.12em] text-white">{t('coverage.layout.flow_builder')}</span>
             <span className="inline-flex rounded-full border border-[#27CBEF]/30 bg-[#27CBEF]/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.24em] text-[#7EE7F8]">
               Beta
             </span>
@@ -662,7 +662,7 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
             <div className="relative">
               <img
                 src={`${import.meta.env.BASE_URL}print-flow.png`}
-                alt="Preview do Flow Builder"
+                alt={t('coverage.layout.flow_preview')}
                 className="block h-auto w-full object-cover opacity-60 saturate-75"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-[#05050A] via-[#05050A]/40 to-[#05050A]/25" />
@@ -672,10 +672,10 @@ export const Layout: React.FC<{ children: React.ReactNode; maxWidth?: string }> 
 
           <div className="space-y-4 text-center">
             <p className="text-lg font-black uppercase tracking-[0.32em] text-white">
-              Em breve
+              {t('coverage.layout.coming_soon')}
             </p>
             <p className="mx-auto max-w-2xl text-sm text-gray-400">
-              O preview completo do Flow Builder sera liberado em breve no ambiente demo.
+              {t('coverage.layout.flow_coming_soon_description')}
             </p>
           </div>
 
